@@ -1,0 +1,34 @@
+# Ansible
+*.retry
+ansible/*.log
+ansible/inventory/*.bak
+
+# Secrets (never commit)
+**/secrets/
+*.pem
+*.key
+*secret*
+*password*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# Temporary
+*.tmp
+*.bak
+*.backup
+
+# Local planning documents (not for public repo)
+docs/plans/
