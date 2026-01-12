@@ -1,0 +1,59 @@
+---
+# Variables specific to control plane nodes
+
+# =============================================================================
+# Kernel Modules
+# =============================================================================
+
+kernel_modules:
+  - overlay
+  - br_netfilter
+
+# =============================================================================
+# Sysctl Settings
+# =============================================================================
+
+sysctl_settings:
+  net.bridge.bridge-nf-call-iptables: 1
+  net.bridge.bridge-nf-call-ip6tables: 1
+  net.ipv4.ip_forward: 1
+
+# =============================================================================
+# Required Packages
+# =============================================================================
+
+# Prerequisites for Kubernetes
+kubernetes_prerequisites:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gpg
+
+# Container runtime
+containerd_packages:
+  - containerd
+
+# Kubernetes components
+kubernetes_packages:
+  - kubelet
+  - kubeadm
+  - kubectl
+
+# Longhorn prerequisites
+longhorn_prerequisites:
+  - open-iscsi
+
+# =============================================================================
+# Certificate SANs
+# =============================================================================
+
+# All hostnames/IPs that should be valid for the API server certificate
+cert_sans:
+  - "k8s-api.home.rommelporras.com"
+  - "10.10.30.10"  # VIP
+  - "10.10.30.11"  # cp1
+  - "10.10.30.12"  # cp2
+  - "10.10.30.13"  # cp3
+  - "k8s-cp1"
+  - "k8s-cp2"
+  - "k8s-cp3"

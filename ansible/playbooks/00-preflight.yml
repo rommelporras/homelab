@@ -1,0 +1,76 @@
+---
+# 00-preflight.yml - Pre-flight checks before Kubernetes installation
+# Run: ansible-playbook playbooks/00-preflight.yml
+
+- name: Pre-flight checks for Kubernetes
+  hosts: control_plane
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/control_plane.yml
+
+  tasks:
+    # =========================================================================
+    # 0.1 Verify cgroup v2
+    # =========================================================================
+    - name: "Check: cgroup v2 enabled"
+      ansible.builtin.command:
+        cmd: stat -fc %T /sys/fs/cgroup/
+      register: cgroup_check
+      changed_when: false
+      failed_when: cgroup_check.stdout != "cgroup2fs"
+
+    # =========================================================================
+    # 0.2 Verify Network Interface
+    # =========================================================================
+    - name: "Check: Network interface {{ vip_interface }} is UP"
+      ansible.builtin.shell:
+        cmd: ip -br link show {{ vip_interface }} | grep -q UP
+      changed_when: false
+
+    - name: Get interface MAC address
+      ansible.builtin.shell:
+        cmd: ip -br link show {{ vip_interface }} | awk '{print $3}'
+      register: interface_mac
+      changed_when: false
+
+    # =========================================================================
+    # 0.3 Verify DNS Resolution
+    # =========================================================================
+    - name: "Check: VIP hostname resolves to {{ vip_address }}"
+      ansible.builtin.shell:
+        cmd: getent hosts {{ vip_hostname }} | grep -q {{ vip_address }}
+      changed_when: false
+
+    - name: "Check: All node hostnames resolve"
+      ansible.builtin.command:
+        cmd: getent hosts {{ item }}.{{ cluster_domain }}
+      loop:
+        - k8s-cp1
+        - k8s-cp2
+        - k8s-cp3
+      changed_when: false
+
+    # =========================================================================
+    # 0.4 Verify Node Connectivity
+    # =========================================================================
+    - name: "Check: All control plane nodes reachable"
+      ansible.builtin.command:
+        cmd: ping -c 1 -W 2 {{ item }}
+      loop:
+        - 10.10.30.11
+        - 10.10.30.12
+        - 10.10.30.13
+      changed_when: false
+
+    # =========================================================================
+    # Summary
+    # =========================================================================
+    - name: "✓ Pre-flight PASSED"
+      ansible.builtin.debug:
+        msg: |
+          {{ inventory_hostname }} ({{ interface_mac.stdout }})
+          ├── cgroup v2: enabled
+          ├── interface: {{ vip_interface }} UP
+          ├── DNS: {{ vip_hostname }} → {{ vip_address }}
+          └── connectivity: all nodes reachable

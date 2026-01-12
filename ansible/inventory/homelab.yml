@@ -1,0 +1,29 @@
+---
+# Kubernetes Homelab Inventory
+# YAML format (modern Ansible convention)
+
+all:
+  children:
+    # All Kubernetes control plane nodes
+    control_plane:
+      hosts:
+        k8s-cp1:
+          ansible_host: 10.10.30.11
+        k8s-cp2:
+          ansible_host: 10.10.30.12
+        k8s-cp3:
+          ansible_host: 10.10.30.13
+
+    # First control plane (for init operations)
+    control_plane_init:
+      hosts:
+        k8s-cp1:
+          ansible_host: 10.10.30.11
+
+    # Additional control planes (for join operations)
+    control_plane_join:
+      hosts:
+        k8s-cp2:
+          ansible_host: 10.10.30.12
+        k8s-cp3:
+          ansible_host: 10.10.30.13

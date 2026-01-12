@@ -1,0 +1,60 @@
+---
+# Variables for all hosts
+# These values come from docs/CLUSTER_STATUS.md (single source of truth)
+
+# =============================================================================
+# Ansible Settings
+# =============================================================================
+
+# Explicitly set Python interpreter to avoid discovery warnings
+ansible_python_interpreter: /usr/bin/python3
+
+# =============================================================================
+# Cluster Configuration
+# =============================================================================
+
+cluster_name: homelab
+
+# Kubernetes version
+kubernetes_version: "1.35.0"
+kubernetes_apt_version: "v1.35"
+
+# Container runtime
+containerd_version: "1.7"  # Ubuntu 24.04 default
+
+# =============================================================================
+# Network Configuration
+# =============================================================================
+
+# Virtual IP for API server HA
+vip_address: "10.10.30.10"
+vip_hostname: "k8s-api.home.rommelporras.com"
+vip_interface: "eno1"  # Intel I219-LM on M80q
+
+# Pod and Service CIDRs
+pod_cidr: "10.244.0.0/16"
+service_cidr: "10.96.0.0/12"
+
+# =============================================================================
+# Component Versions
+# =============================================================================
+
+# kube-vip (check: https://github.com/kube-vip/kube-vip/releases)
+kubevip_version: "v0.8.7"
+
+# Cilium CNI (check: https://github.com/cilium/cilium/releases)
+cilium_version: "1.16.5"
+
+# =============================================================================
+# Paths
+# =============================================================================
+
+kubernetes_config_dir: "/etc/kubernetes"
+containerd_config_file: "/etc/containerd/config.toml"
+kubeadm_config_file: "/etc/kubernetes/kubeadm-config.yaml"
+
+# =============================================================================
+# DNS
+# =============================================================================
+
+cluster_domain: "home.rommelporras.com"
