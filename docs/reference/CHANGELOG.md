@@ -4,6 +4,61 @@
 
 ---
 
+## January 16, 2026 — Kubernetes HA Cluster Bootstrap Complete
+
+### Milestone: 3-Node HA Cluster Running
+
+Successfully bootstrapped a 3-node high-availability Kubernetes cluster using kubeadm.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| Kubernetes | v1.35.0 | Running |
+| kube-vip | v1.0.3 | Active (VIP: 10.10.30.10) |
+| Cilium | 1.18.6 | Healthy |
+| etcd | 3 members | Quorum established |
+
+### Ansible Playbooks Created
+
+Full automation for cluster bootstrap:
+
+| Playbook | Purpose |
+|----------|---------|
+| 00-preflight.yml | Pre-flight checks (cgroup v2, network, DNS) |
+| 01-prerequisites.yml | System prep (swap, modules, containerd, kubeadm) |
+| 02-kube-vip.yml | VIP setup with K8s 1.29+ workaround |
+| 03-init-cluster.yml | kubeadm init with config generation |
+| 04-cilium.yml | CNI installation with checksum verification |
+| 05-join-cluster.yml | Control plane join with post-join reboot |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Post-join reboot | Enabled | Resolves Cilium init timeouts and kube-vip leader election conflicts |
+| Workstation config | ~/.kube/homelab.yaml | Separate from work EKS (~/.kube/config) |
+| kubectl alias | `kubectl-homelab` | Work wiki copy-paste compatibility |
+
+### Lessons Learned
+
+**Cascading restart issue:** Joining multiple control planes can cause cascading failures:
+- Cilium init timeouts ("failed to sync configmap cache")
+- kube-vip leader election conflicts
+- Accumulated backoff timers on failed containers
+
+**Solution:** Reboot each node after join to clear state and backoff timers.
+
+### Workstation Setup
+
+```bash
+# Homelab cluster (separate from work)
+kubectl-homelab get nodes
+
+# Work EKS (unchanged)
+kubectl get pods
+```
+
+---
+
 ## January 11, 2026 — Node Preparation & Project Setup
 
 ### Ubuntu Pro Attached

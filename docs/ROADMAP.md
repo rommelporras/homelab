@@ -1,6 +1,6 @@
 # Project Roadmap & CKA Timeline
 
-> **Last Updated:** January 11, 2026
+> **Last Updated:** January 16, 2026
 > **Target:** CKA Certification by September 2026
 > **Current state:** See [CLUSTER_STATUS.md](CLUSTER_STATUS.md)
 
@@ -9,7 +9,7 @@
 ## Current Progress
 
 ```
-[███████████░░░░░░░░░] 30% — OS Installed, Ready for K8s
+[██████████████░░░░░░] 70% — Kubernetes HA Cluster Running
 ```
 
 | Milestone | Status | Completed |
@@ -18,10 +18,10 @@
 | Switch configured | Done | Jan 10, 2026 |
 | Ubuntu installed | Done | Jan 11, 2026 |
 | SSH access working | Done | Jan 11, 2026 |
-| K8s prerequisites | Next | — |
-| Cluster bootstrap | Upcoming | — |
-| CNI (Cilium) | Upcoming | — |
-| Storage (Longhorn) | Upcoming | — |
+| K8s prerequisites | Done | Jan 16, 2026 |
+| Cluster bootstrap | Done | Jan 16, 2026 |
+| CNI (Cilium) | Done | Jan 16, 2026 |
+| Storage (Longhorn) | Next | — |
 
 ---
 
@@ -36,16 +36,17 @@
 - [x] Configure DHCP/DNS
 - [x] Verify SSH access
 
-### Phase 2: Kubernetes Bootstrap — Current
+### Phase 2: Kubernetes Bootstrap — COMPLETE
 
-**Target:** January 2026
+**Completed:** January 16, 2026
 
-- [ ] Run prerequisites (swap, modules, containerd)
-- [ ] Set up kube-vip for VIP
-- [ ] Initialize cluster on k8s-cp1
-- [ ] Join remaining control planes
-- [ ] Install Cilium CNI
-- [ ] Verify etcd quorum
+- [x] Run prerequisites (swap, modules, containerd)
+- [x] Set up kube-vip for VIP (10.10.30.10)
+- [x] Initialize cluster on k8s-cp1
+- [x] Join remaining control planes (cp2, cp3)
+- [x] Install Cilium CNI (v1.18.6)
+- [x] Verify etcd quorum (3 members)
+- [x] Workstation kubectl-homelab alias configured
 
 ### Phase 3: Storage & Monitoring
 
@@ -119,7 +120,7 @@ Migration order:
 | Jan 3, 2026 | Hardware purchased |
 | Jan 10, 2026 | Switch configured |
 | Jan 11, 2026 | Ubuntu installed |
-| Jan 2026 | Kubernetes cluster running |
+| Jan 16, 2026 | **Kubernetes HA cluster running** |
 | Feb 2026 | Longhorn + monitoring deployed |
 | Apr 2026 | Workloads migrated |
 | Sep 2026 | CKA passed |

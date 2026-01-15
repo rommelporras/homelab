@@ -1,0 +1,325 @@
+---
+# Phase 5: Join additional control plane nodes to the cluster
+# Run: ansible-playbook playbooks/05-join-cluster.yml
+#
+# Prerequisites:
+#   - Phase 3 (kubeadm init) completed on cp1
+#   - Phase 4 (Cilium) installed on cp1
+#   - All nodes have completed Phase 1 (prerequisites)
+#
+# This playbook:
+#   1. Generates fresh join tokens on cp1
+#   2. Joins cp2 and cp3 as control plane nodes
+#   3. Copies kube-vip manifest for HA failover
+#   4. Configures kubectl for user
+#   5. Reboots nodes to ensure clean initialization
+#
+# Why reboot? During testing, we found that joining multiple control planes
+# can cause cascading restart issues due to:
+#   - Cilium init timeouts ("failed to sync configmap cache")
+#   - kube-vip leader election conflicts
+#   - Accumulated backoff timers on failed containers
+# A clean reboot after join resolves these timing issues.
+
+- name: Generate join credentials on first control plane
+  hosts: control_plane_init
+  gather_facts: false
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/control_plane.yml
+
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+
+  tasks:
+    - name: Verify cluster is healthy before generating join credentials
+      ansible.builtin.command:
+        cmd: kubectl get nodes
+      changed_when: false
+      register: cluster_check
+      failed_when: "'Ready' not in cluster_check.stdout"
+
+    # Certificate key expires in 2 hours, so generate fresh one
+    - name: Upload certificates and get certificate key
+      ansible.builtin.command:
+        cmd: kubeadm init phase upload-certs --upload-certs
+      register: upload_certs_output
+      changed_when: true
+
+    - name: Extract certificate key from output
+      ansible.builtin.set_fact:
+        certificate_key: "{{ upload_certs_output.stdout | regex_search('[a-f0-9]{64}') }}"
+
+    - name: Validate certificate key was extracted
+      ansible.builtin.assert:
+        that:
+          - certificate_key is defined
+          - certificate_key | length == 64
+        fail_msg: "Failed to extract certificate key from kubeadm output"
+
+    # Token expires in 24 hours
+    - name: Generate join command
+      ansible.builtin.command:
+        cmd: kubeadm token create --print-join-command
+      register: join_command_output
+      changed_when: true
+
+    - name: Set join command fact
+      ansible.builtin.set_fact:
+        kubeadm_join_command: "{{ join_command_output.stdout }}"
+
+    - name: Validate join command
+      ansible.builtin.assert:
+        that:
+          - kubeadm_join_command is defined
+          - "'kubeadm join' in kubeadm_join_command"
+        fail_msg: "Failed to generate valid join command"
+
+    - name: Display join info (for debugging)
+      ansible.builtin.debug:
+        msg: |
+          Join command: {{ kubeadm_join_command }}
+          Certificate key: {{ certificate_key }}
+
+    # Save to temp file for other plays to use
+    - name: Save join credentials to temp file
+      ansible.builtin.copy:
+        content: |
+          JOIN_COMMAND={{ kubeadm_join_command }}
+          CERTIFICATE_KEY={{ certificate_key }}
+        dest: /tmp/kubeadm-join-credentials
+        mode: '0600'
+
+
+- name: Join additional control plane nodes
+  hosts: control_plane_join
+  gather_facts: true
+  become: true
+  serial: 1  # Join one node at a time to reduce cluster churn
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/control_plane.yml
+
+  vars:
+    # User to configure kubectl for (fallback to wawashi if not set in inventory)
+    target_user: "{{ ansible_user | default('wawashi') }}"
+
+  tasks:
+    # =========================================
+    # Check if already joined
+    # =========================================
+    - name: Check if node is already part of the cluster
+      ansible.builtin.stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: kubelet_conf
+
+    - name: Set join needed fact
+      ansible.builtin.set_fact:
+        node_needs_join: "{{ not kubelet_conf.stat.exists }}"
+
+    - name: Skip if already joined
+      ansible.builtin.debug:
+        msg: "Node {{ inventory_hostname }} is already part of the cluster, skipping join"
+      when: not node_needs_join
+
+    # =========================================
+    # Get join credentials from cp1
+    # =========================================
+    - name: Fetch join credentials from cp1
+      ansible.builtin.slurp:
+        src: /tmp/kubeadm-join-credentials
+      delegate_to: "{{ groups['control_plane_init'][0] }}"
+      register: join_credentials_file
+      when: node_needs_join
+
+    - name: Parse join credentials
+      ansible.builtin.set_fact:
+        join_credentials: "{{ (join_credentials_file.content | b64decode).split('\n') | select('match', '^[A-Z]') | list }}"
+      when: node_needs_join
+
+    - name: Extract join command and certificate key
+      ansible.builtin.set_fact:
+        kubeadm_join_command: "{{ join_credentials | select('match', '^JOIN_COMMAND=') | first | regex_replace('^JOIN_COMMAND=', '') }}"
+        certificate_key: "{{ join_credentials | select('match', '^CERTIFICATE_KEY=') | first | regex_replace('^CERTIFICATE_KEY=', '') }}"
+      when: node_needs_join
+
+    # =========================================
+    # Join the cluster
+    # =========================================
+    - name: Join cluster as control plane
+      ansible.builtin.command:
+        cmd: "{{ kubeadm_join_command }} --control-plane --certificate-key {{ certificate_key }}"
+      when: node_needs_join
+      register: join_result
+      # Join can take a few minutes
+      async: 300
+      poll: 10
+
+    - name: Display join result
+      ansible.builtin.debug:
+        msg: "{{ join_result.stdout_lines | default(['Join skipped - already member']) }}"
+      when: node_needs_join
+
+    # =========================================
+    # Configure kubectl for user
+    # =========================================
+    - name: Create .kube directory for user
+      ansible.builtin.file:
+        path: "/home/{{ target_user }}/.kube"
+        state: directory
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        mode: '0755'
+      when: node_needs_join
+
+    - name: Copy admin.conf to user's kubeconfig
+      ansible.builtin.copy:
+        src: /etc/kubernetes/admin.conf
+        dest: "/home/{{ target_user }}/.kube/config"
+        remote_src: true
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        mode: '0600'
+      when: node_needs_join
+
+    # =========================================
+    # Copy kube-vip manifest for HA failover
+    # =========================================
+    - name: Check if kube-vip manifest exists
+      ansible.builtin.stat:
+        path: /etc/kubernetes/manifests/kube-vip.yaml
+      register: local_kubevip_manifest
+
+    - name: Fetch kube-vip manifest from cp1
+      ansible.builtin.slurp:
+        src: /etc/kubernetes/manifests/kube-vip.yaml
+      delegate_to: "{{ groups['control_plane_init'][0] }}"
+      register: kubevip_manifest
+      when: node_needs_join or not local_kubevip_manifest.stat.exists
+
+    - name: Deploy kube-vip manifest
+      ansible.builtin.copy:
+        content: "{{ kubevip_manifest.content | b64decode }}"
+        dest: /etc/kubernetes/manifests/kube-vip.yaml
+        mode: '0644'
+      when: node_needs_join or not local_kubevip_manifest.stat.exists
+
+    # =========================================
+    # Wait for node to be recognized
+    # =========================================
+    - name: Wait for node to appear in cluster
+      ansible.builtin.command:
+        cmd: kubectl get node {{ inventory_hostname }}
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: node_check
+      until: node_check.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+      when: node_needs_join
+
+    # =========================================
+    # Reboot for clean initialization
+    # =========================================
+    # Based on testing: joining control planes can cause cascading restarts
+    # due to timing issues with Cilium, kube-vip, and other components.
+    # A clean reboot ensures all static pods start fresh without backoff timers.
+    - name: Reboot node for clean initialization
+      ansible.builtin.reboot:
+        msg: "Rebooting after control plane join for clean initialization"
+        reboot_timeout: 300
+        post_reboot_delay: 30
+      when: node_needs_join
+
+    - name: Wait for node to be Ready after reboot
+      ansible.builtin.command:
+        cmd: kubectl get node {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: node_ready
+      until: node_ready.stdout == "True"
+      retries: 30
+      delay: 10
+      changed_when: false
+      when: node_needs_join
+
+    - name: "Node {{ inventory_hostname }} joined successfully"
+      ansible.builtin.debug:
+        msg: |
+          Control plane node {{ inventory_hostname }} has joined the cluster!
+          ├── Node status: Ready
+          ├── kubectl configured for {{ target_user }}
+          ├── kube-vip manifest deployed
+          └── Clean reboot completed
+      when: node_needs_join
+
+
+- name: Final cluster verification
+  hosts: control_plane_init
+  gather_facts: false
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+
+  tasks:
+    - name: Get all nodes
+      ansible.builtin.command:
+        cmd: kubectl get nodes -o wide
+      register: all_nodes
+      changed_when: false
+
+    - name: Get etcd pod name
+      ansible.builtin.command:
+        cmd: kubectl get pods -n kube-system -l component=etcd -o jsonpath='{.items[0].metadata.name}'
+      register: etcd_pod_name
+      changed_when: false
+
+    - name: Get etcd member list
+      ansible.builtin.command:
+        cmd: >
+          kubectl -n kube-system exec {{ etcd_pod_name.stdout }} --
+          etcdctl --endpoints=https://127.0.0.1:2379
+          --cacert=/etc/kubernetes/pki/etcd/ca.crt
+          --cert=/etc/kubernetes/pki/etcd/server.crt
+          --key=/etc/kubernetes/pki/etcd/server.key
+          member list -w table
+      register: etcd_members
+      changed_when: false
+
+    - name: Get Cilium status
+      ansible.builtin.command:
+        cmd: cilium status
+      register: cilium_status
+      changed_when: false
+      failed_when: false
+
+    - name: Cluster join complete
+      ansible.builtin.debug:
+        msg: |
+          ============================================
+          CLUSTER JOIN COMPLETE
+          ============================================
+
+          Nodes:
+          {{ all_nodes.stdout }}
+
+          etcd Members:
+          {{ etcd_members.stdout }}
+
+          Cilium Status:
+          {{ cilium_status.stdout | default('Unable to get Cilium status') }}
+
+          ============================================
+          All control plane nodes have joined!
+          Your HA cluster is now ready.
+          ============================================
+
+    - name: Cleanup join credentials
+      ansible.builtin.file:
+        path: /tmp/kubeadm-join-credentials
+        state: absent

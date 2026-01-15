@@ -1,7 +1,7 @@
 # Project Context
 
 > **Purpose:** Quick orientation and project snapshot
-> **Last Updated:** January 11, 2026
+> **Last Updated:** January 16, 2026
 > **Source of Truth:** [CLUSTER_STATUS.md](CLUSTER_STATUS.md)
 
 ---
@@ -14,7 +14,7 @@
 | **Goal** | Learn Kubernetes, pass CKA by September 2026 |
 | **Hardware** | 3x Lenovo M80q (i5-10400T, 16GB, 512GB NVMe) |
 | **OS** | Ubuntu 24.04.3 LTS |
-| **Current Phase** | Ready for Kubernetes bootstrap |
+| **Current Phase** | Kubernetes HA cluster running |
 
 ---
 
@@ -50,14 +50,15 @@ Do NOT duplicate values across files. Reference CLUSTER_STATUS.md instead.
 - [x] DHCP reservations in OPNsense
 - [x] DNS entries configured
 - [x] SSH key authentication
+- [x] Kubernetes prerequisites (swap, modules, containerd)
+- [x] kubeadm cluster bootstrap (3 control planes)
+- [x] kube-vip for API VIP (10.10.30.10)
+- [x] Cilium CNI (v1.18.6)
 
 ### Not Yet Implemented
-- [ ] Kubernetes prerequisites (swap, modules, containerd)
-- [ ] kubeadm cluster bootstrap
-- [ ] kube-vip for API VIP
-- [ ] Cilium CNI
 - [ ] Longhorn storage
-- [ ] Any workloads
+- [ ] NFS mounts from Dell 5090
+- [ ] Workload migration
 
 ---
 
@@ -75,10 +76,8 @@ Do NOT duplicate values across files. Reference CLUSTER_STATUS.md instead.
 
 ## Next Steps
 
-1. Create Ansible playbook for K8s prerequisites
-2. Run prerequisites (swap, modules, containerd, kubeadm)
-3. Bootstrap cluster on k8s-cp1
-4. Set up kube-vip for VIP
-5. Join remaining nodes
-6. Install Cilium CNI
-7. Deploy Longhorn
+1. Install Longhorn for persistent storage
+2. Configure NFS mounts from Dell 5090
+3. Deploy first workloads (AdGuard Home, Homepage)
+4. Set up monitoring (Prometheus + Grafana)
+5. Continue CKA study with hands-on practice

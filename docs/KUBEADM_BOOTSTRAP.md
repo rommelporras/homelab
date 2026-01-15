@@ -1,6 +1,6 @@
 # kubeadm Cluster Bootstrap Guide
 
-> **Last Updated:** January 11, 2026
+> **Last Updated:** January 16, 2026
 > **Kubernetes Version:** v1.35.x
 > **Target OS:** Ubuntu Server 24.04.3 LTS
 > **Node details:** See [CLUSTER_STATUS.md](CLUSTER_STATUS.md)
@@ -237,7 +237,7 @@ ip -br link | grep -v lo
 # Set variables
 export VIP=10.10.30.10
 export INTERFACE=eno1  # Adjust if your interface differs
-export KVVERSION=v0.8.7  # Check latest: https://github.com/kube-vip/kube-vip/releases
+export KVVERSION=v1.0.3  # Check latest: https://github.com/kube-vip/kube-vip/releases
 
 echo "Using VIP: $VIP on interface: $INTERFACE with kube-vip: $KVVERSION"
 
@@ -258,9 +258,21 @@ sudo ctr run --rm --net-host ghcr.io/kube-vip/kube-vip:${KVVERSION} vip \
 
 # Verify manifest was created
 cat /etc/kubernetes/manifests/kube-vip.yaml | head -20
+
+# K8s 1.29+ workaround: Use super-admin.conf during bootstrap
+# IMPORTANT: Only change hostPath.path, NOT volumeMount.mountPath!
+# kube-vip v1.0.3 expects kubeconfig at /etc/kubernetes/admin.conf inside container
+sudo sed -i 's|path: /etc/kubernetes/admin.conf|path: /etc/kubernetes/super-admin.conf|' \
+    /etc/kubernetes/manifests/kube-vip.yaml
+
+# Verify workaround applied (hostPath should show super-admin.conf)
+grep -A1 "hostPath:" /etc/kubernetes/manifests/kube-vip.yaml
+# Verify mountPath still shows admin.conf (where kube-vip expects it)
+grep "mountPath:" /etc/kubernetes/manifests/kube-vip.yaml
 ```
 
 > **Note:** kube-vip won't start until kubeadm init creates the required certificates.
+> After kubeadm init succeeds, revert to admin.conf (see Phase 3.3).
 
 ---
 
@@ -313,7 +325,21 @@ sudo kubeadm init --config=/etc/kubernetes/kubeadm-config.yaml --upload-certs
 - Certificate key (for joining control planes)
 - Join command (for joining nodes)
 
-### 3.3 Configure kubectl
+### 3.3 Revert kube-vip to admin.conf
+
+After kubeadm init succeeds, revert the K8s 1.29+ workaround (hostPath only):
+
+```bash
+# Revert hostPath from super-admin.conf to admin.conf
+sudo sed -i 's|path: /etc/kubernetes/super-admin.conf|path: /etc/kubernetes/admin.conf|' \
+    /etc/kubernetes/manifests/kube-vip.yaml
+
+# Verify hostPath now uses admin.conf
+grep -A1 "hostPath:" /etc/kubernetes/manifests/kube-vip.yaml
+# Should show: path: /etc/kubernetes/admin.conf
+```
+
+### 3.4 Configure kubectl
 
 ```bash
 mkdir -p $HOME/.kube
@@ -321,7 +347,7 @@ sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ```
 
-### 3.4 Verify VIP
+### 3.5 Verify VIP
 
 ```bash
 # Test VIP responds
@@ -353,8 +379,8 @@ cilium version --client
 # Check available Cilium versions (optional)
 # cilium install --list-versions
 
-# Install Cilium (use latest 1.16.x for K8s 1.35 compatibility)
-cilium install --version 1.16.5
+# Install Cilium (1.18.x is latest stable, works with K8s 1.35 via backward compatibility)
+cilium install --version 1.18.6
 
 # Wait for Cilium to be ready (may take 2-3 minutes)
 cilium status --wait

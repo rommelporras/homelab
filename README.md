@@ -1,15 +1,13 @@
 # Kubernetes Homelab Cluster Project
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Status](https://img.shields.io/badge/status-Phase%201%20Complete-green)
+![Status](https://img.shields.io/badge/status-Cluster%20Running-brightgreen)
 ![Kubernetes](https://img.shields.io/badge/kubernetes-v1.35-326CE5?logo=kubernetes&logoColor=white)
-![Proxmox](https://img.shields.io/badge/proxmox-9.1-E57000?logo=proxmox&logoColor=white)
-![OPNsense](https://img.shields.io/badge/opnsense-25.7-D94F00)
+![Cilium](https://img.shields.io/badge/cilium-1.18.6-F8C517?logo=cilium&logoColor=white)
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 
 > **Owner:** Rommel Porras
-> **Location:** Philippines
-> **Last Updated:** January 11, 2026
+> **Last Updated:** January 16, 2026
 
 ---
 
@@ -28,8 +26,10 @@
 | Hardware Purchase | ✅ Complete | 3x M80q + LIANGUO switch |
 | Switch Configuration | ✅ Complete | VLANs configured |
 | Ubuntu Installation | ✅ Complete | All 3 nodes running |
-| K8s Prerequisites | 🔜 Next | Ansible playbook ready |
-| Cluster Bootstrap | 📅 Upcoming | kubeadm HA setup |
+| K8s Prerequisites | ✅ Complete | Ansible automated |
+| Cluster Bootstrap | ✅ Complete | 3-node HA with kubeadm |
+| Cilium CNI | ✅ Complete | v1.18.6 healthy |
+| Longhorn Storage | 🔜 Next | Distributed storage |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/CLUSTER_STATUS.md](docs/CLUSTER_STATUS.md) - Single source of truth
@@ -153,14 +153,35 @@
 
 ---
 
+## 🤖 Ansible Automation
+
+Full cluster bootstrap is automated via Ansible playbooks in `ansible/playbooks/`:
+
+| Playbook | Purpose |
+|----------|---------|
+| 00-preflight.yml | Pre-flight checks (cgroup v2, network, DNS) |
+| 01-prerequisites.yml | System prep (swap, modules, containerd, kubeadm) |
+| 02-kube-vip.yml | VIP setup with K8s 1.29+ workaround |
+| 03-init-cluster.yml | kubeadm init with config generation |
+| 04-cilium.yml | CNI installation with checksum verification |
+| 05-join-cluster.yml | Control plane join with post-join reboot |
+
+```bash
+# Run a playbook
+cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
+```
+
+---
+
 ## 🛤️ Project Journey
 
 | Date | Milestone |
 |------|-----------|
-| **Jan 2026** | Hardware purchased (3x M80q + LIANGUO switch) |
-| **Jan 2026** | Ubuntu 24.04 installed, SSH configured, network ready |
-| **Coming** | Kubernetes bootstrap with kubeadm |
-| **Coming** | Cilium CNI + Longhorn storage |
+| **Jan 3, 2026** | Hardware purchased (3x M80q + LIANGUO switch) |
+| **Jan 10, 2026** | Switch VLANs configured |
+| **Jan 11, 2026** | Ubuntu 24.04 installed, SSH configured |
+| **Jan 16, 2026** | **Kubernetes HA cluster running** (v1.35.0 + Cilium) |
+| **Coming** | Longhorn storage deployment |
 | **Coming** | Workload migration from Proxmox |
 
 See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
@@ -169,21 +190,18 @@ See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 
 ## 🚀 Next Steps
 
-1. **Run Ansible playbook** for K8s prerequisites (swap, modules, containerd)
-2. **Bootstrap cluster** using kubeadm on k8s-cp1
-3. **Set up kube-vip** for API server VIP
-4. **Join remaining nodes** as control planes
-5. **Install Cilium CNI**
-6. **Deploy Longhorn** for storage
-7. **Migrate workloads** from Proxmox
+1. **Deploy Longhorn** for distributed storage (2x replication)
+2. **Set up Prometheus + Grafana** for monitoring
+3. **Deploy Loki** for log aggregation
+4. **Migrate workloads** from Proxmox (AdGuard, Immich, ARR stack)
 
 ---
 
-## 🎯 Target HA Architecture
+## 🎯 HA Architecture Status
 
-| Component | HA? | How |
-|-----------|-----|-----|
-| Control Plane | ✅ Planned | 3-node etcd quorum + kube-vip VIP |
-| Stateless Workloads | ✅ Planned | Replicas spread across nodes |
-| Stateful Workloads | ✅ Planned | Longhorn 2x replication |
-| NAS (media) | ⚠️ No | Single Dell 5090 (acceptable for media) |
+| Component | Status | Implementation |
+|-----------|--------|----------------|
+| Control Plane | ✅ Running | 3-node etcd quorum + kube-vip VIP |
+| Stateless Workloads | ✅ Ready | Replicas spread across nodes |
+| Stateful Workloads | 🔜 Pending | Longhorn 2x replication (next) |
+| NAS (media) | ⚠️ No HA | Single Dell 5090 (acceptable for media) |

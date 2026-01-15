@@ -1,0 +1,180 @@
+---
+# Phase 4: Install Cilium CNI
+# Run: ansible-playbook playbooks/04-cilium.yml
+#
+# Only runs on first control plane node (control_plane_init group)
+# Cilium provides:
+#   - Pod networking (CNI)
+#   - Network policies (CKA exam topic!)
+#   - eBPF-based service load balancing
+#   - Optional: kube-proxy replacement, Hubble observability
+
+- name: Install Cilium CNI
+  hosts: control_plane_init
+  gather_facts: true
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/control_plane.yml
+
+  environment:
+    # Required: Ansible runs as root, but kubeconfig is needed for kubectl/cilium commands
+    KUBECONFIG: /etc/kubernetes/admin.conf
+
+  tasks:
+    # =========================================
+    # Prerequisites check
+    # =========================================
+    - name: Verify kubectl is configured
+      ansible.builtin.command:
+        cmd: kubectl cluster-info
+      changed_when: false
+      register: cluster_info
+      failed_when: cluster_info.rc != 0
+
+    # =========================================
+    # Install Cilium CLI
+    # =========================================
+    - name: Check if Cilium CLI is already installed
+      ansible.builtin.command:
+        cmd: cilium version --client
+      register: cilium_cli_check
+      changed_when: false
+      failed_when: false
+
+    - name: Check installed Cilium CLI version
+      ansible.builtin.set_fact:
+        cilium_cli_installed_version: "{{ cilium_cli_check.stdout | regex_search('cilium-cli: (v[0-9.]+)', '\\1') | first | default('') }}"
+      when: cilium_cli_check.rc == 0
+
+    - name: Determine if Cilium CLI installation needed
+      ansible.builtin.set_fact:
+        cilium_cli_needs_install: "{{ cilium_cli_check.rc != 0 or (cilium_cli_installed_version | default('')) != cilium_cli_version }}"
+
+    - name: Download Cilium CLI
+      ansible.builtin.get_url:
+        url: "https://github.com/cilium/cilium-cli/releases/download/{{ cilium_cli_version }}/cilium-linux-amd64.tar.gz"
+        dest: /tmp/cilium-linux-amd64.tar.gz
+        mode: '0644'
+      when: cilium_cli_needs_install
+
+    - name: Download Cilium CLI checksum
+      ansible.builtin.get_url:
+        url: "https://github.com/cilium/cilium-cli/releases/download/{{ cilium_cli_version }}/cilium-linux-amd64.tar.gz.sha256sum"
+        dest: /tmp/cilium-linux-amd64.tar.gz.sha256sum
+        mode: '0644'
+      when: cilium_cli_needs_install
+
+    - name: Read checksum file
+      ansible.builtin.slurp:
+        src: /tmp/cilium-linux-amd64.tar.gz.sha256sum
+      register: checksum_file
+      when: cilium_cli_needs_install
+
+    - name: Extract expected checksum
+      ansible.builtin.set_fact:
+        expected_checksum: "{{ (checksum_file.content | b64decode).split()[0] }}"
+      when: cilium_cli_needs_install
+
+    - name: Verify Cilium CLI checksum
+      ansible.builtin.stat:
+        path: /tmp/cilium-linux-amd64.tar.gz
+        checksum_algorithm: sha256
+      register: downloaded_file
+      failed_when: downloaded_file.stat.checksum != expected_checksum
+      when: cilium_cli_needs_install
+
+    - name: Extract Cilium CLI to /usr/local/bin
+      ansible.builtin.unarchive:
+        src: /tmp/cilium-linux-amd64.tar.gz
+        dest: /usr/local/bin
+        remote_src: true
+      when: cilium_cli_needs_install
+
+    - name: Cleanup Cilium CLI downloads
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/cilium-linux-amd64.tar.gz
+        - /tmp/cilium-linux-amd64.tar.gz.sha256sum
+      when: cilium_cli_needs_install
+
+    - name: Verify Cilium CLI installation
+      ansible.builtin.command:
+        cmd: cilium version --client
+      register: cilium_cli_version_output
+      changed_when: false
+
+    # =========================================
+    # Install Cilium
+    # =========================================
+    - name: Check if Cilium is already installed
+      ansible.builtin.command:
+        cmd: kubectl get daemonset cilium -n kube-system --no-headers
+      register: cilium_installed
+      changed_when: false
+      failed_when: false
+
+    - name: Install Cilium
+      ansible.builtin.command:
+        cmd: cilium install --version {{ cilium_version }}
+      when: cilium_installed.rc != 0
+      register: cilium_install_output
+
+    - name: Wait for Cilium to be ready
+      ansible.builtin.command:
+        cmd: cilium status --wait --wait-duration 5m
+      changed_when: false
+      register: cilium_status
+
+    # =========================================
+    # Verify
+    # =========================================
+    - name: Get node status
+      ansible.builtin.command:
+        cmd: kubectl get nodes --no-headers -o custom-columns=STATUS:.status.conditions[-1].type
+      register: node_status
+      changed_when: false
+      failed_when: "'Ready' not in node_status.stdout"
+
+    - name: Verify CoreDNS is running
+      ansible.builtin.command:
+        cmd: kubectl get pods -n kube-system -l k8s-app=kube-dns -o jsonpath='{.items[*].status.phase}'
+      register: coredns_status
+      changed_when: false
+      failed_when: "'Running' not in coredns_status.stdout"
+
+    - name: Count running CoreDNS pods
+      ansible.builtin.command:
+        cmd: kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers
+      register: coredns_pods
+      changed_when: false
+
+    - name: Get Cilium status summary
+      ansible.builtin.command:
+        cmd: cilium status
+      register: cilium_final_status
+      changed_when: false
+
+    - name: "Cilium installation complete"
+      ansible.builtin.debug:
+        msg: |
+          Cilium CNI installed on {{ inventory_hostname }}:
+          ├── Cilium CLI: {{ cilium_cli_version }}
+          ├── Cilium: v{{ cilium_version }}
+          ├── Node status: {{ node_status.stdout }}
+          ├── CoreDNS pods: {{ coredns_pods.stdout_lines | length }}
+          └── Components: cilium, cilium-envoy, cilium-operator
+
+          Cilium provides:
+          ├── Pod networking (CNI)
+          ├── Network policies (kubectl get networkpolicies)
+          ├── eBPF-based dataplane (faster than iptables)
+          └── Service load balancing
+
+          Useful commands:
+          ├── cilium status              # Check Cilium health
+          ├── cilium connectivity test   # Run connectivity tests
+          ├── kubectl get ciliumendpoints -A  # View Cilium endpoints
+          └── kubectl get ciliumnodes    # View Cilium node info

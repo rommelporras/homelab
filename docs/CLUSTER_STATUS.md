@@ -1,7 +1,7 @@
 # Cluster Status — Single Source of Truth
 
-> **Last Updated:** January 11, 2026
-> **Status:** Ubuntu Installed — Ready for Kubernetes Bootstrap
+> **Last Updated:** January 16, 2026
+> **Status:** Kubernetes HA Cluster Running (3 control planes)
 
 **All other docs should reference this file for node/hardware/network values.**
 
@@ -15,7 +15,7 @@
 | 2 | k8s-cp2 | 10.10.30.12 | 88:a4:c2:6b:1c:44 | k8s-cp2.home.rommelporras.com |
 | 3 | k8s-cp3 | 10.10.30.13 | 88:a4:c2:64:2d:81 | k8s-cp3.home.rommelporras.com |
 
-**VIP:** 10.10.30.10 — k8s-api.home.rommelporras.com (kube-vip, pending)
+**VIP:** 10.10.30.10 — k8s-api.home.rommelporras.com (kube-vip, active)
 
 ---
 
@@ -116,23 +116,23 @@ ssh wawashi@k8s-cp1.home.rommelporras.com
 - [x] DNS entries in AdGuard Home
 - [x] SSH key authentication
 
-### Phase 2: Kubernetes Prerequisites (Next)
-- [ ] System updates
-- [ ] Disable swap
-- [ ] Kernel modules (overlay, br_netfilter)
-- [ ] sysctl (ip_forward, bridge-nf-call)
-- [ ] containerd
-- [ ] kubeadm, kubelet, kubectl
-- [ ] open-iscsi (Longhorn prereq)
+### Phase 2: Kubernetes Prerequisites — COMPLETE
+- [x] System updates
+- [x] Disable swap
+- [x] Kernel modules (overlay, br_netfilter)
+- [x] sysctl (ip_forward, bridge-nf-call)
+- [x] containerd
+- [x] kubeadm, kubelet, kubectl
+- [x] open-iscsi (Longhorn prereq)
 
-### Phase 3: Cluster Bootstrap
-- [ ] kube-vip for VIP
-- [ ] kubeadm init on k8s-cp1
-- [ ] Join k8s-cp2, k8s-cp3
-- [ ] Cilium CNI
-- [ ] Verify etcd quorum
+### Phase 3: Cluster Bootstrap — COMPLETE
+- [x] kube-vip for VIP
+- [x] kubeadm init on k8s-cp1
+- [x] Join k8s-cp2, k8s-cp3
+- [x] Cilium CNI
+- [x] Verify etcd quorum (3 members)
 
-### Phase 4: Storage & Workloads
+### Phase 4: Storage & Workloads (Next)
 - [ ] Longhorn
 - [ ] NFS mounts from Dell 5090
 - [ ] First workloads

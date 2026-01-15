@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Kubernetes homelab learning project for CKA certification prep. 3-node HA cluster using Lenovo M80q machines (i5-10400T, 16GB RAM, 512GB NVMe each) running Ubuntu 24.04 LTS with kubeadm.
 
-**Current Status:** Ubuntu installed on all nodes. Ready for Kubernetes bootstrap.
+**Current Status:** 3-node HA Kubernetes cluster running (v1.35.0 with Cilium CNI).
 
 ## Single Source of Truth
 
@@ -19,7 +19,13 @@ homelab/
 ├── CLAUDE.md                      # This file (Claude Code context)
 ├── LICENSE                        # MIT License
 ├── README.md                      # GitHub landing page
+├── TODO.md                        # Bootstrap progress tracker
 ├── VERSIONS.md                    # Component version tracking
+│
+├── ansible/                       # Cluster automation
+│   ├── inventory.yml              # Node inventory
+│   ├── group_vars/all.yml         # Shared variables
+│   └── playbooks/                 # Bootstrap playbooks (00-05)
 │
 └── docs/
     ├── 00_PROJECT_CONTEXT.md      # Project orientation / quick reference
@@ -72,19 +78,23 @@ homelab/
 
 ## Common Commands
 
+**IMPORTANT:** Use `kubectl-homelab` for this cluster. Plain `kubectl` uses work AWS EKS config.
+
 ```bash
 # SSH to nodes
 ssh wawashi@k8s-cp1.home.rommelporras.com
 
-# Kubernetes (after bootstrap)
-kubectl get nodes
-kubectl -n longhorn-system get pods
+# Homelab Kubernetes (uses ~/.kube/homelab.yaml)
+kubectl-homelab get nodes
+kubectl-homelab -n longhorn-system get pods
+kubectl-homelab get componentstatuses
 
-# Check cluster health
-kubectl get componentstatuses
+# Run Ansible playbooks
+cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 ```
 
 ## Rules
 
+- **Use `kubectl-homelab` for this cluster** - Never use plain `kubectl` as it connects to work AWS EKS. The alias is defined in ~/.zshrc and uses ~/.kube/homelab.yaml.
 - **NO AI attribution** in commits - Do not include "Generated with Claude Code", "Co-Authored-By: Claude", or any AI-related attribution in commit messages, PR descriptions, or code comments.
 - **NO automatic git commits or pushes** - Do not run `git commit` or `git push` unless explicitly requested by the user or invoked via `/commit` or `/release` commands.

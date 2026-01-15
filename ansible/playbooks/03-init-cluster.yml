@@ -1,0 +1,231 @@
+---
+# Phase 3: Initialize first control plane node
+# Run: ansible-playbook playbooks/03-init-cluster.yml
+#
+# Prerequisites:
+#   - Phase 1 (prerequisites) completed on all nodes
+#   - Phase 2 (kube-vip) completed on cp1
+#
+# This playbook:
+#   1. Creates kubeadm-config.yaml
+#   2. Runs kubeadm init to bootstrap the cluster
+#   3. Reverts kube-vip workaround (super-admin.conf -> admin.conf)
+#   4. Configures kubectl for the user
+#   5. Verifies VIP responds and cluster is healthy
+#
+# Only runs on first control plane node (control_plane_init group)
+
+- name: Initialize Kubernetes cluster
+  hosts: control_plane_init
+  gather_facts: true
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/control_plane.yml
+
+  vars:
+    # User to configure kubectl for
+    target_user: "{{ ansible_user | default('wawashi') }}"
+
+  tasks:
+    # =========================================
+    # Check if already initialized
+    # =========================================
+    - name: Check if cluster is already initialized
+      ansible.builtin.stat:
+        path: /etc/kubernetes/admin.conf
+      register: admin_conf
+
+    - name: Set initialization needed fact
+      ansible.builtin.set_fact:
+        cluster_needs_init: "{{ not admin_conf.stat.exists }}"
+
+    - name: Skip if already initialized
+      ansible.builtin.debug:
+        msg: "Cluster already initialized on {{ inventory_hostname }}, skipping kubeadm init"
+      when: not cluster_needs_init
+
+    # =========================================
+    # Create kubeadm configuration
+    # =========================================
+    - name: Create kubeadm config file
+      ansible.builtin.copy:
+        content: |
+          apiVersion: kubeadm.k8s.io/v1beta4
+          kind: InitConfiguration
+          localAPIEndpoint:
+            advertiseAddress: "{{ ansible_default_ipv4.address }}"
+            bindPort: 6443
+          nodeRegistration:
+            name: {{ inventory_hostname }}
+            criSocket: unix:///var/run/containerd/containerd.sock
+            # No taints - workloads run on control plane nodes
+          ---
+          apiVersion: kubeadm.k8s.io/v1beta4
+          kind: ClusterConfiguration
+          kubernetesVersion: "v{{ kubernetes_version }}"
+          controlPlaneEndpoint: "{{ vip_hostname }}:6443"
+          networking:
+            podSubnet: "{{ pod_cidr }}"
+            serviceSubnet: "{{ service_cidr }}"
+          apiServer:
+            certSANs:
+          {% for san in cert_sans %}
+              - "{{ san }}"
+          {% endfor %}
+          etcd:
+            local:
+              dataDir: /var/lib/etcd
+        dest: "{{ kubeadm_config_file }}"
+        mode: '0644'
+      when: cluster_needs_init
+
+    - name: Verify kubeadm config was created
+      ansible.builtin.stat:
+        path: "{{ kubeadm_config_file }}"
+      register: kubeadm_config_check
+      failed_when: not kubeadm_config_check.stat.exists
+      when: cluster_needs_init
+
+    # =========================================
+    # Initialize cluster
+    # =========================================
+    - name: Run kubeadm init
+      ansible.builtin.command:
+        cmd: kubeadm init --config={{ kubeadm_config_file }} --upload-certs
+      register: kubeadm_init_output
+      when: cluster_needs_init
+      # Init can take several minutes
+      async: 600
+      poll: 15
+
+    - name: Display kubeadm init output
+      ansible.builtin.debug:
+        msg: "{{ kubeadm_init_output.stdout_lines | default(['Init skipped - already initialized']) }}"
+      when: cluster_needs_init
+
+    # =========================================
+    # Revert kube-vip workaround
+    # After kubeadm init, admin.conf exists and has proper permissions
+    # Revert hostPath from super-admin.conf back to admin.conf
+    # =========================================
+    - name: Check if kube-vip uses super-admin.conf
+      ansible.builtin.command:
+        cmd: "grep -c 'path: /etc/kubernetes/super-admin.conf' /etc/kubernetes/manifests/kube-vip.yaml"
+      register: kubevip_workaround_check
+      changed_when: false
+      failed_when: false
+
+    - name: Revert kube-vip to use admin.conf
+      ansible.builtin.replace:
+        path: /etc/kubernetes/manifests/kube-vip.yaml
+        regexp: 'path: /etc/kubernetes/super-admin\.conf'
+        replace: 'path: /etc/kubernetes/admin.conf'
+      when: kubevip_workaround_check.stdout != "0"
+      register: kubevip_reverted
+
+    - name: Wait for kube-vip to restart after config change
+      ansible.builtin.pause:
+        seconds: 10
+      when: kubevip_reverted is changed
+
+    # =========================================
+    # Configure kubectl for user
+    # =========================================
+    - name: Create .kube directory for user
+      ansible.builtin.file:
+        path: "/home/{{ target_user }}/.kube"
+        state: directory
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        mode: '0755'
+
+    - name: Copy admin.conf to user's kubeconfig
+      ansible.builtin.copy:
+        src: /etc/kubernetes/admin.conf
+        dest: "/home/{{ target_user }}/.kube/config"
+        remote_src: true
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        mode: '0600'
+
+    # =========================================
+    # Verify VIP and cluster health
+    # =========================================
+    - name: Wait for VIP to respond
+      ansible.builtin.command:
+        cmd: "ping -c 1 -W 2 {{ vip_address }}"
+      register: vip_ping
+      until: vip_ping.rc == 0
+      retries: 30
+      delay: 5
+      changed_when: false
+
+    - name: Verify API server responds via VIP
+      ansible.builtin.uri:
+        url: "https://{{ vip_address }}:6443/healthz"
+        validate_certs: false
+        return_content: true
+      register: api_health
+      until: api_health.status == 200
+      retries: 30
+      delay: 5
+
+    - name: Verify node is registered
+      ansible.builtin.command:
+        cmd: kubectl get node {{ inventory_hostname }}
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: node_check
+      changed_when: false
+
+    - name: Get cluster status
+      ansible.builtin.command:
+        cmd: kubectl get nodes -o wide
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: cluster_nodes
+      changed_when: false
+
+    - name: Get all pods
+      ansible.builtin.command:
+        cmd: kubectl get pods -A
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: cluster_pods
+      changed_when: false
+
+    - name: "Cluster initialization complete"
+      ansible.builtin.debug:
+        msg: |
+          Kubernetes cluster initialized on {{ inventory_hostname }}!
+
+          ============================================
+          CLUSTER STATUS
+          ============================================
+
+          Nodes:
+          {{ cluster_nodes.stdout }}
+
+          Pods:
+          {{ cluster_pods.stdout }}
+
+          ============================================
+          IMPORTANT: Node is NotReady until CNI installed
+          ============================================
+
+          VIP Status:
+          ├── Address: {{ vip_address }}
+          ├── Hostname: {{ vip_hostname }}
+          └── API Health: {{ api_health.content }}
+
+          kubectl configured for: {{ target_user }}
+
+          NEXT STEPS:
+          1. Run Phase 4 (Cilium CNI) to make node Ready
+          2. Run Phase 5 to join additional control planes
+
+          Manual verification:
+          ├── kubectl get nodes
+          ├── kubectl get pods -A
+          └── curl -k https://{{ vip_address }}:6443/healthz

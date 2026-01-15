@@ -1,0 +1,153 @@
+---
+# Phase 2: kube-vip setup for control plane HA
+# Run: ansible-playbook playbooks/02-kube-vip.yml
+#
+# Only runs on first control plane node (control_plane_init group)
+# kube-vip provides VIP for API server high availability
+#
+# NOTE: After cp2/cp3 join the cluster, copy the manifest to them:
+#   scp /etc/kubernetes/manifests/kube-vip.yaml cp2:/etc/kubernetes/manifests/
+#   scp /etc/kubernetes/manifests/kube-vip.yaml cp3:/etc/kubernetes/manifests/
+# This enables VIP failover to other control planes.
+
+- name: Set up kube-vip for control plane HA
+  hosts: control_plane_init
+  gather_facts: true
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/control_plane.yml
+
+  tasks:
+    # =========================================
+    # Verify prerequisites
+    # =========================================
+    - name: Verify network interface exists and is UP
+      ansible.builtin.command:
+        cmd: ip -br link show {{ vip_interface }}
+      register: interface_check
+      changed_when: false
+      failed_when: "'UP' not in interface_check.stdout"
+
+    # =========================================
+    # Pull kube-vip image
+    # =========================================
+    - name: Check if kube-vip image exists
+      ansible.builtin.command:
+        cmd: ctr images ls -q
+      register: image_list
+      changed_when: false
+
+    - name: Pull kube-vip image
+      ansible.builtin.command:
+        cmd: ctr image pull {{ kubevip_image }}
+      register: image_pull
+      changed_when: true
+      when: kubevip_image not in image_list.stdout
+
+    # =========================================
+    # Generate kube-vip manifest
+    # =========================================
+    - name: Create Kubernetes manifests directory
+      ansible.builtin.file:
+        path: /etc/kubernetes/manifests
+        state: directory
+        mode: '0755'
+
+    - name: Check if kube-vip manifest exists
+      ansible.builtin.stat:
+        path: /etc/kubernetes/manifests/kube-vip.yaml
+      register: kubevip_manifest
+
+    - name: Generate kube-vip manifest
+      ansible.builtin.command:
+        cmd: >
+          ctr run --rm --net-host {{ kubevip_image }} vip
+          /kube-vip manifest pod
+          --interface {{ vip_interface }}
+          --address {{ vip_address }}
+          --controlplane
+          --services
+          --arp
+          --leaderElection
+      register: kubevip_manifest_content
+      when: not kubevip_manifest.stat.exists
+
+    - name: Write kube-vip manifest
+      ansible.builtin.copy:
+        content: "{{ kubevip_manifest_content.stdout }}"
+        dest: /etc/kubernetes/manifests/kube-vip.yaml
+        mode: '0644'
+      when: not kubevip_manifest.stat.exists
+
+    # =========================================
+    # Apply K8s 1.29+ workaround
+    # In K8s 1.29+, admin.conf lacks permissions during bootstrap.
+    # We mount super-admin.conf from host, but kube-vip expects it at
+    # /etc/kubernetes/admin.conf INSIDE the container.
+    # Only change hostPath.path, NOT volumeMount.mountPath!
+    # See: https://kube-vip.io/docs/installation/static/
+    # =========================================
+    - name: Check if K8s 1.29+ workaround is needed
+      ansible.builtin.command:
+        cmd: "grep -c 'path: /etc/kubernetes/super-admin.conf' /etc/kubernetes/manifests/kube-vip.yaml"
+      register: workaround_check
+      changed_when: false
+      failed_when: false
+
+    - name: Apply K8s 1.29+ workaround (hostPath to super-admin.conf)
+      ansible.builtin.replace:
+        path: /etc/kubernetes/manifests/kube-vip.yaml
+        regexp: '(hostPath:\n\s+path:) /etc/kubernetes/admin\.conf'
+        replace: '\1 /etc/kubernetes/super-admin.conf'
+      when: workaround_check.stdout == "0"
+
+    # =========================================
+    # Verify
+    # =========================================
+    - name: Verify kube-vip manifest exists
+      ansible.builtin.stat:
+        path: /etc/kubernetes/manifests/kube-vip.yaml
+      register: final_check
+      failed_when: not final_check.stat.exists
+
+    - name: Verify manifest contains correct VIP
+      ansible.builtin.command:
+        cmd: grep -q "{{ vip_address }}" /etc/kubernetes/manifests/kube-vip.yaml
+      changed_when: false
+
+    - name: Verify manifest hostPath uses super-admin.conf
+      ansible.builtin.command:
+        cmd: grep -A1 "hostPath:" /etc/kubernetes/manifests/kube-vip.yaml
+      register: hostpath_check
+      changed_when: false
+      failed_when: "'super-admin.conf' not in hostpath_check.stdout"
+
+    - name: Verify manifest mountPath uses admin.conf (where kube-vip expects it)
+      ansible.builtin.command:
+        cmd: grep "mountPath:" /etc/kubernetes/manifests/kube-vip.yaml
+      register: mountpath_check
+      changed_when: false
+      failed_when: "'admin.conf' not in mountpath_check.stdout"
+
+    - name: "kube-vip setup complete"
+      ansible.builtin.debug:
+        msg: |
+          kube-vip configured on {{ inventory_hostname }}:
+          ├── VIP: {{ vip_address }}
+          ├── Interface: {{ vip_interface }}
+          ├── Version: {{ kubevip_version }}
+          ├── Mode: ARP + Leader Election
+          ├── Services: enabled (LoadBalancer support)
+          └── K8s 1.29+ fix applied:
+              - hostPath: /etc/kubernetes/super-admin.conf (host file)
+              - mountPath: /etc/kubernetes/admin.conf (container path)
+
+          POST-INIT STEPS:
+          1. After kubeadm init succeeds, revert hostPath to admin.conf:
+             sudo sed -i 's|path: /etc/kubernetes/super-admin.conf|path: /etc/kubernetes/admin.conf|' \
+               /etc/kubernetes/manifests/kube-vip.yaml
+
+          2. After cp2/cp3 join, copy manifest for HA failover:
+             scp /etc/kubernetes/manifests/kube-vip.yaml cp2:/etc/kubernetes/manifests/
+             scp /etc/kubernetes/manifests/kube-vip.yaml cp3:/etc/kubernetes/manifests/

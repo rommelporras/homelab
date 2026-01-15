@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** January 11, 2026
+> **Last Updated:** January 16, 2026
 
 ---
 
@@ -21,11 +21,12 @@
 |-----------|---------|--------|
 | Ubuntu Server | 24.04.3 LTS | Installed |
 | Kernel | 6.8.0-71-generic | Installed |
-| Kubernetes | v1.35.0 | Planned |
-| containerd | 2.0.x | Planned |
-| Cilium | 1.16.x | Planned |
+| Kubernetes | v1.35.0 | Running (3 nodes) |
+| containerd | 1.7.x | Installed |
+| Cilium | 1.18.6 | Installed |
+| Cilium CLI | v0.19.0 | Installed |
 | Longhorn | 1.7.x | Planned |
-| kube-vip | 0.8.x | Planned |
+| kube-vip | v1.0.3 | Installed |
 
 ---
 
@@ -45,4 +46,5 @@
 
 | Date | Change |
 |------|--------|
+| 2026-01-16 | Updated: kube-vip 0.8.x→v1.0.3, Cilium 1.16.x→1.18.6, containerd 2.0.x→1.7.x |
 | 2026-01-11 | Initial version tracking |
