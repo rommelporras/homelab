@@ -12,7 +12,7 @@ description: Common kubeadm patterns, troubleshooting, and best practices for cl
 ```bash
 # Initialize first control plane node
 sudo kubeadm init \
-  --control-plane-endpoint "10.10.60.10:6443" \
+  --control-plane-endpoint "10.10.30.10:6443" \
   --upload-certs \
   --pod-network-cidr=10.244.0.0/16
 
@@ -24,19 +24,19 @@ sudo kubeadm init \
 ```bash
 # First control plane with certificate upload
 sudo kubeadm init \
-  --control-plane-endpoint "10.10.60.10:6443" \
+  --control-plane-endpoint "10.10.30.10:6443" \
   --upload-certs \
   --pod-network-cidr=10.244.0.0/16
 
 # Join additional control planes (within 2 hours of init)
-sudo kubeadm join 10.10.60.10:6443 \
+sudo kubeadm join 10.10.30.10:6443 \
   --token <token> \
   --discovery-token-ca-cert-hash sha256:<hash> \
   --control-plane \
   --certificate-key <cert-key>
 
 # Join worker nodes
-sudo kubeadm join 10.10.60.10:6443 \
+sudo kubeadm join 10.10.30.10:6443 \
   --token <token> \
   --discovery-token-ca-cert-hash sha256:<hash>
 ```
@@ -89,7 +89,7 @@ Unable to register node with API server
 **Causes & Fixes:**
 1. **Hostname resolution** - Add to /etc/hosts
    ```bash
-   echo "10.10.60.11 k8s-cp-1" | sudo tee -a /etc/hosts
+   echo "10.10.30.11 k8s-cp1" | sudo tee -a /etc/hosts
    ```
 
 2. **kubelet not using correct hostname**
@@ -135,7 +135,7 @@ sudo etcdctl endpoint health --cluster
 
 **Symptoms:**
 ```
-node "k8s-cp-1" not ready
+node "k8s-cp1" not ready
 network plugin is not ready: cni config uninitialized
 ```
 

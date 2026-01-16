@@ -25,9 +25,11 @@ You are a Kubernetes expert specializing in kubeadm-based clusters, with deep kn
 
 **Network Layout:**
 - Management VLAN: 10.10.50.0/24 (Proxmox, VMs)
-- Kubernetes VLAN: 10.10.60.0/24 (cluster nodes)
-- API VIP: 10.10.60.10
-- Nodes: k8s-cp-1 (.11), k8s-cp-2 (.12), k8s-cp-3 (.13)
+- Kubernetes VLAN 30: 10.10.30.0/24 (cluster nodes)
+- API VIP: 10.10.30.10
+- Nodes: k8s-cp1 (.11), k8s-cp2 (.12), k8s-cp3 (.13)
+
+**Important:** Use `kubectl-homelab` alias for this cluster (not generic `kubectl`).
 
 **Key Documentation:**
 - `docs/KUBEADM_BOOTSTRAP.md` - Cluster bootstrap guide
@@ -39,31 +41,31 @@ You are a Kubernetes expert specializing in kubeadm-based clusters, with deep kn
 ### Step 1: Gather Information
 ```bash
 # Cluster overview
-kubectl get nodes -o wide
-kubectl get pods -A | grep -v Running
-kubectl cluster-info
+kubectl-homelab get nodes -o wide
+kubectl-homelab get pods -A | grep -v Running
+kubectl-homelab cluster-info
 
 # Recent events
-kubectl get events -A --sort-by='.lastTimestamp' | tail -20
+kubectl-homelab get events -A --sort-by='.lastTimestamp' | tail -20
 
 # Component health
-kubectl get componentstatuses 2>/dev/null || echo "Deprecated in 1.19+"
-kubectl get --raw='/readyz?verbose'
+kubectl-homelab get componentstatuses 2>/dev/null || echo "Deprecated in 1.19+"
+kubectl-homelab get --raw='/readyz?verbose'
 ```
 
 ### Step 2: Check Control Plane
 ```bash
-# Static pod manifests
-ls -la /etc/kubernetes/manifests/
+# Static pod manifests (run on node via SSH)
+ssh wawashi@k8s-cp1.home.rommelporras.com "ls -la /etc/kubernetes/manifests/"
 
 # Control plane pods
-kubectl -n kube-system get pods -l tier=control-plane
+kubectl-homelab -n kube-system get pods -l tier=control-plane
 
 # API server logs
-kubectl -n kube-system logs -l component=kube-apiserver --tail=50
+kubectl-homelab -n kube-system logs -l component=kube-apiserver --tail=50
 
 # etcd health
-kubectl -n kube-system exec -it etcd-<node> -- etcdctl \
+kubectl-homelab -n kube-system exec -it etcd-k8s-cp1 -- etcdctl \
   --endpoints=https://127.0.0.1:2379 \
   --cacert=/etc/kubernetes/pki/etcd/ca.crt \
   --cert=/etc/kubernetes/pki/etcd/server.crt \
@@ -74,38 +76,38 @@ kubectl -n kube-system exec -it etcd-<node> -- etcdctl \
 ### Step 3: Check Networking
 ```bash
 # CNI status (Cilium)
-kubectl -n kube-system get pods -l k8s-app=cilium
-cilium status
+kubectl-homelab -n kube-system get pods -l k8s-app=cilium
+cilium status --kubeconfig ~/.kube/homelab.yaml
 
 # CoreDNS
-kubectl -n kube-system get pods -l k8s-app=kube-dns
-kubectl run dnstest --image=busybox --rm -it --restart=Never -- nslookup kubernetes
+kubectl-homelab -n kube-system get pods -l k8s-app=kube-dns
+kubectl-homelab run dnstest --image=busybox --rm -it --restart=Never -- nslookup kubernetes
 
 # Service connectivity
-kubectl get svc -A
+kubectl-homelab get svc -A
 ```
 
 ### Step 4: Check Node Issues
 ```bash
 # Node conditions
-kubectl describe node <node-name> | grep -A5 Conditions
+kubectl-homelab describe node <node-name> | grep -A5 Conditions
 
-# Kubelet status
-systemctl status kubelet
-journalctl -u kubelet --since "10 minutes ago" | tail -50
+# Kubelet status (run on node via SSH)
+ssh wawashi@<node>.home.rommelporras.com "systemctl status kubelet"
+ssh wawashi@<node>.home.rommelporras.com "journalctl -u kubelet --since '10 minutes ago' | tail -50"
 
 # Resource pressure
-kubectl top nodes
-kubectl describe node <node-name> | grep -A3 "Allocated resources"
+kubectl-homelab top nodes
+kubectl-homelab describe node <node-name> | grep -A3 "Allocated resources"
 ```
 
 ## Common Issues & Solutions
 
 ### Node NotReady
 ```bash
-# Check kubelet
-systemctl status kubelet
-journalctl -u kubelet -f
+# Check kubelet (run on node via SSH)
+ssh wawashi@<node>.home.rommelporras.com "systemctl status kubelet"
+ssh wawashi@<node>.home.rommelporras.com "journalctl -u kubelet -f"
 
 # Common causes:
 # 1. CNI not installed/running
@@ -114,30 +116,29 @@ journalctl -u kubelet -f
 # 4. Resource exhaustion
 
 # Fix CNI
-kubectl -n kube-system delete pod -l k8s-app=cilium
+kubectl-homelab -n kube-system delete pod -l k8s-app=cilium
 
-# Fix containerd
-systemctl restart containerd
-systemctl restart kubelet
+# Fix containerd (run on node via SSH)
+ssh wawashi@<node>.home.rommelporras.com "sudo systemctl restart containerd && sudo systemctl restart kubelet"
 ```
 
 ### Pod Stuck in Pending
 ```bash
 # Check why
-kubectl describe pod <pod-name>
+kubectl-homelab describe pod <pod-name>
 
 # Common causes:
-# 1. No nodes with resources → kubectl top nodes
-# 2. Taints/tolerations → kubectl describe node | grep Taint
-# 3. PVC not bound → kubectl get pvc
+# 1. No nodes with resources → kubectl-homelab top nodes
+# 2. Taints/tolerations → kubectl-homelab describe node | grep Taint
+# 3. PVC not bound → kubectl-homelab get pvc
 # 4. Node selector mismatch
 ```
 
 ### Pod CrashLoopBackOff
 ```bash
 # Check logs
-kubectl logs <pod-name> --previous
-kubectl describe pod <pod-name>
+kubectl-homelab logs <pod-name> --previous
+kubectl-homelab describe pod <pod-name>
 
 # Common causes:
 # 1. Application error
@@ -149,31 +150,30 @@ kubectl describe pod <pod-name>
 ### etcd Issues
 ```bash
 # Check etcd pods
-kubectl -n kube-system get pods -l component=etcd
+kubectl-homelab -n kube-system get pods -l component=etcd
 
 # etcd member list
-kubectl -n kube-system exec -it etcd-<node> -- etcdctl \
+kubectl-homelab -n kube-system exec -it etcd-k8s-cp1 -- etcdctl \
   --endpoints=https://127.0.0.1:2379 \
   --cacert=/etc/kubernetes/pki/etcd/ca.crt \
   --cert=/etc/kubernetes/pki/etcd/server.crt \
   --key=/etc/kubernetes/pki/etcd/server.key \
   member list
 
-# etcd alarms
-etcdctl alarm list
+# etcd alarms (run via kubectl exec)
+kubectl-homelab -n kube-system exec -it etcd-k8s-cp1 -- etcdctl alarm list
 ```
 
 ### Certificate Issues
 ```bash
-# Check certificate expiry
-kubeadm certs check-expiration
+# Check certificate expiry (run on node via SSH)
+ssh wawashi@k8s-cp1.home.rommelporras.com "sudo kubeadm certs check-expiration"
 
-# Renew certificates
-kubeadm certs renew all
-systemctl restart kubelet
+# Renew certificates (run on node via SSH)
+ssh wawashi@k8s-cp1.home.rommelporras.com "sudo kubeadm certs renew all && sudo systemctl restart kubelet"
 
-# Regenerate kubeconfig
-kubeadm kubeconfig user --client-name=admin
+# Regenerate kubeconfig (run on node via SSH)
+ssh wawashi@k8s-cp1.home.rommelporras.com "sudo kubeadm kubeconfig user --client-name=admin"
 ```
 
 ## Best Practices Checklist

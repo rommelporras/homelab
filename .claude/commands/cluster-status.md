@@ -2,13 +2,15 @@
 
 Quick overview of Kubernetes cluster health and status.
 
+**Important:** Use `kubectl-homelab` for this cluster (not generic `kubectl`).
+
 ## Instructions
 
 Run these commands to get a comprehensive cluster status:
 
 1. **Check Nodes**
    ```bash
-   kubectl get nodes -o wide
+   kubectl-homelab get nodes -o wide
    ```
    - Verify all nodes are Ready
    - Check Kubernetes version consistency
@@ -16,7 +18,7 @@ Run these commands to get a comprehensive cluster status:
 
 2. **Check System Pods**
    ```bash
-   kubectl get pods -n kube-system
+   kubectl-homelab get pods -n kube-system
    ```
    - All pods should be Running
    - Check for restarts (indicates issues)
@@ -24,29 +26,29 @@ Run these commands to get a comprehensive cluster status:
 
 3. **Check All Namespaces**
    ```bash
-   kubectl get pods -A | grep -v Running | grep -v Completed
+   kubectl-homelab get pods -A | grep -v Running | grep -v Completed
    ```
    - Shows only problematic pods
    - Empty output = healthy cluster
 
 4. **Cluster Info**
    ```bash
-   kubectl cluster-info
+   kubectl-homelab cluster-info
    ```
    - Verify API server endpoint
    - Check CoreDNS availability
 
 5. **Recent Events**
    ```bash
-   kubectl get events -A --sort-by='.lastTimestamp' | tail -10
+   kubectl-homelab get events -A --sort-by='.lastTimestamp' | tail -10
    ```
    - Check for warnings or errors
    - Identify recent issues
 
 6. **Resource Usage** (if metrics-server installed)
    ```bash
-   kubectl top nodes
-   kubectl top pods -A --sort-by=memory | head -10
+   kubectl-homelab top nodes
+   kubectl-homelab top pods -A --sort-by=memory | head -10
    ```
 
 ## Status Report Format
@@ -56,9 +58,9 @@ Kubernetes Cluster Status
 =========================
 
 Nodes:
-  k8s-cp-1 (10.10.60.11)  Ready    control-plane   v1.35.0
-  k8s-cp-2 (10.10.60.12)  Ready    control-plane   v1.35.0
-  k8s-cp-3 (10.10.60.13)  Ready    control-plane   v1.35.0
+  k8s-cp1 (10.10.30.11)  Ready    control-plane   v1.35.0
+  k8s-cp2 (10.10.30.12)  Ready    control-plane   v1.35.0
+  k8s-cp3 (10.10.30.13)  Ready    control-plane   v1.35.0
 
 Control Plane:
   API Server:    Healthy
@@ -69,7 +71,7 @@ Control Plane:
 Networking:
   CNI:           Cilium (Running)
   CoreDNS:       Running (2 replicas)
-  kube-vip:      Active (VIP: 10.10.60.10)
+  kube-vip:      Active (VIP: 10.10.30.10)
 
 System Pods: 15/15 Running
 
@@ -86,7 +88,7 @@ For a fast yes/no health check:
 
 ```bash
 # One-liner health check
-kubectl get nodes | grep -q NotReady && echo "UNHEALTHY: Node(s) NotReady" || echo "HEALTHY: All nodes Ready"
+kubectl-homelab get nodes | grep -q NotReady && echo "UNHEALTHY: Node(s) NotReady" || echo "HEALTHY: All nodes Ready"
 ```
 
 ## Troubleshooting
@@ -95,20 +97,20 @@ If issues found:
 
 **Node NotReady:**
 ```bash
-kubectl describe node <node-name>
-ssh <node> "systemctl status kubelet"
-ssh <node> "journalctl -u kubelet --since '5 minutes ago'"
+kubectl-homelab describe node <node-name>
+ssh wawashi@<node>.home.rommelporras.com "systemctl status kubelet"
+ssh wawashi@<node>.home.rommelporras.com "journalctl -u kubelet --since '5 minutes ago'"
 ```
 
 **Pod Issues:**
 ```bash
-kubectl describe pod <pod-name> -n <namespace>
-kubectl logs <pod-name> -n <namespace>
+kubectl-homelab describe pod <pod-name> -n <namespace>
+kubectl-homelab logs <pod-name> -n <namespace>
 ```
 
 **etcd Issues:**
 ```bash
-kubectl -n kube-system logs -l component=etcd --tail=20
+kubectl-homelab -n kube-system logs -l component=etcd --tail=20
 ```
 
 ## Use Cases
