@@ -103,6 +103,51 @@ helm-homelab -n longhorn-system get values longhorn
 cd ansible && ansible-playbook -i inventory/homelab.yml playbooks/00-preflight.yml
 ```
 
+## Secrets Management
+
+**Use 1Password CLI (`op`) for all credentials. Never hardcode secrets.**
+
+### Vault Structure
+
+| Vault | Purpose |
+|-------|---------|
+| `Kubernetes` | K8s cluster credentials (Grafana, NUT, PostgreSQL, etc.) |
+| `Proxmox` | Legacy Proxmox/Dell 5090 services (do not modify) |
+
+### Secret Reference Format
+
+```
+op://Kubernetes/<item>/<field>
+```
+
+### Usage Patterns
+
+```bash
+# Read a secret
+op read "op://Kubernetes/Grafana/password"
+
+# Use in Helm install (inject at runtime)
+helm-homelab install prometheus prometheus-community/kube-prometheus-stack \
+  --set grafana.adminPassword="$(op read 'op://Kubernetes/Grafana/password')"
+
+# Create K8s secret from 1Password
+kubectl-homelab create secret generic my-secret \
+  --from-literal=password="$(op read 'op://Kubernetes/MyItem/password')"
+```
+
+### Existing Credentials
+
+| Item | Vault | Used By |
+|------|-------|---------|
+| `Grafana` | Kubernetes | Phase 3.5 monitoring |
+
+### Rules
+
+- **Never hardcode passwords** in values.yaml or manifests
+- **Never commit secrets** to git (use `op read` at runtime)
+- **Kubernetes vault only** - don't modify Proxmox vault items
+- **Sign in first** - run `eval $(op signin)` if session expired
+
 ## Rules
 
 - **Use `kubectl-homelab` and `helm-homelab` for this cluster** - Never use plain `kubectl`/`helm` as they connect to work AWS EKS. Both aliases are defined in ~/.zshrc and use ~/.kube/homelab.yaml.

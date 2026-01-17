@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** January 17, 2026
+> **Last Updated:** January 18, 2026
 
 ---
 
@@ -38,16 +38,37 @@
 | Chart | Version | App Version | Status | Namespace |
 |-------|---------|-------------|--------|-----------|
 | longhorn/longhorn | 1.10.1 | v1.10.1 | Installed | longhorn-system |
-| prometheus-community/kube-prometheus-stack | 72.6.2 | v0.81.0 | Planned | monitoring |
-| grafana/loki-stack | 2.10.3 | v3.4.3 | Planned | monitoring |
+| prometheus-community/kube-prometheus-stack | 81.0.0 | v0.82.0 | Planned | monitoring |
+| grafana/loki | 6.24.0 | v3.4.3 | Planned | monitoring |
+| grafana/alloy | 0.12.0 | v1.6.0 | Planned | monitoring |
+| jetstack/cert-manager | 1.17.0 | v1.17.0 | Planned | cert-manager |
+| gitlab/gitlab | 8.7.0 | v17.7.0 | Planned | gitlab |
+| gitlab/gitlab-runner | 0.71.0 | v17.7.0 | Planned | gitlab-runner |
+
+> **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
+> Use `grafana/loki` + `grafana/alloy` instead.
 
 **Helm Repos:**
 ```bash
 helm-homelab repo add longhorn https://charts.longhorn.io
 helm-homelab repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm-homelab repo add grafana https://grafana.github.io/helm-charts
+helm-homelab repo add jetstack https://charts.jetstack.io
+helm-homelab repo add gitlab https://charts.gitlab.io
 helm-homelab repo update
 ```
+
+---
+
+## Gateway API
+
+> **Why Gateway API?** Ingress is deprecated (NGINX Ingress EOL March 2026).
+> Cilium has native Gateway API support - no need for Traefik or NGINX.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| Gateway API CRDs | v1.2.0 | Planned |
+| Cilium gatewayAPI.enabled | - | Planned |
 
 ---
 
@@ -67,6 +88,10 @@ helm-homelab repo update
 
 | Date | Change |
 |------|--------|
+| 2026-01-18 | Added: GitLab, GitLab Runner Helm charts for CI/CD platform |
+| 2026-01-17 | Added: Gateway API section, cert-manager, Loki, Alloy charts |
+| 2026-01-17 | Removed: loki-stack (deprecated, Promtail EOL March 2026) |
+| 2026-01-17 | Updated: kube-prometheus-stack 72.6.2→81.0.0 (current stable) |
 | 2026-01-17 | Installed: Longhorn 1.10.1 distributed storage |
 | 2026-01-16 | Added: Helm Charts section with version pinning |
 | 2026-01-16 | Updated: kube-vip 0.8.x→v1.0.3, Cilium 1.16.x→1.18.6, containerd 2.0.x→1.7.x |
