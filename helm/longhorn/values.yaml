@@ -1,0 +1,146 @@
+# Longhorn Helm Values
+# =====================
+# This file customizes Longhorn for our 3-node homelab cluster.
+#
+# WHAT IS LONGHORN?
+# Longhorn is a lightweight, reliable distributed block storage system for Kubernetes.
+# It creates replicated storage across your nodes, so if one node dies, your data survives.
+#
+# HOW IT WORKS:
+#   1. You create a PersistentVolumeClaim (PVC) requesting storage
+#   2. Longhorn automatically provisions a PersistentVolume (PV)
+#   3. Longhorn replicates the data across multiple nodes
+#   4. If a node fails, Longhorn rebuilds replicas on healthy nodes
+#
+# CKA RELEVANCE:
+#   - StorageClass, PV, PVC (core exam topics)
+#   - Dynamic provisioning
+#   - Understanding storage backends
+#
+# INSTALL COMMAND:
+#   helm-homelab install longhorn longhorn/longhorn \
+#     --namespace longhorn-system \
+#     --version 1.10.1 \
+#     --values helm/longhorn/values.yaml
+#
+# VERIFY:
+#   kubectl-homelab -n longhorn-system get pods
+#   kubectl-homelab get storageclass
+# ------------------------------------------------------------------------------
+
+# Default Settings
+# These configure how Longhorn behaves globally
+defaultSettings:
+  # WHERE TO STORE DATA
+  # Longhorn stores volume data here on each node
+  # We created this directory in the prerequisites playbook
+  defaultDataPath: /var/lib/longhorn
+
+  # REPLICA COUNT (CRITICAL SETTING)
+  # How many copies of your data to keep across nodes
+  #
+  # Why 2 and not 3?
+  #   - We have 3 nodes with ~400GB each = ~1.2TB raw
+  #   - With 2 replicas: ~600GB usable (data stored twice)
+  #   - With 3 replicas: ~400GB usable (data stored thrice)
+  #   - 2 replicas survives 1 node failure (enough for homelab)
+  #
+  # For production with more nodes, you might use 3
+  defaultReplicaCount: 2
+
+  # MINIMUM FREE SPACE
+  # Longhorn stops scheduling new replicas when disk falls below this %
+  #
+  # Why 10%?
+  #   - We're using dedicated NVMe storage (not root disk)
+  #   - 10% of 400GB = 40GB buffer (plenty for our use case)
+  #   - If using root disk, use 25% to avoid OS issues
+  storageMinimalAvailablePercentage: 10
+
+  # OVERPROVISIONING
+  # Allow scheduling more storage than physically available
+  # 100 = no overprovisioning (safe default)
+  # 200 = allow 2x overprovisioning (risky but allows thin provisioning)
+  storageOverProvisioningPercentage: 100
+
+  # REPLICA AUTO-BALANCE
+  # Automatically rebalance replicas across nodes
+  # Helps when you add a new node to the cluster
+  replicaAutoBalance: best-effort
+
+  # GUARANTEED ENGINE MANAGER CPU
+  # Reserve CPU for Longhorn's storage engine
+  # Prevents storage I/O starvation under high cluster load
+  guaranteedEngineManagerCPU: 12
+
+  # GUARANTEED REPLICA MANAGER CPU
+  guaranteedReplicaManagerCPU: 12
+
+# Persistence Settings
+# Controls the default StorageClass behavior
+persistence:
+  # DEFAULT STORAGE CLASS
+  # When true, Longhorn becomes the cluster's default StorageClass
+  # Any PVC without explicit storageClassName will use Longhorn
+  defaultClass: true
+
+  # DEFAULT REPLICA COUNT FOR STORAGECLASS
+  # Must match defaultReplicaCount above for consistency
+  defaultClassReplicaCount: 2
+
+  # RECLAIM POLICY
+  # What happens when a PVC is deleted:
+  #   - Delete: Volume data is deleted (default, good for dynamic workloads)
+  #   - Retain: Volume data is kept (manual cleanup required)
+  reclaimPolicy: Delete
+
+  # MIGRATABLE (for live migration)
+  # Not needed for our static baremetal nodes
+  migratable: false
+
+# Ingress for Longhorn UI
+# We'll use port-forward for now, but you could expose via ingress later
+ingress:
+  enabled: false
+  # When you're ready for ingress:
+  # enabled: true
+  # host: longhorn.home.rommelporras.com
+  # annotations:
+  #   nginx.ingress.kubernetes.io/auth-type: basic
+  #   nginx.ingress.kubernetes.io/auth-secret: longhorn-basic-auth
+
+# Longhorn Manager Settings
+longhornManager:
+  # Pod priority - ensures Longhorn runs even under resource pressure
+  priorityClass: system-cluster-critical
+
+# Longhorn Driver Settings
+longhornDriver:
+  # Pod priority for CSI driver
+  priorityClass: system-cluster-critical
+
+# CSI Settings
+csi:
+  # KUBELET ROOT DIR
+  # Where kubelet stores pod volumes
+  # Standard path for kubeadm clusters
+  kubeletRootDir: /var/lib/kubelet
+
+  # ATTACHMENT/PROVISIONER REPLICAS
+  # These handle PVC provisioning and volume attachment
+  # 2 replicas for HA (can survive 1 pod failure)
+  attacherReplicaCount: 2
+  provisionerReplicaCount: 2
+  resizerReplicaCount: 2
+  snapshotterReplicaCount: 2
+
+# Resource Requests/Limits
+# Commented out for now - let Longhorn use what it needs
+# Uncomment and tune if you see resource issues
+# resources:
+#   limits:
+#     cpu: 500m
+#     memory: 512Mi
+#   requests:
+#     cpu: 100m
+#     memory: 128Mi

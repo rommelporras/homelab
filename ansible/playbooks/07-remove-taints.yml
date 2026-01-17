@@ -1,0 +1,85 @@
+---
+# Phase 3: Remove Control Plane Taints for Homelab
+# Run: ansible-playbook -i inventory/homelab.yml playbooks/07-remove-taints.yml
+#
+# WHAT THIS PLAYBOOK DOES:
+#   Removes the NoSchedule taint from control plane nodes so workloads
+#   can be scheduled on all nodes in the cluster.
+#
+# WHY THIS IS NEEDED:
+#   By default, kubeadm taints control plane nodes with:
+#     node-role.kubernetes.io/control-plane:NoSchedule
+#
+#   This prevents regular pods from running on control plane nodes.
+#   In a 3-node homelab cluster (all control plane, no workers), we need
+#   to remove this taint so workloads like Longhorn, apps, etc. can run.
+#
+# CKA RELEVANCE (HIGH):
+#   - Taints and tolerations are core CKA topics
+#   - Understanding why control planes are tainted by default
+#   - Knowing when/how to remove taints
+#
+# PRODUCTION NOTE:
+#   In production, you'd typically:
+#   - Keep control planes tainted (dedicated to cluster management)
+#   - Have separate worker nodes for workloads
+#   For homelab, running workloads on control planes is acceptable.
+#
+# RUN AFTER:
+#   - Cluster bootstrap (kubeadm init/join)
+#   - Before installing workloads (Longhorn, apps)
+#
+# Idempotent - safe to run multiple times (removes taint only if present)
+
+- name: Remove control plane taints for homelab workloads
+  hosts: control_plane_init  # Run from first node only (kubectl command)
+  gather_facts: false
+
+  tasks:
+    # =========================================
+    # Check Current Taints
+    # =========================================
+    - name: Get current node taints
+      ansible.builtin.command:
+        cmd: kubectl get nodes -o custom-columns='NAME:.metadata.name,TAINTS:.spec.taints[*].key'
+      register: node_taints
+      changed_when: false
+
+    - name: Display current taints
+      ansible.builtin.debug:
+        msg: "{{ node_taints.stdout_lines }}"
+
+    # =========================================
+    # Remove Control Plane Taints
+    # =========================================
+    # The '-' at the end of the taint key removes it
+    # This command is idempotent - if taint doesn't exist, it's a no-op
+
+    - name: Remove control-plane taint from all nodes
+      ansible.builtin.command:
+        cmd: kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule-
+      register: taint_result
+      changed_when: "'untainted' in taint_result.stdout"
+      failed_when: false  # Don't fail if taint already removed
+
+    - name: Display taint removal result
+      ansible.builtin.debug:
+        msg: "{{ taint_result.stdout_lines }}"
+
+    # =========================================
+    # Verify Taints Removed
+    # =========================================
+    - name: Verify taints after removal
+      ansible.builtin.command:
+        cmd: kubectl get nodes -o custom-columns='NAME:.metadata.name,TAINTS:.spec.taints'
+      register: final_taints
+      changed_when: false
+
+    - name: Display final taint status
+      ansible.builtin.debug:
+        msg: |
+          Taint removal complete. Current node status:
+          {{ final_taints.stdout }}
+
+          Nodes should now show '<none>' for taints (or only other taints).
+          Workloads like Longhorn can now be scheduled on all nodes.

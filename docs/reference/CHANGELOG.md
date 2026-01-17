@@ -4,6 +4,66 @@
 
 ---
 
+## January 17, 2026 — Phase 3: Storage Infrastructure
+
+### Milestone: Longhorn Distributed Storage Running
+
+Successfully installed Longhorn for persistent storage across all 3 nodes.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| Longhorn | v1.10.1 | Running |
+| StorageClass | longhorn (default) | Active |
+| Replicas | 2 per volume | Configured |
+
+### Ansible Playbooks Added
+
+| Playbook | Purpose |
+|----------|---------|
+| 06-storage-prereqs.yml | Create /var/lib/longhorn, verify iscsid, install nfs-common |
+| 07-remove-taints.yml | Remove control-plane taints for homelab workloads |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Replica count | 2 | With 3 nodes, survives 1 node failure. 3 replicas would waste storage. |
+| Storage path | /var/lib/longhorn | Standard location, ~432GB available per node |
+| Taint removal | All nodes | Homelab has no dedicated workers, workloads must run on control plane |
+| Helm values file | helm/longhorn/values.yaml | GitOps-friendly, version controlled |
+
+### Lessons Learned
+
+**Control-plane taints block workloads:** By default, kubeadm taints control plane nodes with `NoSchedule`. In a homelab cluster with no dedicated workers, this prevents Longhorn (and all other workloads) from scheduling.
+
+**Solution:** Remove taints with `kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule-`
+
+**Helm needs KUBECONFIG:** When using a non-default kubeconfig (like homelab.yaml), Helm requires the correct kubeconfig. Created `helm-homelab` alias in ~/.zshrc alongside `kubectl-homelab`.
+
+**NFSv4 pseudo-root path format:** When OMV exports `/export` with `fsid=0`, it becomes the NFSv4 pseudo-root. Mount paths must be relative to this root:
+- Filesystem path: `/export/Kubernetes/Immich`
+- NFSv4 mount path: `/Kubernetes/Immich` (not `/export/Kubernetes/Immich`!)
+
+This caused "No such file or directory" errors until the path format was corrected.
+
+### Storage Strategy Documented
+
+| Storage Type | Use Case | Example Apps |
+|--------------|----------|--------------|
+| Longhorn (block) | App data, databases, runtime state | AdGuard logs, PostgreSQL |
+| NFS (file) | Bulk media, photos | Immich, *arr stack |
+| ConfigMap (K8s) | Static config files | Homepage settings |
+
+### NFS Status
+
+- NAS (10.10.30.4) is network reachable
+- NFS export /export/Kubernetes enabled on OMV
+- NFSv4 mount tested and verified from cluster nodes
+- Manifest ready at `manifests/storage/nfs-immich.yaml`
+- PV name: `immich-nfs`, PVC name: `immich-media`
+
+---
+
 ## January 16, 2026 — Kubernetes HA Cluster Bootstrap Complete
 
 ### Milestone: 3-Node HA Cluster Running

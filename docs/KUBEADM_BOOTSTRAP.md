@@ -533,25 +533,27 @@ After cluster is running:
 
 ## Quick Commands Reference
 
+> **Note:** From your workstation, use `kubectl-homelab` instead of `kubectl` to avoid hitting work EKS.
+
 ```bash
 # Cluster info
-kubectl cluster-info
+kubectl-homelab cluster-info
 
 # Node status
-kubectl get nodes -o wide
+kubectl-homelab get nodes -o wide
 
 # All pods
-kubectl get pods -A
+kubectl-homelab get pods -A
 
 # Events
-kubectl get events -A --sort-by=.lastTimestamp
+kubectl-homelab get events -A --sort-by=.lastTimestamp
 
 # etcd health
-kubectl -n kube-system exec etcd-k8s-cp1 -- etcdctl endpoint health
+kubectl-homelab -n kube-system exec etcd-k8s-cp1 -- etcdctl endpoint health
 
 # Drain node for maintenance
-kubectl drain k8s-cp1 --ignore-daemonsets --delete-emptydir-data
+kubectl-homelab drain k8s-cp1 --ignore-daemonsets --delete-emptydir-data
 
 # Uncordon node
-kubectl uncordon k8s-cp1
+kubectl-homelab uncordon k8s-cp1
 ```

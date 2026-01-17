@@ -1,0 +1,153 @@
+---
+# Phase 3: Storage Prerequisites for Longhorn and NFS
+# Run: ansible-playbook -i inventory/homelab.yml playbooks/06-storage-prereqs.yml
+#
+# WHAT THIS PLAYBOOK DOES:
+#   1. Creates /var/lib/longhorn directory for distributed storage
+#   2. Verifies iscsid service is running (installed in 01-prerequisites.yml)
+#   3. Installs nfs-common for mounting NFS shares from Dell 5090 NAS
+#
+# WHY THESE ARE NEEDED:
+#   - Longhorn stores volume data in /var/lib/longhorn on each node
+#   - iscsid (iSCSI daemon) is required for Longhorn's block storage
+#   - nfs-common allows nodes to mount NFS exports for media storage
+#
+# CKA RELEVANCE:
+#   - Understanding storage prerequisites
+#   - Node preparation for storage backends
+#   - Not directly on CKA, but helps understand storage architecture
+#
+# RUN BEFORE:
+#   - helm install longhorn (Section 3.2)
+#   - Creating NFS PersistentVolumes (Section 3.4)
+#
+# Idempotent - safe to run multiple times
+
+- name: Storage prerequisites for Longhorn and NFS
+  hosts: control_plane
+  gather_facts: true
+
+  tasks:
+    # =========================================
+    # 3.1.1 Create Longhorn Data Directory
+    # =========================================
+    # Longhorn stores all volume data here
+    # Each node contributes this storage to the distributed pool
+    # With 3 nodes x 400GB NVMe, we get ~1.2TB raw storage
+    # With 2 replicas, ~600GB usable storage
+
+    - name: Create Longhorn data directory
+      ansible.builtin.file:
+        path: /var/lib/longhorn
+        state: directory
+        mode: '0700'
+        owner: root
+        group: root
+
+    - name: Check available disk space for Longhorn
+      ansible.builtin.shell:
+        cmd: df -h /var/lib/longhorn | tail -1 | awk '{print $4}'
+      register: longhorn_space
+      changed_when: false
+
+    - name: Display available storage
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }}: {{ longhorn_space.stdout }} available for Longhorn"
+
+    # =========================================
+    # 3.1.2 Verify iscsid is Running
+    # =========================================
+    # iscsid was installed in 01-prerequisites.yml
+    # This task ensures it's still running (might have stopped)
+    # Longhorn uses iSCSI to attach block volumes to pods
+
+    - name: Ensure iscsid service is running
+      ansible.builtin.systemd:
+        name: iscsid
+        state: started
+        enabled: true
+
+    - name: Verify iscsid is active
+      ansible.builtin.command:
+        cmd: systemctl is-active iscsid
+      register: iscsid_status
+      changed_when: false
+      failed_when: iscsid_status.stdout != 'active'
+
+    # =========================================
+    # 3.1.3 Install NFS Client
+    # =========================================
+    # Required for mounting NFS shares from Dell 5090 NAS
+    # Without this, NFS PersistentVolumes will fail to mount
+    #
+    # USE CASE:
+    #   - Immich photos stored on NAS (10.10.30.4:/export/photos)
+    #   - Media files for Sonarr/Radarr
+    #   - Any ReadWriteMany (RWX) storage needs
+
+    - name: Install NFS client utilities
+      ansible.builtin.apt:
+        name: nfs-common
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Verify NFS client is installed
+      ansible.builtin.command:
+        cmd: which showmount
+      register: nfs_check
+      changed_when: false
+      failed_when: nfs_check.rc != 0
+
+    # =========================================
+    # 3.1.4 Test NFS Connectivity (Optional)
+    # =========================================
+    # Verify we can see NFS exports from the NAS
+    # This is a non-blocking check - won't fail if NAS is unreachable
+    #
+    # EXPECTED NFS EXPORTS ON OMV (from /etc/exports):
+    #   /export/Homelab      ← Existing data
+    #   /export/Documents    ← Personal files
+    #   /export/Kubernetes   ← K8s-only (we use this)
+    #       └── Immich/
+
+    - name: Check NFS exports from NAS
+      ansible.builtin.command:
+        cmd: showmount -e 10.10.30.4
+      register: nfs_exports
+      changed_when: false
+      failed_when: false  # Don't fail if NAS is offline
+
+    - name: Display NFS exports status
+      ansible.builtin.debug:
+        msg: |
+          NFS exports from NAS (10.10.30.4):
+          {{ nfs_exports.stdout | default('Unable to reach NAS - verify network connectivity') }}
+
+          Expected export for K8s: /export/Kubernetes
+          Create subfolder on NAS:
+            mkdir -p /export/Kubernetes/Immich
+            chown nobody:nogroup /export/Kubernetes/Immich
+      when: nfs_exports.rc == 0
+
+    - name: Warn if NAS is unreachable
+      ansible.builtin.debug:
+        msg: "WARNING: Cannot reach NAS at 10.10.30.4. NFS mounts will fail until resolved."
+      when: nfs_exports.rc != 0
+
+    # =========================================
+    # Summary
+    # =========================================
+    - name: Storage prerequisites complete
+      ansible.builtin.debug:
+        msg: |
+          {{ inventory_hostname }} storage prerequisites:
+          ├── Longhorn directory: /var/lib/longhorn ({{ longhorn_space.stdout }} available)
+          ├── iscsid: {{ iscsid_status.stdout }}
+          ├── nfs-common: installed
+          └── NFS exports: {{ 'reachable' if nfs_exports.rc == 0 else 'UNREACHABLE' }}
+
+          NEXT STEPS:
+          1. Create namespace: kubectl-homelab create namespace longhorn-system
+          2. Label for privileged: kubectl-homelab label namespace longhorn-system pod-security.kubernetes.io/enforce=privileged
+          3. Install Longhorn: helm-homelab install longhorn longhorn/longhorn --namespace longhorn-system --version 1.10.1 --values helm/longhorn/values.yaml

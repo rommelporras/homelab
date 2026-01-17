@@ -35,7 +35,7 @@ Before installing Longhorn, ensure:
 
 ```bash
 # All nodes Ready
-kubectl get nodes
+kubectl-homelab get nodes
 # NAME      STATUS   ROLES           AGE   VERSION
 # k8s-cp1   Ready    control-plane   10m   v1.35.0
 # k8s-cp2   Ready    control-plane   8m    v1.35.0
@@ -83,11 +83,11 @@ done
 
 ```bash
 # Add Longhorn Helm repo
-helm repo add longhorn https://charts.longhorn.io
-helm repo update
+helm-homelab repo add longhorn https://charts.longhorn.io
+helm-homelab repo update
 
 # Install Longhorn with custom values
-helm install longhorn longhorn/longhorn \
+helm-homelab install longhorn longhorn/longhorn \
     --namespace longhorn-system \
     --create-namespace \
     --set defaultSettings.defaultDataPath=/var/lib/longhorn \
@@ -97,27 +97,27 @@ helm install longhorn longhorn/longhorn \
     --set persistence.defaultClassReplicaCount=2
 
 # Wait for Longhorn to be ready
-kubectl -n longhorn-system rollout status deploy/longhorn-driver-deployer
+kubectl-homelab -n longhorn-system rollout status deploy/longhorn-driver-deployer
 ```
 
 ### Option B: Using kubectl (Alternative)
 
 ```bash
 # Apply Longhorn manifest
-kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/v1.7.0/deploy/longhorn.yaml
+kubectl-homelab apply -f https://raw.githubusercontent.com/longhorn/longhorn/v1.7.0/deploy/longhorn.yaml
 
 # Wait for pods to be ready
-kubectl -n longhorn-system get pods -w
+kubectl-homelab -n longhorn-system get pods -w
 ```
 
 Then configure settings:
 
 ```bash
 # Patch default settings
-kubectl -n longhorn-system patch settings.longhorn.io default-data-path \
+kubectl-homelab -n longhorn-system patch settings.longhorn.io default-data-path \
     -p '{"value": "/var/lib/longhorn"}' --type=merge
 
-kubectl -n longhorn-system patch settings.longhorn.io default-replica-count \
+kubectl-homelab -n longhorn-system patch settings.longhorn.io default-replica-count \
     -p '{"value": "2"}' --type=merge
 ```
 
@@ -128,7 +128,7 @@ kubectl -n longhorn-system patch settings.longhorn.io default-replica-count \
 ### Check Pods
 
 ```bash
-kubectl -n longhorn-system get pods
+kubectl-homelab -n longhorn-system get pods
 ```
 
 Expected output (all Running):
@@ -152,7 +152,7 @@ csi-snapshotter-xxxx                           1/1     Running   0          2m
 ### Check Nodes
 
 ```bash
-kubectl -n longhorn-system get nodes.longhorn.io
+kubectl-homelab -n longhorn-system get nodes.longhorn.io
 ```
 
 Expected output:
@@ -166,7 +166,7 @@ k8s-cp3   True    true              True          2m
 ### Check Storage Class
 
 ```bash
-kubectl get storageclass
+kubectl-homelab get storageclass
 ```
 
 Expected output:
@@ -205,13 +205,13 @@ Apply it:
 
 ```bash
 # Delete existing default StorageClass if exists
-kubectl delete storageclass longhorn --ignore-not-found
+kubectl-homelab delete storageclass longhorn --ignore-not-found
 
 # Apply new StorageClass
-kubectl apply -f longhorn-storageclass.yaml
+kubectl-homelab apply -f longhorn-storageclass.yaml
 
 # Verify it's default
-kubectl get storageclass
+kubectl-homelab get storageclass
 ```
 
 ---
@@ -221,7 +221,7 @@ kubectl get storageclass
 ### Option A: Port Forward (Quick Test)
 
 ```bash
-kubectl -n longhorn-system port-forward svc/longhorn-frontend 8080:80
+kubectl-homelab -n longhorn-system port-forward svc/longhorn-frontend 8080:80
 # Then open http://localhost:8080
 ```
 
@@ -260,10 +260,10 @@ Create basic auth secret:
 htpasswd -c auth admin
 
 # Create secret
-kubectl -n longhorn-system create secret generic longhorn-basic-auth --from-file=auth
+kubectl-homelab -n longhorn-system create secret generic longhorn-basic-auth --from-file=auth
 
 # Apply ingress
-kubectl apply -f longhorn-ingress.yaml
+kubectl-homelab apply -f longhorn-ingress.yaml
 ```
 
 ---
@@ -314,21 +314,21 @@ spec:
 Apply and verify:
 
 ```bash
-kubectl apply -f test-pvc.yaml
-kubectl apply -f test-pod.yaml
+kubectl-homelab apply -f test-pvc.yaml
+kubectl-homelab apply -f test-pod.yaml
 
 # Check PVC is Bound
-kubectl get pvc test-pvc
+kubectl-homelab get pvc test-pvc
 # NAME       STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
 # test-pvc   Bound    pvc-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx   1Gi        RWO            longhorn       30s
 
 # Check pod is Running
-kubectl get pod test-pod
+kubectl-homelab get pod test-pod
 # NAME       READY   STATUS    RESTARTS   AGE
 # test-pod   1/1     Running   0          30s
 
 # Verify data written
-kubectl exec test-pod -- cat /data/test.txt
+kubectl-homelab exec test-pod -- cat /data/test.txt
 # Hello Longhorn!
 ```
 
@@ -343,15 +343,15 @@ In Longhorn UI (http://localhost:8080):
 Or via kubectl:
 
 ```bash
-kubectl -n longhorn-system get replicas.longhorn.io
+kubectl-homelab -n longhorn-system get replicas.longhorn.io
 # Should show 2 replicas on different nodes
 ```
 
 ### Cleanup Test Resources
 
 ```bash
-kubectl delete pod test-pod
-kubectl delete pvc test-pvc
+kubectl-homelab delete pod test-pod
+kubectl-homelab delete pvc test-pvc
 ```
 
 ---
@@ -362,31 +362,31 @@ kubectl delete pvc test-pvc
 
 ```bash
 # Find which node has the test pod
-kubectl get pod test-pod -o wide
+kubectl-homelab get pod test-pod -o wide
 # Note the NODE column
 
 # Cordon the node (prevent new pods)
-kubectl cordon k8s-cp1
+kubectl-homelab cordon k8s-cp1
 
 # Delete the pod (or drain the node)
-kubectl delete pod test-pod
+kubectl-homelab delete pod test-pod
 
 # Watch pod reschedule to another node
-kubectl get pod test-pod -o wide -w
+kubectl-homelab get pod test-pod -o wide -w
 ```
 
 ### Verify Data Survives
 
 ```bash
 # Once pod is running on new node
-kubectl exec test-pod -- cat /data/test.txt
+kubectl-homelab exec test-pod -- cat /data/test.txt
 # Should still show: Hello Longhorn!
 ```
 
 ### Restore Node
 
 ```bash
-kubectl uncordon k8s-cp1
+kubectl-homelab uncordon k8s-cp1
 ```
 
 ---
@@ -463,7 +463,7 @@ spec:
 
 ```bash
 # Check events
-kubectl describe pvc <pvc-name>
+kubectl-homelab describe pvc <pvc-name>
 
 # Common causes:
 # - StorageClass doesn't exist
@@ -475,10 +475,10 @@ kubectl describe pvc <pvc-name>
 
 ```bash
 # Check Longhorn manager logs
-kubectl -n longhorn-system logs -l app=longhorn-manager
+kubectl-homelab -n longhorn-system logs -l app=longhorn-manager
 
 # Check volume status
-kubectl -n longhorn-system get volumes.longhorn.io
+kubectl-homelab -n longhorn-system get volumes.longhorn.io
 ```
 
 ### Replica Rebuild Slow
@@ -488,7 +488,7 @@ At 1GbE, rebuilding a 100GB replica takes ~15-20 minutes. This is normal.
 ```bash
 # Monitor rebuild progress in UI
 # Or check replica status
-kubectl -n longhorn-system get replicas.longhorn.io
+kubectl-homelab -n longhorn-system get replicas.longhorn.io
 ```
 
 ### Node Shows "Unschedulable"
@@ -498,7 +498,7 @@ kubectl -n longhorn-system get replicas.longhorn.io
 ssh k8s-cp1 "df -h /var/lib/longhorn"
 
 # Check node conditions
-kubectl -n longhorn-system describe node.longhorn.io k8s-cp1
+kubectl-homelab -n longhorn-system describe node.longhorn.io k8s-cp1
 ```
 
 ---
@@ -513,7 +513,7 @@ kubectl -n longhorn-system describe node.longhorn.io k8s-cp1
 # NFS: nfs://10.10.30.4:/export/longhorn-backups
 
 # Or via kubectl:
-kubectl -n longhorn-system patch settings.longhorn.io backup-target \
+kubectl-homelab -n longhorn-system patch settings.longhorn.io backup-target \
     -p '{"value": "nfs://10.10.30.4:/export/longhorn-backups"}' --type=merge
 ```
 
@@ -542,17 +542,17 @@ After Longhorn is running:
 
 ```bash
 # Check Longhorn status
-kubectl -n longhorn-system get pods
+kubectl-homelab -n longhorn-system get pods
 
 # List volumes
-kubectl -n longhorn-system get volumes.longhorn.io
+kubectl-homelab -n longhorn-system get volumes.longhorn.io
 
 # List replicas
-kubectl -n longhorn-system get replicas.longhorn.io
+kubectl-homelab -n longhorn-system get replicas.longhorn.io
 
 # Access UI
-kubectl -n longhorn-system port-forward svc/longhorn-frontend 8080:80
+kubectl-homelab -n longhorn-system port-forward svc/longhorn-frontend 8080:80
 
 # Check disk usage per node
-kubectl -n longhorn-system get nodes.longhorn.io -o wide
+kubectl-homelab -n longhorn-system get nodes.longhorn.io -o wide
 ```

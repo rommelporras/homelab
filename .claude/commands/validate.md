@@ -25,13 +25,13 @@ Validate Kubernetes manifests and infrastructure configuration files.
 3. **Kubernetes Manifest Validation**
    ```bash
    # Dry-run against cluster (requires cluster access)
-   kubectl apply --dry-run=server -f <file.yaml>
+   kubectl-homelab apply --dry-run=server -f <file.yaml>
 
    # Client-side validation (no cluster needed)
-   kubectl apply --dry-run=client -f <file.yaml>
+   kubectl-homelab apply --dry-run=client -f <file.yaml>
 
    # Validate entire directory
-   kubectl apply --dry-run=client -f manifests/ --recursive
+   kubectl-homelab apply --dry-run=client -f manifests/ --recursive
    ```
 
 4. **Check for Common Issues**
@@ -136,7 +136,7 @@ Run before committing changes:
 # Quick validation script
 for f in $(git diff --cached --name-only | grep -E '\.(yaml|yml)$'); do
   echo "Validating: $f"
-  kubectl apply --dry-run=client -f "$f" 2>&1 || exit 1
+  kubectl-homelab apply --dry-run=client -f "$f" 2>&1 || exit 1
 done
 echo "All manifests valid"
 ```
@@ -144,7 +144,7 @@ echo "All manifests valid"
 ## Tools Reference
 
 **Recommended validation tools:**
-- `kubectl --dry-run` - Built-in K8s validation
+- `kubectl-homelab --dry-run` - Built-in K8s validation (uses homelab cluster)
 - `kubeval` - Validate against K8s schemas
 - `kube-linter` - Security and best practices
 - `yamllint` - YAML syntax and style

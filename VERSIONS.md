@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** January 16, 2026
+> **Last Updated:** January 17, 2026
 
 ---
 
@@ -25,8 +25,29 @@
 | containerd | 1.7.x | Installed |
 | Cilium | 1.18.6 | Installed |
 | Cilium CLI | v0.19.0 | Installed |
-| Longhorn | 1.7.x | Planned |
+| Longhorn | 1.10.1 | Installed |
 | kube-vip | v1.0.3 | Installed |
+
+---
+
+## Helm Charts
+
+> **Why version pin?** Helm charts update independently of the apps they install.
+> Running `helm install` without `--version` gives you "latest" which may break things.
+
+| Chart | Version | App Version | Status | Namespace |
+|-------|---------|-------------|--------|-----------|
+| longhorn/longhorn | 1.10.1 | v1.10.1 | Installed | longhorn-system |
+| prometheus-community/kube-prometheus-stack | 72.6.2 | v0.81.0 | Planned | monitoring |
+| grafana/loki-stack | 2.10.3 | v3.4.3 | Planned | monitoring |
+
+**Helm Repos:**
+```bash
+helm-homelab repo add longhorn https://charts.longhorn.io
+helm-homelab repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm-homelab repo add grafana https://grafana.github.io/helm-charts
+helm-homelab repo update
+```
 
 ---
 
@@ -46,5 +67,7 @@
 
 | Date | Change |
 |------|--------|
+| 2026-01-17 | Installed: Longhorn 1.10.1 distributed storage |
+| 2026-01-16 | Added: Helm Charts section with version pinning |
 | 2026-01-16 | Updated: kube-vip 0.8.x→v1.0.3, Cilium 1.16.x→1.18.6, containerd 2.0.x→1.7.x |
 | 2026-01-11 | Initial version tracking |

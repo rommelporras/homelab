@@ -1,0 +1,170 @@
+# NFS PersistentVolume for Immich Media
+# ======================================
+#
+# WHAT THIS DOES:
+#   Creates a PersistentVolume (PV) that points to your Dell 5090 NAS
+#   This lets Kubernetes pods access media (photos, videos) stored on the NAS
+#
+# HOW PV/PVC BINDING WORKS:
+#   1. Admin creates PV (this file) - "Here's some storage"
+#   2. User creates PVC - "I need storage with these requirements"
+#   3. Kubernetes matches PVC to compatible PV - "These match!"
+#   4. Pod mounts the PVC - "Now I can read/write files"
+#
+# WHY NFS FOR MEDIA?
+#   - Media files are large, NAS has lots of space
+#   - ReadWriteMany (RWX) - multiple pods can read simultaneously
+#   - Data persists outside K8s - survives cluster destruction
+#   - Longhorn is for databases/app data, NFS is for bulk media
+#
+# CKA RELEVANCE (HIGH):
+#   - PV/PVC concepts are core exam topics
+#   - Static vs dynamic provisioning
+#   - Access modes (RWO, ROX, RWX)
+#   - Reclaim policies
+#
+# PREREQUISITES:
+#   - nfs-common installed on all nodes (06-storage-prereqs.yml)
+#   - NFS export exists on NAS: /export/Kubernetes (already configured)
+#   - Network connectivity: nodes can reach 10.10.30.4
+#
+# OMV NFS EXPORTS (from /etc/exports):
+#   /export/Homelab      ← Existing data
+#   /export/Documents    ← Personal files
+#   /export/Kubernetes   ← K8s-only (this is what we use)
+#
+# FOLDER STRUCTURE:
+#   /export/Kubernetes/
+#   └── Immich/          ← Folder for Immich media (photos, videos)
+#
+# MIGRATION PATH:
+#   1. Create /export/Kubernetes/Immich/ on NAS
+#   2. Test K8s Immich deployment works
+#   3. Gradually copy media from existing Immich location
+#   4. Keep original as backup until stable
+#
+# APPLY:
+#   kubectl-homelab apply -f manifests/storage/nfs-immich.yaml
+#
+# VERIFY:
+#   kubectl-homelab get pv
+#   kubectl-homelab describe pv immich-nfs
+# ------------------------------------------------------------------------------
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: immich-nfs
+  labels:
+    # Labels help with PVC selector matching
+    # PVC can request: selector.matchLabels.type: nfs
+    type: nfs
+    app: immich
+spec:
+  # CAPACITY
+  # How much storage this PV represents
+  # For NFS, this is informational (NFS doesn't enforce limits)
+  # Set to match your NAS share size
+  capacity:
+    storage: 1Ti
+
+  # ACCESS MODES (CKA IMPORTANT)
+  # Defines how the volume can be mounted:
+  #
+  #   ReadWriteOnce (RWO) - Single node read/write
+  #   ReadOnlyMany  (ROX) - Multiple nodes read-only
+  #   ReadWriteMany (RWX) - Multiple nodes read/write
+  #
+  # NFS supports all modes. We use RWX because:
+  #   - Immich server needs to write new media (photos, videos)
+  #   - Immich ML needs to read for analysis
+  #   - Multiple replicas might run on different nodes
+  accessModes:
+    - ReadWriteMany
+
+  # RECLAIM POLICY (CKA IMPORTANT)
+  # What happens when PVC is deleted:
+  #
+  #   Retain  - Keep the data, admin must manually reclaim
+  #   Delete  - Delete the data (dangerous for NFS!)
+  #   Recycle - Deprecated, don't use
+  #
+  # ALWAYS use Retain for NFS with important data!
+  persistentVolumeReclaimPolicy: Retain
+
+  # STORAGE CLASS
+  # Empty string = no StorageClass (static provisioning)
+  # This PV won't be matched by StorageClass-based PVCs
+  # Only PVCs with storageClassName: "" or selector will match
+  storageClassName: nfs
+
+  # MOUNT OPTIONS
+  # NFS mount options passed to the mount command
+  # These affect performance and behavior:
+  #
+  #   hard    - Retry NFS requests forever (vs soft which gives up)
+  #   nfsvers=4.1 - Use NFSv4.1 (required for Longhorn backup, good perf)
+  #   rsize/wsize - Read/write buffer sizes (64K is good for large files)
+  #   timeo=600   - Timeout in deciseconds (60 seconds)
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+    - rsize=65536
+    - wsize=65536
+    - timeo=600
+
+  # NFS CONFIGURATION
+  # The actual NFS server and path
+  nfs:
+    # NFS server IP (your Dell 5090 NAS)
+    server: 10.10.30.4
+    # Export path on the NAS
+    #
+    # IMPORTANT: NFSv4 PATH FORMAT
+    # Your OMV has /export with fsid=0, making it the NFSv4 pseudo-root.
+    # So /export/Kubernetes becomes /Kubernetes in NFSv4 mount paths.
+    #
+    # Filesystem path: /export/Kubernetes/Immich
+    # NFSv4 mount path: /Kubernetes/Immich
+    path: /Kubernetes/Immich
+
+---
+# PersistentVolumeClaim for Immich
+# ================================
+#
+# This PVC will bind to the PV above.
+# Immich deployment will reference this PVC.
+#
+# NOTE: This goes in the 'immich' namespace when you create it.
+# For now, we're putting it here as a template.
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-media
+  namespace: immich  # Create this namespace first!
+  labels:
+    app: immich
+spec:
+  # ACCESS MODES
+  # Must match or be subset of the PV's accessModes
+  accessModes:
+    - ReadWriteMany
+
+  # STORAGE CLASS
+  # Must match the PV's storageClassName
+  storageClassName: nfs
+
+  # RESOURCES
+  # Request must be <= PV capacity
+  # For NFS, this is just for matching, not enforced
+  resources:
+    requests:
+      storage: 1Ti
+
+  # SELECTOR (Optional)
+  # Explicitly select which PV to bind to
+  # Without this, Kubernetes picks any matching PV
+  selector:
+    matchLabels:
+      app: immich

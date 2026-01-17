@@ -23,9 +23,15 @@ homelab/
 ├── VERSIONS.md                    # Component version tracking
 │
 ├── ansible/                       # Cluster automation
-│   ├── inventory.yml              # Node inventory
+│   ├── inventory/homelab.yml      # Node inventory
 │   ├── group_vars/all.yml         # Shared variables
-│   └── playbooks/                 # Bootstrap playbooks (00-05)
+│   └── playbooks/                 # Bootstrap playbooks (00-07)
+│
+├── helm/                          # Helm values files (GitOps-friendly)
+│   └── longhorn/values.yaml       # Longhorn distributed storage
+│
+├── manifests/                     # Raw K8s manifests (non-Helm resources)
+│   └── storage/                   # PV/PVC for NFS, etc.
 │
 └── docs/
     ├── 00_PROJECT_CONTEXT.md      # Project orientation / quick reference
@@ -78,7 +84,7 @@ homelab/
 
 ## Common Commands
 
-**IMPORTANT:** Use `kubectl-homelab` for this cluster. Plain `kubectl` uses work AWS EKS config.
+**IMPORTANT:** Use `kubectl-homelab` and `helm-homelab` for this cluster. Plain `kubectl`/`helm` use work AWS EKS config.
 
 ```bash
 # SSH to nodes
@@ -89,12 +95,16 @@ kubectl-homelab get nodes
 kubectl-homelab -n longhorn-system get pods
 kubectl-homelab get componentstatuses
 
+# Homelab Helm (uses ~/.kube/homelab.yaml)
+helm-homelab list -A
+helm-homelab -n longhorn-system get values longhorn
+
 # Run Ansible playbooks
-cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
+cd ansible && ansible-playbook -i inventory/homelab.yml playbooks/00-preflight.yml
 ```
 
 ## Rules
 
-- **Use `kubectl-homelab` for this cluster** - Never use plain `kubectl` as it connects to work AWS EKS. The alias is defined in ~/.zshrc and uses ~/.kube/homelab.yaml.
+- **Use `kubectl-homelab` and `helm-homelab` for this cluster** - Never use plain `kubectl`/`helm` as they connect to work AWS EKS. Both aliases are defined in ~/.zshrc and use ~/.kube/homelab.yaml.
 - **NO AI attribution** in commits - Do not include "Generated with Claude Code", "Co-Authored-By: Claude", or any AI-related attribution in commit messages, PR descriptions, or code comments.
 - **NO automatic git commits or pushes** - Do not run `git commit` or `git push` unless explicitly requested by the user or invoked via `/commit` or `/release` commands.

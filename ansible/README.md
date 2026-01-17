@@ -13,13 +13,15 @@ ansible/
 │   ├── all.yml              # Variables for all hosts
 │   └── control_plane.yml    # Control plane specific variables
 ├── playbooks/
-│   ├── 00-preflight.yml     # Pre-flight checks
-│   ├── 01-prerequisites.yml # System prerequisites
-│   ├── 02-kube-vip.yml      # kube-vip setup (first node only)
-│   ├── 03-init-cluster.yml  # Cluster initialization
-│   ├── 04-cilium.yml        # CNI installation
-│   └── 05-join-cluster.yml  # Join additional nodes
-└── README.md                # This file
+│   ├── 00-preflight.yml         # Pre-flight checks
+│   ├── 01-prerequisites.yml     # System prerequisites
+│   ├── 02-kube-vip.yml          # kube-vip setup (first node only)
+│   ├── 03-init-cluster.yml      # Cluster initialization
+│   ├── 04-cilium.yml            # CNI installation
+│   ├── 05-join-cluster.yml      # Join additional nodes
+│   ├── 06-storage-prereqs.yml   # Storage prerequisites (Longhorn, NFS)
+│   └── 07-remove-taints.yml     # Remove control-plane taints (homelab)
+└── README.md                    # This file
 ```
 
 ## Prerequisites
@@ -56,12 +58,17 @@ ansible-playbook playbooks/00-preflight.yml
 
 ### Run all playbooks in order
 ```bash
-ansible-playbook playbooks/00-preflight.yml
-ansible-playbook playbooks/01-prerequisites.yml
-ansible-playbook playbooks/02-kube-vip.yml
-ansible-playbook playbooks/03-init-cluster.yml
-ansible-playbook playbooks/04-cilium.yml
-ansible-playbook playbooks/05-join-cluster.yml
+# Phase 1-2: Bootstrap cluster
+ansible-playbook -i inventory/homelab.yml playbooks/00-preflight.yml
+ansible-playbook -i inventory/homelab.yml playbooks/01-prerequisites.yml
+ansible-playbook -i inventory/homelab.yml playbooks/02-kube-vip.yml
+ansible-playbook -i inventory/homelab.yml playbooks/03-init-cluster.yml
+ansible-playbook -i inventory/homelab.yml playbooks/04-cilium.yml
+ansible-playbook -i inventory/homelab.yml playbooks/05-join-cluster.yml
+
+# Phase 3: Storage
+ansible-playbook -i inventory/homelab.yml playbooks/06-storage-prereqs.yml
+ansible-playbook -i inventory/homelab.yml playbooks/07-remove-taints.yml
 ```
 
 ### Limit to specific hosts
