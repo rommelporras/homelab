@@ -25,12 +25,13 @@
 
 - [ ] 3.5.1.1 Install standard Gateway API CRDs
   ```bash
-  kubectl-homelab apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+  # Use --server-side to avoid "annotations too long" error with large CRDs
+  kubectl-homelab apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/standard-install.yaml
   ```
 
 - [ ] 3.5.1.2 Install experimental TLSRoute CRD (optional)
   ```bash
-  kubectl-homelab apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/experimental/gateway.networking.k8s.io_tlsroutes.yaml
+  kubectl-homelab apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/experimental/gateway.networking.k8s.io_tlsroutes.yaml
   ```
 
 - [ ] 3.5.1.3 Verify CRDs installed
@@ -77,13 +78,13 @@
 
 - [ ] 3.5.3.2 Install cert-manager with Gateway API support
   ```bash
+  # Simplified syntax since cert-manager 1.16 (no apiVersion/kind needed)
+  # v1.17.0 is LTS release (Feb 2025)
   helm-homelab install cert-manager jetstack/cert-manager \
     --namespace cert-manager \
     --create-namespace \
     --version v1.17.0 \
     --set crds.enabled=true \
-    --set config.apiVersion="controller.config.cert-manager.io/v1alpha1" \
-    --set config.kind="ControllerConfiguration" \
     --set config.enableGatewayAPI=true
   ```
 
@@ -209,8 +210,9 @@
 - [ ] 3.7.2 Create Helm values for Loki
   ```bash
   # See helm/loki/values.yaml for:
+  #   - deploymentMode: SingleBinary (suitable for homelab <20GB/day)
   #   - 50Gi storage, 90-day retention
-  #   - Single-binary mode (suitable for homelab)
+  #   - Memcached enabled by default in 6.x
   cat helm/loki/values.yaml
   ```
 
@@ -218,7 +220,7 @@
   ```bash
   helm-homelab install loki grafana/loki \
     --namespace monitoring \
-    --version 6.24.0 \
+    --version 6.49.0 \
     --values helm/loki/values.yaml
   ```
 
@@ -232,9 +234,10 @@
 
 - [ ] 3.7.5 Install Grafana Alloy
   ```bash
+  # Alloy replaces Promtail (EOL March 2026)
   helm-homelab install alloy grafana/alloy \
     --namespace monitoring \
-    --version 0.12.0 \
+    --version 1.5.2 \
     --values helm/alloy/values.yaml
   ```
 

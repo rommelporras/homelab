@@ -39,8 +39,8 @@
 |-------|---------|-------------|--------|-----------|
 | longhorn/longhorn | 1.10.1 | v1.10.1 | Installed | longhorn-system |
 | prometheus-community/kube-prometheus-stack | 81.0.0 | v0.82.0 | Planned | monitoring |
-| grafana/loki | 6.24.0 | v3.4.3 | Planned | monitoring |
-| grafana/alloy | 0.12.0 | v1.6.0 | Planned | monitoring |
+| grafana/loki | 6.49.0 | v3.6.3 | Planned | monitoring |
+| grafana/alloy | 1.5.2 | v1.12.x | Planned | monitoring |
 | jetstack/cert-manager | 1.17.0 | v1.17.0 | Planned | cert-manager |
 | gitlab/gitlab | 8.7.0 | v17.7.0 | Planned | gitlab |
 | gitlab/gitlab-runner | 0.71.0 | v17.7.0 | Planned | gitlab-runner |
@@ -67,7 +67,7 @@ helm-homelab repo update
 
 | Component | Version | Status |
 |-----------|---------|--------|
-| Gateway API CRDs | v1.2.0 | Planned |
+| Gateway API CRDs | v1.4.1 | Planned |
 | Cilium gatewayAPI.enabled | - | Planned |
 
 ---
@@ -88,6 +88,7 @@ helm-homelab repo update
 
 | Date | Change |
 |------|--------|
+| 2026-01-18 | Updated: Gateway API v1.2.0→v1.4.1, Loki 6.24.0→6.49.0, Alloy 0.12.0→1.5.2 |
 | 2026-01-18 | Added: GitLab, GitLab Runner Helm charts for CI/CD platform |
 | 2026-01-17 | Added: Gateway API section, cert-manager, Loki, Alloy charts |
 | 2026-01-17 | Removed: loki-stack (deprecated, Promtail EOL March 2026) |
