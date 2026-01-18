@@ -1,0 +1,38 @@
+# Homelab Gateway - Main entry point for all HTTP/HTTPS traffic
+# Docs: https://gateway-api.sigs.k8s.io/api-types/gateway/
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: homelab-gateway
+  namespace: default
+  annotations:
+    # Tell cert-manager to issue certificates for this Gateway
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  # Use Cilium as the Gateway controller
+  gatewayClassName: cilium
+
+  listeners:
+    # HTTP listener - for redirect to HTTPS (optional, can add later)
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # HTTPS listener - main entry point with TLS termination
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.k8s.home.rommelporras.com"
+      allowedRoutes:
+        namespaces:
+          from: All  # Allow HTTPRoutes from any namespace
+      tls:
+        mode: Terminate
+        certificateRefs:
+          # cert-manager will create this secret automatically
+          - name: wildcard-k8s-home-tls
+            kind: Secret

@@ -1,0 +1,55 @@
+# Cilium Helm Values for Homelab
+# Docs: https://docs.cilium.io/en/stable/helm-reference/
+
+# Cluster identification
+cluster:
+  name: homelab
+
+# Operator settings
+operator:
+  replicas: 1  # Single replica sufficient for 3-node cluster
+
+# Network mode (unchanged from initial install)
+routingMode: tunnel
+tunnelProtocol: vxlan
+
+# =============================================================================
+# Gateway API Support
+# =============================================================================
+# Enables Cilium as a Gateway API controller
+# Creates GatewayClass "cilium" automatically
+gatewayAPI:
+  enabled: true
+
+# =============================================================================
+# Kube-Proxy Replacement
+# =============================================================================
+# Required for Gateway API (or use nodePort.enabled: true)
+# Cilium uses eBPF for service load balancing instead of iptables
+# Better performance than kube-proxy
+kubeProxyReplacement: true
+
+# API Server configuration - REQUIRED when kube-proxy is removed
+# Cilium needs this to connect to the Kubernetes API server
+# Docs: https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/
+k8sServiceHost: "10.10.30.10"  # VIP address
+k8sServicePort: "6443"
+
+# L7 proxy for HTTP routing (enabled by default, explicit for clarity)
+l7Proxy: true
+
+# =============================================================================
+# L2 Announcements (LoadBalancer IP advertisement)
+# =============================================================================
+# Required for LoadBalancer IPs to be reachable from the LAN
+# Cilium responds to ARP requests for LoadBalancer IPs
+l2announcements:
+  enabled: true
+
+# Required for l2announcements
+externalIPs:
+  enabled: true
+
+# Devices for L2 announcements - REQUIRED for L2 to work
+# Must specify the physical NIC that connects to your LAN
+devices: "eno1"

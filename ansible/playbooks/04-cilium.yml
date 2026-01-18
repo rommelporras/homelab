@@ -7,7 +7,11 @@
 #   - Pod networking (CNI)
 #   - Network policies (CKA exam topic!)
 #   - eBPF-based service load balancing
-#   - Optional: kube-proxy replacement, Hubble observability
+#   - Kube-proxy replacement (eBPF instead of iptables)
+#   - Gateway API controller
+#   - L2 announcements for LoadBalancer IPs
+#
+# Requires: helm/cilium/values.yaml in the homelab repo
 
 - name: Install Cilium CNI
   hosts: control_plane_init
@@ -107,20 +111,58 @@
       changed_when: false
 
     # =========================================
-    # Install Cilium
+    # Install Cilium via Helm
     # =========================================
+    # Using Helm instead of 'cilium install' for:
+    # - Kube-proxy replacement (kubeProxyReplacement: true)
+    # - Gateway API support (gatewayAPI.enabled: true)
+    # - L2 announcements for LoadBalancer IPs
+    # - Explicit API server configuration for kube-proxy-free mode
+    #
+    # Values file: helm/cilium/values.yaml
+    # Docs: https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/
+
+    - name: Add Cilium Helm repository
+      ansible.builtin.command:
+        cmd: helm repo add cilium https://helm.cilium.io/
+      register: helm_repo_add
+      changed_when: "'has been added' in helm_repo_add.stdout"
+      failed_when: false
+
+    - name: Update Helm repositories
+      ansible.builtin.command:
+        cmd: helm repo update
+      changed_when: false
+
     - name: Check if Cilium is already installed
       ansible.builtin.command:
-        cmd: kubectl get daemonset cilium -n kube-system --no-headers
+        cmd: helm status cilium -n kube-system
       register: cilium_installed
       changed_when: false
       failed_when: false
 
-    - name: Install Cilium
+    - name: Copy Cilium values file to node
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../helm/cilium/values.yaml"
+        dest: /tmp/cilium-values.yaml
+        mode: '0644'
+      when: cilium_installed.rc != 0
+
+    - name: Install Cilium via Helm
       ansible.builtin.command:
-        cmd: cilium install --version {{ cilium_version }}
+        cmd: >-
+          helm install cilium cilium/cilium
+          --version {{ cilium_version }}
+          --namespace kube-system
+          -f /tmp/cilium-values.yaml
       when: cilium_installed.rc != 0
       register: cilium_install_output
+
+    - name: Cleanup values file
+      ansible.builtin.file:
+        path: /tmp/cilium-values.yaml
+        state: absent
+      when: cilium_installed.rc != 0
 
     - name: Wait for Cilium to be ready
       ansible.builtin.command:
@@ -167,14 +209,19 @@
           ├── CoreDNS pods: {{ coredns_pods.stdout_lines | length }}
           └── Components: cilium, cilium-envoy, cilium-operator
 
-          Cilium provides:
+          Features enabled (via helm/cilium/values.yaml):
           ├── Pod networking (CNI)
           ├── Network policies (kubectl get networkpolicies)
-          ├── eBPF-based dataplane (faster than iptables)
+          ├── Kube-proxy replacement (eBPF instead of iptables)
+          ├── Gateway API controller (gatewayClassName: cilium)
+          ├── L2 announcements (LoadBalancer IPs on LAN)
           └── Service load balancing
 
+          kube-proxy: NOT INSTALLED (skipped via --skip-phases=addon/kube-proxy)
+
           Useful commands:
-          ├── cilium status              # Check Cilium health
-          ├── cilium connectivity test   # Run connectivity tests
-          ├── kubectl get ciliumendpoints -A  # View Cilium endpoints
-          └── kubectl get ciliumnodes    # View Cilium node info
+          ├── cilium status                     # Check Cilium health
+          ├── cilium connectivity test          # Run connectivity tests
+          ├── kubectl get ciliumendpoints -A    # View Cilium endpoints
+          ├── kubectl get gatewayclasses        # View Gateway API classes
+          └── kubectl get ciliumnodes           # View Cilium node info

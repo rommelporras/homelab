@@ -1,0 +1,21 @@
+# Cilium L2 Announcement Policy
+# Enables ARP responses for LoadBalancer IPs so LAN devices can reach them
+# Docs: https://docs.cilium.io/en/stable/network/l2-announcements/
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: homelab-l2
+spec:
+  # Announce on all interfaces (Cilium will pick the right one)
+  interfaces:
+    - ^eno.*    # Match eno1, eno2, etc. (Intel NICs)
+    - ^eth.*    # Match eth0, eth1, etc. (generic)
+    - ^enp.*    # Match enp0s*, etc. (PCI naming)
+  # Use all nodes for announcements (HA - any node can respond)
+  nodeSelector:
+    matchLabels:
+      kubernetes.io/os: linux
+  # Announce IPs from our LoadBalancer pool
+  loadBalancerIPs: true
+  externalIPs: true

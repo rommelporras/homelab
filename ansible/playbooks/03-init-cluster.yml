@@ -92,7 +92,9 @@
     # =========================================
     - name: Run kubeadm init
       ansible.builtin.command:
-        cmd: kubeadm init --config={{ kubeadm_config_file }} --upload-certs
+        # --skip-phases=addon/kube-proxy: Cilium replaces kube-proxy with eBPF
+        # See: https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/
+        cmd: kubeadm init --config={{ kubeadm_config_file }} --upload-certs --skip-phases=addon/kube-proxy
       register: kubeadm_init_output
       when: cluster_needs_init
       # Init can take several minutes

@@ -70,32 +70,37 @@
 
 ### 3.5.3 Install cert-manager for HTTPS
 
-- [ ] 3.5.3.1 Add Jetstack Helm repo
-  ```bash
-  helm-homelab repo add jetstack https://charts.jetstack.io
-  helm-homelab repo update
-  ```
+> **Note:** cert-manager now recommends OCI registry over Helm repo.
+> No `helm repo add` needed.
 
-- [ ] 3.5.3.2 Install cert-manager with Gateway API support
+- [ ] 3.5.3.1 Install cert-manager with Gateway API support (OCI)
   ```bash
-  # Simplified syntax since cert-manager 1.16 (no apiVersion/kind needed)
-  # v1.17.0 is LTS release (Feb 2025)
-  helm-homelab install cert-manager jetstack/cert-manager \
+  # OCI registry is the recommended installation method
+  helm-homelab install cert-manager oci://quay.io/jetstack/charts/cert-manager \
     --namespace cert-manager \
     --create-namespace \
-    --version v1.17.0 \
+    --version v1.19.2 \
     --set crds.enabled=true \
     --set config.enableGatewayAPI=true
   ```
 
-- [ ] 3.5.3.3 Verify cert-manager pods running
+- [ ] 3.5.3.2 Verify cert-manager pods running
   ```bash
   kubectl-homelab -n cert-manager get pods
   ```
 
-- [ ] 3.5.3.4 Create ClusterIssuer (self-signed for now)
+- [ ] 3.5.3.3 Create Cloudflare API token secret
+  ```bash
+  # Store token in 1Password first, then create secret
+  kubectl-homelab create secret generic cloudflare-api-token \
+    --namespace cert-manager \
+    --from-literal=api-token="$(op read 'op://Kubernetes/Cloudflare DNS API Token/credential')"
+  ```
+
+- [ ] 3.5.3.4 Create ClusterIssuer (Let's Encrypt + Cloudflare DNS-01)
   ```bash
   kubectl-homelab apply -f manifests/cert-manager/cluster-issuer.yaml
+  # Creates letsencrypt-prod and letsencrypt-staging issuers
   ```
 
 ### 3.5.4 Create Homelab Gateway
@@ -128,6 +133,47 @@
   ```bash
   # Create test HTTPRoute pointing to any service
   # Verify HTTPS access works
+  ```
+
+### 3.5.5 Cleanup kube-proxy (Post-Verification) ✅
+
+> **Why?** With `kubeProxyReplacement: true`, Cilium handles all service load balancing.
+> kube-proxy is now redundant and can be safely removed after verifying Gateway works.
+>
+> **Docs:** https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/
+
+- [x] 3.5.5.1 Verify services work with Cilium
+  ```bash
+  # Verify Cilium is handling all services
+  kubectl-homelab -n kube-system exec ds/cilium -- cilium-dbg service list
+
+  # Verify Gateway routing works
+  kubectl-homelab get gateway homelab-gateway
+  ```
+
+- [x] 3.5.5.2 Delete kube-proxy DaemonSet
+  ```bash
+  kubectl-homelab -n kube-system delete ds kube-proxy
+  kubectl-homelab -n kube-system delete cm kube-proxy
+  ```
+
+- [x] 3.5.5.3 Clean iptables rules on each node
+  ```bash
+  # SSH to each node and remove KUBE-* iptables chains
+  for node in k8s-cp1 k8s-cp2 k8s-cp3; do
+    ssh wawashi@${node}.home.rommelporras.com \
+      'sudo iptables-save | grep -v KUBE | sudo iptables-restore'
+  done
+
+  # Verify no KUBE-SVC rules remain
+  ssh wawashi@k8s-cp1.home.rommelporras.com 'sudo iptables-save | grep KUBE-SVC'
+  # Should return empty
+  ```
+
+- [x] 3.5.5.4 Verify cluster remains healthy
+  ```bash
+  kubectl-homelab get nodes
+  kubectl-homelab get pods -A | grep -v Running
   ```
 
 ---
@@ -524,3 +570,17 @@ CyberPower UPS ──USB──► k8s-cp1 (NUT Server)
   ```
 
 **Rollback:** If issues, reconnect USB to Proxmox and revert NUT config
+
+
+---
+
+## Final: Documentation
+
+> **After all phases complete**, create a single rebuild document.
+
+- [ ] Create docs/REBUILD_FROM_SCRATCH.md
+  - Single file with step-by-step commands
+  - Copy-paste friendly
+  - Covers: Ansible playbooks → Gateway API → cert-manager → Monitoring → Logging → UPS
+  - Include verification steps after each phase
+  - Reference values files and manifests locations

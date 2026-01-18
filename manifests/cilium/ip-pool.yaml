@@ -1,0 +1,15 @@
+# Cilium LoadBalancer IP Pool
+# Defines the IP range Cilium can assign to LoadBalancer services
+# Docs: https://docs.cilium.io/en/stable/network/lb-ipam/
+---
+apiVersion: "cilium.io/v2alpha1"
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: homelab-pool
+spec:
+  blocks:
+    # Range for LoadBalancer services
+    # - 10.10.30.20: Gateway (primary)
+    # - 10.10.30.21-50: Future services (AdGuard, etc.)
+    - start: "10.10.30.20"
+      stop: "10.10.30.50"
