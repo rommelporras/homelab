@@ -367,3 +367,19 @@
 - [ ] 4.8.8.3 After 1 week stable, delete/repurpose VM
 
 **Rollback:** Restart Docker Compose on VM, revert tunnel route, restore database backup
+
+---
+
+## Final: Documentation Updates
+
+- [ ] Update VERSIONS.md
+  - Add Invoicetron and PostgreSQL components
+  - Add version history entry
+
+- [ ] Update docs/reference/CHANGELOG.md
+  - Add Phase 4.8 section with milestone, decisions, lessons learned
+
+- [ ] Move this file to completed folder
+  ```bash
+  mv docs/todo/phase-4.8-invoicetron.md docs/todo/completed/
+  ```

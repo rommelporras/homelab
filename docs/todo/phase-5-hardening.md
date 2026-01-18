@@ -77,3 +77,19 @@
 - [ ] 5.5.3 Create scheduled backups
 
 - [ ] 5.5.4 Test restore procedure
+
+---
+
+## Final: Documentation Updates
+
+- [ ] Update VERSIONS.md
+  - Add Velero and security components
+  - Add version history entry
+
+- [ ] Update docs/reference/CHANGELOG.md
+  - Add Phase 5 section with milestone, decisions, lessons learned
+
+- [ ] Move this file to completed folder
+  ```bash
+  mv docs/todo/phase-5-hardening.md docs/todo/completed/
+  ```

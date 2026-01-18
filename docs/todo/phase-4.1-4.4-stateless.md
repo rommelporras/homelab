@@ -213,3 +213,19 @@
   - NPM LXC (80) - **disabled** (replaced by Gateway API)
 
 - [ ] 4.4.5 Verify FW AGH LXC (10.10.30.54) still running as failover
+
+---
+
+## Final: Documentation Updates
+
+- [ ] Update VERSIONS.md
+  - Add AdGuard Home and Homepage components
+  - Add version history entry
+
+- [ ] Update docs/reference/CHANGELOG.md
+  - Add Phase 4.1-4.4 section with milestone, decisions, lessons learned
+
+- [ ] Move this file to completed folder
+  ```bash
+  mv docs/todo/phase-4.1-4.4-stateless.md docs/todo/completed/
+  ```

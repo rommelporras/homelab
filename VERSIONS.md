@@ -40,27 +40,28 @@
 | longhorn/longhorn | 1.10.1 | v1.10.1 | Installed | longhorn-system |
 | cilium/cilium | 1.18.6 | v1.18.6 | Installed | kube-system |
 | oci://quay.io/jetstack/charts/cert-manager | 1.19.2 | v1.19.2 | Installed | cert-manager |
-| prometheus-community/kube-prometheus-stack | 81.0.0 | v0.82.0 | Planned | monitoring |
+| oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 81.0.0 | v0.88.0 | Installed | monitoring |
 | grafana/loki | 6.49.0 | v3.6.3 | Planned | monitoring |
-| grafana/alloy | 1.5.2 | v1.12.x | Planned | monitoring |
+| grafana/alloy | 1.5.2 | v1.12.2 | Planned | monitoring |
 | gitlab/gitlab | 8.7.0 | v17.7.0 | Planned | gitlab |
 | gitlab/gitlab-runner | 0.71.0 | v17.7.0 | Planned | gitlab-runner |
 
 > **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
 > Use `grafana/loki` + `grafana/alloy` instead.
 >
-> **Note:** cert-manager uses OCI registry (recommended by upstream).
-> No `helm repo add` needed - install directly from `oci://quay.io/jetstack/charts/cert-manager`.
+> **Note:** cert-manager and kube-prometheus-stack use OCI registry (recommended by upstream).
+> No `helm repo add` needed - install directly from OCI URLs.
+>
+> **Note:** Grafana charts (loki, alloy) don't support OCI yet. Uses traditional Helm repo.
 
 **Helm Repos:**
 ```bash
 helm-homelab repo add longhorn https://charts.longhorn.io
 helm-homelab repo add cilium https://helm.cilium.io/
-helm-homelab repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm-homelab repo add grafana https://grafana.github.io/helm-charts
 helm-homelab repo add gitlab https://charts.gitlab.io
 helm-homelab repo update
-# Note: cert-manager uses OCI - no repo add needed
+# Note: cert-manager and kube-prometheus-stack use OCI - no repo add needed
 ```
 
 ---
@@ -97,6 +98,7 @@ helm-homelab repo update
 
 | Date | Change |
 |------|--------|
+| 2026-01-18 | Installed: kube-prometheus-stack v81.0.0 (Prometheus, Grafana, Alertmanager, node-exporter) |
 | 2026-01-18 | Removed: kube-proxy (Cilium eBPF kube-proxy replacement now handles all services) |
 | 2026-01-18 | Installed: Gateway API CRDs v1.4.1, Cilium Gateway, cert-manager v1.19.2 (OCI) |
 | 2026-01-18 | Installed: Homelab Gateway (10.10.30.20) with Let's Encrypt wildcard TLS |

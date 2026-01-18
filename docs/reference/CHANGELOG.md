@@ -4,6 +4,52 @@
 
 ---
 
+## January 18, 2026 — Phase 3.6: Monitoring Stack
+
+### Milestone: kube-prometheus-stack Running
+
+Successfully installed complete monitoring stack with Prometheus, Grafana, Alertmanager, and node-exporter.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| kube-prometheus-stack | v81.0.0 | Running |
+| Prometheus | v0.88.0 | Running (50Gi PVC) |
+| Grafana | latest | Running (10Gi PVC) |
+| Alertmanager | latest | Running (5Gi PVC) |
+| node-exporter | latest | Running (DaemonSet, 3 pods) |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| helm/prometheus/values.yaml | Helm values with 90-day retention, Longhorn storage |
+| manifests/monitoring/grafana-httproute.yaml | Gateway API route for HTTPS access |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Pod Security | privileged | node-exporter needs hostNetwork, hostPID, hostPath |
+| OCI registry | Yes | Recommended by upstream, no helm repo add needed |
+| Retention | 90 days | Balance between history and storage usage |
+| Storage | Longhorn | Consistent with cluster storage strategy |
+
+### Lessons Learned
+
+**Pod Security Standards block node-exporter:** The `baseline` PSS level rejects pods with hostNetwork/hostPID/hostPath. node-exporter requires these for host-level metrics collection.
+
+**Solution:** Use `privileged` PSS for monitoring namespace: `kubectl label namespace monitoring pod-security.kubernetes.io/enforce=privileged`
+
+**DaemonSet backoff requires restart:** After fixing PSS, the DaemonSet controller was in backoff. Required `kubectl rollout restart daemonset` to retry pod creation.
+
+### Access
+
+- Grafana: https://grafana.k8s.home.rommelporras.com
+- Prometheus (internal): prometheus-kube-prometheus-prometheus:9090
+- Alertmanager (internal): prometheus-kube-prometheus-alertmanager:9093
+
+---
+
 ## January 17, 2026 — Phase 3: Storage Infrastructure
 
 ### Milestone: Longhorn Distributed Storage Running

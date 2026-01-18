@@ -406,3 +406,19 @@
   ```
 
 **Rollback:** `helm-homelab uninstall gitlab -n gitlab`
+
+---
+
+## Final: Documentation Updates
+
+- [ ] Update VERSIONS.md
+  - Add GitLab and GitLab Runner components
+  - Add version history entry
+
+- [ ] Update docs/reference/CHANGELOG.md
+  - Add Phase 4.6 section with milestone, decisions, lessons learned
+
+- [ ] Move this file to completed folder
+  ```bash
+  mv docs/todo/phase-4.6-gitlab.md docs/todo/completed/
+  ```

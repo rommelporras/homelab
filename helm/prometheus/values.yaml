@@ -1,0 +1,146 @@
+# kube-prometheus-stack Helm Values for Homelab
+# Docs: https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack
+#
+# Prerequisites:
+#   kubectl-homelab create namespace monitoring
+#   kubectl-homelab label namespace monitoring pod-security.kubernetes.io/enforce=privileged
+#   (privileged required: node-exporter needs hostNetwork, hostPID, hostPath)
+#
+# Install via OCI (no helm repo add needed):
+#   helm-homelab install prometheus oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack \
+#     --namespace monitoring \
+#     --version 81.0.0 \
+#     --values helm/prometheus/values.yaml \
+#     --set grafana.adminPassword="$(op read 'op://Kubernetes/Grafana/password')"
+
+# =============================================================================
+# Prometheus
+# =============================================================================
+# Time-series database that scrapes and stores all metrics
+prometheus:
+  prometheusSpec:
+    # How long to keep data (default: 10d)
+    retention: 90d
+
+    # Storage - uses Longhorn PVC
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+
+    # Resource limits for 16GB nodes
+    # Prometheus can be memory-hungry, especially with many metrics
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+    # Scrape all ServiceMonitors in all namespaces (not just monitoring)
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+# =============================================================================
+# Grafana
+# =============================================================================
+# Visualization dashboards
+grafana:
+  # Admin password set via --set at install time (from 1Password)
+  # adminPassword: set at install time
+
+  # Persistence - dashboards survive pod restarts
+  persistence:
+    enabled: true
+    storageClassName: longhorn
+    size: 10Gi
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Grafana configuration
+  grafana.ini:
+    server:
+      # Root URL for links in emails, etc.
+      root_url: https://grafana.k8s.home.rommelporras.com
+
+    # Disable analytics/telemetry
+    analytics:
+      reporting_enabled: false
+      check_for_updates: false
+
+# =============================================================================
+# Alertmanager
+# =============================================================================
+# Handles alerts from Prometheus
+alertmanager:
+  alertmanagerSpec:
+    # Storage for silences and notifications
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+# =============================================================================
+# node-exporter
+# =============================================================================
+# DaemonSet that runs on every node to collect hardware/OS metrics
+# CKA Topic: DaemonSets ensure one pod per node
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 64Mi
+
+# =============================================================================
+# kube-state-metrics
+# =============================================================================
+# Exposes metrics about Kubernetes objects (pods, deployments, etc.)
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# =============================================================================
+# Prometheus Operator
+# =============================================================================
+# Manages Prometheus and Alertmanager instances via CRDs
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi

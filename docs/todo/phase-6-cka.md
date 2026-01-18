@@ -69,3 +69,15 @@ After each phase, you should be able to:
 | 5 | Write NetworkPolicies, configure RBAC, enforce Pod Security |
 | 6 | Pass CKA with confidence |
 | Deferred | Deploy StatefulSets, manage Secrets, handle stateful workloads |
+
+---
+
+## Final: Documentation Updates
+
+- [ ] Update docs/reference/CHANGELOG.md
+  - Add Phase 6 section with CKA exam results and lessons learned
+
+- [ ] Move this file to completed folder
+  ```bash
+  mv docs/todo/phase-6-cka.md docs/todo/completed/
+  ```

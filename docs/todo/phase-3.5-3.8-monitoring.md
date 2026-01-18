@@ -176,6 +176,15 @@
   kubectl-homelab get pods -A | grep -v Running
   ```
 
+### 3.5.6 Documentation Updates
+
+- [ ] 3.5.6.1 Update VERSIONS.md
+  - Change component status from "Planned" to "Installed"
+  - Add version history entry
+
+- [ ] 3.5.6.2 Update docs/reference/CHANGELOG.md
+  - Add phase section with milestone, decisions, lessons learned
+
 ---
 
 ## 3.6 Install Monitoring Stack
@@ -183,20 +192,19 @@
 > **CKA Topics:** DaemonSets, ServiceMonitors, StatefulSets, Resource Metrics
 >
 > **Access:** https://grafana.k8s.home.rommelporras.com (via Gateway API)
+>
+> **Note:** kube-prometheus-stack uses OCI registry (recommended by upstream).
+> No `helm repo add` needed.
+>
+> **Docs:** https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack
 
-- [ ] 3.6.1 Add Prometheus Helm repo
-  ```bash
-  helm-homelab repo add prometheus-community https://prometheus-community.github.io/helm-charts
-  helm-homelab repo update
-  ```
-
-- [ ] 3.6.2 Create monitoring namespace with Pod Security
+- [ ] 3.6.1 Create monitoring namespace with Pod Security
   ```bash
   kubectl-homelab create namespace monitoring
   kubectl-homelab label namespace monitoring pod-security.kubernetes.io/enforce=baseline
   ```
 
-- [ ] 3.6.3 Create Helm values file
+- [ ] 3.6.2 Create Helm values file
   ```bash
   # See helm/prometheus/values.yaml for:
   #   - 90-day retention, 50Gi storage
@@ -205,35 +213,45 @@
   cat helm/prometheus/values.yaml
   ```
 
-- [ ] 3.6.4 Install kube-prometheus-stack
+- [ ] 3.6.3 Install kube-prometheus-stack (OCI)
   ```bash
-  helm-homelab install prometheus prometheus-community/kube-prometheus-stack \
+  # OCI registry is the recommended installation method
+  helm-homelab install prometheus oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack \
     --namespace monitoring \
     --version 81.0.0 \
     --values helm/prometheus/values.yaml \
     --set grafana.adminPassword="$(op read 'op://Kubernetes/Grafana/password')"
   ```
 
-- [ ] 3.6.5 Verify all pods running
+- [ ] 3.6.4 Verify all pods running
   ```bash
   kubectl-homelab -n monitoring get pods
   # Wait for all pods to be Running (2-3 minutes)
   ```
 
-- [ ] 3.6.6 Create HTTPRoute for Grafana
+- [ ] 3.6.5 Create HTTPRoute for Grafana
   ```bash
   kubectl-homelab apply -f manifests/gateway/routes/grafana.yaml
   ```
 
-- [ ] 3.6.7 Access Grafana via HTTPS
+- [ ] 3.6.6 Access Grafana via HTTPS
   ```
   https://grafana.k8s.home.rommelporras.com
   Login: admin / (from 1Password)
   ```
 
-- [ ] 3.6.8 Verify node metrics visible
+- [ ] 3.6.7 Verify node metrics visible
   - Check "Node Exporter / Nodes" dashboard
   - Verify all 3 nodes appear with metrics
+
+### 3.6.8 Documentation Updates
+
+- [ ] 3.6.8.1 Update VERSIONS.md
+  - Change kube-prometheus-stack status to "Installed"
+  - Add version history entry
+
+- [ ] 3.6.8.2 Update docs/reference/CHANGELOG.md
+  - Add Phase 3.6 section with milestone, decisions, lessons learned
 
 ---
 
@@ -246,9 +264,16 @@
 > - Grafana Alloy: Log collector (replaces Promtail)
 >
 > **CKA Topics:** DaemonSets, Log aggregation
+>
+> **Note:** Grafana charts don't support OCI yet. Uses traditional Helm repo.
+>
+> **Docs:**
+> - Loki: https://grafana.com/docs/loki/latest/setup/install/helm/
+> - Alloy: https://grafana.com/docs/alloy/latest/set-up/install/kubernetes/
 
-- [ ] 3.7.1 Add Grafana Helm repo (if not already added)
+- [ ] 3.7.1 Add Grafana Helm repo
   ```bash
+  # Grafana charts don't have OCI registry yet
   helm-homelab repo add grafana https://grafana.github.io/helm-charts
   helm-homelab repo update
   ```
@@ -301,6 +326,15 @@
   - Go to Explore → Select Loki
   - Query: `{namespace="monitoring"}`
   - Should see logs from monitoring pods
+
+### 3.7.9 Documentation Updates
+
+- [ ] 3.7.9.1 Update VERSIONS.md
+  - Change Loki and Alloy status to "Installed"
+  - Add version history entry
+
+- [ ] 3.7.9.2 Update docs/reference/CHANGELOG.md
+  - Add Phase 3.7 section with milestone, decisions, lessons learned
 
 ---
 
@@ -571,6 +605,14 @@ CyberPower UPS ──USB──► k8s-cp1 (NUT Server)
 
 **Rollback:** If issues, reconnect USB to Proxmox and revert NUT config
 
+### 3.8.7 Documentation Updates
+
+- [ ] 3.8.7.1 Update VERSIONS.md
+  - Add NUT components and versions
+  - Add version history entry
+
+- [ ] 3.8.7.2 Update docs/reference/CHANGELOG.md
+  - Add Phase 3.8 section with milestone, decisions, lessons learned
 
 ---
 
@@ -584,3 +626,9 @@ CyberPower UPS ──USB──► k8s-cp1 (NUT Server)
   - Covers: Ansible playbooks → Gateway API → cert-manager → Monitoring → Logging → UPS
   - Include verification steps after each phase
   - Reference values files and manifests locations
+
+- [ ] Move this file to completed folder
+  ```bash
+  mkdir -p docs/todo/completed
+  mv docs/todo/phase-3.5-3.8-monitoring.md docs/todo/completed/
+  ```

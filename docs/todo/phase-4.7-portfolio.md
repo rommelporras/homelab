@@ -285,3 +285,19 @@
 - [ ] 4.7.6.3 After 1 week stable, delete VM (or repurpose)
 
 **Rollback:** Restart Docker Compose on VM, revert tunnel route
+
+---
+
+## Final: Documentation Updates
+
+- [ ] Update VERSIONS.md
+  - Add Portfolio component and version
+  - Add version history entry
+
+- [ ] Update docs/reference/CHANGELOG.md
+  - Add Phase 4.7 section with milestone, decisions, lessons learned
+
+- [ ] Move this file to completed folder
+  ```bash
+  mv docs/todo/phase-4.7-portfolio.md docs/todo/completed/
+  ```

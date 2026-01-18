@@ -163,3 +163,19 @@
 - [ ] 4.5.5.4 Delete LXC cloudflared (after 1 week stable)
 
 **Rollback:** Restart LXC cloudflared, it will reconnect automatically
+
+---
+
+## Final: Documentation Updates
+
+- [ ] Update VERSIONS.md
+  - Add cloudflared component and version
+  - Add version history entry
+
+- [ ] Update docs/reference/CHANGELOG.md
+  - Add Phase 4.5 section with milestone, decisions, lessons learned
+
+- [ ] Move this file to completed folder
+  ```bash
+  mv docs/todo/phase-4.5-cloudflare.md docs/todo/completed/
+  ```
