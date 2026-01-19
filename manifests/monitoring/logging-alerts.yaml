@@ -1,0 +1,111 @@
+# PrometheusRule for Logging Stack Alerts
+# Alerts for Loki and Alloy health issues
+#
+# Apply:
+#   kubectl-homelab apply -f manifests/monitoring/logging-alerts.yaml
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: logging-alerts
+  namespace: monitoring
+  labels:
+    # This label ensures Prometheus picks it up
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    # =========================================================================
+    # Loki Alerts
+    # =========================================================================
+    - name: loki
+      rules:
+        # Alert if Loki is down
+        - alert: LokiDown
+          expr: up{job=~".*loki.*"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Loki is down"
+            description: "Loki instance {{ $labels.instance }} has been down for more than 5 minutes."
+
+        # Alert if Loki ingestion has stopped
+        - alert: LokiIngestionStopped
+          expr: sum(rate(loki_distributor_lines_received_total[5m])) == 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Loki is not receiving any logs"
+            description: "Loki has not received any log lines for 15 minutes. Check Alloy pods."
+
+        # Alert if Loki has high error rate
+        - alert: LokiHighErrorRate
+          expr: |
+            sum(rate(loki_request_duration_seconds_count{status_code=~"5.."}[5m]))
+            /
+            sum(rate(loki_request_duration_seconds_count[5m]))
+            > 0.1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Loki has high error rate"
+            description: "Loki error rate is above 10% for the last 10 minutes."
+
+        # Alert if Loki PVC is running low on space
+        - alert: LokiStorageLow
+          expr: |
+            kubelet_volume_stats_available_bytes{persistentvolumeclaim="storage-loki-0"}
+            /
+            kubelet_volume_stats_capacity_bytes{persistentvolumeclaim="storage-loki-0"}
+            < 0.2
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Loki storage is running low"
+            description: "Loki PVC has less than 20% space available. Current: {{ $value | humanizePercentage }}"
+
+    # =========================================================================
+    # Alloy Alerts
+    # =========================================================================
+    - name: alloy
+      rules:
+        # Alert if Alloy pods are not running on all nodes
+        - alert: AlloyNotOnAllNodes
+          expr: |
+            count(up{job=~".*alloy.*"} == 1)
+            <
+            count(kube_node_info)
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Alloy not running on all nodes"
+            description: "Expected {{ with query \"count(kube_node_info)\" }}{{ . | first | value }}{{ end }} Alloy pods but only {{ $value }} are running."
+
+        # Alert if Alloy is not sending logs to Loki
+        - alert: AlloyNotSendingLogs
+          expr: sum(rate(loki_write_sent_bytes_total[5m])) == 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Alloy is not sending logs to Loki"
+            description: "No logs have been sent to Loki for 15 minutes. Check Alloy configuration."
+
+        # Alert if Alloy has high memory usage (approaching limits)
+        - alert: AlloyHighMemory
+          expr: |
+            container_memory_working_set_bytes{container="alloy", namespace="monitoring"}
+            /
+            container_spec_memory_limit_bytes{container="alloy", namespace="monitoring"}
+            > 0.8
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Alloy memory usage is high"
+            description: "Alloy pod {{ $labels.pod }} is using more than 80% of its memory limit."

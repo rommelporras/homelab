@@ -1,0 +1,146 @@
+# Loki Helm Values for Homelab
+# Docs: https://grafana.com/docs/loki/latest/setup/install/helm/
+#
+# Prerequisites:
+#   Namespace already created by kube-prometheus-stack (monitoring)
+#
+# Install via OCI:
+#   helm-homelab install loki oci://ghcr.io/grafana/helm-charts/loki \
+#     --namespace monitoring \
+#     --version 6.49.0 \
+#     --values helm/loki/values.yaml
+
+# =============================================================================
+# Deployment Mode
+# =============================================================================
+# SingleBinary: All components in one process, suitable for <20GB/day
+# SimpleScalable: Separate read/write/backend, suitable for <1TB/day
+# Distributed: Full microservices, suitable for >1TB/day
+#
+# Our homelab generates ~18MB/day raw logs (~4MB compressed), so SingleBinary
+# is appropriate and simpler to manage.
+deploymentMode: SingleBinary
+
+# =============================================================================
+# Loki Configuration
+# =============================================================================
+loki:
+  # Disable multi-tenancy (not needed for homelab)
+  auth_enabled: false
+
+  # Common configuration
+  commonConfig:
+    path_prefix: /var/loki
+    # SingleBinary doesn't need replication
+    replication_factor: 1
+
+  # Schema configuration - defines how data is stored
+  # Using TSDB (recommended for Loki 3.x) with v13 schema
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+
+  # Storage configuration - use filesystem (not S3)
+  storage:
+    type: filesystem
+    filesystem:
+      chunks_directory: /var/loki/chunks
+      rules_directory: /var/loki/rules
+
+  # Retention configuration
+  # 90 days = 2160 hours (based on storage analysis: ~4MB/day = 360MB for 90 days)
+  limits_config:
+    retention_period: 2160h
+    # Reject logs older than 7 days (prevent backfill attacks)
+    reject_old_samples: true
+    reject_old_samples_max_age: 168h
+    # Query limits
+    max_cache_freshness_per_query: 10m
+    split_queries_by_interval: 15m
+    query_timeout: 300s
+    volume_enabled: true
+
+  # Compactor handles retention enforcement
+  compactor:
+    retention_enabled: true
+    delete_request_store: filesystem
+    working_directory: /var/loki/compactor
+    compaction_interval: 10m
+    retention_delete_delay: 2h
+    retention_delete_worker_count: 150
+
+  # Ingester configuration for durability
+  ingester:
+    chunk_encoding: snappy
+    chunk_idle_period: 30m
+    chunk_block_size: 262144
+    chunk_retain_period: 1m
+    wal:
+      enabled: true
+      dir: /var/loki/wal
+
+# =============================================================================
+# SingleBinary Configuration
+# =============================================================================
+singleBinary:
+  # Run 1 replica (sufficient for homelab)
+  replicas: 1
+
+  # Resource limits for 16GB nodes
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Persistence - use Longhorn for durability
+  persistence:
+    enabled: true
+    storageClass: longhorn
+    size: 10Gi
+    accessModes:
+      - ReadWriteOnce
+
+# =============================================================================
+# Disable Components Not Needed for SingleBinary
+# =============================================================================
+# These are for SimpleScalable/Distributed modes
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+# Disable caches (not needed for small scale)
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+
+# Disable gateway (we use Gateway API for routing)
+gateway:
+  enabled: false
+
+# Disable test pod
+test:
+  enabled: false
+
+# Disable canary (top-level setting, not under monitoring)
+lokiCanary:
+  enabled: false
+
+# Disable self-monitoring (we use kube-prometheus-stack separately)
+monitoring:
+  selfMonitoring:
+    enabled: false
+    grafanaAgent:
+      installOperator: false

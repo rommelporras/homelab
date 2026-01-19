@@ -1,0 +1,26 @@
+# Loki Datasource for Grafana
+# Grafana sidecar auto-discovers ConfigMaps with label: grafana_datasource=1
+#
+# Apply:
+#   kubectl-homelab apply -f manifests/monitoring/loki-datasource.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-datasource
+  namespace: monitoring
+  labels:
+    # This label tells Grafana sidecar to pick up this datasource
+    grafana_datasource: "1"
+data:
+  loki-datasource.yaml: |-
+    apiVersion: 1
+    datasources:
+    - name: Loki
+      type: loki
+      uid: loki
+      url: http://loki.monitoring.svc.cluster.local:3100
+      access: proxy
+      isDefault: false
+      jsonData:
+        maxLines: 1000

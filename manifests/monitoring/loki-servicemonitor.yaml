@@ -1,0 +1,27 @@
+# ServiceMonitor for Loki - allows Prometheus to scrape Loki metrics
+# This enables monitoring of the logging stack itself
+#
+# Apply:
+#   kubectl-homelab apply -f manifests/monitoring/loki-servicemonitor.yaml
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: loki
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: loki
+    # This label ensures Prometheus picks it up (matches kube-prometheus-stack selector)
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  namespaceSelector:
+    matchNames:
+      - monitoring
+  endpoints:
+    - port: http-metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

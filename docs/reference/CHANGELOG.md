@@ -4,6 +4,96 @@
 
 ---
 
+## January 19, 2026 — Phase 3.7: Logging Stack
+
+### Milestone: Loki + Alloy Running
+
+Successfully installed centralized logging with Loki for storage and Alloy for log collection.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| Loki | v3.6.3 | Running (SingleBinary, 10Gi PVC) |
+| Alloy | v1.12.2 | Running (DaemonSet, 3 pods) |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| helm/loki/values.yaml | Loki SingleBinary mode, 90-day retention, Longhorn storage |
+| helm/alloy/values.yaml | Alloy DaemonSet with K8s API log collection + K8s events |
+| manifests/monitoring/loki-datasource.yaml | Grafana datasource ConfigMap for Loki |
+| manifests/monitoring/loki-servicemonitor.yaml | Prometheus scraping for Loki metrics |
+| manifests/monitoring/alloy-servicemonitor.yaml | Prometheus scraping for Alloy metrics |
+| manifests/monitoring/logging-alerts.yaml | PrometheusRule with Loki/Alloy alerts |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Loki mode | SingleBinary | Cluster generates ~4MB/day logs, far below 20GB/day threshold |
+| Storage backend | Filesystem (Longhorn PVC) | SimpleScalable/Distributed require S3, overkill for homelab |
+| Retention | 90 days | Storage analysis showed ~360-810MB needed, 10Gi provides headroom |
+| Log collection | loki.source.kubernetes | Uses K8s API, no volume mounts or privileged containers needed |
+| Alloy controller | DaemonSet | One pod per node ensures all logs collected |
+| OCI registry | Loki only | Alloy doesn't support OCI yet, uses traditional Helm repo |
+| K8s events | Single collector | Only k8s-cp1's Alloy forwards events to avoid triplicates |
+| Observability | ServiceMonitors + Alerts | Monitor the monitors - Prometheus scrapes Loki/Alloy |
+| Alloy memory | 256Mi limit | Increased from 128Mi to handle events collection safely |
+
+### Lessons Learned
+
+**Loki OCI available but undocumented:** Official docs still show `helm repo add grafana`, but Loki chart is available via OCI at `oci://ghcr.io/grafana/helm-charts/loki`. Alloy is not available via OCI (403 denied).
+
+**lokiCanary is top-level setting:** The Loki chart has `lokiCanary.enabled` at the top level, NOT under `monitoring.lokiCanary`. This caused unwanted canary pods until fixed.
+
+**loki.source.kubernetes vs loki.source.file:** The newer `loki.source.kubernetes` component tails logs via K8s API instead of mounting `/var/log/pods`. Benefits: no volume mounts, no privileged containers, works with restrictive Pod Security Standards.
+
+**Grafana sidecar auto-discovery:** Creating a ConfigMap with label `grafana_datasource: "1"` automatically adds the datasource to Grafana. No manual configuration needed.
+
+### Architecture
+
+```
+Pod stdout ──────► Alloy (DaemonSet) ──► Loki (SingleBinary) ──► Longhorn PVC
+K8s Events ──────►        │                      │
+                          │                      ▼
+                          │                  Grafana
+                          │                      ▲
+                          ▼                      │
+                    Prometheus ◄── ServiceMonitors (loki, alloy)
+                          │
+                          ▼
+                    Alertmanager ◄── PrometheusRule (logging-alerts)
+```
+
+### Alerts Configured
+
+| Alert | Severity | Trigger |
+|-------|----------|---------|
+| LokiDown | critical | Loki unreachable for 5m |
+| LokiIngestionStopped | warning | No logs received for 15m |
+| LokiHighErrorRate | warning | Error rate > 10% for 10m |
+| LokiStorageLow | warning | PVC < 20% free for 30m |
+| AlloyNotOnAllNodes | warning | Alloy pods < node count for 10m |
+| AlloyNotSendingLogs | warning | No logs sent for 15m |
+| AlloyHighMemory | warning | Memory > 80% limit for 10m |
+
+### Access
+
+- Grafana Explore: https://grafana.k8s.home.rommelporras.com/explore
+- Loki (internal): loki.monitoring.svc.cluster.local:3100
+
+### Sample LogQL Queries
+
+```logql
+{namespace="monitoring"}                    # All monitoring logs
+{namespace="kube-system", container="etcd"} # etcd logs
+{cluster="homelab"} |= "error"              # Search for errors
+{source="kubernetes_events"}                # All K8s events
+{source="kubernetes_events"} |= "Warning"   # Warning events only
+```
+
+---
+
 ## January 18, 2026 — Phase 3.6: Monitoring Stack
 
 ### Milestone: kube-prometheus-stack Running

@@ -1,0 +1,27 @@
+# ServiceMonitor for Alloy - allows Prometheus to scrape Alloy metrics
+# This enables monitoring of the log collection agents
+#
+# Apply:
+#   kubectl-homelab apply -f manifests/monitoring/alloy-servicemonitor.yaml
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: alloy
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alloy
+    # This label ensures Prometheus picks it up (matches kube-prometheus-stack selector)
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alloy
+  namespaceSelector:
+    matchNames:
+      - monitoring
+  endpoints:
+    - port: http-metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

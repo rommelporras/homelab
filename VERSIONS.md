@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** January 18, 2026
+> **Last Updated:** January 19, 2026
 
 ---
 
@@ -41,18 +41,18 @@
 | cilium/cilium | 1.18.6 | v1.18.6 | Installed | kube-system |
 | oci://quay.io/jetstack/charts/cert-manager | 1.19.2 | v1.19.2 | Installed | cert-manager |
 | oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 81.0.0 | v0.88.0 | Installed | monitoring |
-| grafana/loki | 6.49.0 | v3.6.3 | Planned | monitoring |
-| grafana/alloy | 1.5.2 | v1.12.2 | Planned | monitoring |
+| oci://ghcr.io/grafana/helm-charts/loki | 6.49.0 | v3.6.3 | Installed | monitoring |
+| grafana/alloy | 1.5.2 | v1.12.2 | Installed | monitoring |
 | gitlab/gitlab | 8.7.0 | v17.7.0 | Planned | gitlab |
 | gitlab/gitlab-runner | 0.71.0 | v17.7.0 | Planned | gitlab-runner |
 
 > **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
 > Use `grafana/loki` + `grafana/alloy` instead.
 >
-> **Note:** cert-manager and kube-prometheus-stack use OCI registry (recommended by upstream).
+> **Note:** cert-manager, kube-prometheus-stack, and Loki use OCI registry (recommended by upstream).
 > No `helm repo add` needed - install directly from OCI URLs.
 >
-> **Note:** Grafana charts (loki, alloy) don't support OCI yet. Uses traditional Helm repo.
+> **Note:** Grafana Alloy doesn't support OCI yet. Uses traditional Helm repo (`grafana`).
 
 **Helm Repos:**
 ```bash
@@ -98,6 +98,12 @@ helm-homelab repo update
 
 | Date | Change |
 |------|--------|
+| 2026-01-19 | Added: ServiceMonitors for Loki and Alloy (Prometheus now scrapes logging stack) |
+| 2026-01-19 | Added: PrometheusRule with 7 alerts for logging pipeline health |
+| 2026-01-19 | Added: K8s events collection to Alloy (query with `{source="kubernetes_events"}`) |
+| 2026-01-19 | Updated: Alloy memory limit 128Mi→256Mi for events collection |
+| 2026-01-19 | Installed: Loki v3.6.3 (SingleBinary mode, 90-day retention, Longhorn storage) |
+| 2026-01-19 | Installed: Grafana Alloy v1.12.2 (DaemonSet, K8s API log collection) |
 | 2026-01-18 | Installed: kube-prometheus-stack v81.0.0 (Prometheus, Grafana, Alertmanager, node-exporter) |
 | 2026-01-18 | Removed: kube-proxy (Cilium eBPF kube-proxy replacement now handles all services) |
 | 2026-01-18 | Installed: Gateway API CRDs v1.4.1, Cilium Gateway, cert-manager v1.19.2 (OCI) |

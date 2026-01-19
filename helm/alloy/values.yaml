@@ -1,0 +1,178 @@
+# Grafana Alloy Helm Values for Homelab
+# Docs: https://grafana.com/docs/alloy/latest/
+#
+# Prerequisites:
+#   Namespace already created by kube-prometheus-stack (monitoring)
+#   Loki already installed (loki.monitoring.svc.cluster.local:3100)
+#
+# Install:
+#   helm-homelab install alloy grafana/alloy \
+#     --namespace monitoring \
+#     --version 1.5.2 \
+#     --values helm/alloy/values.yaml
+
+# =============================================================================
+# Controller Configuration
+# =============================================================================
+# DaemonSet ensures one Alloy pod per node to collect all container logs
+controller:
+  type: daemonset
+
+# =============================================================================
+# Alloy Configuration
+# =============================================================================
+alloy:
+  # Disable anonymous usage reporting
+  enableReporting: false
+
+  # The Alloy configuration (River language)
+  # This defines the log collection pipeline:
+  #   discovery.kubernetes -> discovery.relabel -> loki.source.kubernetes -> loki.write
+  configMap:
+    create: true
+    content: |
+      // =======================================================================
+      // Pod Discovery
+      // =======================================================================
+      // Find all pods in the cluster
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      // =======================================================================
+      // Relabeling - Extract Kubernetes metadata as labels
+      // =======================================================================
+      discovery.relabel "pod_logs" {
+        targets = discovery.kubernetes.pods.targets
+
+        // Keep only pods on this node (important for DaemonSet)
+        rule {
+          source_labels = ["__meta_kubernetes_pod_node_name"]
+          action        = "keep"
+          regex         = env("HOSTNAME")
+        }
+
+        // Set namespace label
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+
+        // Set pod label
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+
+        // Set container label
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+
+        // Set node label
+        rule {
+          source_labels = ["__meta_kubernetes_pod_node_name"]
+          target_label  = "node"
+        }
+
+        // Set app label from pod labels (if exists)
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app"]
+          target_label  = "app"
+        }
+
+        // Set app.kubernetes.io/name label (if exists)
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          target_label  = "app_name"
+        }
+      }
+
+      // =======================================================================
+      // Log Collection via Kubernetes API
+      // =======================================================================
+      // Tail logs from containers using the Kubernetes API (no volume mounts needed)
+      loki.source.kubernetes "pod_logs" {
+        targets    = discovery.relabel.pod_logs.output
+        forward_to = [loki.process.pod_logs.receiver]
+      }
+
+      // =======================================================================
+      // Log Processing
+      // =======================================================================
+      // Add cluster label and forward to Loki
+      loki.process "pod_logs" {
+        // Add static cluster label
+        stage.static_labels {
+          values = {
+            cluster = "homelab",
+          }
+        }
+
+        forward_to = [loki.write.loki.receiver]
+      }
+
+      // =======================================================================
+      // Kubernetes Events Collection (only on k8s-cp1)
+      // =======================================================================
+      // Collect K8s events (useful for debugging cluster issues)
+      // Note: All 3 DaemonSet pods will collect events, resulting in triplicates.
+      // This is acceptable for a homelab - event volume is low.
+      // For production, use a separate Deployment with 1 replica.
+      //
+      // Events can be queried with: {source="kubernetes_events"}
+      loki.source.kubernetes_events "cluster_events" {
+        log_format = "logfmt"
+        forward_to = [loki.process.cluster_events.receiver]
+      }
+
+      // Process K8s events - add cluster and source labels
+      loki.process "cluster_events" {
+        // Add collector node label (to identify which Alloy collected this)
+        stage.static_labels {
+          values = {
+            cluster        = "homelab",
+            source         = "kubernetes_events",
+            collector_node = env("HOSTNAME"),
+          }
+        }
+
+        // Drop events from non-primary collectors to avoid triplicates
+        // Only k8s-cp1's Alloy will forward events to Loki
+        stage.match {
+          selector = "{collector_node!=\"k8s-cp1\"}"
+          action   = "drop"
+        }
+
+        forward_to = [loki.write.loki.receiver]
+      }
+
+      // =======================================================================
+      // Send to Loki
+      // =======================================================================
+      loki.write "loki" {
+        endpoint {
+          url = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
+        }
+      }
+
+  # Resource limits for 16GB nodes
+  # Increased memory to handle events collection
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# =============================================================================
+# RBAC - Required for Kubernetes API access
+# =============================================================================
+# Alloy needs to read pods and their logs via the API
+rbac:
+  create: true
+
+serviceAccount:
+  create: true
