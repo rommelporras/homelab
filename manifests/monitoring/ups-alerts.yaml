@@ -1,0 +1,107 @@
+# PrometheusRule for UPS Alerts
+# Alert on power outage, low battery, high load
+#
+# Metric names from DRuggeri/nut_exporter:
+#   network_ups_tools_battery_charge - Battery percentage (0-100)
+#   network_ups_tools_ups_load - Load percentage (0-100)
+#   network_ups_tools_ups_status{flag="OL"} - Online (on line power)
+#   network_ups_tools_ups_status{flag="OB"} - On Battery
+#   network_ups_tools_ups_status{flag="LB"} - Low Battery
+#
+# Apply:
+#   kubectl-homelab apply -f manifests/monitoring/ups-alerts.yaml
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ups-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: ups
+      rules:
+        # Alert when UPS switches to battery power
+        - alert: UPSOnBattery
+          expr: network_ups_tools_ups_status{flag="OB"} == 1
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "UPS is running on battery power"
+            description: "UPS has been on battery for more than 1 minute. Check power supply."
+
+        # Alert when UPS reports low battery
+        - alert: UPSLowBattery
+          expr: network_ups_tools_ups_status{flag="LB"} == 1
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "UPS battery is critically low"
+            description: "UPS reports Low Battery flag. Nodes will begin emergency shutdown."
+
+        # Alert when battery charge drops below 30%
+        - alert: UPSBatteryCritical
+          expr: network_ups_tools_battery_charge < 30
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "UPS battery below 30%"
+            description: "UPS battery is at {{ $value }}%. Shutdown sequence should be in progress."
+
+        # Alert when battery charge drops below 50%
+        - alert: UPSBatteryWarning
+          expr: network_ups_tools_battery_charge < 50 and network_ups_tools_battery_charge >= 30
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "UPS battery below 50%"
+            description: "UPS battery is at {{ $value }}%. Monitor closely."
+
+        # Alert when UPS load is high (>80%)
+        - alert: UPSHighLoad
+          expr: network_ups_tools_ups_load > 80
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "UPS load is high"
+            description: "UPS is at {{ $value }}% load. Consider reducing connected equipment."
+
+        # Alert when UPS exporter is unreachable
+        - alert: UPSExporterDown
+          expr: up{job="nut-exporter"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Cannot reach UPS exporter"
+            description: "NUT exporter has been unreachable for 2 minutes. Check nut-exporter pod and NUT server."
+
+        # Alert when UPS goes offline (not OL and not OB - something wrong)
+        - alert: UPSOffline
+          expr: network_ups_tools_ups_status{flag="OL"} == 0 and network_ups_tools_ups_status{flag="OB"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "UPS is offline"
+            description: "UPS is neither on line power nor on battery. Check UPS connection."
+
+        # Informational: UPS back online after outage
+        - alert: UPSBackOnline
+          expr: |
+            network_ups_tools_ups_status{flag="OL"} == 1
+            and
+            increase(network_ups_tools_ups_status{flag="OB"}[5m]) < 0
+          for: 0m
+          labels:
+            severity: info
+          annotations:
+            summary: "UPS is back on line power"
+            description: "UPS has returned to line power after being on battery."

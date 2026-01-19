@@ -1,6 +1,6 @@
 # Phase 3.5-3.8: Gateway API, Monitoring, Logging, UPS
 
-> **Status:** Phase 3.5-3.7 ✅ Complete | Phase 3.8 🔄 Next
+> **Status:** Phase 3.5-3.8 ✅ Complete
 > **Target:** v0.4.0 (Gateway + Monitoring), v0.5.0 (UPS)
 > **CKA Topics:** Gateway API, TLS termination, DaemonSets, ServiceMonitors, StatefulSets
 
@@ -358,7 +358,7 @@
 
 ---
 
-## 3.8 UPS Monitoring (NUT)
+## 3.8 UPS Monitoring (NUT) ✅
 
 > **Purpose:** Graceful cluster shutdown during power outage + historical UPS metrics
 > **Prerequisite:** Move USB cable from Proxmox to k8s-cp1
@@ -384,7 +384,7 @@ CyberPower UPS ──USB──► k8s-cp1 (NUT Server + Master)
               ▼               ▼               ▼
           k8s-cp2         k8s-cp3        K8s Cluster
         (upssched)      (upssched)     ┌─────────────────┐
-        2min → shutdown 5min → shutdown│  nut-exporter   │
+       20min→shutdown  10min→shutdown  │  nut-exporter   │
                                        │  (Deployment)   │
                                        └────────┬────────┘
                                                 │ :9995
@@ -409,11 +409,13 @@ CyberPower UPS ──USB──► k8s-cp1 (NUT Server + Master)
 > **Why time-based?** NUT's upsmon does NOT natively support per-client battery
 > percentage thresholds. Using `upssched` timers is simpler and more reliable.
 > Battery percentage requires custom scripts polling `battery.charge`.
+>
+> **Timer adjustment:** With ~70 min runtime at 9% load, we use conservative timers.
 
 | Node | Shutdown Trigger | Reason |
 |------|------------------|--------|
-| k8s-cp3 | 2 minutes on battery | Reduce load early, maintain quorum |
-| k8s-cp2 | 5 minutes on battery | Maintain quorum with 2 nodes |
+| k8s-cp3 | 10 minutes on battery | Reduce load early, maintain quorum |
+| k8s-cp2 | 20 minutes on battery | Maintain quorum with 2 nodes |
 | k8s-cp1 | Low Battery (LB) event | Last node, triggers UPS power-off |
 
 **Alternative: Battery Percentage (Complex)**
@@ -421,37 +423,38 @@ CyberPower UPS ──USB──► k8s-cp1 (NUT Server + Master)
 If you prefer percentage-based shutdown, see 3.8.2.4 for custom script approach.
 This requires polling `battery.charge` and comparing against thresholds.
 
-### 3.8.1 Install NUT Server on k8s-cp1 (bare metal)
+### 3.8.1 Install NUT Server on k8s-cp1 (bare metal) ✅
 
 > **Why bare metal?** NUT must run outside K8s to shutdown the node itself
 
-- [ ] 3.8.1.1 Connect CyberPower USB to k8s-cp1
+- [x] 3.8.1.1 Connect CyberPower USB to k8s-cp1
   - Physically move USB from Proxmox to k8s-cp1
 
-- [ ] 3.8.1.2 Install NUT packages
+- [x] 3.8.1.2 Install NUT packages
   ```bash
   ssh wawashi@k8s-cp1.home.rommelporras.com "sudo apt install nut nut-server nut-client -y"
   ```
 
-- [ ] 3.8.1.3 Configure UPS driver (/etc/nut/ups.conf)
+- [x] 3.8.1.3 Configure UPS driver (/etc/nut/ups.conf)
   ```ini
   [cyberpower]
     driver = usbhid-ups
     port = auto
     desc = "CyberPower UPS"
   ```
+  > **Note:** Required udev rules for USB permissions (`/etc/udev/rules.d/90-nut-ups.rules`)
 
-- [ ] 3.8.1.4 Configure NUT mode (/etc/nut/nut.conf)
+- [x] 3.8.1.4 Configure NUT mode (/etc/nut/nut.conf)
   ```ini
   MODE=netserver
   ```
 
-- [ ] 3.8.1.5 Configure upsd (/etc/nut/upsd.conf)
+- [x] 3.8.1.5 Configure upsd (/etc/nut/upsd.conf)
   ```ini
   LISTEN 0.0.0.0 3493
   ```
 
-- [ ] 3.8.1.6 Create NUT credentials in 1Password
+- [x] 3.8.1.6 Create NUT credentials in 1Password
   ```bash
   # Create two items in 1Password Kubernetes vault:
   #   - "NUT Admin" with password field (for master upsmon)
@@ -462,7 +465,7 @@ This requires polling `battery.charge` and comparing against thresholds.
   op read "op://Kubernetes/NUT Monitor/password" >/dev/null && echo "NUT Monitor OK"
   ```
 
-- [ ] 3.8.1.7 Configure upsd users (/etc/nut/upsd.users)
+- [x] 3.8.1.7 Configure upsd users (/etc/nut/upsd.users)
   ```bash
   # Generate config with 1Password values
   sudo tee /etc/nut/upsd.users > /dev/null <<EOF
@@ -480,7 +483,7 @@ This requires polling `battery.charge` and comparing against thresholds.
   sudo chown root:nut /etc/nut/upsd.users
   ```
 
-- [ ] 3.8.1.8 Configure upsmon for cp1 (/etc/nut/upsmon.conf)
+- [x] 3.8.1.8 Configure upsmon for cp1 (/etc/nut/upsmon.conf)
   ```bash
   # cp1 is the master - shuts down on Low Battery (LB) event
   sudo tee /etc/nut/upsmon.conf > /dev/null <<EOF
@@ -496,38 +499,38 @@ This requires polling `battery.charge` and comparing against thresholds.
   sudo chown root:nut /etc/nut/upsmon.conf
   ```
 
-- [ ] 3.8.1.9 Start and enable NUT services
+- [x] 3.8.1.9 Start and enable NUT services
   ```bash
   sudo systemctl enable --now nut-server nut-monitor
   sudo systemctl status nut-server nut-monitor
   ```
 
-- [ ] 3.8.1.10 Verify UPS is detected
+- [x] 3.8.1.10 Verify UPS is detected
   ```bash
   upsc cyberpower@localhost
   # Should show battery.charge, ups.status, etc.
   ```
 
-### 3.8.2 Install NUT Clients on cp2, cp3 (bare metal)
+### 3.8.2 Install NUT Clients on cp2, cp3 (bare metal) ✅
 
-> **Time-based shutdown:** cp3 shuts down after 2 min on battery, cp2 after 5 min.
+> **Time-based shutdown:** cp3 shuts down after 10 min on battery, cp2 after 20 min.
 > This uses `upssched` timers which are native to NUT (no custom scripts needed).
 
-- [ ] 3.8.2.1 Install nut-client on cp2 and cp3
+- [x] 3.8.2.1 Install nut-client on cp2 and cp3
   ```bash
   for node in k8s-cp2 k8s-cp3; do
     ssh wawashi@$node.home.rommelporras.com "sudo apt install nut-client -y"
   done
   ```
 
-- [ ] 3.8.2.2 Configure NUT mode on clients (/etc/nut/nut.conf)
+- [x] 3.8.2.2 Configure NUT mode on clients (/etc/nut/nut.conf)
   ```bash
   for node in k8s-cp2 k8s-cp3; do
     ssh wawashi@$node.home.rommelporras.com "echo 'MODE=netclient' | sudo tee /etc/nut/nut.conf"
   done
   ```
 
-- [ ] 3.8.2.3 Configure upsmon on cp3 (shutdown after 2 minutes)
+- [x] 3.8.2.3 Configure upsmon on cp3 (shutdown after 10 minutes)
   ```bash
   ssh wawashi@k8s-cp3.home.rommelporras.com "sudo tee /etc/nut/upsmon.conf > /dev/null" <<EOF
   MONITOR cyberpower@10.10.30.11 1 monitor $(op read "op://Kubernetes/NUT Monitor/password") slave
@@ -544,7 +547,7 @@ This requires polling `battery.charge` and comparing against thresholds.
   EOF
   ```
 
-- [ ] 3.8.2.4 Configure upssched on cp3 (2-minute timer)
+- [x] 3.8.2.4 Configure upssched on cp3 (10-minute timer)
   ```bash
   # upssched.conf - starts timer on battery, cancels on power restore
   ssh wawashi@k8s-cp3.home.rommelporras.com "sudo tee /etc/nut/upssched.conf > /dev/null" <<EOF
@@ -552,8 +555,8 @@ This requires polling `battery.charge` and comparing against thresholds.
   PIPEFN /run/nut/upssched.pipe
   LOCKFN /run/nut/upssched.lock
 
-  # cp3 shuts down after 2 minutes on battery (earliest)
-  AT ONBATT * START-TIMER early-shutdown 120
+  # cp3 shuts down after 10 minutes on battery (earliest)
+  AT ONBATT * START-TIMER early-shutdown 600
   AT ONLINE * CANCEL-TIMER early-shutdown
   AT LOWBATT * EXECUTE forced-shutdown
   AT FSD * EXECUTE forced-shutdown
@@ -564,7 +567,7 @@ This requires polling `battery.charge` and comparing against thresholds.
   #!/bin/bash
   case $1 in
     early-shutdown)
-      logger -t upssched "UPS on battery for 2 minutes, initiating early shutdown (cp3)"
+      logger -t upssched "UPS on battery for 10 minutes, initiating early shutdown (cp3)"
       /sbin/shutdown -h +0
       ;;
     forced-shutdown)
@@ -579,7 +582,7 @@ This requires polling `battery.charge` and comparing against thresholds.
   ssh wawashi@k8s-cp3.home.rommelporras.com "sudo chmod +x /usr/local/bin/upssched-cmd"
   ```
 
-- [ ] 3.8.2.5 Configure upsmon on cp2 (shutdown after 5 minutes)
+- [x] 3.8.2.5 Configure upsmon on cp2 (shutdown after 20 minutes)
   ```bash
   ssh wawashi@k8s-cp2.home.rommelporras.com "sudo tee /etc/nut/upsmon.conf > /dev/null" <<EOF
   MONITOR cyberpower@10.10.30.11 1 monitor $(op read "op://Kubernetes/NUT Monitor/password") slave
@@ -595,15 +598,15 @@ This requires polling `battery.charge` and comparing against thresholds.
   EOF
   ```
 
-- [ ] 3.8.2.6 Configure upssched on cp2 (5-minute timer)
+- [x] 3.8.2.6 Configure upssched on cp2 (20-minute timer)
   ```bash
   ssh wawashi@k8s-cp2.home.rommelporras.com "sudo tee /etc/nut/upssched.conf > /dev/null" <<EOF
   CMDSCRIPT /usr/local/bin/upssched-cmd
   PIPEFN /run/nut/upssched.pipe
   LOCKFN /run/nut/upssched.lock
 
-  # cp2 shuts down after 5 minutes on battery (middle)
-  AT ONBATT * START-TIMER early-shutdown 300
+  # cp2 shuts down after 20 minutes on battery (middle)
+  AT ONBATT * START-TIMER early-shutdown 1200
   AT ONLINE * CANCEL-TIMER early-shutdown
   AT LOWBATT * EXECUTE forced-shutdown
   AT FSD * EXECUTE forced-shutdown
@@ -614,7 +617,7 @@ This requires polling `battery.charge` and comparing against thresholds.
   #!/bin/bash
   case $1 in
     early-shutdown)
-      logger -t upssched "UPS on battery for 5 minutes, initiating early shutdown (cp2)"
+      logger -t upssched "UPS on battery for 20 minutes, initiating early shutdown (cp2)"
       /sbin/shutdown -h +0
       ;;
     forced-shutdown)
@@ -629,14 +632,14 @@ This requires polling `battery.charge` and comparing against thresholds.
   ssh wawashi@k8s-cp2.home.rommelporras.com "sudo chmod +x /usr/local/bin/upssched-cmd"
   ```
 
-- [ ] 3.8.2.7 Start and enable nut-monitor on clients
+- [x] 3.8.2.7 Start and enable nut-monitor on clients
   ```bash
   for node in k8s-cp2 k8s-cp3; do
     ssh wawashi@$node.home.rommelporras.com "sudo systemctl enable --now nut-monitor"
   done
   ```
 
-- [ ] 3.8.2.8 Verify clients can reach server
+- [x] 3.8.2.8 Verify clients can reach server
   ```bash
   ssh wawashi@k8s-cp2.home.rommelporras.com "upsc cyberpower@10.10.30.11"
   ssh wawashi@k8s-cp3.home.rommelporras.com "upsc cyberpower@10.10.30.11"
@@ -688,44 +691,43 @@ battery-check)
 
 </details>
 
-### 3.8.3 Configure Kubelet Graceful Shutdown
+### 3.8.3 Configure Kubelet Graceful Shutdown ✅
 
 > **Purpose:** K8s evicts pods gracefully before node powers off
 
-- [ ] 3.8.3.1 Edit kubelet config on ALL nodes
+- [x] 3.8.3.1 Edit kubelet config on ALL nodes
   ```bash
   # Add to /var/lib/kubelet/config.yaml on each node:
   shutdownGracePeriod: 120s
   shutdownGracePeriodCriticalPods: 30s
   ```
 
-- [ ] 3.8.3.2 Restart kubelet on all nodes
+- [x] 3.8.3.2 Restart kubelet on all nodes
   ```bash
   for node in k8s-cp1 k8s-cp2 k8s-cp3; do
     ssh wawashi@$node.home.rommelporras.com "sudo systemctl restart kubelet"
   done
   ```
 
-- [ ] 3.8.3.3 Verify kubelet picked up the config
+- [x] 3.8.3.3 Verify kubelet picked up the config
   ```bash
   ssh wawashi@k8s-cp1.home.rommelporras.com "sudo cat /var/lib/kubelet/config.yaml | grep -A1 shutdown"
   ```
 
-### 3.8.4 Deploy NUT Exporter for Grafana
+### 3.8.4 Deploy NUT Exporter for Grafana ✅
 
 > **Purpose:** UPS metrics in Prometheus/Grafana dashboards
 >
 > **Why DRuggeri/nut_exporter?**
-> - Actively maintained (v3.2.3, Dec 2025)
-> - Has official Helm chart
+> - Actively maintained (v3.1.1)
 > - Better multi-UPS support
 > - TLS and basic auth support
 >
-> **Alternative (hon95/prometheus-nut-exporter):** Last updated Aug 2024, no Helm chart.
+> **Note:** Helm chart doesn't actually exist - deployed via manual manifests instead.
 >
 > **Docs:** https://github.com/DRuggeri/nut_exporter
 
-- [ ] 3.8.4.1 Create K8s secret for NUT credentials
+- [x] 3.8.4.1 Create K8s secret for NUT credentials
   ```bash
   # Create secret from 1Password (for nut-exporter pod)
   kubectl-homelab create secret generic nut-credentials \
@@ -734,66 +736,32 @@ battery-check)
     --from-literal=password="$(op read 'op://Kubernetes/NUT Monitor/password')"
   ```
 
-- [ ] 3.8.4.2 Create Helm values file (helm/nut-exporter/values.yaml)
-  ```yaml
-  # DRuggeri/nut_exporter Helm values
-  # Docs: https://github.com/DRuggeri/nut_exporter
-  #
-  # Install:
-  #   helm repo add nut-exporter https://druggeri.github.io/nut_exporter
-  #   helm-homelab install nut-exporter nut-exporter/nut-exporter \
-  #     --namespace monitoring \
-  #     --values helm/nut-exporter/values.yaml
-
-  # NUT server connection
-  nut:
-    server: "10.10.30.11"
-    # Credentials from K8s secret
-    existingSecret: nut-credentials
-    usernameKey: username
-    passwordKey: password
-
-  # Resource limits for homelab
-  resources:
-    requests:
-      cpu: 10m
-      memory: 32Mi
-    limits:
-      cpu: 50m
-      memory: 64Mi
-
-  # ServiceMonitor for Prometheus (kube-prometheus-stack)
-  serviceMonitor:
-    enabled: true
-    interval: 30s
-    labels:
-      release: prometheus  # Match kube-prometheus-stack selector
+- [x] 3.8.4.2 Create manifest file (manifests/monitoring/nut-exporter.yaml)
+  > **Changed from Helm:** DRuggeri's Helm repo doesn't work. Created manual manifests.
+  ```bash
+  # See manifests/monitoring/nut-exporter.yaml for:
+  #   - Deployment with DRuggeri/nut_exporter:3.1.1
+  #   - Service on port 9995
+  #   - ServiceMonitor for Prometheus
   ```
 
-- [ ] 3.8.4.3 Install nut-exporter via Helm
+- [x] 3.8.4.3 Deploy nut-exporter via manifests
   ```bash
-  # Add Helm repo
-  helm-homelab repo add nut-exporter https://druggeri.github.io/nut_exporter
-  helm-homelab repo update
-
-  # Install
-  helm-homelab install nut-exporter nut-exporter/nut-exporter \
-    --namespace monitoring \
-    --values helm/nut-exporter/values.yaml
+  kubectl-homelab apply -f manifests/monitoring/nut-exporter.yaml
   ```
 
-- [ ] 3.8.4.4 Verify nut-exporter is running
+- [x] 3.8.4.4 Verify nut-exporter is running
   ```bash
-  kubectl-homelab -n monitoring get pods -l app.kubernetes.io/name=nut-exporter
+  kubectl-homelab -n monitoring get pods -l app=nut-exporter
   # Should be Running
 
   # Test metrics endpoint
   kubectl-homelab -n monitoring port-forward svc/nut-exporter 9995:9995 &
-  curl -s http://localhost:9995/metrics | grep nut_
+  curl -s http://localhost:9995/ups_metrics | grep network_ups_tools_
   kill %1
   ```
 
-- [ ] 3.8.4.5 Verify Prometheus is scraping
+- [x] 3.8.4.5 Verify Prometheus is scraping
   ```bash
   # Check in Prometheus UI or via API
   kubectl-homelab -n monitoring port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090 &
@@ -801,31 +769,28 @@ battery-check)
   kill %1
   ```
 
-- [ ] 3.8.4.6 Import Grafana dashboard for NUT
+- [x] 3.8.4.6 Create custom Grafana dashboard (stored in repo)
   ```
-  # Dashboard for DRuggeri/nut_exporter
-  Dashboard ID: 19308
-  Name: "Prometheus NUT Exporter for DRuggeri"
-
-  # Steps:
-  # 1. Grafana → Dashboards → Import
-  # 2. Enter ID: 19308
-  # 3. Select Prometheus data source
-  # 4. Import
-
-  # Verify metrics visible:
-  #   - Battery Charge %
-  #   - Battery Runtime (seconds)
-  #   - Input/Output Voltage
-  #   - UPS Load %
-  #   - UPS Status (Online/On Battery)
+  # Custom dashboard created with improvements over Grafana.com ID 19308:
+  #   - Fixed missing metrics (added --nut.vars_enable to exporter)
+  #   - Added ServiceMonitor relabeling for ups=cyberpower label
+  #   - Runtime displayed in minutes (not confusing "1.18 hours")
+  #   - Proper threshold colors on graphs (area/line styles)
+  #   - Removed broken panels, added Output Voltage
+  #   - Auto-provisioned via ConfigMap with grafana_dashboard label
+  #
+  # Files:
+  #   - manifests/monitoring/dashboards/ups-monitoring.json
+  #   - manifests/monitoring/ups-dashboard-configmap.yaml
+  #
+  # Access: https://grafana.k8s.home.rommelporras.com/d/ups-monitoring
   ```
 
-### 3.8.5 Create PrometheusRule for UPS Alerts
+### 3.8.5 Create PrometheusRule for UPS Alerts ✅
 
 > **Purpose:** Alert on power events via Alertmanager
 
-- [ ] 3.8.5.1 Create UPS alerting rules (manifests/monitoring/ups-alerts.yaml)
+- [x] 3.8.5.1 Create UPS alerting rules (manifests/monitoring/ups-alerts.yaml)
   ```yaml
   # PrometheusRule for UPS Alerts
   # Alert on power outage, low battery, high load
@@ -916,18 +881,19 @@ battery-check)
               description: "UPS {{ $labels.ups }} has returned to line power."
   ```
 
-- [ ] 3.8.5.2 Apply the PrometheusRule
+- [x] 3.8.5.2 Apply the PrometheusRule
   ```bash
   kubectl-homelab apply -f manifests/monitoring/ups-alerts.yaml
   ```
 
-- [ ] 3.8.5.3 Verify rule is loaded in Prometheus
+- [x] 3.8.5.3 Verify rule is loaded in Prometheus
   ```bash
   # Check via Prometheus API
   kubectl-homelab -n monitoring port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090 &
   curl -s 'http://localhost:9090/api/v1/rules' | jq '.data.groups[] | select(.name == "ups")'
   kill %1
   ```
+  > **Note:** Metric names use `network_ups_tools_*` prefix, not `nut_*` as originally planned.
 
 ### 3.8.6 Update Proxmox (Optional)
 
@@ -941,24 +907,24 @@ battery-check)
   # Or via Datacenter → Options → UPS if using built-in NUT
   ```
 
-### 3.8.7 Test Shutdown Sequence
+### 3.8.7 Test Shutdown Sequence ✅
 
 > **IMPORTANT:** Test during maintenance window
 >
 > **Expected sequence (time-based):**
 > 1. Power lost → All nodes detect ONBATT
-> 2. +2 minutes → cp3 shuts down (upssched timer fires)
-> 3. +5 minutes → cp2 shuts down (upssched timer fires)
+> 2. +10 minutes → cp3 shuts down (upssched timer fires)
+> 3. +20 minutes → cp2 shuts down (upssched timer fires)
 > 4. Low battery → cp1 shuts down (LB event from UPS)
 > 5. cp1 sends UPS power-off command
 
-- [ ] 3.8.7.1 Verify current UPS status
+- [x] 3.8.7.1 Verify current UPS status
   ```bash
   upsc cyberpower@10.10.30.11
   # Note current battery.charge and battery.runtime
   ```
 
-- [ ] 3.8.7.2 Verify all clients can communicate
+- [x] 3.8.7.2 Verify all clients can communicate
   ```bash
   for node in k8s-cp1 k8s-cp2 k8s-cp3; do
     echo "=== $node ==="
@@ -966,7 +932,7 @@ battery-check)
   done
   ```
 
-- [ ] 3.8.7.3 Test upssched timers (without actual shutdown)
+- [x] 3.8.7.3 Test upssched timers (without actual shutdown)
   ```bash
   # On cp3, temporarily change upssched-cmd to just log (not shutdown)
   ssh wawashi@k8s-cp3.home.rommelporras.com "sudo sed -i 's|/sbin/shutdown|echo WOULD_SHUTDOWN #|g' /usr/local/bin/upssched-cmd"
@@ -974,14 +940,14 @@ battery-check)
   # Simulate ONBATT event (run on cp3)
   ssh wawashi@k8s-cp3.home.rommelporras.com "sudo upsmon -c notify ONBATT"
 
-  # Wait 2 minutes, check syslog
-  ssh wawashi@k8s-cp3.home.rommelporras.com "sudo journalctl -t upssched --since '5 minutes ago'"
+  # Wait 10 minutes, check syslog
+  ssh wawashi@k8s-cp3.home.rommelporras.com "sudo journalctl -t upssched --since '15 minutes ago'"
 
   # Restore original script
   ssh wawashi@k8s-cp3.home.rommelporras.com "sudo sed -i 's|echo WOULD_SHUTDOWN #||g' /usr/local/bin/upssched-cmd"
   ```
 
-- [ ] 3.8.7.4 Simulate power failure (CAREFUL - full test)
+- [ ] 3.8.7.4 Simulate power failure (CAREFUL - full test, requires physical action)
   ```bash
   # ONLY do this when ready for actual shutdown test
   # 1. Unplug UPS from wall power
@@ -1031,47 +997,50 @@ battery-check)
 
 **Rollback:** If issues, reconnect USB to Proxmox and revert NUT config
 
-### 3.8.8 Documentation Updates
+### 3.8.8 Documentation Updates ✅
 
-- [ ] 3.8.8.1 Update VERSIONS.md
+- [x] 3.8.8.1 Update VERSIONS.md
   ```
-  # Add to Helm Charts section:
-  | nut-exporter | (chart version) | v3.2.3 | Installed | monitoring |
+  # Added UPS Monitoring section with:
+  #   - NUT 2.8.1
+  #   - nut-exporter 3.1.1
+  #   - Staggered shutdown timers
+  #   - Kubelet graceful shutdown config
 
-  # Add to Version History:
-  | YYYY-MM-DD | Installed: NUT v(version) for UPS monitoring |
-  | YYYY-MM-DD | Installed: nut-exporter v3.2.3 (DRuggeri) for Prometheus metrics |
+  # Added to Version History
   ```
 
-- [ ] 3.8.8.2 Update docs/reference/CHANGELOG.md
-  - Add Phase 3.8 section with:
-    - Milestone: NUT + Grafana UPS Monitoring
-    - Files added (helm/nut-exporter/values.yaml, manifests/monitoring/ups-alerts.yaml)
+- [x] 3.8.8.2 Update docs/reference/CHANGELOG.md
+  - Added Phase 3.8 section with:
+    - Milestone: NUT + Prometheus UPS Monitoring Running
+    - Files added (manifests/monitoring/nut-exporter.yaml, manifests/monitoring/ups-alerts.yaml)
     - Key decisions (time-based vs percentage, DRuggeri vs HON95, Grafana vs PeaNUT)
-    - Lessons learned
+    - Lessons learned (udev rules, Helm chart issues, metric names)
     - Architecture diagram
 
-- [ ] 3.8.8.3 Add NUT items to 1Password
+- [x] 3.8.8.3 Add NUT items to 1Password
   ```
-  # Verify these exist in Kubernetes vault:
+  # Verified these exist in Kubernetes vault:
   # - "NUT Admin" (master password)
   # - "NUT Monitor" (slave/exporter password)
   ```
 
 ---
 
-## Final: Documentation
+## Final: Documentation ✅
 
-> **After all phases complete**, create a single rebuild document.
+> **After all phases complete**, create rebuild documentation.
 
-- [ ] Create docs/REBUILD_FROM_SCRATCH.md
-  - Single file with step-by-step commands
-  - Copy-paste friendly
-  - Covers: Ansible playbooks → Gateway API → cert-manager → Monitoring → Logging → UPS
-  - Include verification steps after each phase
-  - Reference values files and manifests locations
+- [x] Create docs/rebuild/ with split guides by release tag
+  - docs/rebuild/README.md (index with prerequisites, versions)
+  - docs/rebuild/v0.1.0-foundation.md (Phase 1: Ubuntu, SSH)
+  - docs/rebuild/v0.2.0-bootstrap.md (Phase 2: kubeadm, Cilium)
+  - docs/rebuild/v0.3.0-storage.md (Phase 3.1-3.4: Longhorn)
+  - docs/rebuild/v0.4.0-observability.md (Phase 3.5-3.8: Gateway, Monitoring, Logging, UPS)
+  - Copy-paste friendly with verification steps
+  - Each release is self-contained and versioned
 
-- [ ] Move this file to completed folder
+- [x] Move this file to completed folder
   ```bash
   mkdir -p docs/todo/completed
   mv docs/todo/phase-3.5-3.8-monitoring.md docs/todo/completed/

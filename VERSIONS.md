@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** January 19, 2026
+> **Last Updated:** January 20, 2026
 
 ---
 
@@ -82,6 +82,31 @@ helm-homelab repo update
 
 ---
 
+## UPS Monitoring (NUT)
+
+> **Why NUT over PeaNUT?** PeaNUT has no data persistence (resets on refresh).
+> NUT + Prometheus + Grafana provides 90-day history, alerting, and correlation with cluster metrics.
+
+| Component | Version | Status | Location |
+|-----------|---------|--------|----------|
+| NUT (Network UPS Tools) | 2.8.1 | Installed | k8s-cp1 (server), cp2/cp3 (clients) |
+| nut-exporter (DRuggeri) | 3.1.1 | Installed | monitoring namespace |
+| CyberPower UPS | CP1600EPFCLCD | Connected | USB to k8s-cp1 |
+| UPS Dashboard | custom | Installed | ConfigMap auto-provisioned |
+
+**Staggered Shutdown Timers:**
+| Node | Timer | Trigger |
+|------|-------|---------|
+| k8s-cp3 | 10 min | First to shutdown (reduce load) |
+| k8s-cp2 | 20 min | Second to shutdown |
+| k8s-cp1 | Low Battery | Last (sends UPS power-off) |
+
+**Kubelet Graceful Shutdown:**
+- `shutdownGracePeriod: 120s`
+- `shutdownGracePeriodCriticalPods: 30s`
+
+---
+
 ## Cluster Nodes
 
 | Node | Role | IP | Hardware |
@@ -98,6 +123,15 @@ helm-homelab repo update
 
 | Date | Change |
 |------|--------|
+| 2026-01-20 | Added: docs/rebuild/ - split rebuild guides by release tag (v0.1.0 to v0.4.0) |
+| 2026-01-20 | Added: Custom UPS Grafana dashboard with ConfigMap auto-provisioning |
+| 2026-01-20 | Fixed: ServiceMonitor relabeling adds `ups=cyberpower` label to all NUT metrics |
+| 2026-01-20 | Installed: NUT 2.8.1 for UPS monitoring (k8s-cp1 server, cp2/cp3 clients) |
+| 2026-01-20 | Installed: nut-exporter 3.1.1 (DRuggeri) for Prometheus UPS metrics |
+| 2026-01-20 | Added: PrometheusRule with 8 UPS alerts (battery, load, status) |
+| 2026-01-20 | Configured: Staggered shutdown timers (cp3: 10m, cp2: 20m, cp1: LB) |
+| 2026-01-20 | Configured: Kubelet graceful shutdown (120s grace, 30s critical) |
+| 2026-01-20 | Added: 1Password items for NUT credentials (NUT Admin, NUT Monitor) |
 | 2026-01-19 | Added: ServiceMonitors for Loki and Alloy (Prometheus now scrapes logging stack) |
 | 2026-01-19 | Added: PrometheusRule with 7 alerts for logging pipeline health |
 | 2026-01-19 | Added: K8s events collection to Alloy (query with `{source="kubernetes_events"}`) |

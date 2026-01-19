@@ -4,6 +4,158 @@
 
 ---
 
+## January 20, 2026 — Documentation: Rebuild Guides
+
+### Milestone: Split Rebuild Documentation by Release Tag
+
+Created comprehensive step-by-step rebuild guides split by release tag for better organization and versioning.
+
+| Document | Release | Phases |
+|----------|---------|--------|
+| [docs/rebuild/README.md](../rebuild/README.md) | Index | Overview, prerequisites, versions |
+| [docs/rebuild/v0.1.0-foundation.md](../rebuild/v0.1.0-foundation.md) | v0.1.0 | Phase 1: Ubuntu, SSH |
+| [docs/rebuild/v0.2.0-bootstrap.md](../rebuild/v0.2.0-bootstrap.md) | v0.2.0 | Phase 2: kubeadm, Cilium |
+| [docs/rebuild/v0.3.0-storage.md](../rebuild/v0.3.0-storage.md) | v0.3.0 | Phase 3.1-3.4: Longhorn |
+| [docs/rebuild/v0.4.0-observability.md](../rebuild/v0.4.0-observability.md) | v0.4.0 | Phase 3.5-3.8: Gateway, Monitoring, Logging, UPS |
+
+### Benefits
+
+- Each release is self-contained and versioned
+- Can rebuild to a specific milestone
+- Easier to maintain and update individual phases
+- Aligns with git tags for reproducibility
+
+---
+
+## January 20, 2026 — Phase 3.8: UPS Monitoring (NUT)
+
+### Milestone: NUT + Prometheus UPS Monitoring Running
+
+Successfully installed Network UPS Tools (NUT) for graceful cluster shutdown during power outages, with Prometheus/Grafana integration for historical metrics and alerting.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| NUT (Network UPS Tools) | 2.8.1 | Running (server on cp1, clients on cp2/cp3) |
+| nut-exporter (DRuggeri) | 3.1.1 | Running (Deployment in monitoring namespace) |
+| CyberPower UPS | CP1600EPFCLCD | Connected (USB to k8s-cp1) |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/monitoring/nut-exporter.yaml | Deployment, Service, ServiceMonitor for UPS metrics |
+| manifests/monitoring/ups-alerts.yaml | PrometheusRule with 8 UPS alerts |
+| manifests/monitoring/dashboards/ups-monitoring.json | Custom UPS dashboard (improved from Grafana.com #19308) |
+| manifests/monitoring/ups-dashboard-configmap.yaml | ConfigMap for Grafana auto-provisioning |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| NUT server location | k8s-cp1 (bare metal) | Must run outside K8s to shutdown the node itself |
+| Staggered shutdown | Time-based (10/20 min) | NUT upssched timers are native and reliable; percentage-based requires custom polling scripts |
+| Exporter | DRuggeri/nut_exporter | Actively maintained (Dec 2025), better documentation, TLS support |
+| Dashboard | Custom (repo-stored) | Grafana.com #19308 had issues; custom dashboard with ConfigMap auto-provisioning |
+| Metric prefix | network_ups_tools_* | DRuggeri exporter uses this prefix (not nut_*) |
+| UPS label | ServiceMonitor relabeling | Exporter doesn't add `ups` label; added via relabeling for dashboard compatibility |
+
+### Architecture
+
+```
+CyberPower UPS ──USB──► k8s-cp1 (NUT Server + Master)
+                              │
+                    TCP 3493 (nutserver)
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+          k8s-cp2         k8s-cp3        K8s Cluster
+        (upssched)      (upssched)     ┌─────────────────┐
+       20min→shutdown  10min→shutdown  │  nut-exporter   │
+                                       │  (Deployment)   │
+                                       └────────┬────────┘
+                                                │ :9995
+                                       ┌────────▼────────┐
+                                       │   Prometheus    │
+                                       │ (ServiceMonitor)│
+                                       └────────┬────────┘
+                                                │
+                                       ┌────────▼────────┐
+                                       │    Grafana      │
+                                       │  (Dashboard)    │
+                                       └────────┬────────┘
+                                                │
+                                       ┌────────▼────────┐
+                                       │  Alertmanager   │
+                                       │(PrometheusRule) │
+                                       └─────────────────┘
+```
+
+### Staggered Shutdown Strategy
+
+| Node | Trigger | Timer | Reason |
+|------|---------|-------|--------|
+| k8s-cp3 | ONBATT event | 10 minutes | First to shutdown, reduce load early |
+| k8s-cp2 | ONBATT event | 20 minutes | Second to shutdown, maintain quorum longer |
+| k8s-cp1 | Low Battery (LB) | Native NUT | Last node, sends UPS power-off command |
+
+With ~70 minute runtime at 9% load, these timers provide ample safety margin.
+
+### Kubelet Graceful Shutdown
+
+Configured on all nodes to evict pods gracefully before power-off:
+
+```yaml
+shutdownGracePeriod: 120s           # Total time for pod eviction
+shutdownGracePeriodCriticalPods: 30s # Reserved for critical pods
+```
+
+### Alerts Configured
+
+| Alert | Severity | Trigger |
+|-------|----------|---------|
+| UPSOnBattery | warning | On battery for 1m |
+| UPSLowBattery | critical | LB flag set (immediate) |
+| UPSBatteryCritical | critical | Battery < 30% for 1m |
+| UPSBatteryWarning | warning | Battery 30-50% for 2m |
+| UPSHighLoad | warning | Load > 80% for 5m |
+| UPSExporterDown | critical | Exporter unreachable for 2m |
+| UPSOffline | critical | Neither OL nor OB status for 2m |
+| UPSBackOnline | info | Returns to line power |
+
+### Lessons Learned
+
+**USB permissions require udev rules:** The NUT driver couldn't access the USB device due to permissions. Created `/etc/udev/rules.d/90-nut-ups.rules` to grant the `nut` group access to CyberPower USB devices.
+
+**DRuggeri Helm chart doesn't exist:** Despite documentation suggesting otherwise, there's no working Helm repository. Created manual manifests instead (Deployment, Service, ServiceMonitor).
+
+**Metric names differ from documentation:** DRuggeri exporter uses `network_ups_tools_*` prefix, not `nut_*`. The status metric uses `{flag="OB"}` syntax, not `{status="OB"}`. Had to query the actual exporter to discover correct metric names.
+
+**1Password CLI session scope:** The `op` CLI session is terminal-specific. Running `eval $(op signin)` in one terminal doesn't affect others. Each terminal needs its own session.
+
+**Exporter doesn't add `ups` label:** The DRuggeri exporter doesn't include an `ups` label for single-UPS setups. Dashboard queries with `{ups="$ups"}` returned no data. Fixed with ServiceMonitor relabeling to inject `ups=cyberpower` label.
+
+**Grafana.com dashboard had issues:** Dashboard #19308 showed "No Data" for several panels due to missing `--nut.vars_enable` metrics (battery.runtime, output.voltage). Created custom dashboard stored in repo with ConfigMap auto-provisioning.
+
+**Grafana thresholdsStyle modes:** Setting `thresholdsStyle.mode: "line"` draws horizontal threshold lines on graphs; `"area"` fills background with threshold colors. Both can clutter graphs if overused.
+
+### Access
+
+- UPS Dashboard: https://grafana.k8s.home.rommelporras.com/d/ups-monitoring
+- NUT Server: 10.10.30.11:3493
+- nut-exporter (internal): nut-exporter.monitoring.svc.cluster.local:9995
+
+### Sample PromQL Queries
+
+```promql
+network_ups_tools_battery_charge                        # Battery percentage
+network_ups_tools_ups_load                              # Current load %
+network_ups_tools_ups_status{flag="OL"}                 # Online status (1=true)
+network_ups_tools_ups_status{flag="OB"}                 # On battery status
+network_ups_tools_battery_runtime_seconds               # Estimated runtime
+```
+
+---
+
 ## January 19, 2026 — Phase 3.7: Logging Stack
 
 ### Milestone: Loki + Alloy Running
