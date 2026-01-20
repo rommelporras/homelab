@@ -1,0 +1,45 @@
+# Test Alert for Alertmanager Notification Verification
+# =============================================================================
+# Creates test alerts that fire immediately to verify Discord + Email routing
+#
+# Usage:
+#   kubectl-homelab apply -f manifests/monitoring/test-alert.yaml
+#
+# Expected Results:
+#   - TestAlertCritical → Discord #incidents + Email (critical@rommelporras.com)
+#   - TestAlertWarning → Discord #status only
+#
+# Cleanup:
+#   kubectl-homelab delete -f manifests/monitoring/test-alert.yaml
+# =============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: test-alert
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: test-alerts
+      rules:
+        # Critical test alert - should go to #incidents + Email
+        - alert: TestAlertCritical
+          expr: vector(1)
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Test CRITICAL alert - safe to ignore"
+            description: "This is a test critical alert to verify Discord #incidents and email routing. Delete with: kubectl-homelab delete prometheusrule test-alert -n monitoring"
+
+        # Warning test alert - should go to #status only
+        - alert: TestAlertWarning
+          expr: vector(1)
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Test WARNING alert - safe to ignore"
+            description: "This is a test warning alert to verify Discord #status routing. Delete with: kubectl-homelab delete prometheusrule test-alert -n monitoring"

@@ -85,6 +85,14 @@ grafana:
 # Alertmanager
 # =============================================================================
 # Handles alerts from Prometheus
+#
+# Notification Routing:
+#   - Critical alerts → Discord #incidents + Email (critical@rommelporras.com)
+#   - Warning/Info alerts → Discord #status only
+#
+# Secrets are injected at install/upgrade time via --set flags (from 1Password)
+# See: scripts/upgrade-prometheus.sh
+#
 alertmanager:
   alertmanagerSpec:
     # Storage for silences and notifications
@@ -104,6 +112,119 @@ alertmanager:
       limits:
         cpu: 200m
         memory: 128Mi
+
+  # Alertmanager configuration
+  # Docs: https://prometheus.io/docs/alerting/latest/configuration/
+  config:
+    global:
+      # SMTP settings for email notifications
+      smtp_smarthost: 'smtp.mail.me.com:587'
+      smtp_from: 'noreply@rommelporras.com'
+      smtp_auth_username: 'SET_VIA_HELM'  # Injected from 1Password
+      smtp_auth_password: 'SET_VIA_HELM'  # Injected from 1Password
+      smtp_require_tls: true
+
+      # Discord webhook URLs (set via --set flags)
+      # These are referenced in receivers below
+
+    # Default route - all alerts go here unless matched by sub-routes
+    route:
+      receiver: 'discord-status'
+      group_by: ['alertname', 'namespace', 'job']
+      group_wait: 30s        # Wait before sending first notification
+      group_interval: 5m     # Wait between notifications for same group
+      repeat_interval: 4h    # Re-notify if alert still firing
+
+      # Sub-routes (order matters - first match wins)
+      routes:
+        # =================================================================
+        # SILENCED: kubeadm control plane scraping issues
+        # These fire because kubeadm binds components to 127.0.0.1
+        # The components work fine, Prometheus just can't scrape them
+        # TODO: Fix in future phase (see docs/todo/deferred.md)
+        # =================================================================
+        - match:
+            alertname: KubeProxyDown
+          receiver: 'null'
+          continue: false
+        - match:
+            alertname: etcdInsufficientMembers
+          receiver: 'null'
+          continue: false
+        - match:
+            alertname: etcdMembersDown
+          receiver: 'null'
+          continue: false
+        - match_re:
+            alertname: TargetDown
+            job: kube-scheduler|kube-controller-manager|kube-etcd
+          receiver: 'null'
+          continue: false
+
+        # =================================================================
+        # Active alert routing
+        # =================================================================
+        # Critical alerts → #incidents + Email
+        - match:
+            severity: critical
+          receiver: 'discord-incidents-email'
+          continue: false
+
+        # Warning alerts → #status only
+        - match:
+            severity: warning
+          receiver: 'discord-status'
+          continue: false
+
+        # Info alerts → #status only (default catches these too)
+        - match:
+            severity: info
+          receiver: 'discord-status'
+          continue: false
+
+    # Notification receivers
+    receivers:
+      # Critical: Discord #incidents + Email
+      - name: 'discord-incidents-email'
+        discord_configs:
+          - webhook_url: 'SET_VIA_HELM'  # Injected from 1Password
+            title: '🔴 {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
+            message: |
+              {{ range .Alerts }}
+              **{{ .Labels.alertname }}** ({{ .Labels.severity }})
+              {{ .Annotations.summary }}
+              {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+              {{ end }}
+        email_configs:
+          # Multiple recipients for critical alerts (redundancy)
+          - to: 'critical@rommelporras.com, r3mmel023@gmail.com, rommelcporras@gmail.com'
+            send_resolved: true
+            headers:
+              Subject: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
+
+      # Warning/Info: Discord #status only
+      - name: 'discord-status'
+        discord_configs:
+          - webhook_url: 'SET_VIA_HELM'  # Injected from 1Password
+            title: '{{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
+            message: |
+              {{ range .Alerts }}
+              **{{ .Labels.alertname }}** ({{ .Labels.severity }})
+              {{ .Annotations.summary }}
+              {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+              {{ end }}
+
+      # Fallback null receiver (for silencing)
+      - name: 'null'
+
+    # Inhibition rules - suppress lower severity when higher severity fires
+    inhibit_rules:
+      # If critical is firing, suppress warning for same alertname
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname', 'namespace']
 
 # =============================================================================
 # node-exporter

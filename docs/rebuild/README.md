@@ -12,6 +12,7 @@
 | v0.2.0 | Phase 2 | Kubernetes Bootstrap (kubeadm, Cilium) | [v0.2.0-bootstrap.md](v0.2.0-bootstrap.md) |
 | v0.3.0 | Phase 3.1-3.4 | Storage Infrastructure (Longhorn) | [v0.3.0-storage.md](v0.3.0-storage.md) |
 | v0.4.0 | Phase 3.5-3.8 | Observability (Gateway, Monitoring, Logging, UPS) | [v0.4.0-observability.md](v0.4.0-observability.md) |
+| v0.5.0 | Phase 3.9 | Alerting (Discord, Email notifications) | [v0.5.0-alerting.md](v0.5.0-alerting.md) |
 
 ---
 
@@ -31,6 +32,9 @@ docs/rebuild/v0.3.0-storage.md
 
 # 4. Observability - Gateway API, monitoring, logging, UPS
 docs/rebuild/v0.4.0-observability.md
+
+# 5. Alerting - Discord and Email notifications
+docs/rebuild/v0.5.0-alerting.md
 ```
 
 ---
@@ -91,6 +95,7 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | Alloy | 1.5.2 | v0.4.0 |
 | NUT | 2.8.1 | v0.4.0 |
 | nut-exporter | 3.1.1 | v0.4.0 |
+| Alertmanager | v0.30.1 | v0.5.0 |
 
 ---
 
@@ -121,7 +126,11 @@ homelab/
         ├── logging-alerts.yaml
         ├── nut-exporter.yaml
         ├── ups-alerts.yaml
-        └── ups-dashboard-configmap.yaml
+        ├── ups-dashboard-configmap.yaml
+        └── test-alert.yaml         # v0.5.0
+│
+├── scripts/
+│   └── upgrade-prometheus.sh       # v0.5.0
 ```
 
 ---
@@ -134,3 +143,6 @@ homelab/
 | Cloudflare DNS API Token | Kubernetes | v0.4.0 |
 | NUT Admin | Kubernetes | v0.4.0 |
 | NUT Monitor | Kubernetes | v0.4.0 |
+| Discord Webhook Incidents | Kubernetes | v0.5.0 |
+| Discord Webhook Status | Kubernetes | v0.5.0 |
+| iCloud SMTP Alertmanager | Kubernetes | v0.5.0 |

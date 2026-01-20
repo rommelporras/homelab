@@ -4,6 +4,86 @@
 
 ---
 
+## January 20, 2026 — Phase 3.9: Alertmanager Notifications
+
+### Milestone: Discord + Email Alerting Configured
+
+Configured Alertmanager to send notifications via Discord and Email, with intelligent routing based on severity.
+
+| Component | Status |
+|-----------|--------|
+| Discord #incidents | Webhook configured (critical alerts) |
+| Discord #status | Webhook configured (warnings, info, resolved) |
+| iCloud SMTP | Configured (noreply@rommelporras.com) |
+| Email recipients | 3 addresses for critical alerts |
+
+### Files Added/Modified
+
+| File | Purpose |
+|------|---------|
+| helm/prometheus/values.yaml | Alertmanager config with routes and receivers |
+| scripts/upgrade-prometheus.sh | Helm upgrade script with 1Password integration |
+| manifests/monitoring/test-alert.yaml | Test alerts for verification |
+| docs/rebuild/v0.5.0-alerting.md | Rebuild guide for alerting setup |
+| docs/todo/deferred.md | Added kubeadm scraping issue |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Discord channel naming | #incidents + #status | Clear action expectation: incidents need action, status is FYI |
+| Category naming | Notifications | Honest about purpose (notification inbox, not observability tool) |
+| Email recipients | 3 addresses for critical | Redundancy: iCloud issues won't prevent delivery to Gmail |
+| SMTP authentication | @icloud.com email | Apple requires Apple ID for SMTP auth, not custom domain |
+| kubeadm alerts | Silenced (null receiver) | False positives from localhost-bound components; cluster works fine |
+| Secrets management | 1Password + temp file | --set breaks array structures; temp file with cleanup is safer |
+
+### Alert Routing
+
+```
+┌─────────────────────────────────────────────────┐
+│                 Alertmanager                    │
+└─────────────────────┬───────────────────────────┘
+                      │
+    ┌─────────────────┼─────────────────┐
+    │                 │                 │
+┌───▼───┐        ┌────▼────┐       ┌────▼────┐
+│Silenced│        │Critical │       │Warning/ │
+│kubeadm │        │         │       │  Info   │
+└───┬───┘        └────┬────┘       └────┬────┘
+    │                 │                 │
+┌───▼───┐        ┌────▼────┐       ┌────▼────┐
+│ null  │        │#incidents│       │#status  │
+│       │        │+ 3 emails│       │  only   │
+└───────┘        └─────────┘       └─────────┘
+```
+
+### Silenced Alerts (Deferred)
+
+| Alert | Reason | Fix Location |
+|-------|--------|--------------|
+| KubeProxyDown | kube-proxy metrics not exposed | docs/todo/deferred.md |
+| etcdInsufficientMembers | etcd bound to localhost | docs/todo/deferred.md |
+| etcdMembersDown | etcd bound to localhost | docs/todo/deferred.md |
+| TargetDown (kube-*) | Control plane bound to localhost | docs/todo/deferred.md |
+
+### 1Password Items Created
+
+| Item | Vault | Purpose |
+|------|-------|---------|
+| Discord Webhook Incidents | Kubernetes | #incidents webhook URL |
+| Discord Webhook Status | Kubernetes | #status webhook URL |
+| iCloud SMTP Alertmanager | Kubernetes | SMTP credentials |
+
+### Lessons Learned
+
+1. **Helm --set breaks arrays** - Using `--set 'receivers[0].webhook_url=...'` overwrites the entire array structure. Use multiple `--values` files instead.
+2. **iCloud SMTP auth** - Must use @icloud.com email for authentication, not custom domain. From address can be custom domain.
+3. **Port 587 = STARTTLS** - Not SSL. Common misconfiguration in email clients.
+4. **kubeadm metrics** - Control plane components bind to localhost by default. Fixing requires modifying static pod manifests (risky, low value for homelab).
+
+---
+
 ## January 20, 2026 — Documentation: Rebuild Guides
 
 ### Milestone: Split Rebuild Documentation by Release Tag

@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 
 > **Owner:** Rommel Porras
-> **Last Updated:** January 16, 2026
+> **Last Updated:** January 20, 2026
 
 ---
 
@@ -28,8 +28,13 @@
 | Ubuntu Installation | ✅ Complete | All 3 nodes running |
 | K8s Prerequisites | ✅ Complete | Ansible automated |
 | Cluster Bootstrap | ✅ Complete | 3-node HA with kubeadm |
-| Cilium CNI | ✅ Complete | v1.18.6 healthy |
-| Longhorn Storage | 🔜 Next | Distributed storage |
+| Cilium CNI | ✅ Complete | v1.18.6 with Gateway API |
+| Longhorn Storage | ✅ Complete | Distributed storage (2x replication) |
+| Gateway API + TLS | ✅ Complete | Let's Encrypt wildcard certs |
+| Monitoring | ✅ Complete | Prometheus + Grafana |
+| Logging | ✅ Complete | Loki + Alloy |
+| UPS Monitoring | ✅ Complete | NUT + graceful shutdown |
+| Alerting | ✅ Complete | Discord + Email notifications |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/CLUSTER_STATUS.md](docs/CLUSTER_STATUS.md) - Single source of truth
@@ -143,6 +148,18 @@
 | [ROADMAP.md](docs/ROADMAP.md) | Timeline and CKA schedule |
 | [K8S_LEARNING_GUIDE.md](docs/K8S_LEARNING_GUIDE.md) | CKA study material |
 
+### Rebuild Guides
+
+Step-by-step instructions to rebuild the cluster from scratch:
+
+| Guide | Phases | Description |
+|-------|--------|-------------|
+| [v0.1.0-foundation](docs/rebuild/v0.1.0-foundation.md) | Phase 1 | Ubuntu, SSH, networking |
+| [v0.2.0-bootstrap](docs/rebuild/v0.2.0-bootstrap.md) | Phase 2 | kubeadm, Cilium |
+| [v0.3.0-storage](docs/rebuild/v0.3.0-storage.md) | Phase 3.1-3.4 | Longhorn |
+| [v0.4.0-observability](docs/rebuild/v0.4.0-observability.md) | Phase 3.5-3.8 | Gateway, Monitoring, Logging, UPS |
+| [v0.5.0-alerting](docs/rebuild/v0.5.0-alerting.md) | Phase 3.9 | Discord + Email notifications |
+
 ### Reference
 
 | Document | Purpose |
@@ -181,8 +198,13 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Jan 10, 2026** | Switch VLANs configured |
 | **Jan 11, 2026** | Ubuntu 24.04 installed, SSH configured |
 | **Jan 16, 2026** | **Kubernetes HA cluster running** (v1.35.0 + Cilium) |
-| **Coming** | Longhorn storage deployment |
-| **Coming** | Workload migration from Proxmox |
+| **Jan 17, 2026** | Longhorn distributed storage deployed |
+| **Jan 18, 2026** | Gateway API + Let's Encrypt TLS configured |
+| **Jan 18, 2026** | Prometheus + Grafana monitoring stack deployed |
+| **Jan 19, 2026** | Loki + Alloy logging stack deployed |
+| **Jan 20, 2026** | NUT UPS monitoring + graceful shutdown configured |
+| **Jan 20, 2026** | **Alertmanager notifications** (Discord + Email) |
+| **Coming** | AdGuard Home, Uptime Kuma, workload migration |
 
 See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 
@@ -190,10 +212,10 @@ See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 
 ## 🚀 Next Steps
 
-1. **Deploy Longhorn** for distributed storage (2x replication)
-2. **Set up Prometheus + Grafana** for monitoring
-3. **Deploy Loki** for log aggregation
-4. **Migrate workloads** from Proxmox (AdGuard, Immich, ARR stack)
+1. **Deploy AdGuard Home** on K8s (DNS)
+2. **Self-host Uptime Kuma** for uptime monitoring
+3. **Migrate workloads** from Proxmox (Immich, ARR stack)
+4. **Set up GitLab + Runner** for CI/CD
 
 ---
 
@@ -203,5 +225,8 @@ See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 |-----------|--------|----------------|
 | Control Plane | ✅ Running | 3-node etcd quorum + kube-vip VIP |
 | Stateless Workloads | ✅ Ready | Replicas spread across nodes |
-| Stateful Workloads | 🔜 Pending | Longhorn 2x replication (next) |
+| Stateful Workloads | ✅ Running | Longhorn 2x replication |
+| Monitoring | ✅ Running | Prometheus + Grafana + Loki |
+| Alerting | ✅ Running | Discord + Email (3 recipients) |
+| UPS Protection | ✅ Running | NUT + staggered graceful shutdown |
 | NAS (media) | ⚠️ No HA | Single Dell 5090 (acceptable for media) |

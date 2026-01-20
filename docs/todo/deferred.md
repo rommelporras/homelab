@@ -65,3 +65,55 @@ arr/
 4. `sudo fwupdmgr update`
 
 **When:** During scheduled maintenance or when physically accessing rack
+
+---
+
+## kubeadm Control Plane Metrics Scraping
+
+**Status:** Deferred - silenced in Alertmanager
+**Added:** Phase 3.9 (2026-01-20)
+**Priority:** Low
+**Effort:** Medium
+
+**Problem:**
+Prometheus cannot scrape metrics from kubeadm-managed control plane components because they bind to `127.0.0.1`:
+- kube-proxy
+- kube-scheduler
+- kube-controller-manager
+- etcd
+
+**Silenced Alerts:**
+- `KubeProxyDown`
+- `etcdInsufficientMembers`
+- `etcdMembersDown`
+- `TargetDown` (kube-scheduler, kube-controller-manager, kube-etcd)
+
+**Current Workaround:**
+Alerts routed to `null` receiver in Alertmanager config.
+See: `helm/prometheus/values.yaml` → alertmanager.config.route.routes
+
+**To Fix (if needed):**
+1. Modify kubeadm ClusterConfiguration:
+   ```yaml
+   controllerManager:
+     extraArgs:
+       bind-address: "0.0.0.0"
+   scheduler:
+     extraArgs:
+       bind-address: "0.0.0.0"
+   etcd:
+     local:
+       extraArgs:
+         listen-metrics-urls: "http://0.0.0.0:2381"
+   ```
+2. Update static pod manifests on all control plane nodes
+3. Create/verify ServiceMonitors for each component
+4. Remove silence routes from Alertmanager config
+
+**Why Deferred:**
+- Cluster works fine (scraping issue, not component failure)
+- Low value for homelab use case
+- Risk of control plane disruption
+- Not required for CKA
+
+**When:** If you need etcd/scheduler metrics for debugging or production-like setup

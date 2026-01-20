@@ -119,10 +119,45 @@ helm-homelab repo update
 
 ---
 
+## Alerting & Notifications
+
+> **Why Discord + Email?** Discord for real-time visibility, Email as redundant backup for critical alerts.
+> Multiple email recipients ensure you get woken up at 3am when something critical breaks.
+
+| Component | Value | Status |
+|-----------|-------|--------|
+| Alertmanager | v0.30.1 | Configured |
+| Discord #incidents | Webhook | Configured |
+| Discord #status | Webhook | Configured |
+| SMTP Server | smtp.mail.me.com:587 | Configured |
+| SMTP From | noreply@rommelporras.com | Configured |
+
+**Alert Routing:**
+
+| Severity | Discord | Email |
+|----------|---------|-------|
+| Critical | #incidents | critical@, r3mmel023@, rommelcporras@ |
+| Warning | #status | None |
+| Info | #status | None |
+
+**Silenced Alerts (kubeadm false positives):**
+- `KubeProxyDown`, `etcdInsufficientMembers`, `etcdMembersDown`
+- `TargetDown` (kube-scheduler, kube-controller-manager, kube-etcd)
+
+See `docs/todo/deferred.md` for future fix.
+
+---
+
 ## Version History
 
 | Date | Change |
 |------|--------|
+| 2026-01-20 | Configured: Alertmanager Discord + Email notifications (Phase 3.9) |
+| 2026-01-20 | Added: Discord webhooks (#incidents, #status) for alert routing |
+| 2026-01-20 | Added: iCloud SMTP for critical email alerts (3 recipients) |
+| 2026-01-20 | Silenced: kubeadm control plane scraping alerts (deferred fix) |
+| 2026-01-20 | Added: docs/rebuild/v0.5.0-alerting.md rebuild guide |
+| 2026-01-20 | Added: scripts/upgrade-prometheus.sh with 1Password integration |
 | 2026-01-20 | Added: docs/rebuild/ - split rebuild guides by release tag (v0.1.0 to v0.4.0) |
 | 2026-01-20 | Added: Custom UPS Grafana dashboard with ConfigMap auto-provisioning |
 | 2026-01-20 | Fixed: ServiceMonitor relabeling adds `ups=cyberpower` label to all NUT metrics |
