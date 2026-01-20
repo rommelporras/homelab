@@ -64,6 +64,30 @@ Validate Kubernetes manifests and YAML files.
 
 ---
 
+### `/update-docs` - Documentation Audit
+Audit and update docs/context/ files to match current cluster state.
+
+**Usage:**
+```
+/update-docs          # Audit only (read-only)
+/update-docs --apply  # Update dates, flag content changes
+```
+
+**What it does:**
+- Checks frontmatter dates are current
+- Verifies versions match VERSIONS.md
+- Finds undocumented namespaces, HTTPRoutes, services
+- Auto-updates dates with `--apply`
+- Flags content changes for manual review
+
+**Recommended before `/release`:**
+```
+/update-docs --apply
+/release
+```
+
+---
+
 ## Commit Types
 
 | Type | Use Case | Example |
@@ -109,7 +133,16 @@ git push
 
 ### Creating a Release
 ```bash
-# After multiple commits ready for release
+# 1. Audit and update docs first
+/update-docs --apply
+
+# 2. Review any flagged changes
+git diff docs/context/
+
+# 3. Commit doc updates if needed
+/commit
+
+# 4. Create release
 /release
 
 # Or with explicit version
@@ -131,6 +164,7 @@ All commands are in `.claude/commands/`:
 - `release.md` - Release automation
 - `cluster-status.md` - Cluster health
 - `validate.md` - Config validation
+- `update-docs.md` - Documentation audit
 
 ---
 

@@ -1,6 +1,7 @@
 # kubeadm Cluster Bootstrap Guide
 
-> **Last Updated:** January 16, 2026
+> **Last Updated:** January 20, 2026
+> **Status:** Complete — Cluster running
 > **Kubernetes Version:** v1.35.x
 > **Target OS:** Ubuntu Server 24.04.3 LTS
 > **Node details:** See [CLUSTER_STATUS.md](CLUSTER_STATUS.md)
