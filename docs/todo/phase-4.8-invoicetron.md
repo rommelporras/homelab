@@ -1,35 +1,76 @@
 # Phase 4.8: Invoicetron Migration
 
 > **Status:** ⬜ Planned
-> **Target:** v0.9.0
-> **DevOps Topics:** StatefulSets, database migrations, secrets management
-> **CKA Topics:** StatefulSets, PVCs, Jobs, Secrets
+> **Target:** v0.8.2
+> **Prerequisite:** Phase 4.6 complete (GitLab CI/CD), Phase 4.7 patterns learned
+> **DevOps Topics:** StatefulSets, database migrations, secrets management, Prisma ORM
+> **CKA Topics:** StatefulSets, PVCs, Jobs, Secrets, environment variables
 
-> **Purpose:** Migrate stateful application with database
+> **Purpose:** Migrate stateful application with database (more complex than Portfolio)
 > **Stack:** Next.js 16 + Bun + PostgreSQL 18 + Prisma 7
 > **Source:** GitLab (imported from GitHub)
+>
+> **Learning Goal:** StatefulSet management, database migrations in CI/CD, handling state
+
+---
+
+## Stateful vs Stateless Applications
+
+This phase introduces **stateful** applications. Understand the difference:
+
+| Aspect | Stateless (Portfolio) | Stateful (Invoicetron) |
+|--------|----------------------|------------------------|
+| Data storage | None (static files) | PostgreSQL database |
+| Pod identity | Interchangeable | Stable network identity |
+| Scaling | Add replicas freely | Requires careful planning |
+| Migrations | Not needed | Schema migrations required |
+| Backup | Not needed | Critical for data safety |
+
+### Why StatefulSet for PostgreSQL?
+
+| Feature | Deployment | StatefulSet |
+|---------|------------|-------------|
+| Pod names | Random (portfolio-xyz) | Stable (postgresql-0) |
+| Storage | Shared or recreated | Persistent per pod |
+| Network identity | Via Service only | Stable hostname |
+| Startup order | Parallel | Sequential (0, 1, 2...) |
+
+**PostgreSQL needs StatefulSet because:**
+- Data must persist across restarts
+- Pod-0 always gets the same PVC
+- Headless Service provides stable DNS: `postgresql-0.postgresql`
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                  invoicetron namespace                       │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────┐    ┌─────────────────────────────┐│
-│  │    PostgreSQL 18    │    │     Invoicetron App         ││
-│  │    StatefulSet      │◄───│     Deployment (2 replicas) ││
-│  │    (10Gi Longhorn)  │    │     Next.js + Bun           ││
-│  └─────────────────────┘    └─────────────────────────────┘│
-│            │                              │                 │
-│            │                              │                 │
-│  ┌─────────────────────┐    ┌─────────────────────────────┐│
-│  │   Prisma Migrate    │    │         Secrets             ││
-│  │   Job (on deploy)   │    │  - postgres-password        ││
-│  └─────────────────────┘    │  - better-auth-secret       ││
-│                             └─────────────────────────────┘│
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                      invoicetron namespace                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─────────────────────┐         ┌─────────────────────────────┐   │
+│  │   PostgreSQL 18     │         │     Invoicetron App         │   │
+│  │   StatefulSet       │◄────────│     Deployment (2 replicas) │   │
+│  │   (10Gi Longhorn)   │  SQL    │     Next.js + Bun           │   │
+│  │                     │         │                             │   │
+│  │  postgresql-0       │         │  Uses Prisma ORM            │   │
+│  └─────────────────────┘         └─────────────────────────────┘   │
+│            ▲                                  ▲                     │
+│            │                                  │                     │
+│  ┌─────────┴─────────┐         ┌─────────────┴───────────────┐     │
+│  │  Headless Service │         │         HTTPRoute           │     │
+│  │  postgresql:5432  │         │  invoicetron.k8s.home...    │     │
+│  └───────────────────┘         └─────────────────────────────┘     │
+│                                                                     │
+│  On each deploy:                                                    │
+│  ┌─────────────────────┐    ┌─────────────────────────────┐        │
+│  │   Prisma Migrate    │    │         Secrets             │        │
+│  │   Job (one-shot)    │    │  - postgres-password        │        │
+│  │   runs migrations   │    │  - better-auth-secret       │        │
+│  └─────────────────────┘    └─────────────────────────────┘        │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -366,18 +407,152 @@
 
 - [ ] 4.8.8.3 After 1 week stable, delete/repurpose VM
 
-**Rollback:** Restart Docker Compose on VM, revert tunnel route, restore database backup
+---
+
+## 4.8.9 Documentation Updates
+
+- [ ] 4.8.9.1 Update VERSIONS.md
+  ```
+  # Add to Applications section:
+  | Invoicetron | 1.x.x | Invoice management (Next.js + Bun) |
+  | PostgreSQL (Invoicetron) | 18 | Invoicetron database |
+
+  # Add to Version History:
+  | YYYY-MM-DD | Phase 4.8: Invoicetron stateful migration |
+  ```
+
+- [ ] 4.8.9.2 Update docs/context/Secrets.md
+  ```
+  # Add 1Password items:
+  | Invoicetron | postgres-password | Database credentials |
+  | Invoicetron | better-auth-secret | Auth session secret |
+  ```
+
+- [ ] 4.8.9.3 Update docs/reference/CHANGELOG.md
+  - Add Phase 4.8 section with milestone, decisions, lessons learned
 
 ---
 
-## Final: Documentation Updates
+## Verification Checklist
 
-- [ ] Update VERSIONS.md
-  - Add Invoicetron and PostgreSQL components
-  - Add version history entry
+- [ ] Namespace `invoicetron` exists with baseline PSS
+- [ ] PostgreSQL StatefulSet running (postgresql-0 pod ready)
+- [ ] PostgreSQL PVC bound and healthy in Longhorn
+- [ ] Invoicetron deployment running with 2 replicas
+- [ ] Prisma migration Job completed successfully
+- [ ] Secrets created (invoicetron-secrets)
+- [ ] HTTPRoute configured for invoicetron.k8s.home.rommelporras.com
+- [ ] DNS rewrite configured in AdGuard
+- [ ] GitLab CI/CD pipeline passes all stages
+- [ ] Can login to Invoicetron web UI
+- [ ] Data migrated from VM (if applicable)
+- [ ] External access via Cloudflare Tunnel works
 
-- [ ] Update docs/reference/CHANGELOG.md
-  - Add Phase 4.8 section with milestone, decisions, lessons learned
+---
+
+## Rollback
+
+If issues occur:
+
+```bash
+# 1. Quick rollback - restart VM
+ssh ubuntu-vm "cd /home/wawashi/invoicetron && docker compose up -d"
+
+# 2. Revert Cloudflare tunnel route
+#    Dashboard → Tunnels → Public Hostname
+#    Change back to VM IP
+
+# 3. If only app is broken (DB is fine)
+kubectl-homelab rollout undo deployment/invoicetron -n invoicetron
+
+# 4. If migration broke the schema
+#    Restore from backup (see section 4.8.7.1)
+kubectl-homelab cp backup.sql invoicetron/postgresql-0:/tmp/
+kubectl-homelab exec -n invoicetron postgresql-0 -- \
+  psql -U invoicetron -d invoicetron -f /tmp/backup.sql
+
+# 5. Full cleanup and restart
+kubectl-homelab delete deployment invoicetron -n invoicetron
+kubectl-homelab delete statefulset postgresql -n invoicetron
+kubectl-homelab delete pvc --all -n invoicetron
+# Then restart from 4.8.3
+```
+
+---
+
+## Troubleshooting
+
+### PostgreSQL pod stuck in Pending
+
+```bash
+# Check PVC status
+kubectl-homelab get pvc -n invoicetron
+
+# Check Longhorn for storage issues
+kubectl-homelab -n longhorn-system get volumes
+
+# Common issues:
+# - Insufficient storage → check Longhorn capacity
+# - Scheduling issues → check node resources
+```
+
+### Prisma migration Job fails
+
+```bash
+# Check Job status
+kubectl-homelab get jobs -n invoicetron
+kubectl-homelab describe job prisma-migrate -n invoicetron
+
+# Check migration logs
+kubectl-homelab logs -n invoicetron job/prisma-migrate
+
+# Common issues:
+# - DATABASE_URL wrong → check secret values
+# - Schema conflicts → check Prisma migration history
+# - PostgreSQL not ready → wait and retry
+```
+
+### App can't connect to PostgreSQL
+
+```bash
+# Verify PostgreSQL is running
+kubectl-homelab get pods -n invoicetron | grep postgresql
+
+# Test connectivity from app pod
+kubectl-homelab exec -n invoicetron -it deployment/invoicetron -- \
+  nc -zv postgresql 5432
+
+# Check DATABASE_URL is correct
+kubectl-homelab exec -n invoicetron -it deployment/invoicetron -- \
+  printenv DATABASE_URL
+```
+
+### Authentication not working (better-auth)
+
+```bash
+# Check BETTER_AUTH_SECRET is set
+kubectl-homelab exec -n invoicetron -it deployment/invoicetron -- \
+  printenv BETTER_AUTH_SECRET
+
+# Verify it matches what's in 1Password
+op read "op://Kubernetes/Invoicetron/better-auth-secret"
+
+# Check NEXT_PUBLIC_APP_URL matches your actual URL
+```
+
+---
+
+## Final: Commit and Release
+
+- [ ] Commit changes
+  ```bash
+  /commit
+  ```
+
+- [ ] Release v0.8.2
+  ```bash
+  /release v0.8.2
+  ```
 
 - [ ] Move this file to completed folder
   ```bash

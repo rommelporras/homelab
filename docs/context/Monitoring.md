@@ -69,6 +69,7 @@ Query logs:
 |----------|-------------|------|
 | discord-incidents-email | Discord #incidents + Email | Critical |
 | discord-status | Discord #status | Warning, Info |
+| healthchecks-heartbeat | healthchecks.io ping | Watchdog (1m) |
 | null | Nowhere | Silenced alerts |
 
 ### Alert Routing

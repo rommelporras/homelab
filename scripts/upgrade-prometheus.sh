@@ -9,8 +9,7 @@
 #
 # Prerequisites:
 #   - 1Password CLI (op) installed and signed in
-#   - helm-homelab alias configured
-#   - kubectl-homelab alias configured
+#   - ~/.kube/homelab.yaml kubeconfig exists
 #
 # 1Password Items Required:
 #   - op://Kubernetes/Grafana/password
@@ -18,9 +17,13 @@
 #   - op://Kubernetes/Discord Webhook Status/credential
 #   - op://Kubernetes/iCloud SMTP Alertmanager/username
 #   - op://Kubernetes/iCloud SMTP Alertmanager/password
+#   - op://Kubernetes/Healthchecks Ping URL/url
 # =============================================================================
 
 set -euo pipefail
+
+# Use homelab kubeconfig (aliases aren't available in scripts)
+export KUBECONFIG="$HOME/.kube/homelab.yaml"
 
 # Colors for output
 RED='\033[0;31m'
@@ -58,6 +61,7 @@ DISCORD_INCIDENTS_WEBHOOK=$(op read "op://Kubernetes/Discord Webhook Incidents/c
 DISCORD_STATUS_WEBHOOK=$(op read "op://Kubernetes/Discord Webhook Status/credential")
 SMTP_USERNAME=$(op read "op://Kubernetes/iCloud SMTP Alertmanager/username")
 SMTP_PASSWORD=$(op read "op://Kubernetes/iCloud SMTP Alertmanager/password")
+HEALTHCHECKS_PING_URL=$(op read "op://Kubernetes/Healthchecks Ping URL/url")
 
 echo -e "${GREEN}Secrets loaded successfully${NC}"
 echo "  - Grafana password: ****"
@@ -65,6 +69,7 @@ echo "  - Discord incidents webhook: ****"
 echo "  - Discord status webhook: ****"
 echo "  - SMTP username: ${SMTP_USERNAME}"
 echo "  - SMTP password: ****"
+echo "  - Healthchecks ping URL: ****"
 echo ""
 
 # Create temporary secrets values file
@@ -106,6 +111,10 @@ alertmanager:
               {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
               {{ end }}
       - name: 'null'
+      - name: 'healthchecks-heartbeat'
+        webhook_configs:
+          - url: "${HEALTHCHECKS_PING_URL}"
+            send_resolved: false
 EOF
 
 # Confirm upgrade
@@ -125,7 +134,7 @@ fi
 echo ""
 echo -e "${YELLOW}Running Helm upgrade...${NC}"
 
-helm-homelab upgrade prometheus oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack \
+helm upgrade prometheus oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack \
     --namespace monitoring \
     --version 81.0.0 \
     --values "$REPO_ROOT/helm/prometheus/values.yaml" \
@@ -137,13 +146,13 @@ echo -e "${GREEN}Helm upgrade complete!${NC}"
 # Wait for rollout
 echo ""
 echo -e "${YELLOW}Waiting for Alertmanager rollout...${NC}"
-kubectl-homelab -n monitoring rollout status statefulset/alertmanager-prometheus-kube-prometheus-alertmanager --timeout=120s
+kubectl -n monitoring rollout status statefulset/alertmanager-prometheus-kube-prometheus-alertmanager --timeout=120s
 
 echo ""
 echo -e "${GREEN}=== Upgrade Complete ===${NC}"
 echo ""
 echo "Verify configuration:"
-echo "  kubectl-homelab -n monitoring logs -l app.kubernetes.io/name=alertmanager --tail=20"
+echo "  kubectl -n monitoring logs -l app.kubernetes.io/name=alertmanager --tail=20"
 echo ""
 echo "Test alerts:"
-echo "  kubectl-homelab apply -f manifests/monitoring/test-alert.yaml"
+echo "  kubectl apply -f manifests/monitoring/test-alert.yaml"

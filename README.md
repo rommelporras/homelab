@@ -5,6 +5,7 @@
 ![Kubernetes](https://img.shields.io/badge/kubernetes-v1.35-326CE5?logo=kubernetes&logoColor=white)
 ![Cilium](https://img.shields.io/badge/cilium-1.18.6-F8C517?logo=cilium&logoColor=white)
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
+![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
 > **Owner:** Rommel Porras
 > **Last Updated:** January 22, 2026
@@ -207,6 +208,7 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Jan 20, 2026** | **Alertmanager notifications** (Discord + Email) |
 | **Jan 22, 2026** | **Home Services deployed** (AdGuard DNS, Homepage dashboard) |
 | **Jan 22, 2026** | DNS cutover - K8s AdGuard now PRIMARY for all VLANs |
+| **Jan 22, 2026** | **Dead Man's Switch** - healthchecks.io monitors alerting health |
 | **Coming** | Uptime Kuma, workload migration (Immich, ARR) |
 
 See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.

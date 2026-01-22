@@ -1,11 +1,15 @@
 # Phase 4.9: Tailscale Kubernetes Operator
 
-> **Status:** 📋 Planned
+> **Status:** ⬜ Planned
+> **Target:** v0.9.0
+> **Prerequisite:** Phase 4.8 complete, services to expose exist
 > **Priority:** Medium (quality of life - mobile access)
+> **DevOps Topics:** Mesh VPN, zero-trust networking, IngressClass
 > **CKA Topics:** Ingress, Services, RBAC, Secrets
-> **Namespace:** `tailscale`
 
-> **Goal:** Enable secure remote access to homelab services from phone/laptop via Tailscale mesh VPN, without exposing services to public internet.
+> **Goal:** Enable secure remote access to homelab services from phone/laptop via Tailscale mesh VPN, without exposing services to public internet
+>
+> **Learning Goal:** Understand mesh VPN architecture and Kubernetes Ingress patterns
 
 ---
 
@@ -22,111 +26,226 @@ The Tailscale Kubernetes Operator manages Tailscale resources natively in Kubern
 
 ## Prerequisites
 
-- [ ] Existing Tailscale account with tailnet configured
-- [ ] MagicDNS and HTTPS enabled on tailnet (Tailscale admin console)
-- [ ] Phone/devices already joined to tailnet
+Before starting, ensure:
+- Tailscale account with tailnet configured
+- MagicDNS enabled (Admin Console → DNS)
+- HTTPS certificates enabled (Admin Console → Settings → Keys)
+- Phone/laptop already joined to your tailnet
 
 ---
 
-## Implementation Plan
+## 4.9.1 Create OAuth Credentials
 
-### 4.9.1 Create OAuth Credentials
+- [ ] 4.9.1.1 Create OAuth client in Tailscale Admin Console
+  ```
+  1. Go to https://login.tailscale.com/admin/settings/oauth
+  2. Click "Generate OAuth Client"
+  3. Name: "K8s Operator"
+  4. Select scopes:
+     - devices:core (read/write)
+     - auth_keys (read/write)
+     - services (write)
+  5. Add tag: tag:k8s-operator
+  6. Click "Generate"
+  7. Copy Client ID and Client Secret (shown only once!)
+  ```
 
-1. Go to Tailscale Admin Console → Settings → OAuth Clients
-2. Create new OAuth client with scopes:
-   - `devices:core` (read/write)
-   - `auth_keys` (read/write)
-   - `services` (write)
-3. Save Client ID and Client Secret to 1Password
-   ```bash
-   op item create --category=login --title="Tailscale K8s Operator" \
-     --vault=Kubernetes \
-     client-id="<client-id>" \
-     client-secret="<client-secret>"
-   ```
+- [ ] 4.9.1.2 Store credentials in 1Password
+  ```bash
+  # Create item in 1Password Kubernetes vault:
+  #   Item Name: Tailscale K8s Operator
+  #   Type: API Credential
+  #   Fields:
+  #     - client-id: <from step above>
+  #     - client-secret: <from step above>
+  #
+  # Verify:
+  op read "op://Kubernetes/Tailscale K8s Operator/client-id" >/dev/null && echo "ID OK"
+  op read "op://Kubernetes/Tailscale K8s Operator/client-secret" >/dev/null && echo "Secret OK"
+  ```
 
-### 4.9.2 Configure Tailnet ACL Tags
+---
 
-Add to Tailscale ACL policy (Admin Console → Access Controls):
-```json
-{
-  "tagOwners": {
-    "tag:k8s-operator": [],
-    "tag:k8s": ["tag:k8s-operator"]
+## 4.9.2 Configure Tailnet ACL Tags
+
+- [ ] 4.9.2.1 Add ACL tags for K8s operator
+  ```
+  1. Go to https://login.tailscale.com/admin/acls
+  2. Edit the ACL policy
+  3. Add to "tagOwners" section:
+  ```
+  ```json
+  {
+    "tagOwners": {
+      "tag:k8s-operator": [],
+      "tag:k8s": ["tag:k8s-operator"]
+    }
   }
-}
-```
+  ```
+  ```
+  4. Save changes
+  ```
 
-### 4.9.3 Install Operator via Helm
+---
 
-```bash
-# Add Tailscale Helm repo
-helm-homelab repo add tailscale https://pkgs.tailscale.com/helmcharts
-helm-homelab repo update
+## 4.9.3 Install Operator via Helm
 
-# Create values file
-mkdir -p helm/tailscale-operator
+- [ ] 4.9.3.1 Add Tailscale Helm repo
+  ```bash
+  helm-homelab repo add tailscale https://pkgs.tailscale.com/helmcharts --force-update
+  helm-homelab repo update
+  ```
 
-# Install operator
-helm-homelab upgrade --install tailscale-operator tailscale/tailscale-operator \
-  --namespace=tailscale \
-  --create-namespace \
-  --set-string oauth.clientId="$(op read 'op://Kubernetes/Tailscale K8s Operator/client-id')" \
-  --set-string oauth.clientSecret="$(op read 'op://Kubernetes/Tailscale K8s Operator/client-secret')" \
-  --wait
-```
+- [ ] 4.9.3.2 Create values file directory
+  ```bash
+  mkdir -p helm/tailscale-operator
+  ```
 
-### 4.9.4 Verify Operator Installation
+- [ ] 4.9.3.3 Install operator with OAuth credentials from 1Password
+  ```bash
+  eval $(op signin)
 
-```bash
-kubectl-homelab get pods -n tailscale
-kubectl-homelab get ingressclass
-# Should show 'tailscale' IngressClass
-```
+  helm-homelab upgrade --install tailscale-operator tailscale/tailscale-operator \
+    --namespace=tailscale \
+    --create-namespace \
+    --set-string oauth.clientId="$(op read 'op://Kubernetes/Tailscale K8s Operator/client-id')" \
+    --set-string oauth.clientSecret="$(op read 'op://Kubernetes/Tailscale K8s Operator/client-secret')" \
+    --wait
+  ```
 
-### 4.9.5 Expose Services via Tailscale Ingress
+---
 
-Create Ingress resources for key services:
+## 4.9.4 Verify Operator Installation
 
-```yaml
-# manifests/home/homepage/tailscale-ingress.yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: homepage-tailscale
-  namespace: home
-spec:
-  ingressClassName: tailscale
-  tls:
-    - hosts:
-        - homepage
-  rules:
-    - host: homepage
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: homepage
-                port:
-                  number: 3000
-```
+- [ ] 4.9.4.1 Check operator pod is running
+  ```bash
+  kubectl-homelab get pods -n tailscale
+  # Should show operator pod in Running state
+  ```
 
-Services to expose:
-- [ ] Homepage → `homepage.<tailnet>.ts.net`
-- [ ] Grafana → `grafana.<tailnet>.ts.net`
-- [ ] Longhorn → `longhorn.<tailnet>.ts.net`
-- [ ] AdGuard → `adguard.<tailnet>.ts.net`
+- [ ] 4.9.4.2 Verify IngressClass created
+  ```bash
+  kubectl-homelab get ingressclass
+  # Should show 'tailscale' IngressClass
+  ```
 
-### 4.9.6 Test Mobile Access
+- [ ] 4.9.4.3 Check Tailscale admin console
+  ```
+  Go to https://login.tailscale.com/admin/machines
+  Should see new device: "tailscale-operator" or similar
+  ```
 
-1. Open Tailscale app on phone
-2. Connect to tailnet
-3. Navigate to `https://homepage.<tailnet>.ts.net`
-4. Verify all services accessible
+---
 
-### 4.9.7 Update Homepage Widget
+## 4.9.5 Expose Services via Tailscale Ingress
+
+- [ ] 4.9.5.1 Create Tailscale Ingress for Homepage
+  ```bash
+  kubectl-homelab apply -f manifests/home/homepage/tailscale-ingress.yaml
+  ```
+  ```yaml
+  # manifests/home/homepage/tailscale-ingress.yaml
+  apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    name: homepage-tailscale
+    namespace: home
+  spec:
+    ingressClassName: tailscale
+    tls:
+      - hosts:
+          - homepage
+    rules:
+      - host: homepage
+        http:
+          paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: homepage
+                  port:
+                    number: 3000
+  ```
+
+- [ ] 4.9.5.2 Create Tailscale Ingress for Grafana
+  ```bash
+  kubectl-homelab apply -f manifests/monitoring/grafana-tailscale-ingress.yaml
+  ```
+  ```yaml
+  # manifests/monitoring/grafana-tailscale-ingress.yaml
+  apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    name: grafana-tailscale
+    namespace: monitoring
+  spec:
+    ingressClassName: tailscale
+    tls:
+      - hosts:
+          - grafana
+    rules:
+      - host: grafana
+        http:
+          paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: prometheus-grafana
+                  port:
+                    number: 80
+  ```
+
+- [ ] 4.9.5.3 Create additional Ingresses as needed
+  ```bash
+  # Longhorn UI
+  # Namespace: longhorn-system, Service: longhorn-frontend, Port: 80
+
+  # AdGuard Home
+  # Namespace: home, Service: adguard-home, Port: 3000
+  ```
+
+- [ ] 4.9.5.4 Verify Ingresses are provisioned
+  ```bash
+  kubectl-homelab get ingress -A | grep tailscale
+  # Each should show an ADDRESS (may take 1-2 minutes)
+
+  # Check Tailscale admin console for new devices
+  # Each Ingress creates a new machine in your tailnet
+  ```
+
+---
+
+## 4.9.6 Test Mobile Access
+
+- [ ] 4.9.6.1 Connect phone to Tailscale
+  ```
+  1. Open Tailscale app on phone
+  2. Ensure connected to your tailnet
+  3. Check that MagicDNS is enabled (Settings → Use Tailscale DNS)
+  ```
+
+- [ ] 4.9.6.2 Test access to exposed services
+  ```
+  From phone browser, navigate to:
+  - https://homepage.<tailnet-name>.ts.net
+  - https://grafana.<tailnet-name>.ts.net
+
+  Note: Your tailnet name is shown in Tailscale admin console
+  Example: https://homepage.tail12345.ts.net
+  ```
+
+- [ ] 4.9.6.3 Verify TLS certificates
+  ```
+  Click the lock icon in browser
+  Certificate should be issued by "Tailscale Inc"
+  Valid for 90 days (auto-renews)
+  ```
+
+---
+
+## 4.9.7 Update Homepage Widget
 
 After operator is running, update Homepage to use proper Tailscale widget:
 ```yaml
@@ -193,14 +312,103 @@ manifests/storage/longhorn/
 
 ---
 
+## 4.9.8 Documentation Updates
+
+- [ ] 4.9.8.1 Update VERSIONS.md
+  ```
+  # Add to Infrastructure section:
+  | Tailscale Operator | 1.x.x | VPN mesh access for K8s |
+
+  # Add to Version History:
+  | YYYY-MM-DD | Phase 4.9: Tailscale Operator for mobile access |
+  ```
+
+- [ ] 4.9.8.2 Update docs/context/Secrets.md
+  ```
+  # Add 1Password item:
+  | Tailscale K8s Operator | client-id, client-secret | OAuth for operator |
+  ```
+
+- [ ] 4.9.8.3 Update docs/reference/CHANGELOG.md
+  - Add Phase 4.9 section with milestone, decisions, lessons learned
+
+---
+
 ## Verification Checklist
 
 - [ ] Operator pod running in `tailscale` namespace
-- [ ] `tailscale` IngressClass available
-- [ ] Services appear in Tailscale admin console
-- [ ] Mobile access works via MagicDNS names
-- [ ] TLS certificates valid
-- [ ] Homepage Tailscale widget functional
+- [ ] `tailscale` IngressClass available (`kubectl-homelab get ingressclass`)
+- [ ] Operator device appears in Tailscale admin console
+- [ ] Ingress resources have ADDRESS assigned
+- [ ] Services accessible via `https://<name>.<tailnet>.ts.net`
+- [ ] Mobile access works from phone (not on home network)
+- [ ] TLS certificates valid (issued by Tailscale)
+- [ ] Homepage Tailscale widget functional (optional)
+
+---
+
+## Rollback
+
+If issues occur:
+
+```bash
+# 1. Remove Ingress resources (stops exposing services)
+kubectl-homelab delete ingress -l ingressClassName=tailscale -A
+
+# 2. Uninstall operator
+helm-homelab uninstall tailscale-operator -n tailscale
+
+# 3. Clean up namespace
+kubectl-homelab delete namespace tailscale
+
+# 4. Remove devices from Tailscale admin console
+#    Admin Console → Machines → Remove orphaned K8s devices
+```
+
+---
+
+## Troubleshooting
+
+### Operator pod not starting
+
+```bash
+# Check pod status
+kubectl-homelab describe pod -n tailscale -l app.kubernetes.io/name=operator
+
+# Check logs
+kubectl-homelab logs -n tailscale -l app.kubernetes.io/name=operator
+
+# Common issues:
+# - Invalid OAuth credentials → recreate from 1Password
+# - ACL tags not configured → add tagOwners in Tailscale ACLs
+```
+
+### Ingress stuck without ADDRESS
+
+```bash
+# Check Ingress status
+kubectl-homelab describe ingress <name> -n <namespace>
+
+# Check operator logs for errors
+kubectl-homelab logs -n tailscale -l app.kubernetes.io/name=operator | grep -i error
+
+# Common issues:
+# - Service doesn't exist → verify backend service
+# - OAuth scope missing → regenerate OAuth client with all scopes
+```
+
+### Can't access from mobile
+
+```bash
+# Verify phone is on Tailscale network
+# Phone app should show "Connected"
+
+# Verify MagicDNS is enabled on phone
+# Settings → Use Tailscale DNS → ON
+
+# Try IP instead of hostname
+# Get IP from: Admin Console → Machines → click service
+```
 
 ---
 
@@ -219,3 +427,22 @@ When rebuilding on Talos Linux:
 2. OAuth credentials from 1Password
 3. May need to adjust Pod Security Standards for operator
 4. Ingress resources are portable (just re-apply)
+
+---
+
+## Final: Commit and Release
+
+- [ ] Commit changes
+  ```bash
+  /commit
+  ```
+
+- [ ] Release v0.9.0
+  ```bash
+  /release v0.9.0
+  ```
+
+- [ ] Move this file to completed folder
+  ```bash
+  mv docs/todo/phase-4.9-tailscale-operator.md docs/todo/completed/
+  ```

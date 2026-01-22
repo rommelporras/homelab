@@ -2,11 +2,99 @@
 
 > **Status:** ⬜ Planned (PRIORITY)
 > **Target:** v0.8.0
+> **Prerequisite:** Phase 4.5 complete (Cloudflare Tunnel for external access)
 > **DevOps Topics:** Helm charts, StatefulSets, CI/CD pipelines, Container registries
-> **CKA Topics:** Complex Helm deployments, multi-component applications
+> **CKA Topics:** Complex Helm deployments, multi-component applications, RBAC
 
 > **Purpose:** Self-hosted CI/CD for private repos, container registry, DevOps learning
 > **Why GitLab:** Free CI/CD for private repos, built-in registry, Kubernetes-native
+
+---
+
+## GitLab CI/CD Concepts (Learning Guide)
+
+Before implementing, understand how GitLab CI/CD works:
+
+### What is GitLab CI/CD?
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         GitLab CI/CD Flow                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   Developer                  GitLab                    Kubernetes   │
+│   ─────────                  ──────                    ──────────   │
+│                                                                     │
+│   git push ──────────────►  .gitlab-ci.yml                         │
+│                              (pipeline definition)                  │
+│                                    │                                │
+│                                    ▼                                │
+│                              GitLab Server                          │
+│                              (parses pipeline)                      │
+│                                    │                                │
+│                                    ▼                                │
+│                              GitLab Runner  ◄──── Registered runner │
+│                              (executes jobs)                        │
+│                                    │                                │
+│                                    ▼                                │
+│                              Kubernetes Executor                    │
+│                              (spawns pods for each job)             │
+│                                    │                                │
+│                           ┌───────┴───────┐                        │
+│                           ▼               ▼                        │
+│                      Build Pod       Deploy Pod                    │
+│                      (docker build)  (kubectl apply)               │
+│                           │               │                        │
+│                           ▼               ▼                        │
+│                      Container       Updated                       │
+│                      Registry        Deployment                    │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+| Component | What It Does | Where It Runs |
+|-----------|--------------|---------------|
+| **GitLab Server** | Hosts repos, manages pipelines, stores artifacts | K8s (gitlab namespace) |
+| **GitLab Runner** | Picks up jobs from GitLab and executes them | K8s (gitlab-runner namespace) |
+| **Kubernetes Executor** | Spawns pods in K8s for each CI/CD job | K8s (dynamic pods) |
+| **Container Registry** | Stores Docker images built by CI/CD | K8s (part of GitLab) |
+
+### .gitlab-ci.yml Basics
+
+```yaml
+# Every pipeline needs stages (order of execution)
+stages:
+  - build      # First: build the app
+  - test       # Second: run tests
+  - deploy     # Third: deploy to K8s
+
+# Jobs run in parallel within a stage
+build-app:
+  stage: build
+  script:
+    - docker build -t myapp .
+    - docker push registry/myapp
+
+deploy-app:
+  stage: deploy
+  script:
+    - kubectl set image deployment/myapp myapp=registry/myapp:latest
+```
+
+### Why GitLab Runner with Kubernetes Executor?
+
+| Executor | How Jobs Run | Best For |
+|----------|--------------|----------|
+| Shell | On the runner machine directly | Simple scripts |
+| Docker | In Docker containers on runner | Most use cases |
+| **Kubernetes** | As pods in your K8s cluster | K8s-native CI/CD |
+
+**We use Kubernetes executor because:**
+- Jobs run as pods → isolated, reproducible
+- Scale automatically → no dedicated build servers
+- Native K8s access → deploy directly to cluster
 
 ---
 
@@ -67,47 +155,75 @@
 - [ ] 4.6.1.1 Verify cluster resources
   ```bash
   kubectl-homelab top nodes
-  # Need ~6GB free RAM, ~90GB storage
+  # Need ~6GB free RAM across cluster
+  # Need ~90GB available storage in Longhorn
+
+  # Check Longhorn capacity
+  kubectl-homelab -n longhorn-system get nodes.longhorn.io -o custom-columns=NAME:.metadata.name,AVAIL:.status.diskStatus.default-disk.storageAvailable
   ```
 
 - [ ] 4.6.1.2 Add GitLab Helm repo
   ```bash
-  helm-homelab repo add gitlab https://charts.gitlab.io
+  helm-homelab repo add gitlab https://charts.gitlab.io --force-update
   helm-homelab repo update
   ```
 
-- [ ] 4.6.1.3 Create gitlab namespace
+- [ ] 4.6.1.3 Check available GitLab chart versions
+  ```bash
+  helm-homelab search repo gitlab/gitlab --versions | head -10
+  # Pick a recent stable version
+  ```
+
+- [ ] 4.6.1.4 Create gitlab namespace
   ```bash
   kubectl-homelab create namespace gitlab
   kubectl-homelab label namespace gitlab pod-security.kubernetes.io/enforce=privileged
+  # privileged required: GitLab components need various capabilities
   ```
 
 ---
 
 ## 4.6.2 Create Secrets
 
-- [ ] 4.6.2.1 Add GitLab credentials to 1Password
-  ```
-  # Create items in Kubernetes vault:
-  # - GitLab/root-password (initial root password)
-  # - GitLab/postgresql-password
-  # - GitLab/redis-password
-  # - GitLab/runner-registration-token
+- [ ] 4.6.2.1 Generate passwords and add to 1Password
+  ```bash
+  # Generate secure passwords
+  ROOT_PASS=$(openssl rand -base64 24)
+  PG_PASS=$(openssl rand -base64 24)
+
+  echo "Root password: $ROOT_PASS"
+  echo "PostgreSQL password: $PG_PASS"
+
+  # Create items in 1Password Kubernetes vault:
+  #
+  # Item: GitLab
+  # Fields:
+  #   - root-password: (generated above)
+  #   - postgresql-password: (generated above)
+  #   - runner-token: (will add after install)
+  #
+  # Verify:
+  op read "op://Kubernetes/GitLab/root-password" >/dev/null && echo "Root OK"
+  op read "op://Kubernetes/GitLab/postgresql-password" >/dev/null && echo "PG OK"
   ```
 
-- [ ] 4.6.2.2 Create K8s secrets
+- [ ] 4.6.2.2 Create K8s secrets from 1Password
   ```bash
-  # Root password
+  # Root password secret
   kubectl-homelab create secret generic gitlab-root-password \
     --from-literal=password="$(op read 'op://Kubernetes/GitLab/root-password')" \
     -n gitlab
 
-  # PostgreSQL
+  # PostgreSQL password secret
   kubectl-homelab create secret generic gitlab-postgresql-password \
     --from-literal=postgresql-password="$(op read 'op://Kubernetes/GitLab/postgresql-password')" \
     -n gitlab
+  ```
 
-  # Runner token (generate after GitLab install)
+- [ ] 4.6.2.3 Verify secrets created
+  ```bash
+  kubectl-homelab get secrets -n gitlab
+  # Should see: gitlab-root-password, gitlab-postgresql-password
   ```
 
 ---
@@ -405,18 +521,144 @@
   Push mirror to GitHub (read-only backup)
   ```
 
-**Rollback:** `helm-homelab uninstall gitlab -n gitlab`
+---
+
+## 4.6.10 Documentation Updates
+
+- [ ] 4.6.10.1 Update VERSIONS.md
+  ```
+  # Add to Applications section:
+  | GitLab | 8.x.x | Self-hosted Git + CI/CD |
+  | GitLab Runner | 0.71.x | Kubernetes executor |
+
+  # Add to Version History:
+  | YYYY-MM-DD | Phase 4.6: GitLab CI/CD platform |
+  ```
+
+- [ ] 4.6.10.2 Update docs/context/Secrets.md
+  ```
+  # Add 1Password items:
+  | GitLab | root-password | GitLab root user |
+  | GitLab | postgresql-password | Internal database |
+  | GitLab | runner-token | Runner registration |
+  ```
+
+- [ ] 4.6.10.3 Update docs/reference/CHANGELOG.md
+  - Add Phase 4.6 section with milestone, decisions, lessons learned
 
 ---
 
-## Final: Documentation Updates
+## Verification Checklist
 
-- [ ] Update VERSIONS.md
-  - Add GitLab and GitLab Runner components
-  - Add version history entry
+- [ ] Namespace `gitlab` exists with privileged PSS
+- [ ] All GitLab pods running (check with `kubectl-homelab get pods -n gitlab`)
+- [ ] StatefulSets healthy: postgresql, redis, gitaly
+- [ ] GitLab web UI accessible at https://gitlab.k8s.home.rommelporras.com
+- [ ] Can login as root with 1Password password
+- [ ] Container registry accessible at registry.k8s.home.rommelporras.com
+- [ ] GitLab Runner registered and showing "online" in Admin → CI/CD → Runners
+- [ ] Test pipeline runs successfully
+- [ ] DNS rewrites configured in AdGuard
+- [ ] 1Password items created (root-password, postgresql-password, runner-token)
 
-- [ ] Update docs/reference/CHANGELOG.md
-  - Add Phase 4.6 section with milestone, decisions, lessons learned
+---
+
+## Rollback
+
+If GitLab installation fails:
+
+```bash
+# 1. Check which component is failing
+kubectl-homelab get pods -n gitlab
+kubectl-homelab describe pod <failing-pod> -n gitlab
+
+# 2. Check logs
+kubectl-homelab logs -n gitlab <pod-name>
+
+# 3. If storage issues, check PVCs
+kubectl-homelab get pvc -n gitlab
+
+# 4. Complete uninstall (WARNING: deletes all data)
+helm-homelab uninstall gitlab -n gitlab
+kubectl-homelab delete pvc --all -n gitlab
+kubectl-homelab delete namespace gitlab
+
+# 5. Start fresh from 4.6.1
+```
+
+---
+
+## Troubleshooting
+
+### GitLab pods stuck in Pending
+
+```bash
+# Check if PVCs are bound
+kubectl-homelab get pvc -n gitlab
+
+# If PVC Pending, check Longhorn
+kubectl-homelab -n longhorn-system get volumes
+
+# Common issues:
+# - Not enough storage → add more NVMe or reduce PVC sizes
+# - Node affinity issues → check Longhorn node status
+```
+
+### GitLab web UI returns 502
+
+```bash
+# Check webservice pod
+kubectl-homelab logs -n gitlab -l app=webservice --tail=50
+
+# Check if all dependencies are ready
+kubectl-homelab get pods -n gitlab | grep -E "postgres|redis|gitaly"
+
+# GitLab takes 10-15 minutes to fully initialize
+# Wait and check again
+```
+
+### Runner not registering
+
+```bash
+# Check runner logs
+kubectl-homelab logs -n gitlab-runner -l app=gitlab-runner
+
+# Verify runner can reach GitLab
+kubectl-homelab run test --rm -it --image=curlimages/curl -n gitlab-runner -- \
+  curl -v https://gitlab.k8s.home.rommelporras.com/api/v4/runners
+
+# Common issues:
+# - Wrong gitlabUrl in values.yaml
+# - Invalid registration token
+# - Network policy blocking traffic
+```
+
+### CI/CD jobs fail to start pods
+
+```bash
+# Check runner configuration
+kubectl-homelab get configmap -n gitlab-runner -o yaml
+
+# Check RBAC permissions
+kubectl-homelab auth can-i create pods -n gitlab-runner --as=system:serviceaccount:gitlab-runner:gitlab-runner
+
+# Check if privileged pods allowed
+kubectl-homelab get psp  # (if PSP enabled)
+```
+
+---
+
+## Final: Commit and Release
+
+- [ ] Commit changes
+  ```bash
+  /commit
+  ```
+
+- [ ] Release v0.8.0
+  ```bash
+  /release v0.8.0
+  ```
 
 - [ ] Move this file to completed folder
   ```bash

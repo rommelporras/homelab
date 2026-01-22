@@ -156,6 +156,7 @@ helm-homelab repo update
 | Discord #status | Webhook | Configured |
 | SMTP Server | smtp.mail.me.com:587 | Configured |
 | SMTP From | noreply@rommelporras.com | Configured |
+| healthchecks.io | K8s Alertmanager check | Configured |
 
 **Alert Routing:**
 
@@ -177,6 +178,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-01-22 | **Dead Man's Switch:** healthchecks.io monitors Alertmanager health (Phase 3.10) |
 | 2026-01-22 | **DNS Cutover:** K8s AdGuard (10.10.30.55) now PRIMARY for all VLANs |
 | 2026-01-22 | Added: Longhorn HTTPRoute for Homepage widget access |
 | 2026-01-22 | Added: Init container pattern for Homepage settings.yaml env substitution |

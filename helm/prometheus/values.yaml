@@ -14,6 +14,18 @@
 #     --set grafana.adminPassword="$(op read 'op://Kubernetes/Grafana/password')"
 
 # =============================================================================
+# Default Rules
+# =============================================================================
+# Disable alerts that aren't useful for this homelab setup
+defaultRules:
+  disabled:
+    # InfoInhibitor is a meta-alert for complex info-suppression logic
+    # We don't use this - our routing is simple (info → discord-status)
+    InfoInhibitor: true
+    # Watchdog is enabled - routes to healthchecks.io as dead man's switch
+    # If alerting breaks, healthchecks.io detects missing pings and alerts via Discord
+
+# =============================================================================
 # Prometheus
 # =============================================================================
 # Time-series database that scrapes and stores all metrics
@@ -139,10 +151,8 @@ alertmanager:
       routes:
         # =================================================================
         # SILENCED: kubeadm control plane scraping issues
-        # These fire because kubeadm binds components to 127.0.0.1
-        # The components work fine, Prometheus just can't scrape them
-        # TODO: Fix in future phase (see docs/todo/deferred.md)
-        # =================================================================
+        # kubeadm binds components to 127.0.0.1, so Prometheus can't scrape
+        # The components work fine. TODO: Fix in future (docs/todo/deferred.md)
         - match:
             alertname: KubeProxyDown
           receiver: 'null'
@@ -159,6 +169,16 @@ alertmanager:
             alertname: TargetDown
             job: kube-scheduler|kube-controller-manager|kube-etcd
           receiver: 'null'
+          continue: false
+
+        # =================================================================
+        # Watchdog → healthchecks.io (dead man's switch)
+        # =================================================================
+        # Watchdog always fires. If it stops, healthchecks.io alerts us.
+        - match:
+            alertname: Watchdog
+          receiver: 'healthchecks-heartbeat'
+          repeat_interval: 1m
           continue: false
 
         # =================================================================
@@ -216,6 +236,13 @@ alertmanager:
 
       # Fallback null receiver (for silencing)
       - name: 'null'
+
+      # Healthchecks.io heartbeat (dead man's switch)
+      # Watchdog pings this URL every minute. If pings stop, healthchecks.io alerts.
+      - name: 'healthchecks-heartbeat'
+        webhook_configs:
+          - url: 'SET_VIA_HELM'  # Injected from 1Password at runtime
+            send_resolved: false
 
     # Inhibition rules - suppress lower severity when higher severity fires
     inhibit_rules:

@@ -1,34 +1,70 @@
 # Phase 4.7: Portfolio Migration
 
 > **Status:** ⬜ Planned
-> **Target:** v0.9.0
-> **DevOps Topics:** CI/CD pipelines, container builds, K8s deployments
-> **CKA Topics:** Deployments, Services, ConfigMaps
+> **Target:** v0.8.1
+> **Prerequisite:** Phase 4.6 complete (GitLab + Runner installed)
+> **DevOps Topics:** CI/CD pipelines, container builds, K8s deployments, Docker multi-stage builds
+> **CKA Topics:** Deployments, Services, RBAC (ServiceAccount for CI/CD)
 
 > **Purpose:** First app deployment using GitLab CI/CD pipeline
 > **Stack:** Static Next.js 16 + nginx (truly stateless)
 > **Source:** GitLab (imported from GitHub)
+>
+> **Learning Goal:** Understand complete CI/CD flow from git push to production deployment
 
 ---
 
 ## CI/CD Flow
 
+This phase teaches you how to set up automated deployments:
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  git push → GitLab CI/CD                                    │
-├─────────────────────────────────────────────────────────────┤
-│  Stage 1: Build                                             │
-│  ├── npm install                                            │
-│  ├── next build (static export)                             │
-│  └── docker build (nginx + /out)                            │
-│                                                             │
-│  Stage 2: Push                                              │
-│  └── docker push registry.k8s.home.rommelporras.com/...     │
-│                                                             │
-│  Stage 3: Deploy                                            │
-│  └── kubectl set image deployment/portfolio ...             │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Portfolio CI/CD Pipeline                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   1. TRIGGER                                                        │
+│      Developer: git push origin main                                │
+│                         │                                           │
+│                         ▼                                           │
+│   2. BUILD STAGE                                                    │
+│      GitLab Runner spawns pod:                                      │
+│      ┌────────────────────────────────────────┐                    │
+│      │  docker:24-dind                         │                    │
+│      │  ├── npm install                        │                    │
+│      │  ├── next build --output export         │                    │
+│      │  └── docker build -t portfolio:v1.2.3   │                    │
+│      └────────────────────────────────────────┘                    │
+│                         │                                           │
+│                         ▼                                           │
+│   3. PUSH STAGE                                                     │
+│      Push to GitLab Container Registry:                             │
+│      registry.k8s.home.rommelporras.com/portfolio:v1.2.3           │
+│                         │                                           │
+│                         ▼                                           │
+│   4. DEPLOY STAGE                                                   │
+│      GitLab Runner uses ServiceAccount to:                          │
+│      kubectl set image deployment/portfolio portfolio=...:v1.2.3   │
+│                         │                                           │
+│                         ▼                                           │
+│   5. RESULT                                                         │
+│      K8s performs rolling update:                                   │
+│      - Spins up new pods with new image                            │
+│      - Routes traffic to new pods                                   │
+│      - Terminates old pods                                          │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+### Key Concepts This Phase Teaches
+
+| Concept | What You'll Learn |
+|---------|-------------------|
+| **Docker multi-stage builds** | Build Next.js app, copy to nginx image |
+| **GitLab Container Registry** | Store images in your own registry |
+| **Kubernetes RBAC** | ServiceAccount with limited permissions |
+| **Rolling deployments** | Zero-downtime updates |
+| **Environment variables** | CI/CD variables for secrets |
 
 ---
 
@@ -284,18 +320,131 @@
 
 - [ ] 4.7.6.3 After 1 week stable, delete VM (or repurpose)
 
-**Rollback:** Restart Docker Compose on VM, revert tunnel route
+---
+
+## 4.7.7 Documentation Updates
+
+- [ ] 4.7.7.1 Update VERSIONS.md
+  ```
+  # Add to Applications section:
+  | Portfolio | 1.x.x | Personal website (Next.js static) |
+
+  # Add to Version History:
+  | YYYY-MM-DD | Phase 4.7: Portfolio CI/CD migration |
+  ```
+
+- [ ] 4.7.7.2 Update docs/reference/CHANGELOG.md
+  - Add Phase 4.7 section with milestone, decisions, lessons learned
 
 ---
 
-## Final: Documentation Updates
+## Verification Checklist
 
-- [ ] Update VERSIONS.md
-  - Add Portfolio component and version
-  - Add version history entry
+- [ ] Namespace `portfolio` exists with baseline PSS
+- [ ] ServiceAccount `gitlab-deploy` has correct RBAC permissions
+- [ ] Portfolio deployment running with 2 replicas
+- [ ] HTTPRoute configured for portfolio.k8s.home.rommelporras.com
+- [ ] DNS rewrite configured in AdGuard
+- [ ] GitLab CI/CD pipeline passes all stages (build, deploy)
+- [ ] Portfolio accessible internally via https://portfolio.k8s.home.rommelporras.com
+- [ ] Portfolio accessible externally via https://rommelporras.com (Cloudflare Tunnel)
+- [ ] VM Docker Compose stopped (after migration period)
 
-- [ ] Update docs/reference/CHANGELOG.md
-  - Add Phase 4.7 section with milestone, decisions, lessons learned
+---
+
+## Rollback
+
+If issues occur:
+
+```bash
+# 1. Quick rollback - restart VM
+ssh reverse-mountain "cd /home/wawashi/portfolio && docker compose up -d"
+
+# 2. Revert Cloudflare tunnel route to VM IP
+#    Cloudflare dashboard → Tunnels → Public Hostname
+#    Change: http://portfolio.portfolio.svc.cluster.local:80
+#    Back to: http://10.10.30.X:3000 (VM IP)
+
+# 3. Debug K8s deployment
+kubectl-homelab logs -n portfolio -l app=portfolio
+kubectl-homelab describe deployment portfolio -n portfolio
+
+# 4. Roll back to previous image if needed
+kubectl-homelab rollout undo deployment/portfolio -n portfolio
+```
+
+---
+
+## Troubleshooting
+
+### Pipeline fails at build stage
+
+```bash
+# Check runner logs
+kubectl-homelab logs -n gitlab-runner -l app=gitlab-runner --tail=100
+
+# Common issues:
+# - Docker-in-Docker not working → check privileged: true in runner config
+# - Out of memory → increase runner pod limits
+# - npm install fails → check if registry.npmjs.org is accessible
+```
+
+### Pipeline fails at deploy stage (kubectl errors)
+
+```bash
+# Verify ServiceAccount token is valid
+kubectl-homelab get secret gitlab-deploy-token -n portfolio -o yaml
+
+# Verify RBAC permissions
+kubectl-homelab auth can-i update deployments -n portfolio \
+  --as=system:serviceaccount:portfolio:gitlab-deploy
+
+# Check CI/CD variables in GitLab
+# Project → Settings → CI/CD → Variables
+# KUBE_TOKEN should match the service account token
+```
+
+### Pods not starting after deploy
+
+```bash
+# Check deployment status
+kubectl-homelab describe deployment portfolio -n portfolio
+
+# Check pod events
+kubectl-homelab get pods -n portfolio
+kubectl-homelab describe pod <pod-name> -n portfolio
+
+# Common issues:
+# - ImagePullBackOff → registry auth issue, check imagePullSecrets
+# - CrashLoopBackOff → check container logs
+```
+
+### Container registry auth issues
+
+```bash
+# GitLab registry credentials are auto-injected by CI/CD
+# For manual pull, create imagePullSecret:
+
+kubectl-homelab create secret docker-registry gitlab-registry \
+  --docker-server=registry.k8s.home.rommelporras.com \
+  --docker-username=<gitlab-deploy-token-user> \
+  --docker-password=<gitlab-deploy-token> \
+  -n portfolio
+```
+
+---
+
+## Final: Commit and Release
+
+- [ ] Commit changes
+  ```bash
+  /commit
+  ```
+
+- [ ] Release v0.8.1
+  ```bash
+  /release v0.8.1
+  ```
 
 - [ ] Move this file to completed folder
   ```bash

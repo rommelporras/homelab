@@ -22,6 +22,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Discord Webhook Incidents | `credential` | Alertmanager |
 | Discord Webhook Status | `credential` | Alertmanager |
 | iCloud SMTP Alertmanager | `username`, `password`, `server`, `port` | Alertmanager email |
+| Healthchecks Ping URL | `url` | Alertmanager Watchdog (dead man's switch) |
 | NUT Admin | `username`, `password` | NUT server |
 | NUT Monitor | `username`, `password` | NUT clients, nut-exporter |
 | Homepage | Multiple (see below) | Homepage dashboard widgets |
@@ -42,6 +43,9 @@ op://Kubernetes/Discord Webhook Status/credential
 # SMTP (Alertmanager email)
 op://Kubernetes/iCloud SMTP Alertmanager/username
 op://Kubernetes/iCloud SMTP Alertmanager/password
+
+# Healthchecks (dead man's switch)
+op://Kubernetes/Healthchecks Ping URL/url
 
 # NUT
 op://Kubernetes/NUT Admin/username
