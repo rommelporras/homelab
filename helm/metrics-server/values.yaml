@@ -1,0 +1,40 @@
+# Metrics Server Helm Values
+# Chart: metrics-server/metrics-server v3.13.0
+# Docs: https://github.com/kubernetes-sigs/metrics-server
+#
+# Installation:
+#   helm-homelab repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+#   helm-homelab install metrics-server metrics-server/metrics-server \
+#     --namespace kube-system \
+#     --version 3.13.0 \
+#     -f helm/metrics-server/values.yaml
+
+# Default args (from upstream)
+# --kubelet-insecure-tls is added for kubeadm clusters where kubelet
+# certificates are not signed by the cluster CA.
+# Remove this if your cluster has proper kubelet certificate configuration.
+args:
+  - --kubelet-insecure-tls
+  - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+  - --kubelet-use-node-status-port
+  - --metric-resolution=15s
+
+# Resource requests/limits for 3-node cluster
+resources:
+  requests:
+    cpu: 100m
+    memory: 200Mi
+  limits:
+    memory: 256Mi
+
+# Pod security (already secure by default, explicit for documentation)
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  seccompProfile:
+    type: RuntimeDefault
+  capabilities:
+    drop:
+      - ALL

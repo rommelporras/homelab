@@ -1,0 +1,766 @@
+# AdGuard Home initial configuration template
+# This gets copied to PVC on first boot via init container
+# After first boot, AdGuard manages its own config on the PVC
+#
+# Sanitized from Dell 5090 config with these changes:
+# - HTTP port: 80 → 3000 (non-root container)
+# - Rewrite: *.home.rommelporras.com → 10.10.30.20 (Gateway API, was NPM)
+# - safe_fs_patterns: updated for K8s paths
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: adguard-initial-config
+  namespace: home
+data:
+  AdGuardHome.yaml: |
+    http:
+      pprof:
+        port: 6060
+        enabled: false
+      address: 0.0.0.0:3000
+      session_ttl: 720h
+    users:
+      - name: technicaldebt23
+        password: $2a$10$zrfaeP58snQ.mQXsd6ehH.24byYghZzcLqgBy81ztsvdaMmpTQz9K
+    auth_attempts: 5
+    block_auth_min: 15
+    http_proxy: ""
+    language: ""
+    theme: auto
+    dns:
+      bind_hosts:
+        - 0.0.0.0
+      port: 53
+      anonymize_client_ip: false
+      ratelimit: 0
+      ratelimit_subnet_len_ipv4: 24
+      ratelimit_subnet_len_ipv6: 56
+      ratelimit_whitelist: []
+      refuse_any: true
+      upstream_dns:
+        - '# DNS over HTTPS (DoH)'
+        - '#Quad9 unfiltered, private'
+        - https://dns.mullvad.net/dns-query
+        - https://dns11.quad9.net/dns-query
+        - https://dns.cloudflare.com/dns-query
+      upstream_dns_file: ""
+      bootstrap_dns:
+        - 1.1.1.1
+        - 9.9.9.10
+        - 194.242.2.2
+        - 2606:4700:4700::1111
+        - 2606:4700:4700::1001
+        - 2620:fe::10
+        - 2620:fe::fe:10
+        - 2a07:e340::2
+        - 2a07:e340::3
+      fallback_dns:
+        - https://dns.google/dns-query
+      upstream_mode: parallel
+      fastest_timeout: 1s
+      allowed_clients: []
+      disallowed_clients: []
+      blocked_hosts:
+        - version.bind
+        - id.server
+        - hostname.bind
+      trusted_proxies:
+        - 127.0.0.0/8
+        - ::1/128
+      cache_enabled: true
+      cache_size: 4194304
+      cache_ttl_min: 0
+      cache_ttl_max: 0
+      cache_optimistic: true
+      cache_optimistic_answer_ttl: 30s
+      cache_optimistic_max_age: 12h
+      bogus_nxdomain: []
+      aaaa_disabled: false
+      enable_dnssec: false
+      edns_client_subnet:
+        custom_ip: ""
+        enabled: false
+        use_custom: false
+      max_goroutines: 300
+      handle_ddr: true
+      ipset: []
+      ipset_file: ""
+      bootstrap_prefer_ipv6: false
+      upstream_timeout: 45s
+      private_networks: []
+      use_private_ptr_resolvers: true
+      local_ptr_upstreams: []
+      use_dns64: false
+      dns64_prefixes: []
+      serve_http3: false
+      use_http3_upstreams: false
+      serve_plain_dns: true
+      hostsfile_enabled: true
+      pending_requests:
+        enabled: true
+    tls:
+      enabled: false
+      server_name: ""
+      force_https: false
+      port_https: 443
+      port_dns_over_tls: 853
+      port_dns_over_quic: 853
+      port_dnscrypt: 0
+      dnscrypt_config_file: ""
+      allow_unencrypted_doh: false
+      certificate_chain: ""
+      private_key: ""
+      certificate_path: ""
+      private_key_path: ""
+      strict_sni_check: false
+    querylog:
+      dir_path: ""
+      ignored:
+        - gnar.grammarly.com
+        - treatment.grammarly.com
+        - '*.grammarly.io'
+        - api.segment.io
+        - '*.gvt2.com'
+        - '*.gvt3.com'
+        - wpad.rommelporras.com
+      interval: 2160h
+      size_memory: 1000
+      enabled: true
+      file_enabled: true
+    statistics:
+      dir_path: ""
+      ignored:
+        - gnar.grammarly.com
+        - treatment.grammarly.com
+        - '*.grammarly.io'
+        - api.segment.io
+        - '*.gvt2.com'
+        - '*.gvt3.com'
+        - wpad.rommelporras.com
+      interval: 2160h
+      enabled: true
+    filters:
+      - enabled: true
+        url: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.txt
+        name: HaGeZi's Pro DNS Blocklist
+        id: 1754663089
+      - enabled: true
+        url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_61.txt
+        name: HaGeZi's Samsung Tracker Blocklist
+        id: 1754663090
+      - enabled: true
+        url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_10.txt
+        name: Scam Blocklist by DurableNapkin
+        id: 1754663091
+      - enabled: true
+        url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_11.txt
+        name: Malicious URL Blocklist (URLHaus)
+        id: 1754663092
+      - enabled: true
+        url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_63.txt
+        name: HaGeZi's Windows/Office Tracker Blocklist
+        id: 1754663093
+      - enabled: true
+        url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_44.txt
+        name: HaGeZi's Threat Intelligence Feeds
+        id: 1754663094
+      - enabled: true
+        url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_50.txt
+        name: uBlock filters – Badware risks
+        id: 1754663095
+      - enabled: true
+        url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_56.txt
+        name: HaGeZi's The World's Most Abused TLDs
+        id: 1754663096
+      - enabled: true
+        url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_7.txt
+        name: Perflyst and Dandelion Sprout's Smart-TV Blocklist
+        id: 1754663097
+      - enabled: true
+        url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_30.txt
+        name: Phishing URL Blocklist (PhishTank and OpenPhish)
+        id: 1754663098
+      - enabled: true
+        url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_6.txt
+        name: Dandelion Sprout's Game Console Adblock List
+        id: 1754663099
+      - enabled: true
+        url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_39.txt
+        name: Dandelion Sprout's Anti Push Notifications
+        id: 1754663100
+    whitelist_filters: []
+    user_rules:
+      - '@@||d3p8zr0ffa9t17.cloudfront.net^$client=''10.10.40.101'''
+      - '@@||d3p8zr0ffa9t17.cloudfront.net^$client=''Alexa Echo Dot 4'''
+      - '@@||archive.ubuntu.com^'
+      - '@@||security.ubuntu.com^'
+      - '@@||esm.ubuntu.com^'
+      - '@@||ph.archive.ubuntu.com^'
+      - '@@||download.docker.com^'
+      - '@@||apt.syncthing.net^'
+      - '@@||pkgs.tailscale.com^'
+      - '@@||w2.thegreatestestatedeveloper.site^$important'
+      - '@@||acloud.guru^$important'
+      - '@@||thedarkmagesreturntoenlistment.online^$important'
+      - '@@||analytics.google.com^$client=''RCP-Desktop'''
+      - '@@||cva.style^$important'
+      - '@@||analytics.google.com^$client=''DESKTOP-ITT3DRA'''
+    dhcp:
+      enabled: false
+      interface_name: ""
+      local_domain_name: lan
+      dhcpv4:
+        gateway_ip: ""
+        subnet_mask: ""
+        range_start: ""
+        range_end: ""
+        lease_duration: 86400
+        icmp_timeout_msec: 1000
+        options: []
+      dhcpv6:
+        range_start: ""
+        lease_duration: 86400
+        ra_slaac_only: false
+        ra_allow_slaac: false
+    filtering:
+      blocking_ipv4: ""
+      blocking_ipv6: ""
+      blocked_services:
+        schedule:
+          time_zone: Local
+        ids: []
+      protection_disabled_until: null
+      safe_search:
+        enabled: false
+        bing: true
+        duckduckgo: true
+        ecosia: true
+        google: true
+        pixabay: true
+        yandex: true
+        youtube: true
+      blocking_mode: default
+      parental_block_host: family-block.dns.adguard.com
+      safebrowsing_block_host: standard-block.dns.adguard.com
+      rewrites:
+        # Gateway API VIP - all *.home and *.k8s.home route here
+        - domain: '*.home.rommelporras.com'
+          answer: 10.10.30.20
+          enabled: true
+        - domain: '*.k8s.home.rommelporras.com'
+          answer: 10.10.30.20
+          enabled: true
+        # K8s nodes - direct access
+        - domain: k8s-cp1.home.rommelporras.com
+          answer: 10.10.30.11
+          enabled: true
+        - domain: k8s-cp2.home.rommelporras.com
+          answer: 10.10.30.12
+          enabled: true
+        - domain: k8s-cp3.home.rommelporras.com
+          answer: 10.10.30.13
+          enabled: true
+        - domain: k8s-api.home.rommelporras.com
+          answer: 10.10.30.10
+          enabled: true
+      safe_fs_patterns:
+        - /opt/adguardhome/userfilters/*
+      safebrowsing_cache_size: 1048576
+      safesearch_cache_size: 1048576
+      parental_cache_size: 1048576
+      cache_time: 30
+      filters_update_interval: 24
+      blocked_response_ttl: 10
+      filtering_enabled: true
+      rewrites_enabled: true
+      parental_enabled: false
+      safebrowsing_enabled: false
+      protection_enabled: true
+    clients:
+      runtime_sources:
+        whois: true
+        arp: true
+        rdns: true
+        dhcp: true
+        hosts: true
+      persistent:
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: Adguard Home (LXC Firewall)
+          ids:
+            - 10.10.30.54
+          tags:
+            - device_other
+            - os_linux
+            - user_admin
+          upstreams: []
+          uid: 019906a8-c4a1-7a00-b4bd-97a0441cdd20
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: Alexa Echo Dot 4 (IOT)
+          ids:
+            - 10.10.40.4
+          tags:
+            - device_other
+            - os_other
+            - user_regular
+          upstreams: []
+          uid: 0198c705-3fc2-76ac-a726-ba1e4fa92005
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: DESKTOP-ITT3DRA
+          ids:
+            - 10.10.20.16
+          tags:
+            - device_laptop
+            - os_windows
+            - user_regular
+          upstreams: []
+          uid: 019b06f0-60ed-7575-a7ca-d2c40fe7092b
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: Galaxy-A15-5G
+          ids:
+            - 192.168.0.15
+          tags:
+            - device_phone
+            - os_android
+            - user_regular
+          upstreams: []
+          uid: 0198b39b-57c8-7af9-b3d7-8c9fd50283e7
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: Gundamista-S25U
+          ids:
+            - 10.10.20.25
+          tags:
+            - device_phone
+            - os_android
+            - user_admin
+          upstreams: []
+          uid: 01988dae-d93e-756d-8a36-b8b6d077a963
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: HEX-W1FX9P13
+          ids:
+            - 192.168.0.2
+          tags:
+            - device_laptop
+            - os_windows
+            - user_regular
+          upstreams: []
+          uid: 0198a677-13fe-70dd-b20d-44846614fb96
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: Immich (Ubuntu 24.04 VM)
+          ids:
+            - 10.10.30.5
+          tags:
+            - device_other
+            - os_linux
+            - user_admin
+          upstreams: []
+          uid: 0198eb9e-9357-70fb-9456-5196a2eed504
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: LGE_AC2_open (IOT)
+          ids:
+            - 10.10.40.2
+          tags:
+            - device_other
+            - os_other
+            - user_regular
+          upstreams: []
+          uid: 0198c728-05c7-7638-82b9-0986cb59a818
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: MySpeed (LXC)
+          ids:
+            - 10.10.30.6
+          tags:
+            - device_other
+            - os_linux
+            - user_admin
+          upstreams: []
+          uid: 0198ec10-3665-7d17-9cbd-5331e3402d1f
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: Nginx Proxy Manager (LXC)
+          ids:
+            - 10.10.30.2
+          tags:
+            - device_other
+            - os_linux
+            - user_admin
+          upstreams: []
+          uid: 0198ec11-535c-7835-972e-ed5fbcbdd6ad
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: OPPO-A5s
+          ids:
+            - 192.168.0.5
+          tags:
+            - device_phone
+            - os_android
+            - user_regular
+          upstreams: []
+          uid: 0198be8b-baf1-7d59-a82c-066d30e98823
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: Ohara (Ubuntu 24.04 VM)
+          ids:
+            - 10.10.30.3
+          tags:
+            - device_other
+            - os_linux
+            - user_admin
+          upstreams: []
+          uid: 0198ec0f-8cb6-7276-84da-973f08ea3b40
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: Open Media Vault (VM)
+          ids:
+            - 10.10.30.4
+          tags:
+            - device_nas
+            - os_linux
+            - user_admin
+          upstreams: []
+          uid: 0198ec46-f61d-73a5-8706-9dfcbaee46d2
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: RCP-Desktop
+          ids:
+            - 10.10.10.23
+          tags:
+            - device_pc
+            - os_windows
+            - user_admin
+          upstreams: []
+          uid: 01989ebe-5a7f-7096-8d67-01271447757a
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+        - safe_search:
+            enabled: false
+            bing: true
+            duckduckgo: true
+            ecosia: true
+            google: true
+            pixabay: true
+            yandex: true
+            youtube: true
+          blocked_services:
+            schedule:
+              time_zone: Local
+            ids: []
+          name: wasds-iPhone14PM
+          ids:
+            - 10.10.20.14
+          tags:
+            - device_phone
+            - os_ios
+            - user_admin
+          upstreams: []
+          uid: 01988db0-aeb7-73f2-a21a-93e01de2bf07
+          upstreams_cache_size: 0
+          upstreams_cache_enabled: false
+          use_global_settings: true
+          filtering_enabled: false
+          parental_enabled: false
+          safebrowsing_enabled: false
+          use_global_blocked_services: true
+          ignore_querylog: false
+          ignore_statistics: false
+    log:
+      enabled: true
+      file: ""
+      max_backups: 0
+      max_size: 100
+      max_age: 3
+      compress: false
+      local_time: false
+      verbose: false
+    os:
+      group: ""
+      user: ""
+      rlimit_nofile: 0
+    schema_version: 32

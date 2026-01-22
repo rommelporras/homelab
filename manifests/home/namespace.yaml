@@ -1,0 +1,11 @@
+# Home namespace for stateless home services
+# Phase 4.1 - AdGuard Home, Homepage Dashboard
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: home
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

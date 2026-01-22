@@ -1,0 +1,15 @@
+# Longhorn PVC for AdGuard Home runtime data
+# Stores: config (after init), query logs, blocklist cache
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: adguard-data
+  namespace: home
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi

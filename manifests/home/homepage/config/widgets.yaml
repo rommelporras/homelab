@@ -1,0 +1,53 @@
+# Homepage Info Widgets Configuration
+# Docs: https://gethomepage.dev/configs/info-widgets/
+#
+# These appear at the top of the page (above service groups)
+
+- greeting:
+    text_size: 4xl
+
+- kubernetes:
+    cluster:
+      show: true
+      cpu: true
+      memory: true
+      showLabel: true
+      label: "homelab"
+    nodes:
+      show: true
+      cpu: true
+      memory: true
+      showLabel: true
+
+- longhorn:
+    expanded: true
+    total: true
+    labels: true
+    nodes: true
+
+- search:
+    provider: google
+    focus: true
+    showSearchSuggestions: true
+    target: _parent
+
+- datetime:
+    text_size: md
+    format:
+      dateStyle: long
+      hour12: false
+
+- datetime:
+    text_size: 4xl
+    format:
+      timeStyle: short
+      hour12: true
+
+- openweathermap:
+    provider: openweathermap
+    latitude: 14.321288289293614
+    longitude: 121.09709934406646
+    units: metric
+    cache: 15
+    format:
+      maximumFractionDigits: 1

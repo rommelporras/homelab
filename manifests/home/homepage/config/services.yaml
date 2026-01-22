@@ -1,0 +1,265 @@
+# Homepage Services Configuration
+# Docs: https://gethomepage.dev/configs/services/
+#
+# Layout: Option A (Function-Based) with Multi-Page Tabs
+# - Tab 1 "Main": Compute, Network, Storage, Apps, Health
+# - Tab 2 "Infra": Proxmox and Kubernetes details
+#
+# NOTE: All {{HOMEPAGE_VAR_XXX}} placeholders MUST be quoted to prevent
+# YAML special characters (*, @, !) from breaking parsing.
+
+#############################################
+# TAB 1: MAIN DASHBOARD
+#############################################
+
+- Compute:
+    - PVE Node:
+        icon: proxmox.png
+        href: https://pve.home.rommelporras.com
+        description: Main Application Server
+        statusStyle: dot
+        widget:
+          type: proxmox
+          url: https://pve.home.rommelporras.com
+          username: "{{HOMEPAGE_VAR_PROXMOX_PVE_USER}}"
+          password: "{{HOMEPAGE_VAR_PROXMOX_PVE_TOKEN}}"
+          node: pve
+
+    - Firewall Node:
+        icon: proxmox.png
+        href: https://firewall.home.rommelporras.com
+        description: OPNsense Firewall Host
+        statusStyle: dot
+        widget:
+          type: proxmox
+          url: https://firewall.home.rommelporras.com
+          username: "{{HOMEPAGE_VAR_PROXMOX_FW_USER}}"
+          password: "{{HOMEPAGE_VAR_PROXMOX_FW_TOKEN}}"
+          node: firewall
+
+    - k8s-cp1:
+        icon: mdi-kubernetes
+        href: https://grafana.k8s.home.rommelporras.com/d/rYdddlPWk/node-exporter-full?var-node=k8s-cp1
+        description: Control Plane 1 (10.10.30.11)
+        statusStyle: dot
+        siteMonitor: http://10.10.30.11:9100/metrics
+
+    - k8s-cp2:
+        icon: mdi-kubernetes
+        href: https://grafana.k8s.home.rommelporras.com/d/rYdddlPWk/node-exporter-full?var-node=k8s-cp2
+        description: Control Plane 2 (10.10.30.12)
+        statusStyle: dot
+        siteMonitor: http://10.10.30.12:9100/metrics
+
+    - k8s-cp3:
+        icon: mdi-kubernetes
+        href: https://grafana.k8s.home.rommelporras.com/d/rYdddlPWk/node-exporter-full?var-node=k8s-cp3
+        description: Control Plane 3 (10.10.30.13)
+        statusStyle: dot
+        siteMonitor: http://10.10.30.13:9100/metrics
+
+- Network:
+    - OPNsense:
+        icon: opnsense.png
+        href: https://10.10.10.1
+        description: Firewall & Router
+        statusStyle: dot
+        widget:
+          type: opnsense
+          url: https://10.10.10.1
+          username: "{{HOMEPAGE_VAR_OPNSENSE_KEY}}"
+          password: "{{HOMEPAGE_VAR_OPNSENSE_SECRET}}"
+
+    - AdGuard (Primary):
+        icon: adguard-home.png
+        href: https://adguard.k8s.home.rommelporras.com
+        description: DNS Ad-blocker (K8s)
+        statusStyle: dot
+        widget:
+          type: adguard
+          url: https://adguard.k8s.home.rommelporras.com
+          username: "{{HOMEPAGE_VAR_ADGUARD_USER}}"
+          password: "{{HOMEPAGE_VAR_ADGUARD_PASS}}"
+
+    - AdGuard (Failover):
+        icon: adguard-home.png
+        href: https://fw-agh.home.rommelporras.com
+        description: DNS Failover (LXC)
+        statusStyle: dot
+        widget:
+          type: adguard
+          url: https://fw-agh.home.rommelporras.com
+          username: "{{HOMEPAGE_VAR_ADGUARD_FW_USER}}"
+          password: "{{HOMEPAGE_VAR_ADGUARD_FW_PASS}}"
+
+    - Tailscale:
+        icon: tailscale.png
+        href: https://login.tailscale.com/admin/machines
+        description: VPN Mesh Network (widget pending K8s operator)
+        statusStyle: dot
+        siteMonitor: https://login.tailscale.com
+
+    - OpenWRT:
+        icon: openwrt.png
+        href: http://10.10.70.4/cgi-bin/luci/
+        description: IoT Network Router
+        statusStyle: dot
+        widget:
+          type: openwrt
+          url: http://10.10.70.4
+          username: "{{HOMEPAGE_VAR_OPENWRT_USER}}"
+          password: "{{HOMEPAGE_VAR_OPENWRT_PASS}}"
+          interfaceName: eth0
+
+- Storage:
+    - Longhorn:
+        icon: longhorn.png
+        href: https://longhorn.k8s.home.rommelporras.com
+        description: K8s Distributed Storage
+        statusStyle: dot
+        siteMonitor: https://longhorn.k8s.home.rommelporras.com
+
+    - OpenMediaVault:
+        icon: openmediavault.png
+        href: https://omv.home.rommelporras.com
+        description: NAS Management
+        statusStyle: dot
+        widget:
+          type: openmediavault
+          url: https://omv.home.rommelporras.com
+          username: "{{HOMEPAGE_VAR_OMV_USER}}"
+          password: "{{HOMEPAGE_VAR_OMV_PASS}}"
+          method: smart.getListBg
+
+    - NAS Disks:
+        icon: mdi-harddisk
+        href: http://10.10.30.4:61208
+        description: 1.8TB NVMe Usage
+        statusStyle: dot
+        widget:
+          type: glances
+          url: http://10.10.30.4:61208
+          username: "{{HOMEPAGE_VAR_GLANCES_USER}}"
+          password: "{{HOMEPAGE_VAR_GLANCES_PASS}}"
+          version: 3
+          metric: fs:/srv/dev-disk-by-uuid-00ece9b6-d675-4371-82e2-efa6cfd7e589
+
+- Apps:
+    - Immich:
+        icon: immich.png
+        href: https://immich.home.rommelporras.com
+        description: Photo Management
+        statusStyle: dot
+        siteMonitor: https://immich.home.rommelporras.com
+        widget:
+          type: immich
+          url: https://immich.home.rommelporras.com
+          key: "{{HOMEPAGE_VAR_IMMICH_KEY}}"
+          version: 2
+
+    - Karakeep:
+        icon: karakeep.png
+        href: https://karakeep.home.rommelporras.com
+        description: Bookmark Manager
+        statusStyle: dot
+        siteMonitor: https://karakeep.home.rommelporras.com
+        widget:
+          type: karakeep
+          url: https://karakeep.home.rommelporras.com
+          key: "{{HOMEPAGE_VAR_KARAKEEP_KEY}}"
+
+    - Grafana:
+        icon: grafana.png
+        href: https://grafana.k8s.home.rommelporras.com
+        description: Dashboards & Metrics
+        statusStyle: dot
+        siteMonitor: https://grafana.k8s.home.rommelporras.com
+        widget:
+          type: grafana
+          url: https://grafana.k8s.home.rommelporras.com
+          username: "{{HOMEPAGE_VAR_GRAFANA_USER}}"
+          password: "{{HOMEPAGE_VAR_GRAFANA_PASS}}"
+
+- Health:
+    - UPS Status:
+        icon: mdi-battery-charging
+        href: https://grafana.k8s.home.rommelporras.com/d/ups-monitoring
+        description: CyberPower UPS
+        statusStyle: dot
+        siteMonitor: https://grafana.k8s.home.rommelporras.com/d/ups-monitoring
+
+    - Speed Test:
+        icon: myspeed.png
+        href: https://myspeed.home.rommelporras.com
+        description: Internet Speed History
+        statusStyle: dot
+        widget:
+          type: myspeed
+          url: http://10.10.30.6:5216
+
+#############################################
+# TAB 2: INFRASTRUCTURE DETAILS
+#############################################
+
+- Proxmox:
+    - PVE Node:
+        icon: proxmox.png
+        href: https://pve.home.rommelporras.com
+        description: i5-10400T / 64GB / 2TB NVMe
+        statusStyle: dot
+        widget:
+          type: proxmox
+          url: https://pve.home.rommelporras.com
+          username: "{{HOMEPAGE_VAR_PROXMOX_PVE_USER}}"
+          password: "{{HOMEPAGE_VAR_PROXMOX_PVE_TOKEN}}"
+          node: pve
+
+    - Firewall Node:
+        icon: proxmox.png
+        href: https://firewall.home.rommelporras.com
+        description: i5-10400T / 16GB / 256GB NVMe
+        statusStyle: dot
+        widget:
+          type: proxmox
+          url: https://firewall.home.rommelporras.com
+          username: "{{HOMEPAGE_VAR_PROXMOX_FW_USER}}"
+          password: "{{HOMEPAGE_VAR_PROXMOX_FW_TOKEN}}"
+          node: firewall
+
+- Kubernetes:
+    - Grafana:
+        icon: grafana.png
+        href: https://grafana.k8s.home.rommelporras.com
+        description: Observability Platform
+        statusStyle: dot
+        siteMonitor: https://grafana.k8s.home.rommelporras.com
+        widget:
+          type: grafana
+          url: https://grafana.k8s.home.rommelporras.com
+          username: "{{HOMEPAGE_VAR_GRAFANA_USER}}"
+          password: "{{HOMEPAGE_VAR_GRAFANA_PASS}}"
+
+    - Longhorn:
+        icon: longhorn.png
+        href: https://longhorn.k8s.home.rommelporras.com
+        description: Distributed Block Storage
+        statusStyle: dot
+        siteMonitor: https://longhorn.k8s.home.rommelporras.com
+
+    - AdGuard Home:
+        icon: adguard-home.png
+        href: https://adguard.k8s.home.rommelporras.com
+        description: DNS & Ad Blocking
+        statusStyle: dot
+        widget:
+          type: adguard
+          url: https://adguard.k8s.home.rommelporras.com
+          username: "{{HOMEPAGE_VAR_ADGUARD_USER}}"
+          password: "{{HOMEPAGE_VAR_ADGUARD_PASS}}"
+
+    - Homepage:
+        icon: homepage.png
+        href: https://homepage.k8s.home.rommelporras.com
+        description: This Dashboard
+        statusStyle: dot
+        siteMonitor: https://homepage.k8s.home.rommelporras.com

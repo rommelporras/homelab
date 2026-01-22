@@ -1,0 +1,47 @@
+# AdGuard Home Services
+#
+# Two services:
+# 1. LoadBalancer for DNS (port 53 UDP/TCP) - external access
+# 2. ClusterIP for HTTP (port 3000) - internal, exposed via Gateway
+#
+# IP Strategy:
+#   - Testing phase: 10.10.30.55 (parallel with PVE LXC on .53)
+#   - Cutover: Change to 10.10.30.53 after stopping PVE LXC
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: adguard-dns
+  namespace: home
+  annotations:
+    # Cilium L2 announcement - request specific IP for DNS
+    # TODO: Change to 10.10.30.53 after PVE LXC retirement
+    io.cilium/lb-ipam-ips: "10.10.30.55"
+spec:
+  type: LoadBalancer
+  selector:
+    app: adguard-home
+  ports:
+    - name: dns-tcp
+      port: 53
+      targetPort: 53
+      protocol: TCP
+    - name: dns-udp
+      port: 53
+      targetPort: 53
+      protocol: UDP
+---
+# ClusterIP service for web UI (accessed via Gateway API)
+apiVersion: v1
+kind: Service
+metadata:
+  name: adguard-http
+  namespace: home
+spec:
+  type: ClusterIP
+  selector:
+    app: adguard-home
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-01-20
+updated: 2026-01-22
 ---
 
 # Conventions
@@ -59,12 +59,15 @@ homelab/
 ├── helm/                    # Helm values files
 │   ├── prometheus/values.yaml
 │   ├── loki/values.yaml
-│   └── alloy/values.yaml
+│   ├── alloy/values.yaml
+│   └── metrics-server/values.yaml
 ├── manifests/               # Raw K8s manifests
 │   ├── cert-manager/
 │   ├── cilium/
 │   ├── gateway/
-│   └── monitoring/
+│   ├── home/                # Home services (AdGuard, Homepage)
+│   ├── monitoring/
+│   └── storage/             # Longhorn HTTPRoute
 ├── scripts/                 # Automation scripts
 │   └── upgrade-prometheus.sh
 ├── docs/

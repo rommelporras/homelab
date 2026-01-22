@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** January 20, 2026
+> **Last Updated:** January 22, 2026
 
 ---
 
@@ -43,6 +43,7 @@
 | oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 81.0.0 | v0.88.0 | Installed | monitoring |
 | oci://ghcr.io/grafana/helm-charts/loki | 6.49.0 | v3.6.3 | Installed | monitoring |
 | grafana/alloy | 1.5.2 | v1.12.2 | Installed | monitoring |
+| metrics-server/metrics-server | 3.13.0 | v0.8.0 | Installed | kube-system |
 | gitlab/gitlab | 8.7.0 | v17.7.0 | Planned | gitlab |
 | gitlab/gitlab-runner | 0.71.0 | v17.7.0 | Planned | gitlab-runner |
 
@@ -59,6 +60,7 @@
 helm-homelab repo add longhorn https://charts.longhorn.io
 helm-homelab repo add cilium https://helm.cilium.io/
 helm-homelab repo add grafana https://grafana.github.io/helm-charts
+helm-homelab repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
 helm-homelab repo add gitlab https://charts.gitlab.io
 helm-homelab repo update
 # Note: cert-manager and kube-prometheus-stack use OCI - no repo add needed
@@ -79,6 +81,29 @@ helm-homelab repo update
 | Cilium L2 Announcements | true | Installed |
 | Homelab Gateway | 10.10.30.20 | Installed |
 | kube-proxy | N/A | Removed (Cilium eBPF replaces) |
+
+---
+
+## Home Services (Phase 4)
+
+> **Status:** Phase 4.1-4.4 complete. Stateless workloads running in `home` namespace.
+
+| Component | Version | Status | Notes |
+|-----------|---------|--------|-------|
+| AdGuard Home | v0.107.71 | Running | PRIMARY DNS (10.10.30.55) for all VLANs |
+| Homepage | v1.9.0 | Running | 2 replicas, multi-tab layout |
+| Glances | v3.3.1 | Running | On OMV (apt), password auth |
+
+**DNS Configuration:**
+- Primary: 10.10.30.55 (K8s AdGuard via Cilium LoadBalancer)
+- Secondary: 10.10.30.54 (FW LXC failover)
+
+**HTTPRoutes:**
+| Service | URL | Namespace |
+|---------|-----|-----------|
+| AdGuard | adguard.k8s.home.rommelporras.com | home |
+| Homepage | homepage.k8s.home.rommelporras.com | home |
+| Longhorn | longhorn.k8s.home.rommelporras.com | longhorn-system |
 
 ---
 
@@ -152,6 +177,14 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-01-22 | **DNS Cutover:** K8s AdGuard (10.10.30.55) now PRIMARY for all VLANs |
+| 2026-01-22 | Added: Longhorn HTTPRoute for Homepage widget access |
+| 2026-01-22 | Added: Init container pattern for Homepage settings.yaml env substitution |
+| 2026-01-22 | Installed: metrics-server v0.8.0 for Homepage K8s widget (Phase 4.3) |
+| 2026-01-22 | Deployed: Homepage v1.9.0 dashboard to K8s (home namespace) |
+| 2026-01-22 | Deployed: AdGuard Home v0.107.71 DNS to K8s (home namespace) |
+| 2026-01-22 | Installed: Glances v3.3.1 on OMV with password authentication |
+| 2026-01-22 | **Phase 4.1-4.4 Complete:** Stateless workloads deployed |
 | 2026-01-20 | Configured: Alertmanager Discord + Email notifications (Phase 3.9) |
 | 2026-01-20 | Added: Discord webhooks (#incidents, #status) for alert routing |
 | 2026-01-20 | Added: iCloud SMTP for critical email alerts (3 recipients) |

@@ -4,6 +4,102 @@
 
 ---
 
+## January 22, 2026 — Phase 4.1-4.4: Stateless Workloads
+
+### Milestone: Home Services Running on Kubernetes
+
+Successfully deployed stateless home services to Kubernetes with full monitoring integration.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| AdGuard Home | v0.107.71 | Running (PRIMARY DNS for all VLANs) |
+| Homepage | v1.9.0 | Running (2 replicas, multi-tab layout) |
+| Glances | v3.3.1 | Running (on OMV, apt install) |
+| Metrics Server | v0.8.0 | Running (Helm chart 3.13.0) |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/home/adguard/ | AdGuard Home deployment (ConfigMap, Deployment, Service, HTTPRoute, PVC) |
+| manifests/home/homepage/ | Homepage dashboard (Kustomize with configMapGenerator) |
+| manifests/storage/longhorn/httproute.yaml | Longhorn UI exposure for Homepage widget |
+| helm/metrics-server/values.yaml | Metrics server Helm values |
+| docs/todo/phase-4.9-tailscale-operator.md | Future Tailscale K8s operator planning |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| DNS IP | 10.10.30.55 (LoadBalancer) | Cilium L2 announcement, separate from FW failover |
+| AdGuard storage | Init container + Longhorn PVC | ConfigMap → PVC on first boot, runtime changes preserved |
+| Homepage storage | ConfigMap only (stateless) | Kustomize hash suffix for automatic rollouts |
+| Secrets | 1Password CLI (imperative) | Never commit secrets to git |
+| Settings env vars | Init container substitution | Homepage doesn't substitute `{{HOMEPAGE_VAR_*}}` in providers section |
+| Longhorn widget | HTTPRoute exposure | Widget needs direct API access to Longhorn UI |
+
+### Architecture
+
+```
+                    ┌─────────────────────────────────────────┐
+                    │         Home Namespace (home)           │
+                    └─────────────────────────────────────────┘
+                                      │
+        ┌─────────────────────────────┼─────────────────────────────┐
+        │                             │                             │
+┌───────▼───────┐            ┌────────▼────────┐           ┌────────▼────────┐
+│  AdGuard Home │            │    Homepage     │           │  Metrics Server │
+│  v0.107.71    │            │    v1.9.0       │           │    v0.8.0       │
+├───────────────┤            ├─────────────────┤           ├─────────────────┤
+│ LoadBalancer  │            │ ClusterIP       │           │ ClusterIP       │
+│ 10.10.30.55   │            │ → HTTPRoute     │           │ (kube-system)   │
+│ DNS :53/udp   │            │                 │           │                 │
+│ HTTP :3000    │            │ 2 replicas      │           │ metrics.k8s.io  │
+└───────────────┘            └─────────────────┘           └─────────────────┘
+        │                             │
+        ▼                             ▼
+  All VLAN DHCP              Grafana-style dashboard
+  Primary DNS                with K8s/Longhorn widgets
+```
+
+### DNS Cutover
+
+| VLAN | Primary DNS | Secondary DNS |
+|------|-------------|---------------|
+| GUEST | 10.10.30.55 | 10.10.30.54 |
+| IOT | 10.10.30.55 | 10.10.30.54 |
+| LAN | 10.10.30.55 | 10.10.30.54 |
+| SERVERS | 10.10.30.55 | 10.10.30.54 |
+| TRUSTED_WIFI | 10.10.30.55 | 10.10.30.54 |
+
+### 1Password Items Created
+
+| Item | Vault | Fields |
+|------|-------|--------|
+| Homepage | Kubernetes | proxmox-pve-user/token, proxmox-fw-user/token, opnsense-username/password, immich-key, omv-user/pass, glances-pass, adguard-user/pass, weather-key, grafana-user/pass, etc. |
+
+### Lessons Learned
+
+1. **Homepage env var substitution limitation:** `{{HOMEPAGE_VAR_*}}` works in `services.yaml` but NOT in `settings.yaml` `providers` section. Used init container with sed to substitute at runtime.
+
+2. **Longhorn widget requires HTTPRoute:** The Homepage Longhorn info widget fetches data via HTTP from Longhorn UI. Must expose via Gateway API even for internal use.
+
+3. **Security context for init containers:** Don't forget `allowPrivilegeEscalation: false` and `capabilities.drop: ALL` on init containers, not just main containers.
+
+4. **Glances version matters:** OMV apt installs v3.x. Homepage widget config needs `version: 3`, not `version: 4`.
+
+5. **ConfigMap hash suffix:** Kustomize `configMapGenerator` adds hash suffix, enabling automatic pod rollouts when config changes. Don't use `generatorOptions.disableNameSuffixHash`.
+
+### HTTPRoutes Configured
+
+| Service | URL |
+|---------|-----|
+| AdGuard | adguard.k8s.home.rommelporras.com |
+| Homepage | homepage.k8s.home.rommelporras.com |
+| Longhorn | longhorn.k8s.home.rommelporras.com |
+
+---
+
 ## January 20, 2026 — Phase 3.9: Alertmanager Notifications
 
 ### Milestone: Discord + Email Alerting Configured

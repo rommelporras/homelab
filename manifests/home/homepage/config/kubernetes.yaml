@@ -1,0 +1,10 @@
+# For configuration options and examples, please see:
+# https://gethomepage.dev/configs/kubernetes/
+
+# Cluster mode uses in-cluster service account
+mode: cluster
+
+# Service discovery disabled - using manual services.yaml config
+# Enable these if you want auto-discovery via HTTPRoute/Ingress annotations
+ingress: false
+gateway: false

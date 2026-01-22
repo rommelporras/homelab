@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 
 > **Owner:** Rommel Porras
-> **Last Updated:** January 20, 2026
+> **Last Updated:** January 22, 2026
 
 ---
 
@@ -35,6 +35,7 @@
 | Logging | ✅ Complete | Loki + Alloy |
 | UPS Monitoring | ✅ Complete | NUT + graceful shutdown |
 | Alerting | ✅ Complete | Discord + Email notifications |
+| Home Services | ✅ Complete | AdGuard DNS, Homepage dashboard |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/CLUSTER_STATUS.md](docs/CLUSTER_STATUS.md) - Single source of truth
@@ -204,7 +205,9 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Jan 19, 2026** | Loki + Alloy logging stack deployed |
 | **Jan 20, 2026** | NUT UPS monitoring + graceful shutdown configured |
 | **Jan 20, 2026** | **Alertmanager notifications** (Discord + Email) |
-| **Coming** | AdGuard Home, Uptime Kuma, workload migration |
+| **Jan 22, 2026** | **Home Services deployed** (AdGuard DNS, Homepage dashboard) |
+| **Jan 22, 2026** | DNS cutover - K8s AdGuard now PRIMARY for all VLANs |
+| **Coming** | Uptime Kuma, workload migration (Immich, ARR) |
 
 See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 
@@ -212,9 +215,9 @@ See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 
 ## 🚀 Next Steps
 
-1. **Deploy AdGuard Home** on K8s (DNS)
-2. **Self-host Uptime Kuma** for uptime monitoring
-3. **Migrate workloads** from Proxmox (Immich, ARR stack)
+1. **Deploy Uptime Kuma** for uptime monitoring
+2. **Migrate Immich** from Proxmox to K8s (stateful workload)
+3. **Migrate ARR stack** from Proxmox to K8s
 4. **Set up GitLab + Runner** for CI/CD
 
 ---
@@ -224,7 +227,7 @@ See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 | Component | Status | Implementation |
 |-----------|--------|----------------|
 | Control Plane | ✅ Running | 3-node etcd quorum + kube-vip VIP |
-| Stateless Workloads | ✅ Ready | Replicas spread across nodes |
+| Stateless Workloads | ✅ Running | AdGuard, Homepage (replicas spread) |
 | Stateful Workloads | ✅ Running | Longhorn 2x replication |
 | Monitoring | ✅ Running | Prometheus + Grafana + Loki |
 | Alerting | ✅ Running | Discord + Email (3 recipients) |

@@ -1,0 +1,144 @@
+# Homepage Dashboard Deployment
+# Highly customizable dashboard with K8s integration
+# Docs: https://gethomepage.dev/
+#
+# Secret handling:
+#   - Secrets mounted as HOMEPAGE_VAR_XXX environment variables
+#   - Config files use {{HOMEPAGE_VAR_XXX}} placeholders
+#   - Init container substitutes providers in settings.yaml (workaround for
+#     Homepage not substituting env vars in providers section)
+#   - Homepage substitutes remaining placeholders at runtime
+#
+# IMPORTANT: Uses subPath mounts per file (required by Homepage)
+# See: https://github.com/gethomepage/homepage/issues/2172
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homepage
+  namespace: home
+  labels:
+    app: homepage
+spec:
+  replicas: 2  # HA - stateless, can run multiple replicas
+  selector:
+    matchLabels:
+      app: homepage
+  template:
+    metadata:
+      labels:
+        app: homepage
+    spec:
+      serviceAccountName: homepage
+      securityContext:
+        # Note: Homepage image runs as root, cannot use runAsNonRoot
+        seccompProfile:
+          type: RuntimeDefault
+      # Init container substitutes env vars in settings.yaml
+      # Required because Homepage doesn't substitute {{HOMEPAGE_VAR_*}} in providers section
+      initContainers:
+        - name: substitute-env
+          image: busybox:1.36
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - sh
+            - -c
+            - |
+              # Copy settings.yaml and substitute env var placeholder
+              sed "s|{{HOMEPAGE_VAR_WEATHER_KEY}}|$HOMEPAGE_VAR_WEATHER_KEY|g" \
+                /config-template/settings.yaml > /config-processed/settings.yaml
+              echo "Settings processed successfully"
+          envFrom:
+            - secretRef:
+                name: homepage-secrets
+          volumeMounts:
+            - name: homepage-config
+              mountPath: /config-template/settings.yaml
+              subPath: settings.yaml
+              readOnly: true
+            - name: processed-config
+              mountPath: /config-processed
+      containers:
+        - name: homepage
+          image: ghcr.io/gethomepage/homepage:v1.9.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          # Mount config files - settings.yaml from processed volume, others from ConfigMap
+          volumeMounts:
+            - name: homepage-config
+              mountPath: /app/config/bookmarks.yaml
+              subPath: bookmarks.yaml
+              readOnly: true
+            - name: homepage-config
+              mountPath: /app/config/custom.css
+              subPath: custom.css
+              readOnly: true
+            - name: homepage-config
+              mountPath: /app/config/custom.js
+              subPath: custom.js
+              readOnly: true
+            - name: homepage-config
+              mountPath: /app/config/docker.yaml
+              subPath: docker.yaml
+              readOnly: true
+            - name: homepage-config
+              mountPath: /app/config/kubernetes.yaml
+              subPath: kubernetes.yaml
+              readOnly: true
+            - name: homepage-config
+              mountPath: /app/config/services.yaml
+              subPath: services.yaml
+              readOnly: true
+            # settings.yaml from processed volume (with substituted env vars)
+            - name: processed-config
+              mountPath: /app/config/settings.yaml
+              subPath: settings.yaml
+              readOnly: true
+            - name: homepage-config
+              mountPath: /app/config/widgets.yaml
+              subPath: widgets.yaml
+              readOnly: true
+          # Load all secrets as HOMEPAGE_VAR_* environment variables
+          envFrom:
+            - secretRef:
+                name: homepage-secrets
+          env:
+            # Required for K8s deployments
+            - name: HOMEPAGE_ALLOWED_HOSTS
+              value: "homepage.k8s.home.rommelporras.com"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: homepage-config
+          configMap:
+            name: homepage-config  # Kustomize will add hash suffix
+        - name: processed-config
+          emptyDir: {}

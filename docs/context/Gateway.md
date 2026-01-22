@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, gateway, tls, cert-manager]
-updated: 2026-01-20
+updated: 2026-01-22
 ---
 
 # Gateway API
@@ -14,7 +14,7 @@ Gateway API for HTTPS ingress with automatic TLS certificates.
                             │
                             ▼
 ┌─────────────────────────────────────────────────────┐
-│              AdGuard DNS (10.10.30.53)              │
+│              AdGuard DNS (10.10.30.55)              │
 │     *.k8s.home.rommelporras.com → 10.10.30.20       │
 └─────────────────────────────────────────────────────┘
                             │
@@ -31,20 +31,12 @@ Gateway API for HTTPS ingress with automatic TLS certificates.
 │    Port 80 (HTTP) │ Port 443 (HTTPS + TLS)          │
 └─────────────────────────────────────────────────────┘
                             │
-              ┌─────────────┴─────────────┐
-              ▼                           ▼
-     ┌─────────────────┐         ┌─────────────────┐
-     │  HTTPRoute:     │         │  HTTPRoute:     │
-     │  grafana        │         │  (future)       │
-     │  monitoring ns  │         │  other ns       │
-     └────────┬────────┘         └────────┬────────┘
-              │                           │
-              ▼                           ▼
-     ┌─────────────────┐         ┌─────────────────┐
-     │  Service:       │         │  Service:       │
-     │  prometheus-    │         │  (future)       │
-     │  grafana:80     │         │                 │
-     └─────────────────┘         └─────────────────┘
+    ┌───────────┬───────────┼───────────┬───────────┐
+    ▼           ▼           ▼           ▼           ▼
+┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
+│Grafana │ │AdGuard │ │Homepage│ │Longhorn│ │ Future │
+│  :80   │ │ :3000  │ │ :3000  │ │  :80   │ │        │
+└────────┘ └────────┘ └────────┘ └────────┘ └────────┘
 ```
 
 ## Components
@@ -97,9 +89,12 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 
 ## Exposed Services
 
-| Service | URL | HTTPRoute |
-|---------|-----|-----------|
-| Grafana | https://grafana.k8s.home.rommelporras.com | monitoring/grafana |
+| Service | URL | HTTPRoute | Namespace |
+|---------|-----|-----------|-----------|
+| Grafana | https://grafana.k8s.home.rommelporras.com | grafana | monitoring |
+| AdGuard | https://adguard.k8s.home.rommelporras.com | adguard-http | home |
+| Homepage | https://homepage.k8s.home.rommelporras.com | homepage | home |
+| Longhorn | https://longhorn.k8s.home.rommelporras.com | longhorn | longhorn-system |
 
 ## Adding a New Service
 

@@ -1,0 +1,30 @@
+# Kustomize configuration for Homepage
+# Generates ConfigMap from config/ directory files
+#
+# Usage: kubectl-homelab apply -k manifests/home/homepage/
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: home
+
+resources:
+  - rbac.yaml
+  # secret.yaml excluded - managed imperatively via 1Password CLI
+  # See: kubectl-homelab create secret generic homepage-secrets -n home ...
+  - deployment.yaml
+  - service.yaml
+  - httproute.yaml
+
+# Generate ConfigMap from separate config files
+# Hash suffix ensures pods restart on config change
+configMapGenerator:
+  - name: homepage-config
+    files:
+      - config/bookmarks.yaml
+      - config/custom.css
+      - config/custom.js
+      - config/docker.yaml
+      - config/kubernetes.yaml
+      - config/services.yaml
+      - config/settings.yaml
+      - config/widgets.yaml

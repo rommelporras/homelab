@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password]
-updated: 2026-01-20
+updated: 2026-01-22
 ---
 
 # Secrets
@@ -24,6 +24,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | iCloud SMTP Alertmanager | `username`, `password`, `server`, `port` | Alertmanager email |
 | NUT Admin | `username`, `password` | NUT server |
 | NUT Monitor | `username`, `password` | NUT clients, nut-exporter |
+| Homepage | Multiple (see below) | Homepage dashboard widgets |
 
 ## 1Password Paths
 
@@ -47,6 +48,22 @@ op://Kubernetes/NUT Admin/username
 op://Kubernetes/NUT Admin/password
 op://Kubernetes/NUT Monitor/username
 op://Kubernetes/NUT Monitor/password
+
+# Homepage (widget credentials)
+op://Kubernetes/Homepage/proxmox-pve-user
+op://Kubernetes/Homepage/proxmox-pve-token
+op://Kubernetes/Homepage/proxmox-fw-user
+op://Kubernetes/Homepage/proxmox-fw-token
+op://Kubernetes/Homepage/opnsense-username
+op://Kubernetes/Homepage/opnsense-password
+op://Kubernetes/Homepage/omv-user
+op://Kubernetes/Homepage/omv-pass
+op://Kubernetes/Homepage/glances-pass
+op://Kubernetes/Homepage/adguard-user
+op://Kubernetes/Homepage/adguard-pass
+op://Kubernetes/Homepage/weather-key
+op://Kubernetes/Homepage/grafana-user
+op://Kubernetes/Homepage/grafana-pass
 ```
 
 ## Usage

@@ -1,0 +1,45 @@
+# For configuration options and examples, please see:
+# https://gethomepage.dev/configs/bookmarks
+
+# TODO: Update with your bookmarks
+
+- AI:
+    - Gemini:
+        - icon: google-gemini.png
+          href: https://gemini.google.com/u/1/app
+    - ChatGPT:
+        - icon: chatgpt.png
+          href: https://chatgpt.com/
+    - Claude:
+        - icon: claude-ai.png
+          href: https://claude.ai/new
+
+- Social:
+    - Reddit:
+        - icon: reddit.png
+          href: https://reddit.com/
+    - Facebook:
+        - icon: facebook.png
+          href: https://web.facebook.com/messages/
+    - Instagram:
+        - icon: instagram.png
+          href: https://instagram.com/
+    - LinkedIn:
+        - icon: linkedin.png
+          href: https://www.linkedin.com/feed/
+
+- Entertainment:
+    - YouTube:
+        - abbr: YT
+          href: https://youtube.com/
+    - Tiktok:
+        - icon: tiktok.png
+          href: https://tiktok.com/
+
+- Developer:
+    - Globe ISP:
+        - icon: mdi-router-network-wireless
+          href: http://10.100.1.1/login.html
+    - Converge ISP:
+        - icon: mdi-router-network-wireless
+          href: http://10.200.1.1/cgi-bin/index2.asp

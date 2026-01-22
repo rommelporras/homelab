@@ -1,0 +1,66 @@
+# Homepage Settings Configuration
+# Docs: https://gethomepage.dev/configs/settings/
+
+title: Wawashi's Homelab
+theme: dark
+color: slate
+hideVersion: true
+disableCollapse: false
+useEqualHeights: true
+cardBlur: xs
+showStats: true
+
+providers:
+  openweathermap: {{HOMEPAGE_VAR_WEATHER_KEY}}
+  longhorn:
+    url: https://longhorn.k8s.home.rommelporras.com
+
+# Multi-tab layout configuration
+# Tab 1: Main (overview dashboard)
+# Tab 2: Infra (detailed Proxmox & K8s)
+layout:
+  # === TAB 1: MAIN ===
+  Compute:
+    tab: Main
+    style: row
+    columns: 5
+    icon: mdi-server-network
+  Network:
+    tab: Main
+    style: row
+    columns: 5
+    icon: mdi-lan
+  Storage:
+    tab: Main
+    style: row
+    columns: 3
+    icon: mdi-harddisk
+  Apps:
+    tab: Main
+    style: row
+    columns: 3
+    icon: mdi-apps
+  Health:
+    tab: Main
+    style: row
+    columns: 2
+    icon: mdi-heart-pulse
+
+  # === TAB 2: INFRA ===
+  Proxmox:
+    tab: Infra
+    style: row
+    columns: 2
+    icon: si-proxmox
+  Kubernetes:
+    tab: Infra
+    style: row
+    columns: 4
+    icon: mdi-kubernetes
+
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: true
+  showSearchSuggestions: true
+  hideVisitURL: true
+  provider: google

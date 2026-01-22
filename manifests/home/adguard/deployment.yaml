@@ -1,0 +1,118 @@
+# AdGuard Home Deployment
+# DNS ad-blocker with web UI
+#
+# Architecture:
+#   - Init container copies config template to PVC (first boot only)
+#   - Main container runs AdGuard with config on PVC
+#   - PVC persists config changes, query logs, blocklist cache
+#
+# Security: AdGuard requires root, but we still harden with:
+#   - allowPrivilegeEscalation: false
+#   - capabilities: drop ALL, add only NET_BIND_SERVICE
+#   - seccompProfile: RuntimeDefault
+# Note: PodSecurity warns but enforce:baseline allows this
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adguard-home
+  namespace: home
+  labels:
+    app: adguard-home
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Clean handoff of DNS port 53
+  selector:
+    matchLabels:
+      app: adguard-home
+  template:
+    metadata:
+      labels:
+        app: adguard-home
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Copy initial config to PVC only if config doesn't exist
+        # This preserves manual UI changes across restarts
+        - name: init-config
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              if [ ! -f /data/conf/AdGuardHome.yaml ]; then
+                echo "First boot: copying initial config to PVC"
+                mkdir -p /data/conf /data/work
+                cp /initial-config/AdGuardHome.yaml /data/conf/
+                echo "Config copied successfully"
+              else
+                echo "Config exists at /data/conf/AdGuardHome.yaml"
+                echo "Preserving existing runtime configuration"
+              fi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: initial-config
+              mountPath: /initial-config
+              readOnly: true
+            - name: adguard-data
+              mountPath: /data
+      containers:
+        - name: adguard-home
+          image: adguard/adguardhome:v0.107.71
+          ports:
+            - name: dns-tcp
+              containerPort: 53
+              protocol: TCP
+            - name: dns-udp
+              containerPort: 53
+              protocol: UDP
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: adguard-data
+              mountPath: /opt/adguardhome/conf
+              subPath: conf
+            - name: adguard-data
+              mountPath: /opt/adguardhome/work
+              subPath: work
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: initial-config
+          configMap:
+            name: adguard-initial-config
+        - name: adguard-data
+          persistentVolumeClaim:
+            claimName: adguard-data

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, networking, dns, vlan]
-updated: 2026-01-20
+updated: 2026-01-22
 ---
 
 # Networking
@@ -13,6 +13,7 @@ Network configuration for the homelab cluster.
 |-----|-----|-----|----------------|
 | K8s API | 10.10.30.10 | k8s-api.home.rommelporras.com | kube-vip (ARP) |
 | Gateway | 10.10.30.20 | *.k8s.home.rommelporras.com | Cilium L2 |
+| AdGuard DNS | 10.10.30.55 | adguard.k8s.home.rommelporras.com | Cilium L2 |
 
 ## Node IPs
 
@@ -27,8 +28,9 @@ Network configuration for the homelab cluster.
 | Resource | IP | DNS |
 |----------|-----|-----|
 | Gateway | 10.10.30.1 | — |
-| DNS Primary | 10.10.30.53 | agh.home.rommelporras.com |
-| DNS Secondary | 10.10.30.54 | fw-agh.home.rommelporras.com |
+| DNS Primary | 10.10.30.55 | adguard.k8s.home.rommelporras.com (K8s) |
+| DNS Secondary | 10.10.30.54 | fw-agh.home.rommelporras.com (FW LXC failover) |
+| DNS Legacy | 10.10.30.53 | agh.home.rommelporras.com (to be retired) |
 | NAS | 10.10.30.4 | omv.home.rommelporras.com |
 | NPM | 10.10.30.80 | *.home.rommelporras.com |
 
@@ -48,6 +50,8 @@ Network configuration for the homelab cluster.
 |---------|-----|
 | Grafana | https://grafana.k8s.home.rommelporras.com |
 | Longhorn | https://longhorn.k8s.home.rommelporras.com |
+| AdGuard | https://adguard.k8s.home.rommelporras.com |
+| Homepage | https://homepage.k8s.home.rommelporras.com |
 
 ## VLAN Configuration
 
@@ -82,7 +86,7 @@ Network configuration for the homelab cluster.
 | kubeProxyReplacement | true |
 | gatewayAPI.enabled | true |
 | l2announcements.enabled | true |
-| IP Pool | 10.10.30.20/32 |
+| IP Pool | 10.10.30.20-99 (Gateway at .20, AdGuard at .55) |
 
 ## TLS
 

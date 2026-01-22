@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, cluster, nodes]
-updated: 2026-01-20
+updated: 2026-01-22
 ---
 
 # Cluster
@@ -51,11 +51,12 @@ ssh wawashi@k8s-cp3.home.rommelporras.com
 
 | Namespace | Purpose |
 |-----------|---------|
-| kube-system | Control plane, Cilium |
+| kube-system | Control plane, Cilium, metrics-server |
 | longhorn-system | Longhorn storage |
 | monitoring | Prometheus, Grafana, Loki, Alloy |
 | cert-manager | TLS certificate management |
 | gateway | Cilium Gateway (homelab-gateway) |
+| home | Home services (AdGuard, Homepage) |
 
 ## System
 
