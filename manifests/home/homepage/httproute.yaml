@@ -1,5 +1,5 @@
 # HTTPRoute for Homepage Dashboard
-# URL: https://homepage.k8s.home.rommelporras.com
+# URL: https://portal.k8s.home.rommelporras.com
 #
 # Gateway API Architecture:
 #   Client -> Gateway (10.10.30.20:443) -> HTTPRoute -> Service -> Pod
@@ -17,7 +17,7 @@ spec:
       namespace: default
       sectionName: https
   hostnames:
-    - homepage.k8s.home.rommelporras.com
+    - portal.k8s.home.rommelporras.com
   rules:
     - matches:
         - path:

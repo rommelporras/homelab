@@ -244,10 +244,11 @@ data:
       parental_block_host: family-block.dns.adguard.com
       safebrowsing_block_host: standard-block.dns.adguard.com
       rewrites:
-        # Gateway API VIP - all *.home and *.k8s.home route here
+        # NPM (Nginx Proxy Manager) - legacy *.home services
         - domain: '*.home.rommelporras.com'
-          answer: 10.10.30.20
+          answer: 10.10.30.80
           enabled: true
+        # Gateway API VIP - K8s services only
         - domain: '*.k8s.home.rommelporras.com'
           answer: 10.10.30.20
           enabled: true
