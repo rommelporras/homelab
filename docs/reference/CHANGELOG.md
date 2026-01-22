@@ -95,7 +95,7 @@ Successfully deployed stateless home services to Kubernetes with full monitoring
 | Service | URL |
 |---------|-----|
 | AdGuard | adguard.k8s.home.rommelporras.com |
-| Homepage | homepage.k8s.home.rommelporras.com |
+| Homepage | portal.k8s.home.rommelporras.com |
 | Longhorn | longhorn.k8s.home.rommelporras.com |
 
 ---

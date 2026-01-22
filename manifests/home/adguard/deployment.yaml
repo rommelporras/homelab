@@ -31,6 +31,10 @@ spec:
       labels:
         app: adguard-home
     spec:
+      # Pin to k8s-cp2 where Cilium advertises the LoadBalancer IP
+      # Required for externalTrafficPolicy: Local to work
+      nodeSelector:
+        kubernetes.io/hostname: k8s-cp2
       securityContext:
         seccompProfile:
           type: RuntimeDefault

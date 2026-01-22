@@ -93,7 +93,7 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 |---------|-----|-----------|-----------|
 | Grafana | https://grafana.k8s.home.rommelporras.com | grafana | monitoring |
 | AdGuard | https://adguard.k8s.home.rommelporras.com | adguard-http | home |
-| Homepage | https://homepage.k8s.home.rommelporras.com | homepage | home |
+| Homepage | https://portal.k8s.home.rommelporras.com | homepage | home |
 | Longhorn | https://longhorn.k8s.home.rommelporras.com | longhorn | longhorn-system |
 
 ## Adding a New Service

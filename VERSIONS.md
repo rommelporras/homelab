@@ -102,7 +102,7 @@ helm-homelab repo update
 | Service | URL | Namespace |
 |---------|-----|-----------|
 | AdGuard | adguard.k8s.home.rommelporras.com | home |
-| Homepage | homepage.k8s.home.rommelporras.com | home |
+| Homepage | portal.k8s.home.rommelporras.com | home |
 | Longhorn | longhorn.k8s.home.rommelporras.com | longhorn-system |
 
 ---

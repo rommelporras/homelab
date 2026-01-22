@@ -19,6 +19,9 @@ metadata:
     io.cilium/lb-ipam-ips: "10.10.30.55"
 spec:
   type: LoadBalancer
+  # Preserve client source IP (don't SNAT to internal pod IP)
+  # Required for AdGuard to see real client IPs in query logs
+  externalTrafficPolicy: Local
   selector:
     app: adguard-home
   ports:
