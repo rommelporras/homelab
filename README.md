@@ -8,7 +8,7 @@
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
 > **Owner:** Rommel Porras
-> **Last Updated:** January 22, 2026
+> **Last Updated:** January 24, 2026
 
 ---
 
@@ -37,6 +37,7 @@
 | UPS Monitoring | ✅ Complete | NUT + graceful shutdown |
 | Alerting | ✅ Complete | Discord + Email notifications |
 | Home Services | ✅ Complete | AdGuard DNS, Homepage dashboard |
+| Cloudflare Tunnel | ✅ Complete | HA tunnel (2 replicas), zero-trust access |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/CLUSTER_STATUS.md](docs/CLUSTER_STATUS.md) - Single source of truth
@@ -209,7 +210,8 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Jan 22, 2026** | **Home Services deployed** (AdGuard DNS, Homepage dashboard) |
 | **Jan 22, 2026** | DNS cutover - K8s AdGuard now PRIMARY for all VLANs |
 | **Jan 22, 2026** | **Dead Man's Switch** - healthchecks.io monitors alerting health |
-| **Coming** | Uptime Kuma, workload migration (Immich, ARR) |
+| **Jan 24, 2026** | **Cloudflare Tunnel** migrated to K8s (HA, CiliumNetworkPolicy) |
+| **Coming** | GitLab CI/CD, Portfolio, Invoicetron, Uptime Kuma |
 
 See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 
@@ -217,10 +219,10 @@ See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 
 ## 🚀 Next Steps
 
-1. **Deploy Uptime Kuma** for uptime monitoring
-2. **Migrate Immich** from Proxmox to K8s (stateful workload)
-3. **Migrate ARR stack** from Proxmox to K8s
-4. **Set up GitLab + Runner** for CI/CD
+1. **Deploy GitLab + Runner** for self-hosted CI/CD (Phase 4.6)
+2. **Migrate Portfolio** to K8s with GitLab CI/CD (Phase 4.7)
+3. **Migrate Invoicetron** to K8s - stateful app with PostgreSQL (Phase 4.8)
+4. **Deploy Uptime Kuma** for endpoint monitoring (Phase 4.10)
 
 ---
 
@@ -234,4 +236,5 @@ See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 | Monitoring | ✅ Running | Prometheus + Grafana + Loki |
 | Alerting | ✅ Running | Discord + Email (3 recipients) |
 | UPS Protection | ✅ Running | NUT + staggered graceful shutdown |
+| External Access | ✅ Running | Cloudflare Tunnel (2 replicas, anti-affinity) |
 | NAS (media) | ⚠️ No HA | Single Dell 5090 (acceptable for media) |

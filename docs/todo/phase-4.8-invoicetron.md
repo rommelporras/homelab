@@ -1,6 +1,6 @@
 # Phase 4.8: Invoicetron Migration
 
-> **Status:** ⬜ Planned
+> **Status:** Planned
 > **Target:** v0.8.2
 > **Prerequisite:** Phase 4.6 complete (GitLab CI/CD), Phase 4.7 patterns learned
 > **DevOps Topics:** StatefulSets, database migrations, secrets management, Prisma ORM
@@ -11,6 +11,10 @@
 > **Source:** GitLab (imported from GitHub)
 >
 > **Learning Goal:** StatefulSet management, database migrations in CI/CD, handling state
+
+> **Access:**
+> - **Public:** `invoicetron.rommelporras.com` (via Cloudflare Tunnel)
+> - **Internal:** `invoicetron.k8s.home.rommelporras.com` (home network / Tailscale)
 
 ---
 
@@ -376,7 +380,12 @@ This phase introduces **stateful** applications. Understand the difference:
 - [ ] 4.8.6.2 Configure Cloudflare Tunnel (external)
   ```
   # Cloudflare Zero Trust → Tunnels → Public Hostname
-  # invoicetron.yourdomain.com → http://invoicetron.invoicetron.svc.cluster.local:3000
+  #
+  # Public hostname: invoicetron.rommelporras.com
+  # Service type: HTTP
+  # URL: invoicetron.invoicetron.svc.cluster.local:3000
+  #
+  # Note: CiliumNetworkPolicy in cloudflare namespace allows this traffic
   ```
 
 ---
@@ -409,9 +418,56 @@ This phase introduces **stateful** applications. Understand the difference:
 
 ---
 
-## 4.8.9 Documentation Updates
+## 4.8.9 Remove Temporary DMZ NetworkPolicy Rule
 
-- [ ] 4.8.9.1 Update VERSIONS.md
+> **IMPORTANT:** After both Portfolio (Phase 4.7) and Invoicetron (Phase 4.8) are running
+> in K8s, the temporary DMZ rule in the cloudflared NetworkPolicy must be removed.
+
+- [ ] 4.8.9.1 Verify both services are running in K8s
+  ```bash
+  kubectl-homelab get pods -n portfolio
+  kubectl-homelab get pods -n invoicetron
+  # Both should show Running pods
+  ```
+
+- [ ] 4.8.9.2 Remove temporary DMZ rule from NetworkPolicy
+  ```bash
+  # Edit manifests/cloudflare/networkpolicy.yaml
+  # Remove the entire "TEMPORARY: DMZ VM" section:
+  #
+  #   - toCIDR:
+  #     - 10.10.50.10/32
+  #     toPorts:
+  #     - ports:
+  #       - port: "3000"
+  #         protocol: TCP
+  #       - port: "3001"
+  #         protocol: TCP
+  ```
+
+- [ ] 4.8.9.3 Apply updated NetworkPolicy
+  ```bash
+  kubectl-homelab apply -f manifests/cloudflare/networkpolicy.yaml
+  ```
+
+- [ ] 4.8.9.4 Verify tunnel still works (uses K8s services now)
+  ```bash
+  curl -I https://www.rommelporras.com
+  curl -I https://invoicetron.rommelporras.com
+  # Both should return HTTP 200
+  ```
+
+- [ ] 4.8.9.5 Run security validation script
+  ```bash
+  ./scripts/test-cloudflare-networkpolicy.sh
+  # DMZ tests will now show BLOCKED (expected after migration)
+  ```
+
+---
+
+## 4.8.10 Documentation Updates
+
+- [ ] 4.8.10.1 Update VERSIONS.md
   ```
   # Add to Applications section:
   | Invoicetron | 1.x.x | Invoice management (Next.js + Bun) |
@@ -421,14 +477,14 @@ This phase introduces **stateful** applications. Understand the difference:
   | YYYY-MM-DD | Phase 4.8: Invoicetron stateful migration |
   ```
 
-- [ ] 4.8.9.2 Update docs/context/Secrets.md
+- [ ] 4.8.10.2 Update docs/context/Secrets.md
   ```
   # Add 1Password items:
   | Invoicetron | postgres-password | Database credentials |
   | Invoicetron | better-auth-secret | Auth session secret |
   ```
 
-- [ ] 4.8.9.3 Update docs/reference/CHANGELOG.md
+- [ ] 4.8.10.3 Update docs/reference/CHANGELOG.md
   - Add Phase 4.8 section with milestone, decisions, lessons learned
 
 ---

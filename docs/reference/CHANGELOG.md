@@ -4,6 +4,109 @@
 
 ---
 
+## January 24, 2026 — Phase 4.5: Cloudflare Tunnel
+
+### Milestone: HA Cloudflare Tunnel on Kubernetes
+
+Migrated cloudflared from DMZ LXC to Kubernetes for high availability. Tunnel now survives node failures and Proxmox reboots.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| cloudflared | 2026.1.1 | Running (2 replicas, HA) |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/cloudflare/deployment.yaml | 2-replica deployment with anti-affinity |
+| manifests/cloudflare/networkpolicy.yaml | CiliumNetworkPolicy egress rules |
+| manifests/cloudflare/pdb.yaml | PodDisruptionBudget (minAvailable: 1) |
+| manifests/cloudflare/service.yaml | ClusterIP for Prometheus metrics |
+| manifests/cloudflare/servicemonitor.yaml | Prometheus scraping |
+| manifests/cloudflare/secret.yaml | Documentation placeholder for imperative secret |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Replicas | 2 with required anti-affinity | HA across nodes, survives single node failure |
+| Security | CiliumNetworkPolicy | Block NAS/internal, allow only Cloudflare Edge + public services |
+| DMZ access | Temporary 10.10.50.10/32 rule | Transition period until portfolio/invoicetron migrate to K8s |
+| Secrets | 1Password → imperative kubectl | GitOps-friendly, future ESO migration path |
+| Namespace PSS | restricted | Matches official cloudflared security recommendations |
+
+### Architecture
+
+```
+                    Cloudflare Edge
+         (mnl01, hkg11, sin02, sin11, etc.)
+                         │
+                    8 QUIC connections
+                         │
+         ┌───────────────┴───────────────┐
+         ▼                               ▼
+┌─────────────────┐             ┌─────────────────┐
+│  cloudflared    │             │  cloudflared    │
+│  k8s-cp1        │             │  k8s-cp2        │
+│  4 connections  │             │  4 connections  │
+└────────┬────────┘             └────────┬────────┘
+         │                               │
+         └───────────────┬───────────────┘
+                         ▼
+               ┌─────────────────┐
+               │ reverse-mountain│
+               │  10.10.50.10    │
+               │ (DMZ - temporary)│
+               └─────────────────┘
+```
+
+### CiliumNetworkPolicy Rules
+
+| Rule | Target | Ports | Purpose |
+|------|--------|-------|---------|
+| DNS | kube-dns | 53/UDP | Service discovery |
+| Cloudflare | 0.0.0.0/0 except RFC1918 | 443, 7844 | Tunnel traffic |
+| Portfolio (K8s) | portfolio namespace | 80 | Future K8s service |
+| Invoicetron (K8s) | invoicetron namespace | 3000 | Future K8s service |
+| DMZ (temporary) | 10.10.50.10/32 | 3000, 3001 | Current Proxmox VM |
+
+### Security Validation
+
+Verified via test pod with `app=cloudflared` label:
+
+| Test | Target | Result |
+|------|--------|--------|
+| NAS | 10.10.30.4:5000 | BLOCKED |
+| Router | 10.10.30.1:80 | BLOCKED |
+| Grafana | monitoring namespace | BLOCKED |
+| Cloudflare Edge | 104.16.132.229:443 | ALLOWED |
+| DMZ VM | 10.10.50.10:3000,3001 | ALLOWED |
+
+### Lessons Learned
+
+1. **CiliumNetworkPolicy blocks private IPs by design** - `toCIDRSet` with `except` for 10.0.0.0/8 blocks DMZ too. Added specific /32 rule for transition period.
+
+2. **Pod Security Standards enforcement** - Test pods in `restricted` namespace need full securityContext (runAsNonRoot, capabilities.drop, seccompProfile).
+
+3. **Loki log retention is 90 days** - Logs auto-delete after 2160h. Old tunnel errors will naturally expire.
+
+4. **OPNsense allows SERVERS→DMZ** - But Cilium blocks it at K8s layer. Network segmentation works at multiple levels.
+
+### 1Password Items
+
+| Item | Vault | Field | Purpose |
+|------|-------|-------|---------|
+| Cloudflare Tunnel | Kubernetes | token | cloudflared tunnel authentication |
+
+### Public Services (via Tunnel)
+
+| Service | URL | Backend |
+|---------|-----|---------|
+| Portfolio | https://www.rommelporras.com | 10.10.50.10:3001 (temporary) |
+| Invoicetron | https://invoicetron.rommelporras.com | 10.10.50.10:3000 (temporary) |
+
+---
+
 ## January 22, 2026 — Phase 4.1-4.4: Stateless Workloads
 
 ### Milestone: Home Services Running on Kubernetes

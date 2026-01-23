@@ -1,0 +1,16 @@
+# manifests/cloudflare/pdb.yaml
+# PodDisruptionBudget - Ensures at least 1 pod during voluntary disruptions
+# (node drain, rolling update, cluster upgrade)
+#
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cloudflared
+  namespace: cloudflare
+  labels:
+    app: cloudflared
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: cloudflared

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, index]
-updated: 2026-01-22
+updated: 2026-01-24
 ---
 
 # Homelab Kubernetes Context
@@ -31,22 +31,8 @@ updated: 2026-01-22
 | Nodes | 3 control planes (k8s-cp1, cp2, cp3) |
 | CNI | Cilium 1.18.6 |
 | Storage | Longhorn 1.10.1 |
-| Status | Home Services deployed (Phase 4.1-4.4) |
-
-## Notes
-
-- [[Cluster]] - Hardware, nodes, IPs, namespaces
-- [VERSIONS.md](../../VERSIONS.md) - Kubernetes, Helm charts, components
-- [[Conventions]] - kubectl-homelab, 1Password, commit rules
-- [[Architecture]] - Why 3 nodes, why Cilium, why Longhorn
-- [[Secrets]] - All 1Password item paths
-- [[Networking]] - API VIP, Gateway VIP, DNS records
-- [[Gateway]] - HTTPRoutes, TLS certificates, adding services
-- [[Monitoring]] - Prometheus stack, Loki, Alertmanager
-- [[Storage]] - Longhorn settings, NFS integration
-- [[UPS]] - NUT server/clients, shutdown timers
+| Status | Cloudflare Tunnel deployed (Phase 4.5) |
 
 ## Source
 
 Canonical source: `homelab/docs/context/`
-Maintained by: Claude Code

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, cluster, nodes]
-updated: 2026-01-22
+updated: 2026-01-24
 ---
 
 # Cluster
@@ -55,7 +55,7 @@ ssh wawashi@k8s-cp3.home.rommelporras.com
 | longhorn-system | Longhorn storage |
 | monitoring | Prometheus, Grafana, Loki, Alloy |
 | cert-manager | TLS certificate management |
-| gateway | Cilium Gateway (homelab-gateway) |
+| cloudflare | Cloudflare Tunnel (cloudflared) |
 | home | Home services (AdGuard, Homepage) |
 
 ## System

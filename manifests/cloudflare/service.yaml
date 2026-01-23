@@ -1,0 +1,19 @@
+# manifests/cloudflare/service.yaml
+# ClusterIP service for Prometheus metrics scraping
+#
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudflared
+  namespace: cloudflare
+  labels:
+    app: cloudflared
+spec:
+  type: ClusterIP
+  selector:
+    app: cloudflared
+  ports:
+  - name: metrics
+    port: 2000
+    targetPort: 2000
+    protocol: TCP

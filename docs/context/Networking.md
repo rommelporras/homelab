@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, networking, dns, vlan]
-updated: 2026-01-22
+updated: 2026-01-24
 ---
 
 # Networking
@@ -51,7 +51,7 @@ Network configuration for the homelab cluster.
 | Grafana | https://grafana.k8s.home.rommelporras.com |
 | Longhorn | https://longhorn.k8s.home.rommelporras.com |
 | AdGuard | https://adguard.k8s.home.rommelporras.com |
-| Homepage | https://homepage.k8s.home.rommelporras.com |
+| Homepage | https://portal.k8s.home.rommelporras.com |
 
 ## VLAN Configuration
 

@@ -1,6 +1,6 @@
 # Phase 4.6: GitLab CI/CD Platform
 
-> **Status:** ⬜ Planned (PRIORITY)
+> **Status:** Planned (PRIORITY)
 > **Target:** v0.8.0
 > **Prerequisite:** Phase 4.5 complete (Cloudflare Tunnel for external access)
 > **DevOps Topics:** Helm charts, StatefulSets, CI/CD pipelines, Container registries
@@ -8,6 +8,10 @@
 
 > **Purpose:** Self-hosted CI/CD for private repos, container registry, DevOps learning
 > **Why GitLab:** Free CI/CD for private repos, built-in registry, Kubernetes-native
+
+> **Security:** INTERNAL ACCESS ONLY - No Cloudflare Tunnel route
+> Access via: `gitlab.k8s.home.rommelporras.com` (home network / Tailscale only)
+> CiliumNetworkPolicy blocks cloudflared from reaching GitLab namespace
 
 ---
 

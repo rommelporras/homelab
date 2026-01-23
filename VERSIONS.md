@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** January 22, 2026
+> **Last Updated:** January 24, 2026
 
 ---
 
@@ -86,13 +86,14 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.1-4.4 complete. Stateless workloads running in `home` namespace.
+> **Status:** Phase 4.5 complete. Cloudflare Tunnel running in K8s with HA.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
 | AdGuard Home | v0.107.71 | Running | PRIMARY DNS (10.10.30.55) for all VLANs |
 | Homepage | v1.9.0 | Running | 2 replicas, multi-tab layout |
 | Glances | v3.3.1 | Running | On OMV (apt), password auth |
+| cloudflared | 2026.1.1 | Running | 2 replicas, HA tunnel to Cloudflare Edge |
 
 **DNS Configuration:**
 - Primary: 10.10.30.55 (K8s AdGuard via Cilium LoadBalancer)
@@ -178,6 +179,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-01-24 | **Cloudflare Tunnel:** Migrated cloudflared from DMZ LXC to K8s (Phase 4.5) |
 | 2026-01-22 | **Dead Man's Switch:** healthchecks.io monitors Alertmanager health (Phase 3.10) |
 | 2026-01-22 | **DNS Cutover:** K8s AdGuard (10.10.30.55) now PRIMARY for all VLANs |
 | 2026-01-22 | Added: Longhorn HTTPRoute for Homepage widget access |

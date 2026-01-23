@@ -1,6 +1,6 @@
 # Phase 4.7: Portfolio Migration
 
-> **Status:** ⬜ Planned
+> **Status:** Planned
 > **Target:** v0.8.1
 > **Prerequisite:** Phase 4.6 complete (GitLab + Runner installed)
 > **DevOps Topics:** CI/CD pipelines, container builds, K8s deployments, Docker multi-stage builds
@@ -11,6 +11,10 @@
 > **Source:** GitLab (imported from GitHub)
 >
 > **Learning Goal:** Understand complete CI/CD flow from git push to production deployment
+
+> **Access:**
+> - **Public:** `www.rommelporras.com` (via Cloudflare Tunnel)
+> - **Internal:** `portfolio.k8s.home.rommelporras.com` (home network / Tailscale)
 
 ---
 
@@ -273,15 +277,22 @@ This phase teaches you how to set up automated deployments:
 
 ## 4.7.4 Configure Cloudflare Tunnel
 
-- [ ] 4.7.4.1 Update tunnel route for rommelporras.com
+- [ ] 4.7.4.1 Update tunnel route for www.rommelporras.com
   ```
   # Cloudflare Zero Trust → Tunnels → Public Hostname
-  # rommelporras.com → http://portfolio.portfolio.svc.cluster.local:80
+  #
+  # Public hostname: www.rommelporras.com
+  # Service type: HTTP
+  # URL: portfolio.portfolio.svc.cluster.local:80
+  #
+  # Note: CiliumNetworkPolicy in cloudflare namespace allows this traffic
   ```
 
 - [ ] 4.7.4.2 Test public access
   ```bash
-  curl -I https://rommelporras.com
+  # From external network (phone, or outside home):
+  curl -I https://www.rommelporras.com
+  # Should return HTTP 200
   ```
 
 ---

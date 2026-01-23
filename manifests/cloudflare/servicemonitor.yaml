@@ -1,0 +1,20 @@
+# manifests/cloudflare/servicemonitor.yaml
+# Prometheus Operator scrape configuration for cloudflared metrics
+# Note: 'release: prometheus' label must match kube-prometheus-stack selector
+#
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cloudflared
+  namespace: cloudflare
+  labels:
+    app: cloudflared
+    release: prometheus  # Must match kube-prometheus-stack selector
+spec:
+  selector:
+    matchLabels:
+      app: cloudflared
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics

@@ -1,0 +1,75 @@
+# manifests/cloudflare/networkpolicy.yaml
+# CiliumNetworkPolicy - Security isolation for cloudflared
+#
+# ALLOWED: DNS, Cloudflare Edge, portfolio, invoicetron, DMZ VM (temporary)
+# BLOCKED: NAS, GitLab, Grafana, Longhorn, all other private IPs
+#
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cloudflared-egress
+  namespace: cloudflare
+  labels:
+    app: cloudflared
+spec:
+  # Apply to pods with label app=cloudflared
+  endpointSelector:
+    matchLabels:
+      app: cloudflared
+
+  egress:
+  # DNS (required for service discovery)
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+
+  # Cloudflare Edge only (blocks all private IPs)
+  - toCIDRSet:
+    - cidr: 0.0.0.0/0
+      except:
+      - 10.0.0.0/8      # Block all private 10.x.x.x (includes NAS at 10.10.30.4)
+      - 172.16.0.0/12   # Block private 172.16-31.x.x
+      - 192.168.0.0/16  # Block private 192.168.x.x
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "7844"
+        protocol: TCP
+      - port: "7844"
+        protocol: UDP
+
+  # Portfolio namespace (www.rommelporras.com)
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: portfolio
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+
+  # Invoicetron namespace (invoicetron.rommelporras.com)
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: invoicetron
+    toPorts:
+    - ports:
+      - port: "3000"
+        protocol: TCP
+
+  # TEMPORARY: DMZ VM (remove after Phase 4.7/4.8 migration)
+  - toCIDR:
+    - 10.10.50.10/32
+    toPorts:
+    - ports:
+      - port: "3000"
+        protocol: TCP
+      - port: "3001"
+        protocol: TCP
+
+  # Everything else is implicitly denied
