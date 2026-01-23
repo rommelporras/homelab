@@ -15,6 +15,47 @@
 
 ---
 
+## Important: Deployment Context
+
+> **⚠️ This is a LEARNING/POC deployment, NOT production-ready.**
+>
+> The GitLab Helm chart's default configuration deploys all components (PostgreSQL, Redis,
+> Gitaly) inside the cluster. This is explicitly [NOT supported for production](https://docs.gitlab.com/charts/installation/).
+>
+> **For Production:** PostgreSQL, Redis, and Gitaly must run OUTSIDE the cluster on VMs
+> or managed services (RDS, Cloud SQL, etc.). See [Cloud Native Hybrid architecture](https://docs.gitlab.com/ee/administration/reference_architectures/).
+>
+> **For this homelab:** In-cluster deployment is acceptable for learning Kubernetes concepts,
+> CI/CD workflows, and Helm chart management. Just be aware of the limitations.
+
+### Bitnami Image Advisory
+
+The bundled PostgreSQL and Redis charts use Bitnami images. As of 2025, Bitnami is
+transitioning to a paid subscription model:
+
+| Date | Change |
+|------|--------|
+| Aug 28, 2025 | Public catalog moves to limited subset |
+| Sept 29, 2025 | Legacy images archived (no updates) |
+
+**Impact for us:** The GitLab chart will use `bitnamilegacy` images as a temporary solution.
+For a homelab, this is acceptable. Monitor [GitLab issue #6152](https://gitlab.com/gitlab-org/charts/gitlab/-/issues/6152)
+for long-term direction.
+
+---
+
+## Version Information
+
+| Component | Chart Version | App Version | Notes |
+|-----------|---------------|-------------|-------|
+| GitLab | 9.8.2 | v18.8.2 | [Version mappings](https://docs.gitlab.com/charts/installation/version_mappings/) |
+| GitLab Runner | 0.85.0 | 18.8.0 | Uses authentication tokens (not registration tokens) |
+
+> **Version Selection:** Always check `helm-homelab search repo gitlab/gitlab --versions`
+> before installing. Chart versions don't match GitLab versions (e.g., chart 9.8.2 = GitLab 18.8.2).
+
+---
+
 ## GitLab CI/CD Concepts (Learning Guide)
 
 Before implementing, understand how GitLab CI/CD works:
@@ -105,52 +146,55 @@ deploy-app:
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    gitlab namespace                          │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
-│  │ PostgreSQL  │  │    Redis    │  │       Gitaly        │ │
-│  │ StatefulSet │  │ StatefulSet │  │    StatefulSet      │ │
-│  │   (15Gi)    │  │    (5Gi)    │  │ (50Gi - Git repos)  │ │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘ │
-│         │                │                    │             │
-│         └────────────────┼────────────────────┘             │
-│                          ▼                                  │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │              GitLab Webservice (Deployment)           │ │
-│  │         gitlab.k8s.home.rommelporras.com              │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                          │                                  │
-│         ┌────────────────┼────────────────┐                │
-│         ▼                ▼                ▼                │
-│  ┌───────────┐   ┌────────────┐   ┌─────────────┐         │
-│  │  Sidekiq  │   │  Registry  │   │ GitLab Shell│         │
-│  │ (bg jobs) │   │ (images)   │   │   (SSH)     │         │
-│  └───────────┘   └────────────┘   └─────────────┘         │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    gitlab namespace                              │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐     │
+│  │ PostgreSQL  │  │    Redis    │  │       Gitaly        │     │
+│  │ StatefulSet │  │ StatefulSet │  │    StatefulSet      │     │
+│  │   (15Gi)    │  │    (5Gi)    │  │ (50Gi - Git repos)  │     │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘     │
+│         │                │                    │                 │
+│         └────────────────┼────────────────────┘                 │
+│                          ▼                                      │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │              GitLab Webservice (Deployment)               │ │
+│  │         gitlab.k8s.home.rommelporras.com                  │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          │                                      │
+│         ┌────────────────┼────────────────┐                    │
+│         ▼                ▼                ▼                    │
+│  ┌───────────┐   ┌────────────┐   ┌─────────────┐             │
+│  │  Sidekiq  │   │  Registry  │   │ GitLab Shell│             │
+│  │ (bg jobs) │   │ (images)   │   │   (SSH)     │             │
+│  └───────────┘   └────────────┘   └─────────────┘             │
+└─────────────────────────────────────────────────────────────────┘
                           │
                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 gitlab-runner namespace                      │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │  GitLab Runner (Deployment)                           │ │
-│  │  - Kubernetes executor (spawns pods for CI jobs)      │ │
-│  │  - Builds containers, runs tests, deploys to K8s      │ │
-│  └───────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                 gitlab-runner namespace                          │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  GitLab Runner (Deployment)                               │ │
+│  │  - Kubernetes executor (spawns pods for CI jobs)          │ │
+│  │  - Builds containers, runs tests, deploys to K8s          │ │
+│  └───────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Resource Requirements
 
-| Component | CPU | Memory | Storage |
-|-----------|-----|--------|---------|
+| Component | CPU Request | Memory Request | Storage |
+|-----------|-------------|----------------|---------|
 | PostgreSQL | 500m | 1Gi | 15Gi |
 | Redis | 250m | 512Mi | 5Gi |
 | Gitaly | 500m | 1Gi | 50Gi |
-| Webservice | 1000m | 2Gi | - |
-| Sidekiq | 500m | 1Gi | - |
+| Webservice | 500m | 1.5Gi | - |
+| Sidekiq | 250m | 512Mi | - |
 | Registry | 250m | 512Mi | 20Gi |
-| **Total** | ~3 CPU | ~6Gi | ~90Gi |
+| **Total** | ~2.25 CPU | ~5Gi requests | ~90Gi |
+
+> **Note:** Actual memory usage will be higher. Plan for **8-10GB RAM** available across
+> the cluster for comfortable operation. Your 3x16GB nodes have plenty of headroom.
 
 ---
 
@@ -159,30 +203,47 @@ deploy-app:
 - [ ] 4.6.1.1 Verify cluster resources
   ```bash
   kubectl-homelab top nodes
-  # Need ~6GB free RAM across cluster
-  # Need ~90GB available storage in Longhorn
+  # Need ~8-10GB free RAM across cluster
+  # Need ~100GB available storage in Longhorn (90Gi + buffer)
 
   # Check Longhorn capacity
-  kubectl-homelab -n longhorn-system get nodes.longhorn.io -o custom-columns=NAME:.metadata.name,AVAIL:.status.diskStatus.default-disk.storageAvailable
+  kubectl-homelab -n longhorn-system get nodes.longhorn.io \
+    -o custom-columns=NAME:.metadata.name,AVAIL:.status.diskStatus.default-disk.storageAvailable
   ```
 
-- [ ] 4.6.1.2 Add GitLab Helm repo
+- [ ] 4.6.1.2 Verify Helm version
+  ```bash
+  helm-homelab version --short
+  # Should be 3.8+ (OCI support) or 4.x
+  # Current: v3.19.5 ✓
+  ```
+
+- [ ] 4.6.1.3 Add GitLab Helm repo
   ```bash
   helm-homelab repo add gitlab https://charts.gitlab.io --force-update
-  helm-homelab repo update
+  helm-homelab repo update gitlab
   ```
 
-- [ ] 4.6.1.3 Check available GitLab chart versions
+- [ ] 4.6.1.4 Check available GitLab chart versions
   ```bash
   helm-homelab search repo gitlab/gitlab --versions | head -10
-  # Pick a recent stable version
+  # Current latest: 9.8.2 (GitLab v18.8.2)
+
+  helm-homelab search repo gitlab/gitlab-runner --versions | head -5
+  # Current latest: 0.85.0 (Runner 18.8.0)
   ```
 
-- [ ] 4.6.1.4 Create gitlab namespace
+- [ ] 4.6.1.5 Create gitlab namespace
   ```bash
   kubectl-homelab create namespace gitlab
   kubectl-homelab label namespace gitlab pod-security.kubernetes.io/enforce=privileged
   # privileged required: GitLab components need various capabilities
+  ```
+
+- [ ] 4.6.1.6 Verify namespace created
+  ```bash
+  kubectl-homelab get namespace gitlab -o jsonpath='{.metadata.labels}' | jq .
+  # Should show pod-security.kubernetes.io/enforce: privileged
   ```
 
 ---
@@ -204,7 +265,7 @@ deploy-app:
   # Fields:
   #   - root-password: (generated above)
   #   - postgresql-password: (generated above)
-  #   - runner-token: (will add after install)
+  #   - runner-token: (will add after GitLab install - this is the glrt-xxx token)
   #
   # Verify:
   op read "op://Kubernetes/GitLab/root-password" >/dev/null && echo "Root OK"
@@ -228,63 +289,95 @@ deploy-app:
   ```bash
   kubectl-homelab get secrets -n gitlab
   # Should see: gitlab-root-password, gitlab-postgresql-password
+
+  # Verify secret contents (don't print, just check key exists)
+  kubectl-homelab get secret gitlab-root-password -n gitlab -o jsonpath='{.data}' | jq 'keys'
+  # Should show: ["password"]
   ```
 
 ---
 
 ## 4.6.3 Create Helm Values
 
-- [ ] 4.6.3.1 Create helm/gitlab/values.yaml
+- [ ] 4.6.3.1 Create helm/gitlab directory
+  ```bash
+  mkdir -p helm/gitlab
+  ```
+
+- [ ] 4.6.3.2 Create helm/gitlab/values.yaml
   ```yaml
   # helm/gitlab/values.yaml
-  # GitLab Helm Chart Configuration for Homelab
+  # GitLab Helm Chart Configuration for Homelab (Learning/PoC)
+  #
+  # Chart version: 9.8.2 (GitLab v18.8.2)
+  # Docs: https://docs.gitlab.com/charts/
+  #
+  # WARNING: This configuration runs all components in-cluster.
+  # This is NOT production-ready. For production, use Cloud Native Hybrid
+  # architecture with external PostgreSQL, Redis, and Gitaly.
   #
   # INSTALL:
   #   helm-homelab install gitlab gitlab/gitlab \
   #     --namespace gitlab \
-  #     --version 8.7.0 \
+  #     --version 9.8.2 \
   #     --values helm/gitlab/values.yaml \
-  #     --timeout 10m
+  #     --timeout 15m
   #
   # UPGRADE:
   #   helm-homelab upgrade gitlab gitlab/gitlab \
   #     --namespace gitlab \
-  #     --values helm/gitlab/values.yaml
+  #     --version 9.8.2 \
+  #     --values helm/gitlab/values.yaml \
+  #     --timeout 15m
 
   global:
+    # Edition: Community Edition (free, open source)
+    edition: ce
+
     # Domain configuration
     hosts:
       domain: k8s.home.rommelporras.com
       gitlab:
         name: gitlab.k8s.home.rommelporras.com
+        https: true
       registry:
         name: registry.k8s.home.rommelporras.com
+        https: true
+      # Disable external IP assignment (we use Gateway API)
+      externalIP: null
 
-    # Ingress - use Cilium Gateway API
+    # Ingress - DISABLED (we use Cilium Gateway API with HTTPRoute)
     ingress:
-      enabled: false  # We'll use HTTPRoute instead
+      enabled: false
       configureCertmanager: false
 
-    # Use existing secrets
+    # Use existing secrets for initial root password
     initialRootPassword:
       secret: gitlab-root-password
       key: password
 
-    # PostgreSQL
+    # PostgreSQL password from secret
     psql:
       password:
         secret: gitlab-postgresql-password
         key: postgresql-password
 
-    # GitLab Shell (SSH)
+    # GitLab Shell (SSH) - for git+ssh access
     shell:
       port: 22
 
-  # Disable bundled nginx (we use Cilium Gateway)
+    # Time zone
+    time_zone: America/Los_Angeles
+
+  # ─────────────────────────────────────────────────────────────────
+  # DISABLED BUNDLED COMPONENTS (we have our own or don't need)
+  # ─────────────────────────────────────────────────────────────────
+
+  # Disable bundled nginx (we use Cilium Gateway API)
   nginx-ingress:
     enabled: false
 
-  # Disable bundled cert-manager (we have our own)
+  # Disable bundled cert-manager (we have our own cluster-wide)
   certmanager:
     install: false
 
@@ -292,39 +385,55 @@ deploy-app:
   prometheus:
     install: false
 
-  # PostgreSQL subchart
+  # Disable GitLab Runner (install separately for better control)
+  gitlab-runner:
+    install: false
+
+  # ─────────────────────────────────────────────────────────────────
+  # STATEFUL COMPONENTS (in-cluster for learning, NOT for production)
+  # ─────────────────────────────────────────────────────────────────
+
+  # PostgreSQL subchart (Bitnami)
   postgresql:
     install: true
     persistence:
       storageClass: longhorn
       size: 15Gi
+    # Resource limits for homelab
+    primary:
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
 
-  # Redis subchart
+  # Redis subchart (Bitnami)
   redis:
     install: true
     persistence:
       storageClass: longhorn
       size: 5Gi
+    master:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
 
-  # Gitaly (Git storage)
+  # ─────────────────────────────────────────────────────────────────
+  # GITLAB CORE COMPONENTS
+  # ─────────────────────────────────────────────────────────────────
+
   gitlab:
+    # Gitaly (Git storage backend)
     gitaly:
       persistence:
         storageClass: longhorn
         size: 50Gi
-
-    # Webservice resources (main GitLab UI)
-    webservice:
-      resources:
-        requests:
-          cpu: 500m
-          memory: 1.5Gi
-        limits:
-          cpu: 2000m
-          memory: 3Gi
-
-    # Sidekiq resources (background jobs)
-    sidekiq:
       resources:
         requests:
           cpu: 250m
@@ -333,16 +442,72 @@ deploy-app:
           cpu: 1000m
           memory: 1.5Gi
 
-  # Container Registry
+    # Webservice (main GitLab UI/API)
+    webservice:
+      # Single replica for homelab
+      minReplicas: 1
+      maxReplicas: 2
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1.5Gi
+        limits:
+          cpu: 2000m
+          memory: 3Gi
+      # Workhorse (handles Git HTTP and large file uploads)
+      workhorse:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+
+    # Sidekiq (background job processor)
+    sidekiq:
+      minReplicas: 1
+      maxReplicas: 2
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 1.5Gi
+
+    # GitLab Shell (SSH access to repos)
+    gitlab-shell:
+      minReplicas: 1
+      maxReplicas: 2
+
+    # Toolbox (for rails console, rake tasks, backups)
+    toolbox:
+      enabled: true
+
+    # Migrations (database migrations on install/upgrade)
+    migrations:
+      enabled: true
+
+  # ─────────────────────────────────────────────────────────────────
+  # CONTAINER REGISTRY
+  # ─────────────────────────────────────────────────────────────────
+
   registry:
     enabled: true
+    storage:
+      secret: null  # Use filesystem storage
     persistence:
+      enabled: true
       storageClass: longhorn
       size: 20Gi
-
-  # GitLab Runner (install separately for better control)
-  gitlab-runner:
-    install: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
   ```
 
 ---
@@ -353,33 +518,141 @@ deploy-app:
   ```bash
   helm-homelab install gitlab gitlab/gitlab \
     --namespace gitlab \
-    --version 8.7.0 \
+    --version 9.8.2 \
     --values helm/gitlab/values.yaml \
     --timeout 15m
   ```
 
-- [ ] 4.6.4.2 Wait for all pods to be ready (can take 10-15 minutes)
+  > **Note:** The `--timeout` applies per-resource, not total. Full installation
+  > typically takes 10-20 minutes as components start sequentially.
+
+- [ ] 4.6.4.2 Monitor installation progress
   ```bash
+  # Watch pods come up (Ctrl+C to exit)
   kubectl-homelab get pods -n gitlab -w
-  # Wait for all pods to show Running/Completed
+
+  # In another terminal, watch events for issues
+  kubectl-homelab get events -n gitlab --sort-by='.lastTimestamp' -w
   ```
 
-- [ ] 4.6.4.3 Verify StatefulSets
+- [ ] 4.6.4.3 Wait for critical components (explicit verification)
+  ```bash
+  # Wait for PostgreSQL
+  kubectl-homelab wait --for=condition=ready pod -l app.kubernetes.io/name=postgresql \
+    -n gitlab --timeout=300s
+  echo "✓ PostgreSQL ready"
+
+  # Wait for Redis
+  kubectl-homelab wait --for=condition=ready pod -l app.kubernetes.io/name=redis \
+    -n gitlab --timeout=300s
+  echo "✓ Redis ready"
+
+  # Wait for Gitaly
+  kubectl-homelab wait --for=condition=ready pod -l app=gitaly \
+    -n gitlab --timeout=300s
+  echo "✓ Gitaly ready"
+
+  # Wait for Webservice (main UI)
+  kubectl-homelab wait --for=condition=ready pod -l app=webservice \
+    -n gitlab --timeout=600s
+  echo "✓ Webservice ready"
+  ```
+
+- [ ] 4.6.4.4 Verify StatefulSets
   ```bash
   kubectl-homelab get statefulsets -n gitlab
-  # Should see: gitlab-postgresql, gitlab-redis, gitlab-gitaly
+  # Should see all with READY matching REPLICAS:
+  # - gitlab-gitaly
+  # - gitlab-postgresql
+  # - gitlab-redis-master
+  ```
+
+- [ ] 4.6.4.5 Verify all pods running
+  ```bash
+  kubectl-homelab get pods -n gitlab
+  # All should be Running or Completed (migrations/jobs)
+
+  # Check for any issues
+  kubectl-homelab get pods -n gitlab | grep -v "Running\|Completed"
+  # Should return nothing
+  ```
+
+- [ ] 4.6.4.6 Discover service names for HTTPRoute
+  ```bash
+  # Find the webservice Service name and port
+  kubectl-homelab get svc -n gitlab | grep webservice
+  # Note the service name (usually gitlab-webservice-default) and port
+
+  # Find the registry Service name and port
+  kubectl-homelab get svc -n gitlab | grep registry
+  # Note the service name and port
   ```
 
 ---
 
-## 4.6.5 Create HTTPRoutes for Gateway API
+## 4.6.5 Create Network Policy (Internal Access Only)
 
-- [ ] 4.6.5.1 Create HTTPRoute for GitLab web
-  ```bash
-  kubectl-homelab apply -f manifests/gateway/routes/gitlab.yaml
+Before exposing GitLab via Gateway, create a CiliumNetworkPolicy to ensure
+cloudflared cannot reach the GitLab namespace (internal access only).
+
+- [ ] 4.6.5.1 Create manifests/network-policies/gitlab-internal-only.yaml
+  ```yaml
+  # manifests/network-policies/gitlab-internal-only.yaml
+  # Blocks Cloudflare Tunnel (cloudflared) from accessing GitLab
+  # GitLab remains accessible via:
+  #   - Home network (10.10.0.0/16)
+  #   - Tailscale (100.64.0.0/10)
+  #   - Cluster internal traffic
+  apiVersion: cilium.io/v2
+  kind: CiliumNetworkPolicy
+  metadata:
+    name: gitlab-deny-cloudflared
+    namespace: gitlab
+  spec:
+    description: "Deny traffic from cloudflared to GitLab (internal access only)"
+    endpointSelector: {}  # Applies to all pods in gitlab namespace
+    ingressDeny:
+      - fromEndpoints:
+          - matchLabels:
+              # Match cloudflared pods by their labels
+              app.kubernetes.io/name: cloudflared
+        toPorts:
+          - ports:
+              - port: "8181"   # Webservice
+                protocol: TCP
+              - port: "5000"   # Registry
+                protocol: TCP
+              - port: "22"     # SSH
+                protocol: TCP
   ```
+
+- [ ] 4.6.5.2 Apply network policy
+  ```bash
+  kubectl-homelab apply -f manifests/network-policies/gitlab-internal-only.yaml
+  ```
+
+- [ ] 4.6.5.3 Verify network policy
+  ```bash
+  kubectl-homelab get ciliumnetworkpolicy -n gitlab
+  # Should see: gitlab-deny-cloudflared
+  ```
+
+---
+
+## 4.6.6 Create HTTPRoutes for Gateway API
+
+- [ ] 4.6.6.1 Create HTTPRoute for GitLab web
+  ```bash
+  mkdir -p manifests/gateway/routes
+  ```
+
+  Create manifests/gateway/routes/gitlab.yaml:
   ```yaml
   # manifests/gateway/routes/gitlab.yaml
+  # HTTPRoute for GitLab web UI via Cilium Gateway API
+  #
+  # Verify service name first:
+  #   kubectl-homelab get svc -n gitlab | grep webservice
   apiVersion: gateway.networking.k8s.io/v1
   kind: HTTPRoute
   metadata:
@@ -387,167 +660,357 @@ deploy-app:
     namespace: gitlab
   spec:
     parentRefs:
-    - name: homelab-gateway
-      namespace: default
+      - name: homelab-gateway
+        namespace: default
     hostnames:
-    - "gitlab.k8s.home.rommelporras.com"
+      - "gitlab.k8s.home.rommelporras.com"
     rules:
-    - matches:
-      - path:
-          type: PathPrefix
-          value: /
-      backendRefs:
-      - name: gitlab-webservice-default
-        port: 8181
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /
+        backendRefs:
+          - name: gitlab-webservice-default
+            port: 8181
   ```
 
-- [ ] 4.6.5.2 Create HTTPRoute for Container Registry
+- [ ] 4.6.6.2 Create HTTPRoute for Container Registry
+
+  Create manifests/gateway/routes/gitlab-registry.yaml:
+  ```yaml
+  # manifests/gateway/routes/gitlab-registry.yaml
+  # HTTPRoute for GitLab Container Registry via Cilium Gateway API
+  #
+  # Verify service name first:
+  #   kubectl-homelab get svc -n gitlab | grep registry
+  apiVersion: gateway.networking.k8s.io/v1
+  kind: HTTPRoute
+  metadata:
+    name: gitlab-registry
+    namespace: gitlab
+  spec:
+    parentRefs:
+      - name: homelab-gateway
+        namespace: default
+    hostnames:
+      - "registry.k8s.home.rommelporras.com"
+    rules:
+      - matches:
+          - path:
+              type: PathPrefix
+              value: /
+        backendRefs:
+          - name: gitlab-registry
+            port: 5000
+  ```
+
+- [ ] 4.6.6.3 Apply HTTPRoutes
   ```bash
+  kubectl-homelab apply -f manifests/gateway/routes/gitlab.yaml
   kubectl-homelab apply -f manifests/gateway/routes/gitlab-registry.yaml
   ```
 
-- [ ] 4.6.5.3 Configure DNS rewrites in AdGuard
+- [ ] 4.6.6.4 Verify HTTPRoutes accepted
+  ```bash
+  kubectl-homelab get httproute -n gitlab
+  # Both should show ACCEPTED=True
+
+  # Check detailed status
+  kubectl-homelab describe httproute gitlab -n gitlab | grep -A5 "Status:"
   ```
-  # Add to both AdGuard instances:
+
+- [ ] 4.6.6.5 Configure DNS rewrites in AdGuard
+  ```
+  # Add to both AdGuard instances (primary and secondary):
+  # Settings → DNS rewrites → Add
+
   gitlab.k8s.home.rommelporras.com → 10.10.30.20
   registry.k8s.home.rommelporras.com → 10.10.30.20
   ```
 
 ---
 
-## 4.6.6 Verify GitLab Access
+## 4.6.7 Verify GitLab Access
 
-- [ ] 4.6.6.1 Access GitLab web UI
+- [ ] 4.6.7.1 Test DNS resolution
+  ```bash
+  nslookup gitlab.k8s.home.rommelporras.com
+  # Should resolve to 10.10.30.20
+  ```
+
+- [ ] 4.6.7.2 Test HTTP connectivity
+  ```bash
+  curl -I https://gitlab.k8s.home.rommelporras.com
+  # Should return 200 OK or 302 redirect
+  ```
+
+- [ ] 4.6.7.3 Access GitLab web UI
   ```
   https://gitlab.k8s.home.rommelporras.com
-  Login: root / (password from 1Password)
+  Login: root / (password from 1Password: op://Kubernetes/GitLab/root-password)
   ```
 
-- [ ] 4.6.6.2 Get initial root password if not set
+- [ ] 4.6.7.4 Get initial root password (if 1Password secret wasn't used)
   ```bash
+  # Only needed if you didn't set up the root password secret
   kubectl-homelab get secret gitlab-gitlab-initial-root-password -n gitlab \
-    -o jsonpath='{.data.password}' | base64 -d
+    -o jsonpath='{.data.password}' | base64 -d && echo
   ```
 
-- [ ] 4.6.6.3 Change root password and configure 2FA
+- [ ] 4.6.7.5 First login tasks
+  - Change root password (Profile → Edit Profile → Password)
+  - Enable 2FA (Profile → Edit Profile → Two-factor Authentication)
+  - Set email in Admin Area → Settings → General
 
 ---
 
-## 4.6.7 Install GitLab Runner
+## 4.6.8 Install GitLab Runner
 
-- [ ] 4.6.7.1 Get runner registration token from GitLab UI
+> **Important: New Runner Registration Workflow**
+>
+> GitLab 17.0+ uses **authentication tokens** (prefixed with `glrt-`) instead of the
+> deprecated registration tokens. Runner configuration (tags, run untagged, etc.) is
+> now done in the GitLab UI when creating the runner, NOT in values.yaml.
+>
+> See: https://docs.gitlab.com/ee/ci/runners/new_creation_workflow.html
+
+- [ ] 4.6.8.1 Create runner in GitLab UI and get authentication token
   ```
-  Admin Area → CI/CD → Runners → New instance runner
-  Copy the registration token
+  1. Go to: Admin Area → CI/CD → Runners
+  2. Click "New instance runner"
+  3. Configure runner settings:
+     - Tags: kubernetes, homelab (or as needed)
+     - Run untagged jobs: ✓ (check if you want)
+     - Protected: ✗ (uncheck for flexibility)
+  4. Click "Create runner"
+  5. Copy the authentication token (starts with glrt-)
   ```
 
-- [ ] 4.6.7.2 Add token to 1Password and create secret
+- [ ] 4.6.8.2 Add runner token to 1Password
+  ```bash
+  # Add the glrt-xxx token to 1Password:
+  # Item: GitLab
+  # Field: runner-token
+  # Value: glrt-xxxxxxxxxxxxxxxx (the token from GitLab UI)
+
+  # Verify:
+  op read "op://Kubernetes/GitLab/runner-token" | head -c 5
+  # Should show: glrt-
+  ```
+
+- [ ] 4.6.8.3 Create gitlab-runner namespace and secret
   ```bash
   kubectl-homelab create namespace gitlab-runner
+  kubectl-homelab label namespace gitlab-runner pod-security.kubernetes.io/enforce=privileged
+
+  # Create secret with runnerToken key (NOT runner-registration-token)
   kubectl-homelab create secret generic gitlab-runner-token \
-    --from-literal=runner-registration-token="$(op read 'op://Kubernetes/GitLab/runner-token')" \
+    --from-literal=runner-token="$(op read 'op://Kubernetes/GitLab/runner-token')" \
     -n gitlab-runner
   ```
 
-- [ ] 4.6.7.3 Create helm/gitlab-runner/values.yaml
+- [ ] 4.6.8.4 Verify secret
+  ```bash
+  kubectl-homelab get secret gitlab-runner-token -n gitlab-runner -o jsonpath='{.data}' | jq 'keys'
+  # Should show: ["runner-token"]
+  ```
+
+- [ ] 4.6.8.5 Create helm/gitlab-runner directory
+  ```bash
+  mkdir -p helm/gitlab-runner
+  ```
+
+- [ ] 4.6.8.6 Create helm/gitlab-runner/values.yaml
   ```yaml
   # helm/gitlab-runner/values.yaml
+  # GitLab Runner with Kubernetes Executor
+  #
+  # Chart version: 0.85.0 (Runner 18.8.0)
+  # Docs: https://docs.gitlab.com/runner/install/kubernetes/
+  #
+  # IMPORTANT: Uses new authentication token workflow (GitLab 17.0+)
+  # Runner configuration (tags, run untagged, etc.) is done in GitLab UI,
+  # NOT in this file.
+  #
+  # INSTALL:
+  #   helm-homelab install gitlab-runner gitlab/gitlab-runner \
+  #     --namespace gitlab-runner \
+  #     --version 0.85.0 \
+  #     --values helm/gitlab-runner/values.yaml
+  #
+  # UPGRADE:
+  #   helm-homelab upgrade gitlab-runner gitlab/gitlab-runner \
+  #     --namespace gitlab-runner \
+  #     --version 0.85.0 \
+  #     --values helm/gitlab-runner/values.yaml
+
+  # GitLab instance URL
   gitlabUrl: https://gitlab.k8s.home.rommelporras.com
 
+  # Runner authentication token (from secret)
+  # The secret must have a key named 'runner-token' containing the glrt-xxx token
   runners:
     secret: gitlab-runner-token
+
+    # Kubernetes executor configuration
     config: |
       [[runners]]
         [runners.kubernetes]
           namespace = "gitlab-runner"
           image = "alpine:latest"
-          privileged = true  # Required for Docker-in-Docker builds
-          [[runners.kubernetes.volumes.empty_dir]]
-            name = "docker-certs"
-            mount_path = "/certs/client"
-            medium = "Memory"
 
+          # Resource limits for CI job pods
+          cpu_limit = "2"
+          cpu_request = "500m"
+          memory_limit = "2Gi"
+          memory_request = "512Mi"
+
+          # Helper container resources
+          helper_cpu_limit = "500m"
+          helper_cpu_request = "100m"
+          helper_memory_limit = "256Mi"
+          helper_memory_request = "128Mi"
+
+          # Pull policy
+          pull_policy = ["if-not-present"]
+
+          # Pod labels for identification
+          [runners.kubernetes.pod_labels]
+            "gitlab-runner" = "true"
+
+  # RBAC - required for creating job pods
   rbac:
     create: true
-    clusterWideAccess: true  # For deploying to other namespaces
+    # clusterWideAccess allows deploying to namespaces other than gitlab-runner
+    # Set to true if your CI jobs need to deploy to other namespaces
+    clusterWideAccess: true
+
+  # Runner pod resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
   ```
 
-- [ ] 4.6.7.4 Install GitLab Runner
+- [ ] 4.6.8.7 Install GitLab Runner
   ```bash
   helm-homelab install gitlab-runner gitlab/gitlab-runner \
     --namespace gitlab-runner \
-    --version 0.71.0 \
+    --version 0.85.0 \
     --values helm/gitlab-runner/values.yaml
   ```
 
-- [ ] 4.6.7.5 Verify runner registered
+- [ ] 4.6.8.8 Verify runner pod is running
   ```bash
   kubectl-homelab get pods -n gitlab-runner
-  # Check GitLab UI: Admin → CI/CD → Runners (should show online)
+  # Should show gitlab-runner-xxx in Running state
+
+  # Check logs for successful registration
+  kubectl-homelab logs -n gitlab-runner -l app=gitlab-runner --tail=50
+  # Look for: "Configuration loaded" and connection success
+  ```
+
+- [ ] 4.6.8.9 Verify runner registered in GitLab UI
+  ```
+  Admin Area → CI/CD → Runners
+  Should show runner with green "online" status
   ```
 
 ---
 
-## 4.6.8 Configure Cloudflare Tunnel (Optional External Access)
+## 4.6.9 Test CI/CD Pipeline
 
-- [ ] 4.6.8.1 Add GitLab route to tunnel
+- [ ] 4.6.9.1 Create a test project
   ```
-  # If you want external access to GitLab:
-  # Cloudflare Zero Trust → Tunnels → Add public hostname
-  # gitlab.yourdomain.com → http://gitlab-webservice-default.gitlab.svc.cluster.local:8181
+  GitLab → New Project → Create blank project
+  Name: ci-test
+  Visibility: Private
+  Initialize with README: ✓
+  ```
+
+- [ ] 4.6.9.2 Add .gitlab-ci.yml
+  ```yaml
+  # .gitlab-ci.yml - Simple test pipeline
+  stages:
+    - test
+
+  test-job:
+    stage: test
+    image: alpine:latest
+    script:
+      - echo "Hello from GitLab CI!"
+      - echo "Runner is working correctly"
+      - cat /etc/os-release
+    tags: []  # Remove if you want to match specific tags
+  ```
+
+- [ ] 4.6.9.3 Commit and verify pipeline runs
+  ```
+  1. Commit the .gitlab-ci.yml file
+  2. Go to: CI/CD → Pipelines
+  3. Watch the pipeline execute
+  4. Verify job completes successfully
+  ```
+
+- [ ] 4.6.9.4 Verify job pod was created
+  ```bash
+  # While job is running, check for job pod
+  kubectl-homelab get pods -n gitlab-runner -l gitlab-runner=true
+
+  # After job completes, pod should be cleaned up automatically
   ```
 
 ---
 
-## 4.6.9 Import Repositories from GitHub
+## 4.6.10 Import Repositories from GitHub (Optional)
 
-- [ ] 4.6.9.1 Create GitHub personal access token (for import)
+- [ ] 4.6.10.1 Create GitHub personal access token (for import)
   ```
-  GitHub → Settings → Developer settings → Personal access tokens
-  Scopes: repo (full control)
+  GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
+  Generate new token with:
+  - Repository access: Select repositories to import
+  - Permissions: Contents (read), Metadata (read)
   ```
 
-- [ ] 4.6.9.2 Import portfolio repository
+- [ ] 4.6.10.2 Import repository
   ```
   GitLab → New Project → Import project → GitHub
-  Select: portfolio
+  Authenticate with token
+  Select repository to import
   ```
 
-- [ ] 4.6.9.3 Import invoicetron repository
-  ```
-  GitLab → New Project → Import project → GitHub
-  Select: invoicetron
-  ```
-
-- [ ] 4.6.9.4 Configure mirroring (optional - keep GitHub as backup)
+- [ ] 4.6.10.3 Configure mirroring (optional - keep GitHub as backup)
   ```
   Project → Settings → Repository → Mirroring repositories
-  Push mirror to GitHub (read-only backup)
+  Add mirror direction: Push (GitLab → GitHub) or Pull (GitHub → GitLab)
   ```
 
 ---
 
-## 4.6.10 Documentation Updates
+## 4.6.11 Documentation Updates
 
-- [ ] 4.6.10.1 Update VERSIONS.md
-  ```
+- [ ] 4.6.11.1 Update VERSIONS.md
+  ```markdown
   # Add to Applications section:
-  | GitLab | 8.x.x | Self-hosted Git + CI/CD |
-  | GitLab Runner | 0.71.x | Kubernetes executor |
+  | GitLab | 18.8.x | Self-hosted Git + CI/CD |
+  | GitLab Runner | 18.8.x | Kubernetes executor |
 
   # Add to Version History:
   | YYYY-MM-DD | Phase 4.6: GitLab CI/CD platform |
   ```
 
-- [ ] 4.6.10.2 Update docs/context/Secrets.md
-  ```
+- [ ] 4.6.11.2 Update docs/context/Secrets.md
+  ```markdown
   # Add 1Password items:
   | GitLab | root-password | GitLab root user |
   | GitLab | postgresql-password | Internal database |
-  | GitLab | runner-token | Runner registration |
+  | GitLab | runner-token | Runner authentication (glrt-xxx) |
   ```
 
-- [ ] 4.6.10.3 Update docs/reference/CHANGELOG.md
+- [ ] 4.6.11.3 Update docs/reference/CHANGELOG.md
   - Add Phase 4.6 section with milestone, decisions, lessons learned
 
 ---
@@ -555,14 +1018,19 @@ deploy-app:
 ## Verification Checklist
 
 - [ ] Namespace `gitlab` exists with privileged PSS
-- [ ] All GitLab pods running (check with `kubectl-homelab get pods -n gitlab`)
+- [ ] Namespace `gitlab-runner` exists with privileged PSS
+- [ ] All GitLab pods running: `kubectl-homelab get pods -n gitlab`
 - [ ] StatefulSets healthy: postgresql, redis, gitaly
+- [ ] PVCs bound: `kubectl-homelab get pvc -n gitlab`
+- [ ] CiliumNetworkPolicy applied: `kubectl-homelab get cnp -n gitlab`
+- [ ] HTTPRoutes accepted: `kubectl-homelab get httproute -n gitlab`
+- [ ] DNS resolves: `nslookup gitlab.k8s.home.rommelporras.com`
 - [ ] GitLab web UI accessible at https://gitlab.k8s.home.rommelporras.com
 - [ ] Can login as root with 1Password password
-- [ ] Container registry accessible at registry.k8s.home.rommelporras.com
+- [ ] 2FA configured for root account
+- [ ] Container registry accessible at https://registry.k8s.home.rommelporras.com
 - [ ] GitLab Runner registered and showing "online" in Admin → CI/CD → Runners
 - [ ] Test pipeline runs successfully
-- [ ] DNS rewrites configured in AdGuard
 - [ ] 1Password items created (root-password, postgresql-password, runner-token)
 
 ---
@@ -577,17 +1045,28 @@ kubectl-homelab get pods -n gitlab
 kubectl-homelab describe pod <failing-pod> -n gitlab
 
 # 2. Check logs
-kubectl-homelab logs -n gitlab <pod-name>
+kubectl-homelab logs -n gitlab <pod-name> --tail=100
 
-# 3. If storage issues, check PVCs
+# 3. Check events
+kubectl-homelab get events -n gitlab --sort-by='.lastTimestamp' | tail -20
+
+# 4. If storage issues, check PVCs
 kubectl-homelab get pvc -n gitlab
+kubectl-homelab describe pvc <pending-pvc> -n gitlab
 
-# 4. Complete uninstall (WARNING: deletes all data)
+# 5. Partial cleanup (keeps PVCs for debugging)
+helm-homelab uninstall gitlab -n gitlab
+
+# 6. Complete uninstall (WARNING: deletes all data)
 helm-homelab uninstall gitlab -n gitlab
 kubectl-homelab delete pvc --all -n gitlab
 kubectl-homelab delete namespace gitlab
 
-# 5. Start fresh from 4.6.1
+# 7. Clean up runner if installed
+helm-homelab uninstall gitlab-runner -n gitlab-runner
+kubectl-homelab delete namespace gitlab-runner
+
+# 8. Start fresh from 4.6.1
 ```
 
 ---
@@ -602,39 +1081,63 @@ kubectl-homelab get pvc -n gitlab
 
 # If PVC Pending, check Longhorn
 kubectl-homelab -n longhorn-system get volumes
+kubectl-homelab -n longhorn-system get nodes.longhorn.io
 
 # Common issues:
-# - Not enough storage → add more NVMe or reduce PVC sizes
+# - Not enough storage → check Longhorn available space
 # - Node affinity issues → check Longhorn node status
+# - StorageClass missing → verify 'longhorn' storageclass exists
 ```
 
 ### GitLab web UI returns 502
 
 ```bash
 # Check webservice pod
-kubectl-homelab logs -n gitlab -l app=webservice --tail=50
+kubectl-homelab logs -n gitlab -l app=webservice --tail=100
 
 # Check if all dependencies are ready
 kubectl-homelab get pods -n gitlab | grep -E "postgres|redis|gitaly"
 
-# GitLab takes 10-15 minutes to fully initialize
-# Wait and check again
+# GitLab takes 10-15 minutes to fully initialize after pods are "Ready"
+# The webservice needs to run migrations and warm up
+
+# Check webservice readiness probe
+kubectl-homelab describe pod -n gitlab -l app=webservice | grep -A10 "Readiness"
 ```
 
-### Runner not registering
+### Runner not registering (410 Gone error)
 
 ```bash
-# Check runner logs
-kubectl-homelab logs -n gitlab-runner -l app=gitlab-runner
+# This error means you're using the OLD registration token workflow
+# You need to use the NEW authentication token workflow (glrt-xxx tokens)
 
-# Verify runner can reach GitLab
+# Check runner logs
+kubectl-homelab logs -n gitlab-runner -l app=gitlab-runner --tail=100
+
+# Verify secret has correct key
+kubectl-homelab get secret gitlab-runner-token -n gitlab-runner -o yaml
+# Should have key: runner-token (NOT runner-registration-token)
+
+# Verify token format
+kubectl-homelab get secret gitlab-runner-token -n gitlab-runner \
+  -o jsonpath='{.data.runner-token}' | base64 -d | head -c 5
+# Should show: glrt-
+```
+
+### Runner can't reach GitLab
+
+```bash
+# Test connectivity from runner namespace
 kubectl-homelab run test --rm -it --image=curlimages/curl -n gitlab-runner -- \
   curl -v https://gitlab.k8s.home.rommelporras.com/api/v4/runners
 
+# Check if network policy is blocking
+kubectl-homelab get ciliumnetworkpolicy -A
+
 # Common issues:
 # - Wrong gitlabUrl in values.yaml
-# - Invalid registration token
-# - Network policy blocking traffic
+# - TLS certificate issues (try with -k for insecure)
+# - DNS resolution failure
 ```
 
 ### CI/CD jobs fail to start pods
@@ -644,10 +1147,51 @@ kubectl-homelab run test --rm -it --image=curlimages/curl -n gitlab-runner -- \
 kubectl-homelab get configmap -n gitlab-runner -o yaml
 
 # Check RBAC permissions
-kubectl-homelab auth can-i create pods -n gitlab-runner --as=system:serviceaccount:gitlab-runner:gitlab-runner
+kubectl-homelab auth can-i create pods -n gitlab-runner \
+  --as=system:serviceaccount:gitlab-runner:gitlab-runner-gitlab-runner
 
-# Check if privileged pods allowed
-kubectl-homelab get psp  # (if PSP enabled)
+# Check if privileged pods allowed (check PSS label)
+kubectl-homelab get namespace gitlab-runner -o jsonpath='{.metadata.labels}'
+
+# Check job pod events
+kubectl-homelab get events -n gitlab-runner --sort-by='.lastTimestamp'
+```
+
+### Registry push/pull fails
+
+```bash
+# Test registry connectivity
+curl -v https://registry.k8s.home.rommelporras.com/v2/
+
+# Check registry pod
+kubectl-homelab logs -n gitlab -l app=registry --tail=50
+
+# Common issues:
+# - TLS certificate mismatch
+# - Registry not configured in Docker daemon (for insecure registries)
+# - Authentication issues
+```
+
+---
+
+## Backup Strategy (Recommended)
+
+For a homelab, consider these backup approaches:
+
+### Option 1: Longhorn Snapshots
+```bash
+# Create snapshot of GitLab PVCs
+# Do this before upgrades or major changes
+kubectl-homelab -n longhorn-system get volumes | grep gitlab
+# Use Longhorn UI to create snapshots
+```
+
+### Option 2: GitLab Backup Task
+```bash
+# Run backup using GitLab toolbox
+kubectl-homelab exec -n gitlab -it $(kubectl-homelab get pods -n gitlab -l app=toolbox -o name) \
+  -- backup-utility --skip registry
+# Backups stored in toolbox pod, copy to external storage
 ```
 
 ---
