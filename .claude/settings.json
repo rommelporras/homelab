@@ -25,6 +25,8 @@
   },
   "enabledPlugins": {
     "episodic-memory@superpowers-marketplace": true,
-    "commit-commands@claude-plugins-official": false
+    "code-simplifier@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true
   }
 }
