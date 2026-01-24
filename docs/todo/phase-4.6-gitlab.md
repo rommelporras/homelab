@@ -990,9 +990,333 @@ cloudflared cannot reach the GitLab namespace (internal access only).
 
 ---
 
-## 4.6.11 Documentation Updates
+## 4.6.11 Configure CI/CD for Next.js Projects
 
-- [ ] 4.6.11.1 Update VERSIONS.md
+This section covers setting up CI/CD pipelines for your Next.js projects (invoicetron, portfolio)
+using GitLab's built-in Container Registry.
+
+### Container Registry Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     CI/CD Pipeline Flow                             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  1. git push          2. GitLab CI              3. Container        │
+│     to main              builds image              Registry         │
+│        │                     │                        │             │
+│        ▼                     ▼                        ▼             │
+│  ┌──────────┐         ┌──────────────┐      ┌─────────────────┐    │
+│  │ GitLab   │────────►│ Runner Pod   │─────►│ registry.k8s.   │    │
+│  │ Repo     │         │ (docker build)│      │ home...com      │    │
+│  └──────────┘         └──────────────┘      │ (20Gi Longhorn) │    │
+│                                              └────────┬────────┘    │
+│                                                       │             │
+│  4. Deploy to K8s                                     │             │
+│        │                                              │             │
+│        ▼                                              ▼             │
+│  ┌──────────────┐                           ┌─────────────────┐    │
+│  │ invoicetron  │◄──────────────────────────│  docker pull    │    │
+│  │ Deployment   │     (imagePullSecrets)    │                 │    │
+│  └──────────────┘                           └─────────────────┘    │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Registry URLs
+
+| Project | Registry URL |
+|---------|-------------|
+| invoicetron | `registry.k8s.home.rommelporras.com/invoicetron/invoicetron` |
+| portfolio | `registry.k8s.home.rommelporras.com/portfolio/portfolio` |
+
+> **Note:** GitLab auto-provides `$CI_REGISTRY_IMAGE` variable containing the full registry path.
+
+### 4.6.11.1 Create Dockerfile for Next.js
+
+Create this multi-stage Dockerfile in your Next.js project root:
+
+```dockerfile
+# Dockerfile for Next.js with standalone output
+# Optimized for small image size (~150MB vs ~1GB)
+
+# ─────────────────────────────────────────────────────────────────
+# Stage 1: Dependencies
+# ─────────────────────────────────────────────────────────────────
+FROM node:20-alpine AS deps
+WORKDIR /app
+
+# Install dependencies based on the preferred package manager
+COPY package.json package-lock.json* ./
+RUN npm ci --only=production
+
+# ─────────────────────────────────────────────────────────────────
+# Stage 2: Builder
+# ─────────────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+COPY . .
+
+# Next.js collects anonymous telemetry - disable it
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Build the application
+RUN npm run build
+
+# ─────────────────────────────────────────────────────────────────
+# Stage 3: Runner (production image)
+# ─────────────────────────────────────────────────────────────────
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Copy built assets from builder
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]
+```
+
+**Required:** Add to `next.config.js`:
+```javascript
+// next.config.js
+module.exports = {
+  output: 'standalone',  // Required for Docker optimization
+  // ... other config
+}
+```
+
+### 4.6.11.2 Create .gitlab-ci.yml
+
+Create `.gitlab-ci.yml` in your project root:
+
+```yaml
+# .gitlab-ci.yml for Next.js projects
+# Builds Docker image and pushes to GitLab Container Registry
+
+stages:
+  - build
+  - deploy
+
+variables:
+  # Use Docker-in-Docker
+  DOCKER_HOST: tcp://docker:2376
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_TLS_VERIFY: 1
+  DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+  # Image tag: registry.k8s.home.../project:commit-sha
+  IMAGE_TAG: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
+  IMAGE_LATEST: ${CI_REGISTRY_IMAGE}:latest
+
+# ─────────────────────────────────────────────────────────────────
+# Build Stage
+# ─────────────────────────────────────────────────────────────────
+build:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    # Login to GitLab Container Registry (credentials auto-injected)
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    # Build with commit SHA tag
+    - docker build -t $IMAGE_TAG -t $IMAGE_LATEST .
+    # Push both tags
+    - docker push $IMAGE_TAG
+    - docker push $IMAGE_LATEST
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# ─────────────────────────────────────────────────────────────────
+# Deploy Stage (to Kubernetes)
+# ─────────────────────────────────────────────────────────────────
+deploy:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  script:
+    # Update deployment with new image
+    - kubectl set image deployment/${CI_PROJECT_NAME} app=$IMAGE_TAG -n ${CI_PROJECT_NAME}
+    # Wait for rollout
+    - kubectl rollout status deployment/${CI_PROJECT_NAME} -n ${CI_PROJECT_NAME} --timeout=300s
+  environment:
+    name: production
+    url: https://${CI_PROJECT_NAME}.k8s.home.rommelporras.com
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  # Requires: KUBECONFIG variable or ServiceAccount with RBAC
+  # See 4.6.11.5 for RBAC setup
+```
+
+### 4.6.11.3 Update Runner for Docker-in-Docker
+
+The runner needs `privileged: true` for Docker-in-Docker builds. This is already configured
+in `helm/gitlab-runner/values.yaml`, but verify:
+
+```yaml
+# helm/gitlab-runner/values.yaml (already configured)
+runners:
+  config: |
+    [[runners]]
+      [runners.kubernetes]
+        namespace = "gitlab-runner"
+        image = "alpine:latest"
+        privileged = true  # Required for DinD
+```
+
+> **Security Note:** `privileged: true` gives containers full host access. This is acceptable
+> for a homelab but would need isolation (separate runner pool) in production.
+
+### 4.6.11.4 Configure Image Pull Secrets
+
+For Kubernetes to pull images from your private registry, create an image pull secret:
+
+```bash
+# Create registry credentials secret in your app namespace
+kubectl-homelab create secret docker-registry gitlab-registry \
+  --docker-server=registry.k8s.home.rommelporras.com \
+  --docker-username=<gitlab-username> \
+  --docker-password=<gitlab-personal-access-token> \
+  --docker-email=<your-email> \
+  -n invoicetron
+
+# Reference in deployment
+# spec:
+#   template:
+#     spec:
+#       imagePullSecrets:
+#         - name: gitlab-registry
+```
+
+**Alternative:** Use GitLab Deploy Tokens (recommended):
+```
+Project → Settings → Repository → Deploy tokens
+- Name: kubernetes-pull
+- Scopes: read_registry
+```
+
+### 4.6.11.5 RBAC for CI/CD Deployments
+
+Create a ServiceAccount for GitLab Runner to deploy to app namespaces:
+
+```yaml
+# manifests/gitlab/runner-deploy-rbac.yaml
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-deployer
+  namespace: gitlab-runner
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gitlab-deployer
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gitlab-deployer
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-deployer
+    namespace: gitlab-runner
+roleRef:
+  kind: ClusterRole
+  name: gitlab-deployer
+  apiGroup: rbac.authorization.k8s.io
+```
+
+Then update runner values to use this ServiceAccount:
+```yaml
+# helm/gitlab-runner/values.yaml
+runners:
+  config: |
+    [[runners]]
+      [runners.kubernetes]
+        service_account = "gitlab-deployer"
+```
+
+### 4.6.11.6 Registry Storage Sizing
+
+| Project | Image Size (optimized) | Versions to Keep | Storage |
+|---------|----------------------|------------------|---------|
+| invoicetron | ~150MB | 10 | ~1.5Gi |
+| portfolio | ~150MB | 10 | ~1.5Gi |
+| Future projects | ~200MB | 10 | ~2Gi |
+| **Buffer** | - | - | ~15Gi |
+| **Total Allocated** | - | - | **20Gi** ✓ |
+
+### 4.6.11.7 Registry Garbage Collection (Optional)
+
+To clean up old images and reclaim storage:
+
+```bash
+# Run garbage collection (GitLab 13.0+)
+kubectl-homelab exec -n gitlab -it $(kubectl-homelab get pods -n gitlab -l app=registry -o name) \
+  -- /bin/registry garbage-collect /etc/docker/registry/config.yml
+
+# Or configure automatic cleanup in GitLab:
+# Admin → Settings → CI/CD → Container Registry
+# - Enable expiration policies
+# - Keep: 10 tags per image
+# - Remove tags older than: 90 days
+```
+
+### 4.6.11.8 Test Registry Access
+
+After GitLab is installed, verify registry works:
+
+```bash
+# From your local machine (with Docker installed)
+docker login registry.k8s.home.rommelporras.com
+# Username: root (or your GitLab username)
+# Password: (your GitLab password or access token)
+
+# Test push
+docker pull alpine:latest
+docker tag alpine:latest registry.k8s.home.rommelporras.com/test/alpine:latest
+docker push registry.k8s.home.rommelporras.com/test/alpine:latest
+
+# Test pull
+docker rmi registry.k8s.home.rommelporras.com/test/alpine:latest
+docker pull registry.k8s.home.rommelporras.com/test/alpine:latest
+
+# Clean up test image
+# GitLab → Admin → Packages & Registries → Container Registry → Delete test project
+```
+
+---
+
+## 4.6.12 Documentation Updates
+
+- [ ] 4.6.12.1 Update VERSIONS.md
   ```markdown
   # Add to Applications section:
   | GitLab | 18.8.x | Self-hosted Git + CI/CD |
@@ -1002,7 +1326,7 @@ cloudflared cannot reach the GitLab namespace (internal access only).
   | YYYY-MM-DD | Phase 4.6: GitLab CI/CD platform |
   ```
 
-- [ ] 4.6.11.2 Update docs/context/Secrets.md
+- [ ] 4.6.12.2 Update docs/context/Secrets.md
   ```markdown
   # Add 1Password items:
   | GitLab | root-password | GitLab root user |
@@ -1010,7 +1334,7 @@ cloudflared cannot reach the GitLab namespace (internal access only).
   | GitLab | runner-token | Runner authentication (glrt-xxx) |
   ```
 
-- [ ] 4.6.11.3 Update docs/reference/CHANGELOG.md
+- [ ] 4.6.12.3 Update docs/reference/CHANGELOG.md
   - Add Phase 4.6 section with milestone, decisions, lessons learned
 
 ---
@@ -1029,8 +1353,10 @@ cloudflared cannot reach the GitLab namespace (internal access only).
 - [ ] Can login as root with 1Password password
 - [ ] 2FA configured for root account
 - [ ] Container registry accessible at https://registry.k8s.home.rommelporras.com
+- [ ] Docker login to registry works: `docker login registry.k8s.home.rommelporras.com`
 - [ ] GitLab Runner registered and showing "online" in Admin → CI/CD → Runners
-- [ ] Test pipeline runs successfully
+- [ ] Test pipeline runs successfully (simple alpine echo test)
+- [ ] Docker build pipeline works (builds and pushes image to registry)
 - [ ] 1Password items created (root-password, postgresql-password, runner-token)
 
 ---
