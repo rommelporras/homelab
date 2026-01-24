@@ -163,6 +163,9 @@ Step-by-step instructions to rebuild the cluster from scratch:
 | [v0.3.0-storage](docs/rebuild/v0.3.0-storage.md) | Phase 3.1-3.4 | Longhorn |
 | [v0.4.0-observability](docs/rebuild/v0.4.0-observability.md) | Phase 3.5-3.8 | Gateway, Monitoring, Logging, UPS |
 | [v0.5.0-alerting](docs/rebuild/v0.5.0-alerting.md) | Phase 3.9 | Discord + Email notifications |
+| [v0.6.0-home-services](docs/rebuild/v0.6.0-home-services.md) | Phase 3.10, 4.1-4.4 | AdGuard, Homepage, Metrics Server, Dead Man's Switch |
+| [v0.7.0-cloudflare](docs/rebuild/v0.7.0-cloudflare.md) | Phase 4.5 | Cloudflare Tunnel (HA, CiliumNetworkPolicy) |
+| [v0.8.0-gitlab](docs/rebuild/v0.8.0-gitlab.md) | Phase 4.6 | GitLab CE, Runner, Container Registry |
 
 ### Reference
 
