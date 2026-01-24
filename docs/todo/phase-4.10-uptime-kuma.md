@@ -371,8 +371,8 @@
   - SMTP Host: smtp.mail.me.com
   - SMTP Port: 587
   - SMTP Security: STARTTLS
-  - SMTP Username: (from 1Password: iCloud SMTP Alertmanager/username)
-  - SMTP Password: (from 1Password: iCloud SMTP Alertmanager/password)
+  - SMTP Username: (from 1Password: iCloud SMTP/username)
+  - SMTP Password: (from 1Password: iCloud SMTP/password)
   - From Email: noreply@rommelporras.com
   - To Email: critical@rommelporras.com
   ```

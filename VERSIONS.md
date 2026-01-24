@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** January 24, 2026
+> **Last Updated:** January 25, 2026
 
 ---
 
@@ -44,8 +44,8 @@
 | oci://ghcr.io/grafana/helm-charts/loki | 6.49.0 | v3.6.3 | Installed | monitoring |
 | grafana/alloy | 1.5.2 | v1.12.2 | Installed | monitoring |
 | metrics-server/metrics-server | 3.13.0 | v0.8.0 | Installed | kube-system |
-| gitlab/gitlab | 8.7.0 | v17.7.0 | Planned | gitlab |
-| gitlab/gitlab-runner | 0.71.0 | v17.7.0 | Planned | gitlab-runner |
+| gitlab/gitlab | 9.8.2 | v18.8.2 | Installed | gitlab |
+| gitlab/gitlab-runner | 0.85.0 | v18.8.0 | Installed | gitlab-runner |
 
 > **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
 > Use `grafana/loki` + `grafana/alloy` instead.
@@ -105,6 +105,43 @@ helm-homelab repo update
 | AdGuard | adguard.k8s.home.rommelporras.com | home |
 | Homepage | portal.k8s.home.rommelporras.com | home |
 | Longhorn | longhorn.k8s.home.rommelporras.com | longhorn-system |
+| GitLab | gitlab.k8s.home.rommelporras.com | gitlab |
+| GitLab Registry | registry.k8s.home.rommelporras.com | gitlab |
+
+**LoadBalancer Services:**
+| Service | IP | Port | Namespace |
+|---------|-----|------|-----------|
+| AdGuard DNS | 10.10.30.55 | 53/UDP, 53/TCP | home |
+| GitLab SSH | 10.10.30.21 | 22/TCP | gitlab |
+
+---
+
+## GitLab (Phase 4.6)
+
+> **Status:** Running. Full DevOps platform with CI/CD pipelines.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| GitLab CE | v18.8.2 | Running |
+| GitLab Runner | v18.8.0 | Running |
+| PostgreSQL (bundled) | 16.6 | Running |
+| Redis (bundled) | 7.x | Running |
+| Container Registry | v4.x | Running |
+
+**Access:**
+| Type | URL/IP |
+|------|--------|
+| Web UI | https://gitlab.k8s.home.rommelporras.com |
+| Container Registry | https://registry.k8s.home.rommelporras.com |
+| SSH (git clone) | ssh://git@ssh.gitlab.k8s.home.rommelporras.com (→ 10.10.30.21:22) |
+
+**Storage (Longhorn):**
+| PVC | Size |
+|-----|------|
+| gitlab-gitaly | 50Gi |
+| gitlab-postgresql | 15Gi |
+| gitlab-redis | 5Gi |
+| gitlab-registry | 20Gi |
 
 ---
 
@@ -179,6 +216,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-01-25 | **GitLab CE:** Deployed v18.8.2 with Runner, Container Registry, SSH access (Phase 4.6) |
 | 2026-01-24 | **Cloudflare Tunnel:** Migrated cloudflared from DMZ LXC to K8s (Phase 4.5) |
 | 2026-01-22 | **Dead Man's Switch:** healthchecks.io monitors Alertmanager health (Phase 3.10) |
 | 2026-01-22 | **DNS Cutover:** K8s AdGuard (10.10.30.55) now PRIMARY for all VLANs |

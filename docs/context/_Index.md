@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, index]
-updated: 2026-01-24
+updated: 2026-01-25
 ---
 
 # Homelab Kubernetes Context
@@ -31,7 +31,7 @@ updated: 2026-01-24
 | Nodes | 3 control planes (k8s-cp1, cp2, cp3) |
 | CNI | Cilium 1.18.6 |
 | Storage | Longhorn 1.10.1 |
-| Status | Cloudflare Tunnel deployed (Phase 4.5) |
+| Status | GitLab CE deployed (Phase 4.6) |
 
 ## Source
 

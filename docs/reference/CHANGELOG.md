@@ -4,6 +4,89 @@
 
 ---
 
+## January 25, 2026 — Phase 4.6: GitLab CE
+
+### Milestone: Self-hosted DevOps Platform
+
+Deployed GitLab CE v18.8.2 with GitLab Runner for CI/CD pipelines, Container Registry, and SSH access.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| GitLab CE | v18.8.2 | Running |
+| GitLab Runner | v18.8.0 | Running (Kubernetes executor) |
+| PostgreSQL | 16.6 | Running (bundled) |
+| Container Registry | v4.x | Running |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| helm/gitlab/values.yaml | GitLab Helm configuration |
+| helm/gitlab-runner/values.yaml | Runner with Kubernetes executor |
+| manifests/gateway/routes/gitlab.yaml | HTTPRoute for web UI |
+| manifests/gateway/routes/gitlab-registry.yaml | HTTPRoute for container registry |
+| manifests/gitlab/gitlab-shell-lb.yaml | LoadBalancer for SSH (10.10.30.21) |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Edition | Community Edition (CE) | Free, sufficient for homelab |
+| Storage | Bundled PostgreSQL/Redis | Learning/PoC, not production |
+| SSH Access | Dedicated LoadBalancer IP (.21) | Separate from Gateway, avoids port conflicts |
+| SMTP | Shared iCloud SMTP | Reuses existing Alertmanager credentials |
+| Secrets | SET_VIA_HELM pattern | Matches Alertmanager, no email in public repo |
+
+### Architecture
+
+```
+                         Internet
+                             │
+          ┌──────────────────┴──────────────────┐
+          ▼                                     ▼
+┌───────────────────┐                ┌───────────────────┐
+│  Gateway API      │                │  LoadBalancer     │
+│  10.10.30.20:443  │                │  10.10.30.21:22   │
+│  (HTTPS)          │                │  (SSH)            │
+└─────────┬─────────┘                └─────────┬─────────┘
+          │                                    │
+    ┌─────┴─────┐                              │
+    ▼           ▼                              ▼
+┌───────┐  ┌──────────┐                ┌─────────────┐
+│GitLab │  │ Registry │                │ gitlab-shell│
+│  Web  │  │  :5000   │                │   :2222     │
+│ :8181 │  └──────────┘                └─────────────┘
+└───────┘
+```
+
+### 1Password Items
+
+| Item | Vault | Fields |
+|------|-------|--------|
+| GitLab | Kubernetes | root-password, postgresql-password |
+| GitLab Runner | Kubernetes | runner-token |
+| iCloud SMTP | Kubernetes | username, password (renamed from "iCloud SMTP Alertmanager") |
+
+### Access
+
+| Type | URL |
+|------|-----|
+| Web UI | https://gitlab.k8s.home.rommelporras.com |
+| Registry | https://registry.k8s.home.rommelporras.com |
+| SSH | ssh://git@ssh.gitlab.k8s.home.rommelporras.com (10.10.30.21) |
+
+### Lessons Learned
+
+1. **gitlab-shell listens on 2222, not 22** - Container runs as non-root, uses high port internally. LoadBalancer maps 22→2222.
+
+2. **Cilium L2 sharing requires annotation** - To share IP with Gateway, both services need `lro.io/sharing-key`. Used separate IP instead for simplicity.
+
+3. **PostgreSQL secret needs two keys** - Chart expects both `postgresql-password` and `postgresql-postgres-password` in the secret.
+
+4. **SET_VIA_HELM pattern** - Placeholders in values.yaml with `--set` injection at install time keeps credentials out of git.
+
+---
+
 ## January 24, 2026 — Phase 4.5: Cloudflare Tunnel
 
 ### Milestone: HA Cloudflare Tunnel on Kubernetes
@@ -272,7 +355,7 @@ Configured Alertmanager to send notifications via Discord and Email, with intell
 |------|-------|---------|
 | Discord Webhook Incidents | Kubernetes | #incidents webhook URL |
 | Discord Webhook Status | Kubernetes | #status webhook URL |
-| iCloud SMTP Alertmanager | Kubernetes | SMTP credentials |
+| iCloud SMTP | Kubernetes | SMTP credentials |
 
 ### Lessons Learned
 

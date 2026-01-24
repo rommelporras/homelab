@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password]
-updated: 2026-01-22
+updated: 2026-01-25
 ---
 
 # Secrets
@@ -21,7 +21,9 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Cloudflare DNS API Token | `credential` | cert-manager (Let's Encrypt) |
 | Discord Webhook Incidents | `credential` | Alertmanager |
 | Discord Webhook Status | `credential` | Alertmanager |
-| iCloud SMTP Alertmanager | `username`, `password`, `server`, `port` | Alertmanager email |
+| iCloud SMTP | `username`, `password`, `server`, `port` | Alertmanager, GitLab |
+| GitLab | `root-password`, `postgresql-password` | GitLab CE |
+| GitLab Runner | `runner-token` | GitLab Runner |
 | Healthchecks Ping URL | `url` | Alertmanager Watchdog (dead man's switch) |
 | NUT Admin | `username`, `password` | NUT server |
 | NUT Monitor | `username`, `password` | NUT clients, nut-exporter |
@@ -40,9 +42,16 @@ op://Kubernetes/Cloudflare DNS API Token/credential
 op://Kubernetes/Discord Webhook Incidents/credential
 op://Kubernetes/Discord Webhook Status/credential
 
-# SMTP (Alertmanager email)
-op://Kubernetes/iCloud SMTP Alertmanager/username
-op://Kubernetes/iCloud SMTP Alertmanager/password
+# SMTP (Alertmanager, GitLab)
+op://Kubernetes/iCloud SMTP/username
+op://Kubernetes/iCloud SMTP/password
+
+# GitLab
+op://Kubernetes/GitLab/root-password
+op://Kubernetes/GitLab/postgresql-password
+
+# GitLab Runner
+op://Kubernetes/GitLab Runner/runner-token
 
 # Healthchecks (dead man's switch)
 op://Kubernetes/Healthchecks Ping URL/url

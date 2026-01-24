@@ -1,0 +1,77 @@
+# helm/gitlab-runner/values.yaml
+# GitLab Runner with Kubernetes Executor
+#
+# Chart version: 0.85.0 (Runner 18.8.0)
+# Docs: https://docs.gitlab.com/runner/install/kubernetes/
+#
+# IMPORTANT: Uses new authentication token workflow (GitLab 17.0+)
+# Runner configuration (tags, run untagged, etc.) is done in GitLab UI,
+# NOT in this file.
+#
+# INSTALL:
+#   helm-homelab install gitlab-runner gitlab/gitlab-runner \
+#     --namespace gitlab-runner \
+#     --version 0.85.0 \
+#     --values helm/gitlab-runner/values.yaml
+#
+# UPGRADE:
+#   helm-homelab upgrade gitlab-runner gitlab/gitlab-runner \
+#     --namespace gitlab-runner \
+#     --version 0.85.0 \
+#     --values helm/gitlab-runner/values.yaml
+
+# GitLab instance URL
+gitlabUrl: https://gitlab.k8s.home.rommelporras.com
+
+# Runner authentication token (from secret)
+runners:
+  secret: gitlab-runner-token
+
+  # Kubernetes executor configuration
+  config: |
+    [[runners]]
+      [runners.kubernetes]
+        namespace = "gitlab-runner"
+        image = "alpine:latest"
+
+        # Required for Docker-in-Docker (building container images)
+        privileged = true
+
+        # Resource limits for CI job pods
+        cpu_limit = "2"
+        cpu_request = "500m"
+        memory_limit = "2Gi"
+        memory_request = "512Mi"
+
+        # Helper container resources
+        helper_cpu_limit = "500m"
+        helper_cpu_request = "100m"
+        helper_memory_limit = "256Mi"
+        helper_memory_request = "128Mi"
+
+        # Pull policy
+        pull_policy = "if-not-present"
+
+        # Pod labels for identification
+        [runners.kubernetes.pod_labels]
+          "gitlab-runner" = "true"
+
+# RBAC - required for creating job pods
+rbac:
+  create: true
+  # clusterWideAccess allows deploying to namespaces other than gitlab-runner
+  # Set to true if your CI jobs need to deploy to other namespaces
+  clusterWideAccess: true
+
+# Service account for the runner pod
+serviceAccount:
+  create: true
+
+# Runner pod resources
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

@@ -145,4 +145,4 @@ homelab/
 | NUT Monitor | Kubernetes | v0.4.0 |
 | Discord Webhook Incidents | Kubernetes | v0.5.0 |
 | Discord Webhook Status | Kubernetes | v0.5.0 |
-| iCloud SMTP Alertmanager | Kubernetes | v0.5.0 |
+| iCloud SMTP | Kubernetes | v0.5.0 |

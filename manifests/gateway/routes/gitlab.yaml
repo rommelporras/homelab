@@ -1,0 +1,24 @@
+# manifests/gateway/routes/gitlab.yaml
+# HTTPRoute for GitLab web UI via Cilium Gateway API
+#
+# Routes: gitlab.k8s.home.rommelporras.com → gitlab-webservice-default:8181
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: gitlab
+  namespace: gitlab
+spec:
+  parentRefs:
+    - name: homelab-gateway
+      namespace: default
+      sectionName: https
+  hostnames:
+    - "gitlab.k8s.home.rommelporras.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: gitlab-webservice-default
+          port: 8181

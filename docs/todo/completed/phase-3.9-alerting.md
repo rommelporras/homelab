@@ -127,7 +127,7 @@ Configure Alertmanager to send notifications via:
 - [x] 3.9.2.2 Store SMTP credentials in 1Password
   ```bash
   # Create item in 1Password Kubernetes vault:
-  #   Name: "iCloud SMTP Alertmanager"
+  #   Name: "iCloud SMTP"
   #   Type: Login
   #   Fields:
   #     - username: <your-icloud-email>@icloud.com
@@ -136,8 +136,8 @@ Configure Alertmanager to send notifications via:
   #     - port: 587
   #
   # Verify:
-  op read "op://Kubernetes/iCloud SMTP Alertmanager/username" >/dev/null && echo "Username OK"
-  op read "op://Kubernetes/iCloud SMTP Alertmanager/password" >/dev/null && echo "Password OK"
+  op read "op://Kubernetes/iCloud SMTP/username" >/dev/null && echo "Username OK"
+  op read "op://Kubernetes/iCloud SMTP/password" >/dev/null && echo "Password OK"
   ```
 
 - [x] 3.9.2.3 Test SMTP manually (optional)
@@ -147,8 +147,8 @@ Configure Alertmanager to send notifications via:
     --from noreply@rommelporras.com \
     --server smtp.mail.me.com:587 \
     --tls \
-    --auth-user "$(op read 'op://Kubernetes/iCloud SMTP Alertmanager/username')" \
-    --auth-password "$(op read 'op://Kubernetes/iCloud SMTP Alertmanager/password')" \
+    --auth-user "$(op read 'op://Kubernetes/iCloud SMTP/username')" \
+    --auth-password "$(op read 'op://Kubernetes/iCloud SMTP/password')" \
     --header "Subject: Test from Alertmanager" \
     --body "This is a test email from your homelab cluster."
   ```
@@ -229,8 +229,8 @@ Configure Alertmanager to send notifications via:
     --namespace monitoring \
     --from-literal=discord-incidents-webhook="$(op read 'op://Kubernetes/Discord Webhook Incidents/credential')" \
     --from-literal=discord-status-webhook="$(op read 'op://Kubernetes/Discord Webhook Status/credential')" \
-    --from-literal=smtp-username="$(op read 'op://Kubernetes/iCloud SMTP Alertmanager/username')" \
-    --from-literal=smtp-password="$(op read 'op://Kubernetes/iCloud SMTP Alertmanager/password')"
+    --from-literal=smtp-username="$(op read 'op://Kubernetes/iCloud SMTP/username')" \
+    --from-literal=smtp-password="$(op read 'op://Kubernetes/iCloud SMTP/password')"
   ```
 
 - [x] 3.9.3.5 Upgrade Prometheus stack with new config
@@ -403,7 +403,7 @@ Configure Alertmanager to send notifications via:
   ```
   # Document new items in Kubernetes vault:
   # - Discord Alertmanager Webhook
-  # - iCloud SMTP Alertmanager
+  # - iCloud SMTP
   ```
 
 ---

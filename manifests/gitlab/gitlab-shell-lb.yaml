@@ -1,0 +1,23 @@
+# manifests/gitlab/gitlab-shell-lb.yaml
+# LoadBalancer service for GitLab Shell SSH access
+#
+# This exposes GitLab's SSH service (port 22) for git clone/push/pull over SSH.
+# The IP is assigned from Cilium LB IPAM pool.
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitlab-shell-lb
+  namespace: gitlab
+  annotations:
+    # Dedicated IP for GitLab SSH (separate from Gateway's 10.10.30.20)
+    io.cilium/lb-ipam-ips: "10.10.30.21"
+spec:
+  type: LoadBalancer
+  selector:
+    app: gitlab-shell
+    release: gitlab
+  ports:
+    - name: ssh
+      port: 22
+      targetPort: 2222
+      protocol: TCP

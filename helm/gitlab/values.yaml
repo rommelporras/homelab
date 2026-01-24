@@ -1,0 +1,223 @@
+# helm/gitlab/values.yaml
+# GitLab Helm Chart Configuration for Homelab (Learning/PoC)
+#
+# Chart version: 9.8.2 (GitLab v18.8.2)
+# Docs: https://docs.gitlab.com/charts/
+#
+# WARNING: This configuration runs all components in-cluster.
+# This is NOT production-ready. For production, use Cloud Native Hybrid
+# architecture with external PostgreSQL, Redis, and Gitaly.
+#
+# INSTALL:
+#   helm-homelab install gitlab gitlab/gitlab \
+#     --namespace gitlab \
+#     --version 9.8.2 \
+#     --values helm/gitlab/values.yaml \
+#     --set global.smtp.user_name="$(op read 'op://Kubernetes/iCloud SMTP/username')" \
+#     --timeout 15m
+#
+# UPGRADE:
+#   helm-homelab upgrade gitlab gitlab/gitlab \
+#     --namespace gitlab \
+#     --version 9.8.2 \
+#     --values helm/gitlab/values.yaml \
+#     --set global.smtp.user_name="$(op read 'op://Kubernetes/iCloud SMTP/username')" \
+#     --timeout 15m
+
+global:
+  # Edition: Community Edition (free, open source)
+  edition: ce
+
+  # Domain configuration
+  hosts:
+    domain: k8s.home.rommelporras.com
+    gitlab:
+      name: gitlab.k8s.home.rommelporras.com
+      https: true
+    registry:
+      name: registry.k8s.home.rommelporras.com
+      https: true
+    # Disable external IP assignment (we use Gateway API)
+    externalIP: null
+
+  # Ingress - DISABLED (we use Cilium Gateway API with HTTPRoute)
+  ingress:
+    enabled: false
+    configureCertmanager: false
+    class: none
+
+  # Use existing secrets for initial root password
+  initialRootPassword:
+    secret: gitlab-root-password
+    key: password
+
+  # PostgreSQL password from secret (for bundled postgresql)
+  psql:
+    password:
+      secret: gitlab-postgresql-password
+      key: postgresql-password
+
+  # GitLab Shell (SSH) - for git+ssh access
+  shell:
+    port: 22
+
+  # Time zone
+  time_zone: Asia/Manila
+
+  # SMTP configuration (iCloud)
+  # Inject username at install/upgrade:
+  #   --set global.smtp.user_name="$(op read 'op://Kubernetes/iCloud SMTP/username')"
+  smtp:
+    enabled: true
+    address: smtp.mail.me.com
+    port: 587
+    user_name: SET_VIA_HELM
+    password:
+      secret: gitlab-smtp-password
+      key: password
+    domain: rommelporras.com
+    authentication: plain
+    starttls_auto: true
+  email:
+    from: noreply@rommelporras.com
+    reply_to: noreply@rommelporras.com
+
+# ─────────────────────────────────────────────────────────────────
+# DISABLED BUNDLED COMPONENTS (we have our own or don't need)
+# ─────────────────────────────────────────────────────────────────
+
+# Disable bundled cert-manager (we have our own cluster-wide)
+# Note: top-level key, not certmanager.install
+installCertmanager: false
+
+# Disable bundled nginx (we use Cilium Gateway API)
+nginx-ingress:
+  enabled: false
+
+# Disable bundled Prometheus (we use kube-prometheus-stack)
+prometheus:
+  install: false
+
+# Disable GitLab Runner (install separately for better control)
+gitlab-runner:
+  install: false
+
+# ─────────────────────────────────────────────────────────────────
+# STATEFUL COMPONENTS (in-cluster for learning, NOT for production)
+# ─────────────────────────────────────────────────────────────────
+
+# PostgreSQL subchart (Bitnami)
+postgresql:
+  install: true
+  primary:
+    persistence:
+      storageClass: longhorn
+      size: 15Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+# Redis subchart (Bitnami)
+redis:
+  install: true
+  architecture: standalone
+  master:
+    persistence:
+      storageClass: longhorn
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# ─────────────────────────────────────────────────────────────────
+# GITLAB CORE COMPONENTS
+# ─────────────────────────────────────────────────────────────────
+
+gitlab:
+  # Gitaly (Git storage backend)
+  gitaly:
+    persistence:
+      storageClass: longhorn
+      size: 50Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1.5Gi
+
+  # Webservice (main GitLab UI/API)
+  webservice:
+    # Single replica for homelab
+    minReplicas: 1
+    maxReplicas: 2
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1.5Gi
+      limits:
+        cpu: 2000m
+        memory: 3Gi
+    # Workhorse (handles Git HTTP and large file uploads)
+    workhorse:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+
+  # Sidekiq (background job processor)
+  sidekiq:
+    minReplicas: 1
+    maxReplicas: 2
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1.5Gi
+
+  # GitLab Shell (SSH access to repos)
+  gitlab-shell:
+    minReplicas: 1
+    maxReplicas: 2
+
+  # Toolbox (for rails console, rake tasks, backups)
+  toolbox:
+    enabled: true
+
+  # Migrations (database migrations on install/upgrade)
+  migrations:
+    enabled: true
+
+# ─────────────────────────────────────────────────────────────────
+# CONTAINER REGISTRY
+# ─────────────────────────────────────────────────────────────────
+
+registry:
+  enabled: true
+  storage:
+    secret: null  # Use filesystem storage
+  persistence:
+    enabled: true
+    storageClass: longhorn
+    size: 20Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

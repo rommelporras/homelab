@@ -15,8 +15,8 @@
 #   - op://Kubernetes/Grafana/password
 #   - op://Kubernetes/Discord Webhook Incidents/credential
 #   - op://Kubernetes/Discord Webhook Status/credential
-#   - op://Kubernetes/iCloud SMTP Alertmanager/username
-#   - op://Kubernetes/iCloud SMTP Alertmanager/password
+#   - op://Kubernetes/iCloud SMTP/username
+#   - op://Kubernetes/iCloud SMTP/password
 #   - op://Kubernetes/Healthchecks Ping URL/url
 # =============================================================================
 
@@ -59,8 +59,8 @@ echo -e "${YELLOW}Reading secrets from 1Password...${NC}"
 GRAFANA_PASSWORD=$(op read "op://Kubernetes/Grafana/password")
 DISCORD_INCIDENTS_WEBHOOK=$(op read "op://Kubernetes/Discord Webhook Incidents/credential")
 DISCORD_STATUS_WEBHOOK=$(op read "op://Kubernetes/Discord Webhook Status/credential")
-SMTP_USERNAME=$(op read "op://Kubernetes/iCloud SMTP Alertmanager/username")
-SMTP_PASSWORD=$(op read "op://Kubernetes/iCloud SMTP Alertmanager/password")
+SMTP_USERNAME=$(op read "op://Kubernetes/iCloud SMTP/username")
+SMTP_PASSWORD=$(op read "op://Kubernetes/iCloud SMTP/password")
 HEALTHCHECKS_PING_URL=$(op read "op://Kubernetes/Healthchecks Ping URL/url")
 
 echo -e "${GREEN}Secrets loaded successfully${NC}"

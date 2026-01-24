@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, gateway, tls, cert-manager]
-updated: 2026-01-24
+updated: 2026-01-25
 ---
 
 # Gateway API
@@ -95,6 +95,8 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 | AdGuard | https://adguard.k8s.home.rommelporras.com | adguard-http | home |
 | Homepage | https://portal.k8s.home.rommelporras.com | homepage | home |
 | Longhorn | https://longhorn.k8s.home.rommelporras.com | longhorn | longhorn-system |
+| GitLab | https://gitlab.k8s.home.rommelporras.com | gitlab | gitlab |
+| GitLab Registry | https://registry.k8s.home.rommelporras.com | gitlab-registry | gitlab |
 
 ## Adding a New Service
 

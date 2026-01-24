@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, cluster, nodes]
-updated: 2026-01-24
+updated: 2026-01-25
 ---
 
 # Cluster
@@ -57,6 +57,8 @@ ssh wawashi@k8s-cp3.home.rommelporras.com
 | cert-manager | TLS certificate management |
 | cloudflare | Cloudflare Tunnel (cloudflared) |
 | home | Home services (AdGuard, Homepage) |
+| gitlab | GitLab CE (web, gitaly, registry, sidekiq) |
+| gitlab-runner | GitLab Runner (CI/CD pipelines) |
 
 ## System
 
