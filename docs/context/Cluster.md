@@ -56,6 +56,7 @@ ssh wawashi@k8s-cp3.home.rommelporras.com
 | monitoring | Prometheus, Grafana, Loki, Alloy |
 | cert-manager | TLS certificate management |
 | cloudflare | Cloudflare Tunnel (cloudflared) |
+| cilium-secrets | Cilium TLS secrets |
 | home | Home services (AdGuard, Homepage) |
 | gitlab | GitLab CE (web, gitaly, registry, sidekiq) |
 | gitlab-runner | GitLab Runner (CI/CD pipelines) |
@@ -65,7 +66,7 @@ ssh wawashi@k8s-cp3.home.rommelporras.com
 | Setting | Value |
 |---------|-------|
 | OS | Ubuntu 24.04.3 LTS |
-| Kernel | 6.8.0-71-generic |
+| Kernel | 6.8.0-90-generic |
 | Container Runtime | containerd 1.7.x |
 | IP Assignment | DHCP with OPNsense reservations |
 

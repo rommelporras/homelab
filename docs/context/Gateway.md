@@ -31,12 +31,12 @@ Gateway API for HTTPS ingress with automatic TLS certificates.
 │    Port 80 (HTTP) │ Port 443 (HTTPS + TLS)          │
 └─────────────────────────────────────────────────────┘
                             │
-    ┌───────────┬───────────┼───────────┬───────────┐
-    ▼           ▼           ▼           ▼           ▼
-┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
-│Grafana │ │AdGuard │ │Homepage│ │Longhorn│ │ Future │
-│  :80   │ │ :3000  │ │ :3000  │ │  :80   │ │        │
-└────────┘ └────────┘ └────────┘ └────────┘ └────────┘
+    ┌───────────┬───────────┼───────────┬───────────┬───────────┐
+    ▼           ▼           ▼           ▼           ▼           ▼
+┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
+│Grafana │ │AdGuard │ │Homepage│ │Longhorn│ │ GitLab │ │Registry│
+│  :80   │ │ :3000  │ │ :3000  │ │  :80   │ │ :8181  │ │ :5000  │
+└────────┘ └────────┘ └────────┘ └────────┘ └────────┘ └────────┘
 ```
 
 ## Components
@@ -92,7 +92,7 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 | Service | URL | HTTPRoute | Namespace |
 |---------|-----|-----------|-----------|
 | Grafana | https://grafana.k8s.home.rommelporras.com | grafana | monitoring |
-| AdGuard | https://adguard.k8s.home.rommelporras.com | adguard-http | home |
+| AdGuard | https://adguard.k8s.home.rommelporras.com | adguard | home |
 | Homepage | https://portal.k8s.home.rommelporras.com | homepage | home |
 | Longhorn | https://longhorn.k8s.home.rommelporras.com | longhorn | longhorn-system |
 | GitLab | https://gitlab.k8s.home.rommelporras.com | gitlab | gitlab |

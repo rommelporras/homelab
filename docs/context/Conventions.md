@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-01-22
+updated: 2026-01-25
 ---
 
 # Conventions
@@ -60,11 +60,15 @@ homelab/
 │   ├── prometheus/values.yaml
 │   ├── loki/values.yaml
 │   ├── alloy/values.yaml
-│   └── metrics-server/values.yaml
+│   ├── metrics-server/values.yaml
+│   ├── gitlab/values.yaml
+│   └── gitlab-runner/values.yaml
 ├── manifests/               # Raw K8s manifests
 │   ├── cert-manager/
 │   ├── cilium/
+│   ├── cloudflare/          # Cloudflare Tunnel
 │   ├── gateway/
+│   ├── gitlab/              # GitLab LoadBalancer
 │   ├── home/                # Home services (AdGuard, Homepage)
 │   ├── monitoring/
 │   └── storage/             # Longhorn HTTPRoute
