@@ -24,6 +24,9 @@ defaultRules:
     InfoInhibitor: true
     # Watchdog is enabled - routes to healthchecks.io as dead man's switch
     # If alerting breaks, healthchecks.io detects missing pings and alerts via Discord
+    #
+    # CPUThrottlingHigh is NOT disabled globally - we want alerts for app workloads
+    # Monitoring namespace is silenced via Alertmanager route (see routes section)
 
 # =============================================================================
 # Prometheus
@@ -172,6 +175,17 @@ alertmanager:
           continue: false
 
         # =================================================================
+        # SILENCED: CPU throttling in monitoring namespace
+        # node-exporter and kube-state-metrics burst during scrapes - expected behavior
+        # We removed CPU limits from these, but silence the alert as backup
+        # App workloads (adguard, grafana, etc.) still get throttling alerts
+        - match:
+            alertname: CPUThrottlingHigh
+            namespace: monitoring
+          receiver: 'null'
+          continue: false
+
+        # =================================================================
         # Watchdog → healthchecks.io (dead man's switch)
         # =================================================================
         # Watchdog always fires. If it stops, healthchecks.io alerts us.
@@ -264,7 +278,8 @@ prometheus-node-exporter:
       cpu: 50m
       memory: 32Mi
     limits:
-      cpu: 200m
+      # No CPU limit - node-exporter bursts during scrapes, throttling is counterproductive
+      # CPU is compressible; memory is not. Only memory limits matter for stability.
       memory: 64Mi
 
 # =============================================================================
@@ -277,7 +292,7 @@ kube-state-metrics:
       cpu: 50m
       memory: 64Mi
     limits:
-      cpu: 200m
+      # No CPU limit - same rationale as node-exporter
       memory: 128Mi
 
 # =============================================================================
