@@ -527,7 +527,7 @@ kubectl describe nodes | grep -A5 "Conditions"
 After cluster is running:
 
 1. **Install Longhorn** — See [STORAGE_SETUP.md](STORAGE_SETUP.md)
-2. **Configure NFS mounts** — For media from Dell 5090
+2. **Configure NFS mounts** — For media from Dell 3090
 3. **Deploy first workloads** — Start with simple apps
 
 ---

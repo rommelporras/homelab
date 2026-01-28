@@ -24,7 +24,7 @@ immich/
   └── immich-ml (Deployment)
 ```
 
-- Options: Fresh deployment vs migration from Dell 5090
+- Options: Fresh deployment vs migration from Dell 3090
 - Dependencies: PostgreSQL, Redis, NFS (photos)
 - Decision pending: validate K8s stack with simpler workloads first
 
@@ -39,7 +39,7 @@ arr/
 ```
 
 - Config storage on Longhorn
-- Media files on NFS from Dell 5090
+- Media files on NFS from Dell 3090
 - Lower priority than Immich
 
 **When:** After AdGuard + Homepage are stable and you're confident with K8s workflow

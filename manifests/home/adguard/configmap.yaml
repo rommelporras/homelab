@@ -2,7 +2,7 @@
 # This gets copied to PVC on first boot via init container
 # After first boot, AdGuard manages its own config on the PVC
 #
-# Sanitized from Dell 5090 config with these changes:
+# Sanitized from Dell 3090 config with these changes:
 # - HTTP port: 80 → 3000 (non-root container)
 # - Rewrite: *.home.rommelporras.com → 10.10.30.20 (Gateway API, was NPM)
 # - safe_fs_patterns: updated for K8s paths

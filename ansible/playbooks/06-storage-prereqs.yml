@@ -5,7 +5,7 @@
 # WHAT THIS PLAYBOOK DOES:
 #   1. Creates /var/lib/longhorn directory for distributed storage
 #   2. Verifies iscsid service is running (installed in 01-prerequisites.yml)
-#   3. Installs nfs-common for mounting NFS shares from Dell 5090 NAS
+#   3. Installs nfs-common for mounting NFS shares from Dell 3090 NAS
 #
 # WHY THESE ARE NEEDED:
 #   - Longhorn stores volume data in /var/lib/longhorn on each node
@@ -77,7 +77,7 @@
     # =========================================
     # 3.1.3 Install NFS Client
     # =========================================
-    # Required for mounting NFS shares from Dell 5090 NAS
+    # Required for mounting NFS shares from Dell 3090 NAS
     # Without this, NFS PersistentVolumes will fail to mount
     #
     # USE CASE:

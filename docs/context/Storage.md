@@ -43,7 +43,7 @@ kubectl-homelab -n longhorn-system port-forward svc/longhorn-frontend 8080:80
 
 Or via: https://longhorn.k8s.home.rommelporras.com
 
-## NFS (Dell 5090)
+## NFS (Dell 3090)
 
 | Setting | Value |
 |---------|-------|

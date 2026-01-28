@@ -2,7 +2,7 @@
 # ======================================
 #
 # WHAT THIS DOES:
-#   Creates a PersistentVolume (PV) that points to your Dell 5090 NAS
+#   Creates a PersistentVolume (PV) that points to your Dell 3090 NAS
 #   This lets Kubernetes pods access media (photos, videos) stored on the NAS
 #
 # HOW PV/PVC BINDING WORKS:
@@ -116,7 +116,7 @@ spec:
   # NFS CONFIGURATION
   # The actual NFS server and path
   nfs:
-    # NFS server IP (your Dell 5090 NAS)
+    # NFS server IP (your Dell 3090 NAS)
     server: 10.10.30.4
     # Export path on the NAS
     #

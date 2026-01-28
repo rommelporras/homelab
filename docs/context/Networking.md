@@ -60,9 +60,14 @@ Network configuration for the homelab cluster.
 
 | VLAN ID | Name | Network | Purpose |
 |---------|------|---------|---------|
+| 10 | LAN | 10.10.10.0/24 | Default network |
+| 20 | TRUSTED | 10.10.20.0/24 | Workstations |
 | 30 | SERVERS | 10.10.30.0/24 | K8s nodes, services |
-| 50 | DMZ | 10.10.50.0/24 | Future public-facing |
+| 40 | IOT | 10.10.40.0/24 | Smart devices (internet-only) |
+| 50 | DMZ | 10.10.50.0/24 | Legacy public-facing services |
+| 60 | GUEST | 10.10.60.0/24 | Visitor WiFi (isolated) |
 | 69 | MGMT | 10.10.69.0/24 | Infrastructure management |
+| 70 | AP_TRUNK | — | WiFi AP trunking (all WiFi VLANs) |
 
 ## Switch
 

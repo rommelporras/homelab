@@ -28,7 +28,7 @@ Internet (Dual WAN) → OPNsense Firewall → VLAN Segmentation
 | Component | Model | Role |
 |-----------|-------|------|
 | Firewall Host | Topton N100 (6-port) | Proxmox + OPNsense VM |
-| Application Server | Dell OptiPlex 5090 | Main Proxmox host, NAS |
+| Application Server | Dell OptiPlex 3090 | Main Proxmox host, NAS |
 | Access Point | TP-Link Archer A6 | OpenWRT with VLAN tagging |
 | UPS | APC (via PeaNUT) | Battery backup with monitoring |
 
@@ -41,7 +41,7 @@ Internet (Dual WAN) → OPNsense Firewall → VLAN Segmentation
 - **LXC:** AdGuard Home (DNS filtering)
 - **Purpose:** Network edge, dual-WAN failover
 
-### PVE Node (Dell 5090)
+### PVE Node (Dell 3090)
 - **VMs:** 4 running
 - **LXC:** 6 running
 - **Purpose:** Application hosting, NAS

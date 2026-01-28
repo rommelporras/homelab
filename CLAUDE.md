@@ -37,7 +37,7 @@ homelab/
     ├── 00_PROJECT_CONTEXT.md      # Project orientation / quick reference
     ├── ARCHITECTURE.md            # Design decisions (why)
     ├── CLUSTER_STATUS.md          # Source of truth (nodes, IPs, hardware)
-    ├── EXISTING_INFRA.md          # Dell 5090 NAS integration
+    ├── EXISTING_INFRA.md          # Dell 3090 NAS integration
     ├── K8S_LEARNING_GUIDE.md      # CKA study material
     ├── K8S_v135_NOTES.md          # Kubernetes v1.35 features
     ├── KUBEADM_BOOTSTRAP.md       # Cluster bootstrap commands
@@ -112,7 +112,7 @@ cd ansible && ansible-playbook -i inventory/homelab.yml playbooks/00-preflight.y
 | Vault | Purpose |
 |-------|---------|
 | `Kubernetes` | K8s cluster credentials (Grafana, NUT, PostgreSQL, etc.) |
-| `Proxmox` | Legacy Proxmox/Dell 5090 services (do not modify) |
+| `Proxmox` | Legacy Proxmox/Dell 3090 services (do not modify) |
 
 ### Secret Reference Format
 

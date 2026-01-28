@@ -78,9 +78,9 @@ Cilium has built-in Gateway API support. No extra ingress controller needed.
 | Monitoring | Yes | Longhorn-backed storage |
 | Alerting | Yes | Discord + Email redundancy |
 | UPS Protection | Yes | Staggered graceful shutdown |
-| NAS (media) | No | Single Dell 5090 (acceptable) |
+| NAS (media) | No | Single Dell 3090 (acceptable) |
 
-## Dell 5090 Integration
+## Dell 3090 Integration
 
 **Decision:** Keep as dedicated NAS, don't add to K8s cluster.
 

@@ -20,7 +20,7 @@
 | Component | Version | Status |
 |-----------|---------|--------|
 | Ubuntu Server | 24.04.3 LTS | Installed |
-| Kernel | 6.8.0-71-generic | Installed |
+| Kernel | 6.8.0-90-generic | Installed |
 | Kubernetes | v1.35.0 | Running (3 nodes) |
 | containerd | 1.7.x | Installed |
 | Cilium | 1.18.6 | Installed |
@@ -144,7 +144,7 @@ helm-homelab repo update
 | gitlab-gitaly | 50Gi |
 | gitlab-postgresql | 15Gi |
 | gitlab-redis | 5Gi |
-| gitlab-registry | 20Gi |
+| gitlab-minio | 10Gi |
 
 ---
 

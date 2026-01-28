@@ -41,7 +41,7 @@ Every example uses YOUR actual setup (see [CLUSTER_STATUS.md](CLUSTER_STATUS.md)
 - **VIP:** 10.10.30.10 (k8s-api.home.rommelporras.com)
 - **CNI:** Cilium (NetworkPolicy enabled)
 - **Storage:** Longhorn on NVMe
-- **NAS:** Dell 5090 OMV at 10.10.30.4 (NFS)
+- **NAS:** Dell 3090 OMV at 10.10.30.4 (NFS)
 - **DNS:** AdGuard Home at 10.10.30.53
 
 ---
@@ -1047,7 +1047,7 @@ spec:
 
 ### 4.4 NFS for Media Storage
 
-**NFS PV for Immich photos (from your Dell 5090):**
+**NFS PV for Immich photos (from your Dell 3090):**
 ```yaml
 apiVersion: v1
 kind: PersistentVolume

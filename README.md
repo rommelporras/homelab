@@ -107,7 +107,7 @@
                              └───────┬───────┘
                                      │
                              ┌───────┴───────┐
-                             │   Dell 5090   │
+                             │   Dell 3090   │
                              │   NAS (OMV)   │
                              │  NFS Shares   │
                              └───────────────┘
@@ -134,7 +134,7 @@
 |--------------|----------|---------|
 | OS + etcd | NVMe (~50GB) | Ubuntu, container images, etcd |
 | Longhorn | NVMe (~400GB) | Distributed replicated storage |
-| NFS | Dell 5090 | Media files (Immich photos, ARR) |
+| NFS | Dell 3090 | Media files (Immich photos, ARR) |
 
 ---
 
@@ -149,7 +149,7 @@
 | [NETWORK_INTEGRATION.md](docs/NETWORK_INTEGRATION.md) | Network, VLANs, switch, kube-vip |
 | [KUBEADM_BOOTSTRAP.md](docs/KUBEADM_BOOTSTRAP.md) | Cluster bootstrap commands |
 | [STORAGE_SETUP.md](docs/STORAGE_SETUP.md) | Longhorn installation |
-| [EXISTING_INFRA.md](docs/EXISTING_INFRA.md) | Dell 5090 NAS integration |
+| [EXISTING_INFRA.md](docs/EXISTING_INFRA.md) | Dell 3090 NAS integration |
 | [ROADMAP.md](docs/ROADMAP.md) | Timeline and CKA schedule |
 | [K8S_LEARNING_GUIDE.md](docs/K8S_LEARNING_GUIDE.md) | CKA study material |
 
@@ -244,4 +244,4 @@ See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 | Alerting | ✅ Running | Discord + Email (3 recipients) |
 | UPS Protection | ✅ Running | NUT + staggered graceful shutdown |
 | External Access | ✅ Running | Cloudflare Tunnel (2 replicas, anti-affinity) |
-| NAS (media) | ⚠️ No HA | Single Dell 5090 (acceptable for media) |
+| NAS (media) | ⚠️ No HA | Single Dell 3090 (acceptable for media) |

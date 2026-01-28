@@ -52,7 +52,7 @@ kubectl-homelab apply -f manifest.yaml --dry-run=server
 
 ### nfs-immich.yaml
 
-Creates a PersistentVolume pointing to your Dell 5090 NAS for storing Immich media (photos, videos).
+Creates a PersistentVolume pointing to your Dell 3090 NAS for storing Immich media (photos, videos).
 
 **Key concepts:**
 - Static PV provisioning (admin creates PV manually)
