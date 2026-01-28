@@ -1,0 +1,25 @@
+# manifests/gateway/routes/portfolio-prod.yaml
+# HTTPRoute for Portfolio production environment via Cilium Gateway API
+#
+# Routes: portfolio-prod.k8s.home.rommelporras.com → portfolio:80
+# External access via Cloudflare Tunnel: www.rommelporras.com
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: portfolio
+  namespace: portfolio-prod
+spec:
+  parentRefs:
+    - name: homelab-gateway
+      namespace: default
+      sectionName: https
+  hostnames:
+    - "portfolio-prod.k8s.home.rommelporras.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: portfolio
+          port: 80

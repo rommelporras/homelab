@@ -4,9 +4,7 @@
 # 1. LoadBalancer for DNS (port 53 UDP/TCP) - external access
 # 2. ClusterIP for HTTP (port 3000) - internal, exposed via Gateway
 #
-# IP Strategy:
-#   - Testing phase: 10.10.30.55 (parallel with PVE LXC on .53)
-#   - Cutover: Change to 10.10.30.53 after stopping PVE LXC
+# IP: 10.10.30.53 (inherited from retired PVE LXC)
 ---
 apiVersion: v1
 kind: Service
@@ -15,13 +13,13 @@ metadata:
   namespace: home
   annotations:
     # Cilium L2 announcement - request specific IP for DNS
-    # TODO: Change to 10.10.30.53 after PVE LXC retirement
-    io.cilium/lb-ipam-ips: "10.10.30.55"
+    io.cilium/lb-ipam-ips: "10.10.30.53"
 spec:
   type: LoadBalancer
-  # Preserve client source IP (don't SNAT to internal pod IP)
-  # Required for AdGuard to see real client IPs in query logs
-  externalTrafficPolicy: Local
+  # Note: Using Cluster policy for reliable L2 announcement.
+  # Local policy requires pod and L2 announcement on same node.
+  # TODO: Convert to DaemonSet to restore client IP visibility.
+  externalTrafficPolicy: Cluster
   selector:
     app: adguard-home
   ports:

@@ -4,6 +4,74 @@
 
 ---
 
+## January 28, 2026 — Phase 4.7: Portfolio CI/CD Migration
+
+### Milestone: First App Deployed via GitLab CI/CD
+
+Migrated portfolio website from PVE VM Docker Compose to Kubernetes with full GitLab CI/CD pipeline. Three environments (dev, staging, prod) with GitFlow branching strategy.
+
+| Component | Status |
+|-----------|--------|
+| Portfolio (Next.js) | Running (3 environments) |
+| GitLab CI/CD | 4-stage pipeline (validate, test, build, deploy) |
+| Container Registry | Public project for anonymous pulls |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/portfolio/deployment.yaml | Deployment + Service (2 replicas) |
+| manifests/portfolio/rbac.yaml | ServiceAccount for CI/CD deploys |
+| manifests/gateway/routes/portfolio-*.yaml | HTTPRoutes for 3 environments |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Environments | dev/staging/prod | Corporate pattern learning |
+| Branching | GitFlow | develop → dev (auto), staging (manual), main → prod (auto) |
+| Registry auth | Public project | Simpler than imagePullSecrets for personal portfolio |
+| URL pattern | Flat subdomains | portfolio-dev vs portfolio.dev for wildcard TLS |
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    GitLab CI/CD Pipeline                        │
+├─────────────────────────────────────────────────────────────────┤
+│  develop branch ──► validate ──► test ──► build ──► deploy:dev  │
+│                                                    ──► deploy:staging (manual)
+│  main branch ────► validate ──► test ──► build ──► deploy:prod  │
+└─────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  portfolio-dev        portfolio-staging      portfolio-prod     │
+│  (internal only)      beta.rommelporras.com  www.rommelporras.com│
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Cloudflare Tunnel Routes
+
+| Subdomain | Target |
+|-----------|--------|
+| beta.rommelporras.com | portfolio.portfolio-staging.svc:80 |
+| www.rommelporras.com | portfolio.portfolio-prod.svc:80 |
+
+### Lessons Learned
+
+1. **RBAC needs list/watch for rollout status** - `kubectl rollout status` requires list and watch verbs on deployments and replicasets.
+
+2. **kubectl context order matters** - `set-context` must come before `use-context` in CI/CD scripts.
+
+3. **Wildcard TLS only covers one level** - `*.k8s.home...` doesn't cover `portfolio.dev.k8s.home...`. Use flat subdomains like `portfolio-dev.k8s.home...`.
+
+4. **CiliumNetworkPolicy for tunnel egress** - Cloudflared egress policy must explicitly allow each namespace it needs to reach.
+
+5. **Docker-in-Docker needs wait loop** - Add `until docker info; do sleep 2; done` before docker commands in CI.
+
+---
+
 ## January 25, 2026 — Phase 4.6: GitLab CE
 
 ### Milestone: Self-hosted DevOps Platform

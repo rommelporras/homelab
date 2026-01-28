@@ -1,0 +1,24 @@
+# manifests/gateway/routes/portfolio-dev.yaml
+# HTTPRoute for Portfolio dev environment via Cilium Gateway API
+#
+# Routes: portfolio-dev.k8s.home.rommelporras.com → portfolio:80
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: portfolio
+  namespace: portfolio-dev
+spec:
+  parentRefs:
+    - name: homelab-gateway
+      namespace: default
+      sectionName: https
+  hostnames:
+    - "portfolio-dev.k8s.home.rommelporras.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: portfolio
+          port: 80

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, cluster, nodes]
-updated: 2026-01-25
+updated: 2026-01-28
 ---
 
 # Cluster
@@ -60,6 +60,9 @@ ssh wawashi@k8s-cp3.home.rommelporras.com
 | home | Home services (AdGuard, Homepage) |
 | gitlab | GitLab CE (web, gitaly, registry, sidekiq) |
 | gitlab-runner | GitLab Runner (CI/CD pipelines) |
+| portfolio-dev | Portfolio dev environment |
+| portfolio-staging | Portfolio staging environment |
+| portfolio-prod | Portfolio production environment |
 
 ## System
 

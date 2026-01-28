@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** January 25, 2026
+> **Last Updated:** January 28, 2026
 
 ---
 
@@ -90,13 +90,13 @@ helm-homelab repo update
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
-| AdGuard Home | v0.107.71 | Running | PRIMARY DNS (10.10.30.55) for all VLANs |
+| AdGuard Home | v0.107.71 | Running | PRIMARY DNS (10.10.30.53) for all VLANs |
 | Homepage | v1.9.0 | Running | 2 replicas, multi-tab layout |
 | Glances | v3.3.1 | Running | On OMV (apt), password auth |
 | cloudflared | 2026.1.1 | Running | 2 replicas, HA tunnel to Cloudflare Edge |
 
 **DNS Configuration:**
-- Primary: 10.10.30.55 (K8s AdGuard via Cilium LoadBalancer)
+- Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
 - Secondary: 10.10.30.54 (FW LXC failover)
 
 **HTTPRoutes:**
@@ -107,11 +107,14 @@ helm-homelab repo update
 | Longhorn | longhorn.k8s.home.rommelporras.com | longhorn-system |
 | GitLab | gitlab.k8s.home.rommelporras.com | gitlab |
 | GitLab Registry | registry.k8s.home.rommelporras.com | gitlab |
+| Portfolio Dev | portfolio-dev.k8s.home.rommelporras.com | portfolio-dev |
+| Portfolio Staging | portfolio-staging.k8s.home.rommelporras.com | portfolio-staging |
+| Portfolio Prod | portfolio-prod.k8s.home.rommelporras.com | portfolio-prod |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |
 |---------|-----|------|-----------|
-| AdGuard DNS | 10.10.30.55 | 53/UDP, 53/TCP | home |
+| AdGuard DNS | 10.10.30.53 | 53/UDP, 53/TCP | home |
 | GitLab SSH | 10.10.30.21 | 22/TCP | gitlab |
 
 ---
@@ -216,10 +219,11 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-01-28 | **Portfolio CI/CD:** Migrated portfolio to GitLab CI/CD with 3-env deployment (Phase 4.7) |
 | 2026-01-25 | **GitLab CE:** Deployed v18.8.2 with Runner, Container Registry, SSH access (Phase 4.6) |
 | 2026-01-24 | **Cloudflare Tunnel:** Migrated cloudflared from DMZ LXC to K8s (Phase 4.5) |
 | 2026-01-22 | **Dead Man's Switch:** healthchecks.io monitors Alertmanager health (Phase 3.10) |
-| 2026-01-22 | **DNS Cutover:** K8s AdGuard (10.10.30.55) now PRIMARY for all VLANs |
+| 2026-01-22 | **DNS Cutover:** K8s AdGuard (10.10.30.53) now PRIMARY for all VLANs |
 | 2026-01-22 | Added: Longhorn HTTPRoute for Homepage widget access |
 | 2026-01-22 | Added: Init container pattern for Homepage settings.yaml env substitution |
 | 2026-01-22 | Installed: metrics-server v0.8.0 for Homepage K8s widget (Phase 4.3) |

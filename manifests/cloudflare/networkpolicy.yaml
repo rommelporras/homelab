@@ -44,10 +44,14 @@ spec:
       - port: "7844"
         protocol: UDP
 
-  # Portfolio namespace (www.rommelporras.com)
+  # Portfolio namespaces (staging + prod only, dev is internal)
+  # - portfolio-staging: beta.rommelporras.com
+  # - portfolio-prod: www.rommelporras.com
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: portfolio
+        k8s:io.kubernetes.pod.namespace: portfolio-staging
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: portfolio-prod
     toPorts:
     - ports:
       - port: "80"

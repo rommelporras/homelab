@@ -1,0 +1,75 @@
+# Portfolio Deployment + Service
+# Apply to each namespace: portfolio-dev, portfolio-staging, portfolio-prod
+#
+# Key concepts (CKA):
+# - Deployment manages ReplicaSets which manage Pods
+# - replicas=2 provides HA (one pod can die without downtime)
+# - livenessProbe restarts unhealthy containers
+# - readinessProbe removes pods from Service endpoint if not ready
+# - Resource requests/limits prevent noisy neighbor issues
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portfolio
+  labels:
+    app: portfolio
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: portfolio
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1        # Allow 1 extra pod during update
+      maxUnavailable: 0  # Never have less than replicas available
+  template:
+    metadata:
+      labels:
+        app: portfolio
+    spec:
+      containers:
+      - name: portfolio
+        # Placeholder image - CI/CD will patch this with actual image
+        image: registry.k8s.home.rommelporras.com/0xwsh/portfolio:latest
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portfolio
+  labels:
+    app: portfolio
+spec:
+  type: ClusterIP
+  selector:
+    app: portfolio
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http

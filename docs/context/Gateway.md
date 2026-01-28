@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, gateway, tls, cert-manager]
-updated: 2026-01-25
+updated: 2026-01-28
 ---
 
 # Gateway API
@@ -14,7 +14,7 @@ Gateway API for HTTPS ingress with automatic TLS certificates.
                             │
                             ▼
 ┌─────────────────────────────────────────────────────┐
-│              AdGuard DNS (10.10.30.55)              │
+│              AdGuard DNS (10.10.30.53)              │
 │     *.k8s.home.rommelporras.com → 10.10.30.20       │
 └─────────────────────────────────────────────────────┘
                             │
@@ -31,12 +31,12 @@ Gateway API for HTTPS ingress with automatic TLS certificates.
 │    Port 80 (HTTP) │ Port 443 (HTTPS + TLS)          │
 └─────────────────────────────────────────────────────┘
                             │
-    ┌───────────┬───────────┼───────────┬───────────┬───────────┐
-    ▼           ▼           ▼           ▼           ▼           ▼
-┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
-│Grafana │ │AdGuard │ │Homepage│ │Longhorn│ │ GitLab │ │Registry│
-│  :80   │ │ :3000  │ │ :3000  │ │  :80   │ │ :8181  │ │ :5000  │
-└────────┘ └────────┘ └────────┘ └────────┘ └────────┘ └────────┘
+    ┌───────┬───────┬───────┼───────┬───────┬───────┬─────────┐
+    ▼       ▼       ▼       ▼       ▼       ▼       ▼         ▼
+┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐┌─────────┐
+│Grafan││AdGuar││Homepg││Longh.││GitLab││Regist││Portfol││Portfolio│
+│ :80  ││:3000 ││:3000 ││ :80  ││:8181 ││:5000 ││dev:80 ││stag/prod│
+└──────┘└──────┘└──────┘└──────┘└──────┘└──────┘└──────┘└─────────┘
 ```
 
 ## Components
@@ -97,6 +97,9 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 | Longhorn | https://longhorn.k8s.home.rommelporras.com | longhorn | longhorn-system |
 | GitLab | https://gitlab.k8s.home.rommelporras.com | gitlab | gitlab |
 | GitLab Registry | https://registry.k8s.home.rommelporras.com | gitlab-registry | gitlab |
+| Portfolio Dev | https://portfolio-dev.k8s.home.rommelporras.com | portfolio | portfolio-dev |
+| Portfolio Staging | https://portfolio-staging.k8s.home.rommelporras.com | portfolio | portfolio-staging |
+| Portfolio Prod | https://portfolio-prod.k8s.home.rommelporras.com | portfolio | portfolio-prod |
 
 ## Adding a New Service
 
