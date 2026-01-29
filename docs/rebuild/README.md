@@ -13,6 +13,10 @@
 | v0.3.0 | Phase 3.1-3.4 | Storage Infrastructure (Longhorn) | [v0.3.0-storage.md](v0.3.0-storage.md) |
 | v0.4.0 | Phase 3.5-3.8 | Observability (Gateway, Monitoring, Logging, UPS) | [v0.4.0-observability.md](v0.4.0-observability.md) |
 | v0.5.0 | Phase 3.9 | Alerting (Discord, Email notifications) | [v0.5.0-alerting.md](v0.5.0-alerting.md) |
+| v0.6.0 | Phase 3.10, 4.1-4.4 | Home Services (AdGuard DNS, Homepage, Dead Man's Switch) | [v0.6.0-home-services.md](v0.6.0-home-services.md) |
+| v0.7.0 | Phase 4.5 | Cloudflare Tunnel (HA, CiliumNetworkPolicy) | [v0.7.0-cloudflare.md](v0.7.0-cloudflare.md) |
+| v0.8.0 | Phase 4.6 | GitLab CI/CD (CE, Runner, Container Registry) | [v0.8.0-gitlab.md](v0.8.0-gitlab.md) |
+| v0.9.0 | Phase 4.8.1 | DNS Alerting (Blackbox Exporter, Probe CRD) | [v0.9.0-dns-alerting.md](v0.9.0-dns-alerting.md) |
 
 ---
 
@@ -35,6 +39,18 @@ docs/rebuild/v0.4.0-observability.md
 
 # 5. Alerting - Discord and Email notifications
 docs/rebuild/v0.5.0-alerting.md
+
+# 6. Home Services - AdGuard DNS, Homepage, Dead Man's Switch
+docs/rebuild/v0.6.0-home-services.md
+
+# 7. Cloudflare Tunnel - HA external access
+docs/rebuild/v0.7.0-cloudflare.md
+
+# 8. GitLab CI/CD - Git, Runner, Container Registry
+docs/rebuild/v0.8.0-gitlab.md
+
+# 9. DNS Alerting - Blackbox exporter, synthetic DNS monitoring
+docs/rebuild/v0.9.0-dns-alerting.md
 ```
 
 ---
@@ -96,6 +112,13 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | NUT | 2.8.1 | v0.4.0 |
 | nut-exporter | 3.1.1 | v0.4.0 |
 | Alertmanager | v0.30.1 | v0.5.0 |
+| AdGuard Home | v0.107.71 | v0.6.0 |
+| Homepage | v1.9.0 | v0.6.0 |
+| metrics-server | v0.8.0 | v0.6.0 |
+| cloudflared | 2026.1.1 | v0.7.0 |
+| GitLab CE | v18.8.2 | v0.8.0 |
+| GitLab Runner | v18.8.0 | v0.8.0 |
+| blackbox-exporter | v0.28.0 | v0.9.0 |
 
 ---
 
@@ -104,33 +127,49 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 ```
 homelab/
 ├── helm/
-│   ├── cilium/values.yaml      # v0.2.0+
-│   ├── longhorn/values.yaml    # v0.3.0
-│   ├── prometheus/values.yaml  # v0.4.0
-│   ├── loki/values.yaml        # v0.4.0
-│   └── alloy/values.yaml       # v0.4.0
+│   ├── cilium/values.yaml              # v0.2.0+
+│   ├── longhorn/values.yaml            # v0.3.0
+│   ├── prometheus/values.yaml          # v0.4.0
+│   ├── loki/values.yaml                # v0.4.0
+│   ├── alloy/values.yaml               # v0.4.0
+│   ├── blackbox-exporter/values.yaml   # v0.9.0
+│   ├── gitlab/values.yaml              # v0.8.0
+│   └── gitlab-runner/values.yaml       # v0.8.0
 │
-└── manifests/
-    ├── cert-manager/           # v0.4.0
-    │   └── cluster-issuer.yaml
-    ├── cilium/                  # v0.4.0
-    │   ├── ip-pool.yaml
-    │   └── l2-announcement.yaml
-    ├── gateway/                 # v0.4.0
-    │   └── homelab-gateway.yaml
-    └── monitoring/              # v0.4.0
-        ├── grafana-httproute.yaml
-        ├── loki-datasource.yaml
-        ├── loki-servicemonitor.yaml
-        ├── alloy-servicemonitor.yaml
-        ├── logging-alerts.yaml
-        ├── nut-exporter.yaml
-        ├── ups-alerts.yaml
-        ├── ups-dashboard-configmap.yaml
-        └── test-alert.yaml         # v0.5.0
+├── manifests/
+│   ├── cert-manager/                   # v0.4.0
+│   │   └── cluster-issuer.yaml
+│   ├── cilium/                         # v0.4.0
+│   │   ├── ip-pool.yaml
+│   │   └── l2-announcement.yaml
+│   ├── gateway/                        # v0.4.0
+│   │   ├── homelab-gateway.yaml
+│   │   └── routes/
+│   │       ├── gitlab.yaml             # v0.8.0
+│   │       └── gitlab-registry.yaml    # v0.8.0
+│   ├── gitlab/                         # v0.8.0
+│   │   └── gitlab-shell-lb.yaml
+│   ├── home/                           # v0.6.0
+│   │   └── adguard/
+│   ├── cloudflare/                     # v0.7.0
+│   │   ├── deployment.yaml
+│   │   ├── networkpolicy.yaml
+│   │   └── ...
+│   └── monitoring/                     # v0.4.0
+│       ├── grafana-httproute.yaml
+│       ├── loki-datasource.yaml
+│       ├── loki-servicemonitor.yaml
+│       ├── alloy-servicemonitor.yaml
+│       ├── logging-alerts.yaml
+│       ├── nut-exporter.yaml
+│       ├── ups-alerts.yaml
+│       ├── ups-dashboard-configmap.yaml
+│       ├── test-alert.yaml             # v0.5.0
+│       ├── adguard-dns-probe.yaml      # v0.9.0
+│       └── adguard-dns-alert.yaml      # v0.9.0
 │
 ├── scripts/
-│   └── upgrade-prometheus.sh       # v0.5.0
+│   └── upgrade-prometheus.sh           # v0.5.0
 ```
 
 ---
@@ -146,3 +185,7 @@ homelab/
 | Discord Webhook Incidents | Kubernetes | v0.5.0 |
 | Discord Webhook Status | Kubernetes | v0.5.0 |
 | iCloud SMTP | Kubernetes | v0.5.0 |
+| Homepage | Kubernetes | v0.6.0 |
+| Healthchecks Ping URL | Kubernetes | v0.6.0 |
+| Cloudflare Tunnel | Kubernetes | v0.7.0 |
+| GitLab | Kubernetes | v0.8.0 |

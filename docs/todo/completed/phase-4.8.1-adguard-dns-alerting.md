@@ -1,6 +1,6 @@
 # Phase 4.8.1: AdGuard DNS Alerting
 
-> **Status:** Planned
+> **Status:** Complete
 > **Target:** v0.10.3
 > **Prerequisite:** Phase 4.8 complete (AdGuard Client IP)
 > **DevOps Topics:** Blackbox Exporter, synthetic monitoring, DNS probing
@@ -41,7 +41,7 @@ Prometheus → Blackbox Exporter → DNS query to 10.10.30.53 → AdGuard
 
 **Important:** kube-prometheus-stack does NOT bundle blackbox exporter. Install it separately.
 
-- [ ] Create values file `helm/blackbox-exporter/values.yaml`
+- [x] Create values file `helm/blackbox-exporter/values.yaml`
 
   ```yaml
   # prometheus-blackbox-exporter Helm Values
@@ -80,14 +80,14 @@ Prometheus → Blackbox Exporter → DNS query to 10.10.30.53 → AdGuard
         release: prometheus
   ```
 
-- [ ] Install blackbox exporter
+- [x] Install blackbox exporter
   ```bash
   helm-homelab install blackbox-exporter prometheus-community/prometheus-blackbox-exporter \
     --namespace monitoring \
     --values helm/blackbox-exporter/values.yaml
   ```
 
-- [ ] Enable Probe discovery in kube-prometheus-stack
+- [x] Enable Probe discovery in kube-prometheus-stack
 
   Add to `helm/prometheus/values.yaml` under `prometheus.prometheusSpec`:
 
@@ -101,18 +101,18 @@ Prometheus → Blackbox Exporter → DNS query to 10.10.30.53 → AdGuard
 
 Only needed if `probeSelectorNilUsesHelmValues: false` wasn't already in values.yaml.
 
-- [ ] Upgrade kube-prometheus-stack (use the wrapper script)
+- [x] Upgrade kube-prometheus-stack (use the wrapper script)
   ```bash
   ./scripts/upgrade-prometheus.sh
   ```
 
-- [ ] Verify blackbox exporter is running
+- [x] Verify blackbox exporter is running
   ```bash
   kubectl-homelab get pods -n monitoring | grep blackbox
   # Expected: blackbox-exporter-prometheus-blackbox-exporter-xxxxx   1/1   Running
   ```
 
-- [ ] Verify blackbox exporter service name
+- [x] Verify blackbox exporter service name
   ```bash
   kubectl-homelab get svc -n monitoring | grep blackbox
   # Expected: blackbox-exporter-prometheus-blackbox-exporter
@@ -124,7 +124,7 @@ Only needed if `probeSelectorNilUsesHelmValues: false` wasn't already in values.
 
 The Probe CRD tells Prometheus to scrape blackbox exporter with specific target/module.
 
-- [ ] Create `manifests/monitoring/adguard-dns-probe.yaml`
+- [x] Create `manifests/monitoring/adguard-dns-probe.yaml`
   ```yaml
   # AdGuard DNS synthetic monitoring
   # Probes the LoadBalancer IP to detect L2 lease misalignment
@@ -150,19 +150,19 @@ The Probe CRD tells Prometheus to scrape blackbox exporter with specific target/
           target_name: adguard-dns
   ```
 
-- [ ] Apply the Probe
+- [x] Apply the Probe
   ```bash
   kubectl-homelab apply -f manifests/monitoring/adguard-dns-probe.yaml
   ```
 
-- [ ] Verify Probe is discovered by Prometheus
+- [x] Verify Probe is discovered by Prometheus
   ```bash
   # Check Prometheus targets (via port-forward or Grafana)
   kubectl-homelab port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090 &
   # Open http://localhost:9090/targets and look for "probe/monitoring/adguard-dns"
   ```
 
-- [ ] Verify probe_success metric exists
+- [x] Verify probe_success metric exists
   ```bash
   # Query Prometheus
   curl -s "http://localhost:9090/api/v1/query?query=probe_success" | jq '.data.result[] | select(.metric.job=="adguard-dns")'
@@ -172,7 +172,7 @@ The Probe CRD tells Prometheus to scrape blackbox exporter with specific target/
 
 ## 4.8.1.4 Create Alert Rule
 
-- [ ] Create `manifests/monitoring/adguard-dns-alert.yaml`
+- [x] Create `manifests/monitoring/adguard-dns-alert.yaml`
   ```yaml
   # Alert when AdGuard DNS probe fails
   # Catches L2 lease misalignment that pod health checks miss
@@ -212,12 +212,12 @@ The Probe CRD tells Prometheus to scrape blackbox exporter with specific target/
                dig @10.10.30.53 google.com
   ```
 
-- [ ] Apply the alert rule
+- [x] Apply the alert rule
   ```bash
   kubectl-homelab apply -f manifests/monitoring/adguard-dns-alert.yaml
   ```
 
-- [ ] Verify rule is loaded in Prometheus
+- [x] Verify rule is loaded in Prometheus
   ```bash
   # Check Prometheus rules page
   # http://localhost:9090/rules - look for "adguard-dns" group
@@ -231,7 +231,7 @@ Simulate a failure to verify the full alert pipeline works.
 
 ### Option A: Delete the L2 lease (safe, real failure mode)
 
-- [ ] Note current state
+- [x] Note current state
   ```bash
   # Pod location
   kubectl-homelab get pods -n home -l app=adguard-home -o wide
@@ -240,21 +240,21 @@ Simulate a failure to verify the full alert pipeline works.
   kubectl-homelab get leases -n kube-system cilium-l2announce-home-adguard-dns -o jsonpath='{.spec.holderIdentity}'
   ```
 
-- [ ] Delete the lease to trigger re-election
+- [x] Delete the lease to trigger re-election
   ```bash
   kubectl-homelab delete lease -n kube-system cilium-l2announce-home-adguard-dns
   ```
 
-- [ ] Watch for alert (may take 2+ minutes for `for: 2m`)
+- [x] Watch for alert (may take 2+ minutes for `for: 2m`)
   ```bash
   # Check Alertmanager
   kubectl-homelab port-forward -n monitoring svc/prometheus-kube-prometheus-alertmanager 9093:9093 &
   # Open http://localhost:9093/#/alerts
   ```
 
-- [ ] Verify Discord notification received
+- [x] Verify Discord notification received
 
-- [ ] Cilium should auto-recreate lease on correct node within seconds
+- [x] Cilium should auto-recreate lease on correct node within seconds
 
 ### Option B: Block DNS port temporarily (more disruptive)
 
@@ -273,8 +273,8 @@ Simulate a failure to verify the full alert pipeline works.
 - [x] Probe appears in Prometheus targets: http://localhost:9090/targets
 - [x] `probe_success{job="adguard-dns"}` metric exists in Prometheus
 - [x] PrometheusRule loaded: http://localhost:9090/rules
-- [ ] Test alert fires correctly (optional - requires simulating failure)
-- [ ] Discord notification received for test alert (optional)
+- [x] Test alert fires correctly (tested with probe to 10.10.30.99)
+- [x] Discord notification received for test alert
 
 ---
 
@@ -329,17 +329,8 @@ VERSIONS.md                              # Added blackbox-exporter chart
 
 ## Final: Commit and Release
 
-- [ ] Commit changes
-  ```bash
-  /commit
-  ```
+- [x] Commit changes (913a039)
 
-- [ ] Release v0.10.3
-  ```bash
-  /release v0.10.3
-  ```
+- [ ] Release v0.10.3 (user will do manually)
 
-- [ ] Move this file to completed folder
-  ```bash
-  mv docs/todo/phase-4.8.1-adguard-dns-alerting.md docs/todo/completed/
-  ```
+- [x] Move this file to completed folder

@@ -24,7 +24,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | iCloud SMTP | `username`, `password`, `server`, `port` | Alertmanager, GitLab |
 | GitLab | `root-password`, `postgresql-password` | GitLab CE |
 | GitLab Runner | `runner-token` | GitLab Runner |
-| Healthchecks Ping URL | `url` | Alertmanager Watchdog (dead man's switch) |
+| Healthchecks Ping URL | `password` | Alertmanager Watchdog (dead man's switch) |
 | NUT Admin | `username`, `password` | NUT server |
 | NUT Monitor | `username`, `password` | NUT clients, nut-exporter |
 | Homepage | Multiple (see below) | Homepage dashboard widgets |
@@ -54,7 +54,7 @@ op://Kubernetes/GitLab/postgresql-password
 op://Kubernetes/GitLab Runner/runner-token
 
 # Healthchecks (dead man's switch)
-op://Kubernetes/Healthchecks Ping URL/url
+op://Kubernetes/Healthchecks Ping URL/password
 
 # NUT
 op://Kubernetes/NUT Admin/username

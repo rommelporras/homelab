@@ -55,6 +55,9 @@ Network configuration for the homelab cluster.
 | GitLab | https://gitlab.k8s.home.rommelporras.com |
 | GitLab Registry | https://registry.k8s.home.rommelporras.com |
 | GitLab SSH | ssh://git@ssh.gitlab.k8s.home.rommelporras.com |
+| Portfolio Dev | https://portfolio-dev.k8s.home.rommelporras.com |
+| Portfolio Staging | https://portfolio-staging.k8s.home.rommelporras.com |
+| Portfolio Prod | https://portfolio-prod.k8s.home.rommelporras.com |
 
 ## VLAN Configuration
 

@@ -8,7 +8,7 @@
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
 > **Owner:** Rommel Porras
-> **Last Updated:** January 28, 2026
+> **Last Updated:** January 30, 2026
 
 ---
 
@@ -40,6 +40,7 @@
 | Cloudflare Tunnel | ✅ Complete | HA tunnel (2 replicas), zero-trust access |
 | GitLab CI/CD | ✅ Complete | GitLab CE + Runner + Container Registry |
 | Portfolio CI/CD | ✅ Complete | 3-env deployment (dev/staging/prod) |
+| DNS Alerting | ✅ Complete | Blackbox exporter + synthetic DNS probe |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/CLUSTER_STATUS.md](docs/CLUSTER_STATUS.md) - Single source of truth
@@ -167,6 +168,7 @@ Step-by-step instructions to rebuild the cluster from scratch:
 | [v0.6.0-home-services](docs/rebuild/v0.6.0-home-services.md) | Phase 3.10, 4.1-4.4 | AdGuard, Homepage, Metrics Server, Dead Man's Switch |
 | [v0.7.0-cloudflare](docs/rebuild/v0.7.0-cloudflare.md) | Phase 4.5 | Cloudflare Tunnel (HA, CiliumNetworkPolicy) |
 | [v0.8.0-gitlab](docs/rebuild/v0.8.0-gitlab.md) | Phase 4.6 | GitLab CE, Runner, Container Registry |
+| [v0.9.0-dns-alerting](docs/rebuild/v0.9.0-dns-alerting.md) | Phase 4.8.1 | Blackbox exporter, synthetic DNS monitoring |
 
 ### Reference
 
@@ -218,6 +220,7 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Jan 24, 2026** | **Cloudflare Tunnel** migrated to K8s (HA, CiliumNetworkPolicy) |
 | **Jan 25, 2026** | **GitLab CE** deployed with Runner, Registry, SSH access (Phase 4.6) |
 | **Jan 28, 2026** | **Portfolio CI/CD** migrated from PVE VM to K8s (Phase 4.7) |
+| **Jan 30, 2026** | **DNS Alerting** — Blackbox exporter + synthetic DNS monitoring (Phase 4.8.1) |
 | **Coming** | Invoicetron, Uptime Kuma, Immich |
 
 See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
@@ -226,7 +229,7 @@ See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 
 ## 🚀 Next Steps
 
-1. **Migrate Invoicetron** to K8s - stateful app with PostgreSQL (Phase 4.8)
+1. **Migrate Invoicetron** to K8s - stateful app with PostgreSQL (Phase 4.9)
 2. **Deploy Uptime Kuma** for endpoint monitoring (Phase 4.10)
 3. **Deploy Immich** for photo management (Phase 4.11)
 4. **CKA Certification** - September 2026 target
@@ -241,7 +244,7 @@ See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 | Stateless Workloads | ✅ Running | AdGuard, Homepage (replicas spread) |
 | Stateful Workloads | ✅ Running | Longhorn 2x replication |
 | Monitoring | ✅ Running | Prometheus + Grafana + Loki |
-| Alerting | ✅ Running | Discord + Email (3 recipients) |
+| Alerting | ✅ Running | Discord + Email + synthetic DNS probing |
 | UPS Protection | ✅ Running | NUT + staggered graceful shutdown |
 | External Access | ✅ Running | Cloudflare Tunnel (2 replicas, anti-affinity) |
 | NAS (media) | ⚠️ No HA | Single Dell 3090 (acceptable for media) |
