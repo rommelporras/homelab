@@ -1,0 +1,32 @@
+# AdGuard DNS synthetic monitoring
+# Phase 4.8.1: Probes the LoadBalancer IP to detect L2 lease misalignment
+#
+# Why this matters:
+#   - Pod can be healthy but unreachable if L2 lease is on wrong node
+#   - externalTrafficPolicy: Local drops traffic when lease != pod node
+#   - This probe catches that failure mode (Jan 25-28 outage)
+#
+# How it works:
+#   Prometheus → Blackbox Exporter → DNS query to 10.10.30.53 → AdGuard
+#   If DNS query fails → probe_success=0 → Alert fires
+#
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: adguard-dns
+  namespace: monitoring
+  labels:
+    app: adguard-dns-probe
+spec:
+  jobName: adguard-dns  # This becomes the 'job' label in metrics
+  interval: 30s
+  module: dns_udp
+  prober:
+    # Service name: <release>-prometheus-blackbox-exporter
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - 10.10.30.53  # AdGuard LoadBalancer IP
+      labels:
+        target_name: adguard-dns

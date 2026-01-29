@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** January 29, 2026
+> **Last Updated:** January 30, 2026
 
 ---
 
@@ -46,6 +46,7 @@
 | metrics-server/metrics-server | 3.13.0 | v0.8.0 | Installed | kube-system |
 | gitlab/gitlab | 9.8.2 | v18.8.2 | Installed | gitlab |
 | gitlab/gitlab-runner | 0.85.0 | v18.8.0 | Installed | gitlab-runner |
+| prometheus-community/prometheus-blackbox-exporter | 11.7.0 | v0.28.0 | Installed | monitoring |
 
 > **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
 > Use `grafana/loki` + `grafana/alloy` instead.
@@ -62,6 +63,7 @@ helm-homelab repo add cilium https://helm.cilium.io/
 helm-homelab repo add grafana https://grafana.github.io/helm-charts
 helm-homelab repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
 helm-homelab repo add gitlab https://charts.gitlab.io
+helm-homelab repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm-homelab repo update
 # Note: cert-manager and kube-prometheus-stack use OCI - no repo add needed
 ```
@@ -219,6 +221,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-01-30 | **AdGuard DNS Alerting:** Blackbox exporter + Probe CRD for L2 lease mismatch detection (Phase 4.8.1) |
 | 2026-01-29 | **AdGuard Client IP:** Fixed externalTrafficPolicy for client IP visibility (Phase 4.8) |
 | 2026-01-28 | **Portfolio CI/CD:** Migrated portfolio to GitLab CI/CD with 3-env deployment (Phase 4.7) |
 | 2026-01-25 | **GitLab CE:** Deployed v18.8.2 with Runner, Container Registry, SSH access (Phase 4.6) |

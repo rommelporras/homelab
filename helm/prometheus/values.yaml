@@ -61,6 +61,7 @@ prometheus:
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false
     ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false  # Required for Probe CRDs (blackbox exporter)
 
 # =============================================================================
 # Grafana

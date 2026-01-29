@@ -4,6 +4,96 @@
 
 ---
 
+## January 30, 2026 — Phase 4.8.1: AdGuard DNS Alerting
+
+### Milestone: Synthetic DNS Monitoring for L2 Lease Misalignment
+
+Deployed blackbox exporter with DNS probe to detect when AdGuard is running but unreachable due to Cilium L2 lease misalignment. This directly addresses the 3-day unnoticed outage (Jan 25-28) identified in Phase 4.8.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| blackbox-exporter | v0.28.0 | Running (monitoring namespace) |
+| Probe CRD (adguard-dns) | — | Scraping every 30s |
+| PrometheusRule (AdGuardDNSUnreachable) | — | Loaded, severity: critical |
+
+### Files Added/Modified
+
+| File | Purpose |
+|------|---------|
+| helm/blackbox-exporter/values.yaml | Blackbox exporter config with dns_udp module |
+| helm/prometheus/values.yaml | Added probeSelectorNilUsesHelmValues: false |
+| manifests/monitoring/adguard-dns-probe.yaml | Probe CRD targeting 10.10.30.53 |
+| manifests/monitoring/adguard-dns-alert.yaml | PrometheusRule with runbook |
+| scripts/upgrade-prometheus.sh | Fixed Healthchecks Ping URL field name |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Blackbox exporter deployment | Separate Helm chart | kube-prometheus-stack does NOT bundle it |
+| Probe target | LoadBalancer IP (10.10.30.53) | Tests full path including L2 lease alignment |
+| DNS query domain | google.com | Universal, always resolvable |
+| Alert threshold | 2 minutes | Avoids flapping while catching real outages |
+| Alert severity | Critical | DNS is foundational; failure affects all VLANs |
+
+### Architecture
+
+```
+Prometheus → Blackbox Exporter → DNS query to 10.10.30.53 → AdGuard
+                                         │
+                                         ├─ Success: probe_success=1
+                                         └─ Failure: probe_success=0 → Alert
+```
+
+### CKA Learnings
+
+| Topic | Concept |
+|-------|---------|
+| Probe CRD | Custom resource for blackbox exporter targets |
+| PrometheusRule | Custom alert rules with PromQL expressions |
+| Synthetic monitoring | Testing from outside the system under test |
+| jobName field | Controls the `job` label in Prometheus metrics |
+
+### Lessons Learned
+
+1. **kube-prometheus-stack does NOT include blackbox exporter** — Despite the `prometheusBlackboxExporter` key existing in chart values, it requires a separate Helm chart installation.
+
+2. **probeSelectorNilUsesHelmValues must be set** — Without `probeSelectorNilUsesHelmValues: false`, Prometheus ignores Probe CRDs. Silently fails with no error.
+
+3. **Blackbox exporter has NO default DNS module** — Must explicitly configure `dns_udp` with `query_name` (required field). Without it, probe errors with no useful message.
+
+4. **Service name follows `<release>-prometheus-blackbox-exporter` pattern** — Not `<release>-kube-prometheus-blackbox-exporter` as initially assumed.
+
+5. **1Password field names must be exact** — `credential` vs `url` vs `password` — always verify with `op item get <name> --format json | jq '.fields[]'`.
+
+### Alert Runbook
+
+```
+1. Check pod node:
+   kubectl-homelab get pods -n home -l app=adguard-home -o wide
+
+2. Check L2 lease holder:
+   kubectl-homelab get leases -n kube-system cilium-l2announce-home-adguard-dns -o jsonpath='{.spec.holderIdentity}'
+
+3. If pod node != lease holder, delete lease:
+   kubectl-homelab delete lease -n kube-system cilium-l2announce-home-adguard-dns
+
+4. Verify DNS restored:
+   dig @10.10.30.53 google.com
+```
+
+### Alert Pipeline Verified
+
+| Test | Result |
+|------|--------|
+| Test probe (non-existent IP) | probe_success=0 |
+| Alert pending after 15s | ✓ |
+| Alert firing after 1m | ✓ |
+| Discord #status notification | ✓ Received |
+| Cleanup + resolved notification | ✓ Received |
+
+---
+
 ## January 29, 2026 — Phase 4.8: AdGuard Client IP Preservation
 
 ### Milestone: Fixed Client IP Visibility in AdGuard Logs

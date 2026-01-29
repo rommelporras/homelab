@@ -1,0 +1,45 @@
+# prometheus-blackbox-exporter Helm Values
+# Phase 4.8.1: Synthetic monitoring for AdGuard DNS
+#
+# Install:
+#   helm-homelab install blackbox-exporter prometheus-community/prometheus-blackbox-exporter \
+#     --namespace monitoring \
+#     --values helm/blackbox-exporter/values.yaml
+
+# Custom probe modules
+config:
+  modules:
+    # DNS over UDP - used for AdGuard DNS probing
+    dns_udp:
+      prober: dns
+      timeout: 5s
+      dns:
+        transport_protocol: udp
+        preferred_ip_protocol: ip4
+        query_name: "google.com"
+        query_type: "A"
+        valid_rcodes:
+          - NOERROR
+    # HTTP probe - useful for future service monitoring
+    http_2xx:
+      prober: http
+      timeout: 5s
+      http:
+        preferred_ip_protocol: ip4
+        valid_status_codes: []  # Defaults to 2xx
+        follow_redirects: true
+
+# Resource limits
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 64Mi
+
+# ServiceMonitor for Prometheus to scrape blackbox exporter itself
+serviceMonitor:
+  enabled: true
+  defaults:
+    labels:
+      release: prometheus  # Must match kube-prometheus-stack release name

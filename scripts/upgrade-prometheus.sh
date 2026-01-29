@@ -17,7 +17,7 @@
 #   - op://Kubernetes/Discord Webhook Status/credential
 #   - op://Kubernetes/iCloud SMTP/username
 #   - op://Kubernetes/iCloud SMTP/password
-#   - op://Kubernetes/Healthchecks Ping URL/url
+#   - op://Kubernetes/Healthchecks Ping URL/password
 # =============================================================================
 
 set -euo pipefail
@@ -61,7 +61,7 @@ DISCORD_INCIDENTS_WEBHOOK=$(op read "op://Kubernetes/Discord Webhook Incidents/c
 DISCORD_STATUS_WEBHOOK=$(op read "op://Kubernetes/Discord Webhook Status/credential")
 SMTP_USERNAME=$(op read "op://Kubernetes/iCloud SMTP/username")
 SMTP_PASSWORD=$(op read "op://Kubernetes/iCloud SMTP/password")
-HEALTHCHECKS_PING_URL=$(op read "op://Kubernetes/Healthchecks Ping URL/url")
+HEALTHCHECKS_PING_URL=$(op read "op://Kubernetes/Healthchecks Ping URL/password")
 
 echo -e "${GREEN}Secrets loaded successfully${NC}"
 echo "  - Grafana password: ****"

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-01-22
+updated: 2026-01-30
 ---
 
 # Monitoring
@@ -19,6 +19,7 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 | Alloy | v1.12.2 | monitoring |
 | node-exporter | — | monitoring |
 | nut-exporter | 3.1.1 | monitoring |
+| blackbox-exporter | v0.28.0 | monitoring |
 
 ## Access
 
@@ -108,6 +109,9 @@ See `docs/todo/deferred.md` for future fix instructions.
 | helm/prometheus/values.yaml | Alertmanager config, routes |
 | scripts/upgrade-prometheus.sh | Upgrade with 1Password secrets |
 | manifests/monitoring/test-alert.yaml | Test PrometheusRule |
+| manifests/monitoring/adguard-dns-probe.yaml | Blackbox DNS probe for AdGuard |
+| manifests/monitoring/adguard-dns-alert.yaml | Alert on DNS probe failure |
+| helm/blackbox-exporter/values.yaml | Blackbox exporter config (dns_udp module) |
 
 ## Upgrade Prometheus Stack
 
