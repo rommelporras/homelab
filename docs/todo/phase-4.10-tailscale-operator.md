@@ -1,8 +1,8 @@
-# Phase 4.9: Tailscale Kubernetes Operator
+# Phase 4.10: Tailscale Kubernetes Operator
 
-> **Status:** ⬜ Planned
-> **Target:** v0.9.0
-> **Prerequisite:** Phase 4.8 complete, services to expose exist
+> **Status:** Planned
+> **Target:** v0.12.0
+> **Prerequisite:** Phase 4.9 complete (Invoicetron), services to expose exist
 > **Priority:** Medium (quality of life - mobile access)
 > **DevOps Topics:** Mesh VPN, zero-trust networking, IngressClass
 > **CKA Topics:** Ingress, Services, RBAC, Secrets
@@ -34,9 +34,9 @@ Before starting, ensure:
 
 ---
 
-## 4.9.1 Create OAuth Credentials
+## 4.10.1 Create OAuth Credentials
 
-- [ ] 4.9.1.1 Create OAuth client in Tailscale Admin Console
+- [ ] 4.10.1.1 Create OAuth client in Tailscale Admin Console
   ```
   1. Go to https://login.tailscale.com/admin/settings/oauth
   2. Click "Generate OAuth Client"
@@ -50,7 +50,7 @@ Before starting, ensure:
   7. Copy Client ID and Client Secret (shown only once!)
   ```
 
-- [ ] 4.9.1.2 Store credentials in 1Password
+- [ ] 4.10.1.2 Store credentials in 1Password
   ```bash
   # Create item in 1Password Kubernetes vault:
   #   Item Name: Tailscale K8s Operator
@@ -66,9 +66,9 @@ Before starting, ensure:
 
 ---
 
-## 4.9.2 Configure Tailnet ACL Tags
+## 4.10.2 Configure Tailnet ACL Tags
 
-- [ ] 4.9.2.1 Add ACL tags for K8s operator
+- [ ] 4.10.2.1 Add ACL tags for K8s operator
   ```
   1. Go to https://login.tailscale.com/admin/acls
   2. Edit the ACL policy
@@ -88,20 +88,20 @@ Before starting, ensure:
 
 ---
 
-## 4.9.3 Install Operator via Helm
+## 4.10.3 Install Operator via Helm
 
-- [ ] 4.9.3.1 Add Tailscale Helm repo
+- [ ] 4.10.3.1 Add Tailscale Helm repo
   ```bash
   helm-homelab repo add tailscale https://pkgs.tailscale.com/helmcharts --force-update
   helm-homelab repo update
   ```
 
-- [ ] 4.9.3.2 Create values file directory
+- [ ] 4.10.3.2 Create values file directory
   ```bash
   mkdir -p helm/tailscale-operator
   ```
 
-- [ ] 4.9.3.3 Install operator with OAuth credentials from 1Password
+- [ ] 4.10.3.3 Install operator with OAuth credentials from 1Password
   ```bash
   eval $(op signin)
 
@@ -115,21 +115,21 @@ Before starting, ensure:
 
 ---
 
-## 4.9.4 Verify Operator Installation
+## 4.10.4 Verify Operator Installation
 
-- [ ] 4.9.4.1 Check operator pod is running
+- [ ] 4.10.4.1 Check operator pod is running
   ```bash
   kubectl-homelab get pods -n tailscale
   # Should show operator pod in Running state
   ```
 
-- [ ] 4.9.4.2 Verify IngressClass created
+- [ ] 4.10.4.2 Verify IngressClass created
   ```bash
   kubectl-homelab get ingressclass
   # Should show 'tailscale' IngressClass
   ```
 
-- [ ] 4.9.4.3 Check Tailscale admin console
+- [ ] 4.10.4.3 Check Tailscale admin console
   ```
   Go to https://login.tailscale.com/admin/machines
   Should see new device: "tailscale-operator" or similar
@@ -137,9 +137,9 @@ Before starting, ensure:
 
 ---
 
-## 4.9.5 Expose Services via Tailscale Ingress
+## 4.10.5 Expose Services via Tailscale Ingress
 
-- [ ] 4.9.5.1 Create Tailscale Ingress for Homepage
+- [ ] 4.10.5.1 Create Tailscale Ingress for Homepage
   ```bash
   kubectl-homelab apply -f manifests/home/homepage/tailscale-ingress.yaml
   ```
@@ -168,7 +168,7 @@ Before starting, ensure:
                     number: 3000
   ```
 
-- [ ] 4.9.5.2 Create Tailscale Ingress for Grafana
+- [ ] 4.10.5.2 Create Tailscale Ingress for Grafana
   ```bash
   kubectl-homelab apply -f manifests/monitoring/grafana-tailscale-ingress.yaml
   ```
@@ -197,7 +197,7 @@ Before starting, ensure:
                     number: 80
   ```
 
-- [ ] 4.9.5.3 Create additional Ingresses as needed
+- [ ] 4.10.5.3 Create additional Ingresses as needed
   ```bash
   # Longhorn UI
   # Namespace: longhorn-system, Service: longhorn-frontend, Port: 80
@@ -206,7 +206,7 @@ Before starting, ensure:
   # Namespace: home, Service: adguard-home, Port: 3000
   ```
 
-- [ ] 4.9.5.4 Verify Ingresses are provisioned
+- [ ] 4.10.5.4 Verify Ingresses are provisioned
   ```bash
   kubectl-homelab get ingress -A | grep tailscale
   # Each should show an ADDRESS (may take 1-2 minutes)
@@ -217,16 +217,16 @@ Before starting, ensure:
 
 ---
 
-## 4.9.6 Test Mobile Access
+## 4.10.6 Test Mobile Access
 
-- [ ] 4.9.6.1 Connect phone to Tailscale
+- [ ] 4.10.6.1 Connect phone to Tailscale
   ```
   1. Open Tailscale app on phone
   2. Ensure connected to your tailnet
   3. Check that MagicDNS is enabled (Settings → Use Tailscale DNS)
   ```
 
-- [ ] 4.9.6.2 Test access to exposed services
+- [ ] 4.10.6.2 Test access to exposed services
   ```
   From phone browser, navigate to:
   - https://homepage.<tailnet-name>.ts.net
@@ -236,7 +236,7 @@ Before starting, ensure:
   Example: https://homepage.tail12345.ts.net
   ```
 
-- [ ] 4.9.6.3 Verify TLS certificates
+- [ ] 4.10.6.3 Verify TLS certificates
   ```
   Click the lock icon in browser
   Certificate should be issued by "Tailscale Inc"
@@ -245,7 +245,7 @@ Before starting, ensure:
 
 ---
 
-## 4.9.7 Update Homepage Widget
+## 4.10.7 Update Homepage Widget
 
 After operator is running, update Homepage to use proper Tailscale widget:
 ```yaml
@@ -312,25 +312,25 @@ manifests/storage/longhorn/
 
 ---
 
-## 4.9.8 Documentation Updates
+## 4.10.8 Documentation Updates
 
-- [ ] 4.9.8.1 Update VERSIONS.md
+- [ ] 4.10.8.1 Update VERSIONS.md
   ```
   # Add to Infrastructure section:
   | Tailscale Operator | 1.x.x | VPN mesh access for K8s |
 
   # Add to Version History:
-  | YYYY-MM-DD | Phase 4.9: Tailscale Operator for mobile access |
+  | YYYY-MM-DD | Phase 4.10: Tailscale Operator for mobile access |
   ```
 
-- [ ] 4.9.8.2 Update docs/context/Secrets.md
+- [ ] 4.10.8.2 Update docs/context/Secrets.md
   ```
   # Add 1Password item:
   | Tailscale K8s Operator | client-id, client-secret | OAuth for operator |
   ```
 
-- [ ] 4.9.8.3 Update docs/reference/CHANGELOG.md
-  - Add Phase 4.9 section with milestone, decisions, lessons learned
+- [ ] 4.10.8.3 Update docs/reference/CHANGELOG.md
+  - Add Phase 4.10 section with milestone, decisions, lessons learned
 
 ---
 
@@ -437,12 +437,12 @@ When rebuilding on Talos Linux:
   /commit
   ```
 
-- [ ] Release v0.9.0
+- [ ] Release v0.12.0
   ```bash
-  /release v0.9.0
+  /release v0.12.0
   ```
 
 - [ ] Move this file to completed folder
   ```bash
-  mv docs/todo/phase-4.9-tailscale-operator.md docs/todo/completed/
+  mv docs/todo/phase-4.10-tailscale-operator.md docs/todo/completed/
   ```

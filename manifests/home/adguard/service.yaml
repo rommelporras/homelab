@@ -11,15 +11,16 @@ kind: Service
 metadata:
   name: adguard-dns
   namespace: home
+  labels:
+    app: adguard-home
   annotations:
     # Cilium L2 announcement - request specific IP for DNS
     io.cilium/lb-ipam-ips: "10.10.30.53"
 spec:
   type: LoadBalancer
-  # Note: Using Cluster policy for reliable L2 announcement.
-  # Local policy requires pod and L2 announcement on same node.
-  # TODO: Convert to DaemonSet to restore client IP visibility.
-  externalTrafficPolicy: Cluster
+  # Using Local policy to preserve client IP visibility.
+  # Pod pinned to k8s-cp2 via nodeSelector in deployment.yaml.
+  externalTrafficPolicy: Local
   selector:
     app: adguard-home
   ports:

@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** January 28, 2026
+> **Last Updated:** January 29, 2026
 
 ---
 
@@ -219,6 +219,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-01-29 | **AdGuard Client IP:** Fixed externalTrafficPolicy for client IP visibility (Phase 4.8) |
 | 2026-01-28 | **Portfolio CI/CD:** Migrated portfolio to GitLab CI/CD with 3-env deployment (Phase 4.7) |
 | 2026-01-25 | **GitLab CE:** Deployed v18.8.2 with Runner, Container Registry, SSH access (Phase 4.6) |
 | 2026-01-24 | **Cloudflare Tunnel:** Migrated cloudflared from DMZ LXC to K8s (Phase 4.5) |

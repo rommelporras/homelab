@@ -4,6 +4,45 @@
 
 ---
 
+## January 29, 2026 — Phase 4.8: AdGuard Client IP Preservation
+
+### Milestone: Fixed Client IP Visibility in AdGuard Logs
+
+Resolved issue where AdGuard showed node IPs instead of real client IPs. Root cause was `externalTrafficPolicy: Cluster` combined with Cilium L2 lease on wrong node.
+
+| Component | Change |
+|-----------|--------|
+| AdGuard DNS Service | externalTrafficPolicy: Cluster → Local |
+| AdGuard Deployment | nodeSelector pinned to k8s-cp2 |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Traffic policy | Local | Preserves client IP (no SNAT) |
+| Pod placement | Node pinning | Simpler than DaemonSet, keeps UI config |
+| L2 alignment | Manual lease delete | Force re-election to pod node |
+
+### CKA Learnings
+
+| Topic | Concept |
+|-------|---------|
+| externalTrafficPolicy | Cluster (SNAT, any node) vs Local (preserve IP, pod node only) |
+| Cilium L2 Announcement | Leader election via Kubernetes Leases |
+| Health Check Node Port | Auto-created for Local policy services |
+
+### Lessons Learned
+
+1. **L2 lease must match pod node for Local policy** - Traffic dropped if mismatch occurs.
+
+2. **Cilium agent restart can move L2 lease** - Caused 3-day outage (Jan 25-28) with no alerts.
+
+3. **CoreDNS IPs in AdGuard are expected** - Pods query CoreDNS which forwards to AdGuard.
+
+4. **General L2 policies can conflict with specific ones** - Delete conflicting policies before creating service-specific ones.
+
+---
+
 ## January 28, 2026 — Phase 4.7: Portfolio CI/CD Migration
 
 ### Milestone: First App Deployed via GitLab CI/CD

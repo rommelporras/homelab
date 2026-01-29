@@ -1,8 +1,8 @@
-# Phase 4.10: Uptime Kuma Monitoring
+# Phase 4.11: Uptime Kuma Monitoring
 
 > **Status:** Planned
-> **Target:** v0.9.0
-> **Prerequisite:** Phase 4.5 complete (Cloudflare Tunnel for external access)
+> **Target:** v0.13.0
+> **Prerequisite:** Phase 4.10 complete (Tailscale Operator for remote access)
 > **DevOps Topics:** Uptime monitoring, status pages, synthetic monitoring
 > **CKA Topics:** StatefulSet, PersistentVolumeClaim, HTTPRoute, SecurityContext
 
@@ -102,15 +102,15 @@
 
 ---
 
-## 4.10.1 Create Namespace
+## 4.11.1 Create Namespace
 
-- [ ] 4.10.1.1 Create namespace with restricted PSS
+- [ ] 4.11.1.1 Create namespace with restricted PSS
   ```bash
   kubectl-homelab create namespace uptime-kuma
   kubectl-homelab label namespace uptime-kuma pod-security.kubernetes.io/enforce=restricted
   ```
 
-- [ ] 4.10.1.2 Verify namespace created
+- [ ] 4.11.1.2 Verify namespace created
   ```bash
   kubectl-homelab get namespace uptime-kuma -o yaml | grep -A2 labels
   # Should show pod-security.kubernetes.io/enforce: restricted
@@ -118,14 +118,14 @@
 
 ---
 
-## 4.10.2 Create Storage
+## 4.11.2 Create Storage
 
-- [ ] 4.10.2.1 Create manifests directory
+- [ ] 4.11.2.1 Create manifests directory
   ```bash
   mkdir -p manifests/uptime-kuma
   ```
 
-- [ ] 4.10.2.2 Create PersistentVolumeClaim
+- [ ] 4.11.2.2 Create PersistentVolumeClaim
   ```yaml
   # manifests/uptime-kuma/pvc.yaml
   # 1Gi for SQLite database (actual usage ~50MB)
@@ -143,12 +143,12 @@
         storage: 1Gi
   ```
 
-- [ ] 4.10.2.3 Apply PVC
+- [ ] 4.11.2.3 Apply PVC
   ```bash
   kubectl-homelab apply -f manifests/uptime-kuma/pvc.yaml
   ```
 
-- [ ] 4.10.2.4 Verify PVC bound
+- [ ] 4.11.2.4 Verify PVC bound
   ```bash
   kubectl-homelab get pvc -n uptime-kuma
   # Should show STATUS: Bound
@@ -156,9 +156,9 @@
 
 ---
 
-## 4.10.3 Deploy Uptime Kuma
+## 4.11.3 Deploy Uptime Kuma
 
-- [ ] 4.10.3.1 Create StatefulSet manifest
+- [ ] 4.11.3.1 Create StatefulSet manifest
   ```yaml
   # manifests/uptime-kuma/statefulset.yaml
   # StatefulSet for persistent SQLite database (single replica only)
@@ -239,7 +239,7 @@
             claimName: uptime-kuma-data
   ```
 
-- [ ] 4.10.3.2 Create Service
+- [ ] 4.11.3.2 Create Service
   ```yaml
   # manifests/uptime-kuma/service.yaml
   apiVersion: v1
@@ -259,7 +259,7 @@
       protocol: TCP
   ```
 
-- [ ] 4.10.3.3 Create HTTPRoute for internal access
+- [ ] 4.11.3.3 Create HTTPRoute for internal access
   ```yaml
   # manifests/uptime-kuma/httproute.yaml
   apiVersion: gateway.networking.k8s.io/v1
@@ -283,17 +283,17 @@
         port: 3001
   ```
 
-- [ ] 4.10.3.4 Apply all manifests
+- [ ] 4.11.3.4 Apply all manifests
   ```bash
   kubectl-homelab apply -f manifests/uptime-kuma/
   ```
 
-- [ ] 4.10.3.5 Wait for pod to be ready
+- [ ] 4.11.3.5 Wait for pod to be ready
   ```bash
   kubectl-homelab rollout status statefulset/uptime-kuma -n uptime-kuma --timeout=120s
   ```
 
-- [ ] 4.10.3.6 Check pod logs
+- [ ] 4.11.3.6 Check pod logs
   ```bash
   kubectl-homelab logs -n uptime-kuma -l app=uptime-kuma --tail=50
   # Look for: "Listening on 3001"
@@ -301,37 +301,37 @@
 
 ---
 
-## 4.10.4 Configure DNS
+## 4.11.4 Configure DNS
 
-- [ ] 4.10.4.1 Add DNS record in AdGuard
+- [ ] 4.11.4.1 Add DNS record in AdGuard
   ```
   # AdGuard Home → Filters → DNS rewrites
   # Add: uptime.k8s.home.rommelporras.com → 10.10.30.20
   ```
 
-- [ ] 4.10.4.2 Verify DNS resolution
+- [ ] 4.11.4.2 Verify DNS resolution
   ```bash
   nslookup uptime.k8s.home.rommelporras.com 10.10.30.55
   # Should resolve to 10.10.30.20 (Gateway IP)
   ```
 
-- [ ] 4.10.4.3 Access Uptime Kuma UI
+- [ ] 4.11.4.3 Access Uptime Kuma UI
   ```
   https://uptime.k8s.home.rommelporras.com
   ```
 
 ---
 
-## 4.10.5 Initial Setup
+## 4.11.5 Initial Setup
 
-- [ ] 4.10.5.1 Create admin account
+- [ ] 4.11.5.1 Create admin account
   ```
   # First access prompts for admin account creation
   # Username: admin (or your preference)
   # Password: Store in 1Password
   ```
 
-- [ ] 4.10.5.2 Store credentials in 1Password
+- [ ] 4.11.5.2 Store credentials in 1Password
   ```bash
   op item create \
     --category=login \
@@ -341,7 +341,7 @@
     "password=<your-password>"
   ```
 
-- [ ] 4.10.5.3 Configure general settings
+- [ ] 4.11.5.3 Configure general settings
   ```
   Settings → General:
   - Primary Base URL: https://uptime.k8s.home.rommelporras.com
@@ -350,11 +350,11 @@
 
 ---
 
-## 4.10.6 Configure Notifications
+## 4.11.6 Configure Notifications
 
 > **Reuse existing notification channels from Alertmanager.**
 
-- [ ] 4.10.6.1 Add Discord notification
+- [ ] 4.11.6.1 Add Discord notification
   ```
   Settings → Notifications → Setup Notification:
   - Notification Type: Discord
@@ -363,7 +363,7 @@
   - Test → Should receive test message
   ```
 
-- [ ] 4.10.6.2 (Optional) Add Email notification
+- [ ] 4.11.6.2 (Optional) Add Email notification
   ```
   Settings → Notifications → Setup Notification:
   - Notification Type: SMTP
@@ -379,11 +379,11 @@
 
 ---
 
-## 4.10.7 Add Monitors
+## 4.11.7 Add Monitors
 
 ### Personal Sites
 
-- [ ] 4.10.7.1 Add rommelporras.com
+- [ ] 4.11.7.1 Add rommelporras.com
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s)
@@ -396,7 +396,7 @@
 
 ### Homelab Services
 
-- [ ] 4.10.7.2 Add Grafana
+- [ ] 4.11.7.2 Add Grafana
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s) - Keyword
@@ -407,7 +407,7 @@
   - Notification: Discord Incidents
   ```
 
-- [ ] 4.10.7.3 Add AdGuard
+- [ ] 4.11.7.3 Add AdGuard
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s)
@@ -417,7 +417,7 @@
   - Notification: Discord Incidents
   ```
 
-- [ ] 4.10.7.4 Add Homepage
+- [ ] 4.11.7.4 Add Homepage
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s)
@@ -427,7 +427,7 @@
   - Notification: Discord Incidents
   ```
 
-- [ ] 4.10.7.5 Add Longhorn
+- [ ] 4.11.7.5 Add Longhorn
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s)
@@ -439,7 +439,7 @@
 
 ### Work-Related (Add your own)
 
-- [ ] 4.10.7.6 Add work monitors as needed
+- [ ] 4.11.7.6 Add work monitors as needed
   ```
   # Example:
   Add New Monitor:
@@ -451,11 +451,11 @@
 
 ---
 
-## 4.10.8 Create Status Page (Optional)
+## 4.11.8 Create Status Page (Optional)
 
 > **Create a public status page for personal sites.**
 
-- [ ] 4.10.8.1 Create status page
+- [ ] 4.11.8.1 Create status page
   ```
   Status Pages → New Status Page:
   - Title: Rommel Porras Services
@@ -463,7 +463,7 @@
   - Add monitors: rommelporras.com, blog, etc.
   ```
 
-- [ ] 4.10.8.2 Configure Cloudflare Tunnel route (after Phase 4.5)
+- [ ] 4.11.8.2 Configure Cloudflare Tunnel route (after Phase 4.5)
   ```
   # In Cloudflare dashboard:
   # Add public hostname: status.rommelporras.com
@@ -472,17 +472,17 @@
 
 ---
 
-## 4.10.9 Backup Strategy
+## 4.11.9 Backup Strategy
 
 > **SQLite database should be backed up regularly.**
 
-- [ ] 4.10.9.1 Longhorn handles storage replication (2x)
+- [ ] 4.11.9.1 Longhorn handles storage replication (2x)
   ```bash
   # Verify Longhorn volume replication
   kubectl-homelab -n longhorn-system get volumes.longhorn.io | grep uptime-kuma
   ```
 
-- [ ] 4.10.9.2 (Optional) Enable Longhorn snapshots
+- [ ] 4.11.9.2 (Optional) Enable Longhorn snapshots
   ```bash
   # Create recurring snapshot job in Longhorn UI
   # Longhorn → Volume → uptime-kuma-data → Recurring Jobs
@@ -490,7 +490,7 @@
   # Retain: 7 snapshots
   ```
 
-- [ ] 4.10.9.3 (Optional) Export data manually
+- [ ] 4.11.9.3 (Optional) Export data manually
   ```
   # Uptime Kuma UI → Settings → Backup
   # Export JSON backup periodically
@@ -498,18 +498,18 @@
 
 ---
 
-## 4.10.10 Documentation Updates
+## 4.11.10 Documentation Updates
 
-- [ ] 4.10.10.1 Update VERSIONS.md
+- [ ] 4.11.10.1 Update VERSIONS.md
   ```markdown
   # Add to Home Services section:
   | Uptime Kuma | v2.0.2 | Running | Self-hosted uptime monitoring |
 
   # Add to Version History:
-  | YYYY-MM-DD | Phase 4.10: Uptime Kuma deployed for endpoint monitoring |
+  | YYYY-MM-DD | Phase 4.11: Uptime Kuma deployed for endpoint monitoring |
   ```
 
-- [ ] 4.10.10.2 Update docs/context/Secrets.md
+- [ ] 4.11.10.2 Update docs/context/Secrets.md
   ```markdown
   # Add 1Password item:
   | Uptime Kuma | `username`, `password` | Uptime Kuma admin login |
@@ -519,7 +519,7 @@
   op://Kubernetes/Uptime Kuma/password
   ```
 
-- [ ] 4.10.10.3 Update docs/context/Monitoring.md
+- [ ] 4.11.10.3 Update docs/context/Monitoring.md
   ```markdown
   # Add to Components table:
   | Uptime Kuma | v2.0.2 | uptime-kuma |
@@ -637,12 +637,12 @@ nslookup uptime.k8s.home.rommelporras.com
   /commit
   ```
 
-- [ ] Release v0.9.0
+- [ ] Release v0.13.0
   ```bash
-  /release v0.9.0
+  /release v0.13.0
   ```
 
 - [ ] Move this file to completed folder
   ```bash
-  mv docs/todo/phase-4.10-uptime-kuma.md docs/todo/completed/
+  mv docs/todo/phase-4.11-uptime-kuma.md docs/todo/completed/
   ```

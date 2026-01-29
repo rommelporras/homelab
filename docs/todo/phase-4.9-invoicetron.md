@@ -1,8 +1,8 @@
-# Phase 4.8: Invoicetron Migration
+# Phase 4.9: Invoicetron Migration
 
 > **Status:** Planned
-> **Target:** v0.8.2
-> **Prerequisite:** Phase 4.6 complete (GitLab CI/CD), Phase 4.7 patterns learned
+> **Target:** v0.11.0
+> **Prerequisite:** Phase 4.8 complete (AdGuard Client IP), Phase 4.7 patterns learned
 > **DevOps Topics:** StatefulSets, database migrations, secrets management, Prisma ORM
 > **CKA Topics:** StatefulSets, PVCs, Jobs, Secrets, environment variables
 
@@ -79,9 +79,9 @@ This phase introduces **stateful** applications. Understand the difference:
 
 ---
 
-## 4.8.1 Create Invoicetron Namespace
+## 4.9.1 Create Invoicetron Namespace
 
-- [ ] 4.8.1.1 Create namespace
+- [ ] 4.9.1.1 Create namespace
   ```bash
   kubectl-homelab create namespace invoicetron
   kubectl-homelab label namespace invoicetron pod-security.kubernetes.io/enforce=baseline
@@ -89,16 +89,16 @@ This phase introduces **stateful** applications. Understand the difference:
 
 ---
 
-## 4.8.2 Create Secrets
+## 4.9.2 Create Secrets
 
-- [ ] 4.8.2.1 Add credentials to 1Password Kubernetes vault
+- [ ] 4.9.2.1 Add credentials to 1Password Kubernetes vault
   ```
   # Create items:
   # - Invoicetron/postgres-password
   # - Invoicetron/better-auth-secret (64 chars: openssl rand -base64 32)
   ```
 
-- [ ] 4.8.2.2 Create K8s secrets
+- [ ] 4.9.2.2 Create K8s secrets
   ```bash
   kubectl-homelab create secret generic invoicetron-secrets \
     --from-literal=postgres-password="$(op read 'op://Kubernetes/Invoicetron/postgres-password')" \
@@ -108,9 +108,9 @@ This phase introduces **stateful** applications. Understand the difference:
 
 ---
 
-## 4.8.3 Deploy PostgreSQL
+## 4.9.3 Deploy PostgreSQL
 
-- [ ] 4.8.3.1 Create PostgreSQL StatefulSet
+- [ ] 4.9.3.1 Create PostgreSQL StatefulSet
   ```bash
   kubectl-homelab apply -f manifests/invoicetron/postgresql.yaml
   ```
@@ -191,7 +191,7 @@ This phase introduces **stateful** applications. Understand the difference:
     clusterIP: None  # Headless for StatefulSet
   ```
 
-- [ ] 4.8.3.2 Wait for PostgreSQL to be ready
+- [ ] 4.9.3.2 Wait for PostgreSQL to be ready
   ```bash
   kubectl-homelab get pods -n invoicetron -w
   kubectl-homelab logs -n invoicetron postgresql-0
@@ -199,9 +199,9 @@ This phase introduces **stateful** applications. Understand the difference:
 
 ---
 
-## 4.8.4 Create GitLab CI/CD Pipeline
+## 4.9.4 Create GitLab CI/CD Pipeline
 
-- [ ] 4.8.4.1 Create .gitlab-ci.yml in invoicetron repo
+- [ ] 4.9.4.1 Create .gitlab-ci.yml in invoicetron repo
   ```yaml
   # .gitlab-ci.yml
   stages:
@@ -288,15 +288,15 @@ This phase introduces **stateful** applications. Understand the difference:
       - main
   ```
 
-- [ ] 4.8.4.2 Create ServiceAccount for deployments (similar to portfolio)
+- [ ] 4.9.4.2 Create ServiceAccount for deployments (similar to portfolio)
 
-- [ ] 4.8.4.3 Add CI/CD variables to GitLab project
+- [ ] 4.9.4.3 Add CI/CD variables to GitLab project
 
 ---
 
-## 4.8.5 Create K8s Deployment
+## 4.9.5 Create K8s Deployment
 
-- [ ] 4.8.5.1 Create invoicetron deployment
+- [ ] 4.9.5.1 Create invoicetron deployment
   ```bash
   kubectl-homelab apply -f manifests/invoicetron/deployment.yaml
   ```
@@ -370,14 +370,14 @@ This phase introduces **stateful** applications. Understand the difference:
 
 ---
 
-## 4.8.6 Configure Access
+## 4.9.6 Configure Access
 
-- [ ] 4.8.6.1 Create HTTPRoute (internal)
+- [ ] 4.9.6.1 Create HTTPRoute (internal)
   ```bash
   kubectl-homelab apply -f manifests/gateway/routes/invoicetron.yaml
   ```
 
-- [ ] 4.8.6.2 Configure Cloudflare Tunnel (external)
+- [ ] 4.9.6.2 Configure Cloudflare Tunnel (external)
   ```
   # Cloudflare Zero Trust → Tunnels → Public Hostname
   #
@@ -390,15 +390,15 @@ This phase introduces **stateful** applications. Understand the difference:
 
 ---
 
-## 4.8.7 Migrate Data (if needed)
+## 4.9.7 Migrate Data (if needed)
 
-- [ ] 4.8.7.1 Export data from existing PostgreSQL
+- [ ] 4.9.7.1 Export data from existing PostgreSQL
   ```bash
   # On Ubuntu VM
   docker exec invoicetron-db pg_dump -U invoicetron invoicetron > backup.sql
   ```
 
-- [ ] 4.8.7.2 Import to K8s PostgreSQL
+- [ ] 4.9.7.2 Import to K8s PostgreSQL
   ```bash
   # Copy to pod and restore
   kubectl-homelab cp backup.sql invoicetron/postgresql-0:/tmp/
@@ -408,29 +408,29 @@ This phase introduces **stateful** applications. Understand the difference:
 
 ---
 
-## 4.8.8 Retire Ubuntu VM
+## 4.9.8 Retire Ubuntu VM
 
-- [ ] 4.8.8.1 Run K8s alongside VM for 1 week
+- [ ] 4.9.8.1 Run K8s alongside VM for 1 week
 
-- [ ] 4.8.8.2 Stop Docker Compose on Ubuntu VM
+- [ ] 4.9.8.2 Stop Docker Compose on Ubuntu VM
 
-- [ ] 4.8.8.3 After 1 week stable, delete/repurpose VM
+- [ ] 4.9.8.3 After 1 week stable, delete/repurpose VM
 
 ---
 
-## 4.8.9 Remove Temporary DMZ NetworkPolicy Rule
+## 4.9.9 Remove Temporary DMZ NetworkPolicy Rule
 
-> **IMPORTANT:** After both Portfolio (Phase 4.7) and Invoicetron (Phase 4.8) are running
+> **IMPORTANT:** After both Portfolio (Phase 4.7) and Invoicetron (Phase 4.9) are running
 > in K8s, the temporary DMZ rule in the cloudflared NetworkPolicy must be removed.
 
-- [ ] 4.8.9.1 Verify both services are running in K8s
+- [ ] 4.9.9.1 Verify both services are running in K8s
   ```bash
   kubectl-homelab get pods -n portfolio
   kubectl-homelab get pods -n invoicetron
   # Both should show Running pods
   ```
 
-- [ ] 4.8.9.2 Remove temporary DMZ rule from NetworkPolicy
+- [ ] 4.9.9.2 Remove temporary DMZ rule from NetworkPolicy
   ```bash
   # Edit manifests/cloudflare/networkpolicy.yaml
   # Remove the entire "TEMPORARY: DMZ VM" section:
@@ -445,19 +445,19 @@ This phase introduces **stateful** applications. Understand the difference:
   #         protocol: TCP
   ```
 
-- [ ] 4.8.9.3 Apply updated NetworkPolicy
+- [ ] 4.9.9.3 Apply updated NetworkPolicy
   ```bash
   kubectl-homelab apply -f manifests/cloudflare/networkpolicy.yaml
   ```
 
-- [ ] 4.8.9.4 Verify tunnel still works (uses K8s services now)
+- [ ] 4.9.9.4 Verify tunnel still works (uses K8s services now)
   ```bash
   curl -I https://www.rommelporras.com
   curl -I https://invoicetron.rommelporras.com
   # Both should return HTTP 200
   ```
 
-- [ ] 4.8.9.5 Run security validation script
+- [ ] 4.9.9.5 Run security validation script
   ```bash
   ./scripts/test-cloudflare-networkpolicy.sh
   # DMZ tests will now show BLOCKED (expected after migration)
@@ -465,27 +465,27 @@ This phase introduces **stateful** applications. Understand the difference:
 
 ---
 
-## 4.8.10 Documentation Updates
+## 4.9.10 Documentation Updates
 
-- [ ] 4.8.10.1 Update VERSIONS.md
+- [ ] 4.9.10.1 Update VERSIONS.md
   ```
   # Add to Applications section:
   | Invoicetron | 1.x.x | Invoice management (Next.js + Bun) |
   | PostgreSQL (Invoicetron) | 18 | Invoicetron database |
 
   # Add to Version History:
-  | YYYY-MM-DD | Phase 4.8: Invoicetron stateful migration |
+  | YYYY-MM-DD | Phase 4.9: Invoicetron stateful migration |
   ```
 
-- [ ] 4.8.10.2 Update docs/context/Secrets.md
+- [ ] 4.9.10.2 Update docs/context/Secrets.md
   ```
   # Add 1Password items:
   | Invoicetron | postgres-password | Database credentials |
   | Invoicetron | better-auth-secret | Auth session secret |
   ```
 
-- [ ] 4.8.10.3 Update docs/reference/CHANGELOG.md
-  - Add Phase 4.8 section with milestone, decisions, lessons learned
+- [ ] 4.9.10.3 Update docs/reference/CHANGELOG.md
+  - Add Phase 4.9 section with milestone, decisions, lessons learned
 
 ---
 
@@ -605,12 +605,12 @@ op read "op://Kubernetes/Invoicetron/better-auth-secret"
   /commit
   ```
 
-- [ ] Release v0.8.2
+- [ ] Release v0.11.0
   ```bash
-  /release v0.8.2
+  /release v0.11.0
   ```
 
 - [ ] Move this file to completed folder
   ```bash
-  mv docs/todo/phase-4.8-invoicetron.md docs/todo/completed/
+  mv docs/todo/phase-4.9-invoicetron.md docs/todo/completed/
   ```
