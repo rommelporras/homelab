@@ -1,0 +1,20 @@
+# Ghost Dev ClusterIP Service
+# Phase 4.12 - Ghost Blog Platform
+#
+# ClusterIP service for internal access via HTTPRoute
+# Ghost listens on port 2368 (default)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ghost
+  namespace: ghost-dev
+  labels:
+    app: ghost
+    app.kubernetes.io/part-of: ghost
+spec:
+  selector:
+    app: ghost
+  ports:
+  - port: 2368
+    targetPort: 2368

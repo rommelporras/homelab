@@ -57,6 +57,15 @@ spec:
       - port: "80"
         protocol: TCP
 
+  # Ghost prod namespace (blog.rommelporras.com)
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: ghost-prod
+    toPorts:
+    - ports:
+      - port: "2368"
+        protocol: TCP
+
   # Invoicetron namespace (invoicetron.rommelporras.com)
   - toEndpoints:
     - matchLabels:

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, cluster, nodes]
-updated: 2026-01-28
+updated: 2026-02-01
 ---
 
 # Cluster
@@ -63,6 +63,8 @@ ssh wawashi@k8s-cp3.home.rommelporras.com
 | portfolio-dev | Portfolio dev environment |
 | portfolio-staging | Portfolio staging environment |
 | portfolio-prod | Portfolio production environment |
+| ghost-dev | Ghost blog dev environment |
+| ghost-prod | Ghost blog production environment |
 
 ## System
 

@@ -4,6 +4,103 @@
 
 ---
 
+## January 31, 2026 — Phase 4.12: Ghost Blog Platform
+
+### Milestone: Self-hosted Ghost CMS with Dev/Prod Environments
+
+Deployed Ghost 6.14.0 blog platform with MySQL 8.4.8 LTS backend in two environments (ghost-dev, ghost-prod). Includes database sync scripts for prod-to-dev and prod-to-local workflows.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| Ghost | 6.14.0 | Running (ghost-dev, ghost-prod) |
+| MySQL | 8.4.8 LTS | Running (StatefulSet per environment) |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/ghost-dev/namespace.yaml | Dev namespace with PSA labels |
+| manifests/ghost-dev/secret.yaml | Placeholder (1Password imperative) |
+| manifests/ghost-dev/mysql-statefulset.yaml | MySQL StatefulSet with Longhorn 10Gi |
+| manifests/ghost-dev/mysql-service.yaml | Headless Service for MySQL DNS |
+| manifests/ghost-dev/ghost-pvc.yaml | Ghost content PVC (Longhorn 5Gi) |
+| manifests/ghost-dev/ghost-deployment.yaml | Ghost Deployment with init container |
+| manifests/ghost-dev/ghost-service.yaml | ClusterIP Service for Ghost |
+| manifests/ghost-dev/httproute.yaml | Gateway API route (internal) |
+| manifests/ghost-prod/* | Same structure for production |
+| scripts/sync-ghost-prod-to-dev.sh | Database + content sync utility |
+| scripts/sync-ghost-prod-to-local.sh | Prod database to local docker-compose |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Ghost version | 6.14.0 (Debian) | glibc compatibility, Sharp image library |
+| MySQL version | 8.4.8 LTS | 5yr premier support, 8.0.x EOL April 2026 |
+| Character set | utf8mb4 | Full unicode/emoji support in blog posts |
+| Deployment strategy | Recreate | RWO PVC cannot be mounted by two pods |
+| Gateway parentRefs | namespace: default | Corrected from plan (was kube-system) |
+| MySQL security | No container restrictions | Entrypoint requires root (chown, gosu) |
+| Ghost security | runAsNonRoot, uid 1000 | Full hardening with drop ALL capabilities |
+| Mail config | Reused iCloud SMTP | Same app-specific password as Alertmanager |
+
+### Access
+
+| Environment | Internal URL | Public URL |
+|-------------|-------------|------------|
+| Dev | blog-dev.k8s.home.rommelporras.com | — |
+| Prod | blog.k8s.home.rommelporras.com | blog.rommelporras.com (Cloudflare) |
+
+### Public Access & Security (February 1)
+
+Configured Cloudflare Tunnel for public access and WAF custom rules to protect the Ghost admin panel.
+
+| Component | Change |
+|-----------|--------|
+| Cloudflare Tunnel | Added `blog.rommelporras.com` → `http://ghost.ghost-prod.svc.cluster.local:2368` |
+| CiliumNetworkPolicy | Added ghost-prod:2368 egress rule for cloudflared |
+| Cloudflare WAF Rule 1 | Skip: Allow `/ghost/api/content` (public Content API for search) |
+| Cloudflare WAF Rule 2 | Block: All other `/ghost` paths (admin panel, Admin API) |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| manifests/cloudflare/networkpolicy.yaml | Added ghost-prod namespace egress on port 2368 |
+
+### Key Decisions (Public Access)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Tunnel protocol | HTTP (not HTTPS) | Ghost serves plain HTTP on 2368; cloudflared sends X-Forwarded-Proto: https |
+| Admin protection | WAF custom rules | Cloudflare Access has known path precedence bugs; WAF evaluates in strict order |
+| Content API | Skip rule (allow) | Sodo Search widget calls /ghost/api/content/ from browser; blocking breaks search |
+| Admin API | Block rule | /ghost/api/admin/ is write-capable; original plan would have bypassed it |
+
+### Lessons Learned (Public Access)
+
+1. **Ghost 301-redirects HTTP when url is HTTPS** — Ghost checks `X-Forwarded-Proto` header. Cloudflare Tunnel with HTTP type sends this header automatically. Using HTTPS type causes cloudflared to attempt TLS to Ghost (which doesn't support it).
+
+2. **CiliumNetworkPolicy blocks cross-namespace by default** — The cloudflared egress policy blocks all private IPs and whitelists per-namespace. New tunnel backends require an explicit egress rule.
+
+3. **Cloudflare Access path precedence is unreliable** — "Most specific path wins" has [known bugs](https://community.cloudflare.com/t/policy-inheritance-not-prioritizing-most-specific-path/820213). WAF custom rules with Skip + Block pattern is deterministic.
+
+4. **Ghost Content API vs Admin API** — Only `/ghost/api/content/` needs public access (read-only, API key auth). `/ghost/api/admin/` is write-capable (JWT auth) and should be blocked publicly.
+
+### CKA Learnings
+
+| Topic | Concept |
+|-------|---------|
+| StatefulSet | volumeClaimTemplates, headless Service, stable network identity |
+| Pod Security Admission | 3 modes (enforce/audit/warn), baseline vs restricted |
+| Init containers | wait-for pattern with busybox nc |
+| Security context | runAsNonRoot, capabilities drop/add, seccompProfile |
+| Gateway API | HTTPRoute parentRefs, cross-namespace routing |
+| Secrets | Imperative creation from 1Password, placeholder pattern |
+| CiliumNetworkPolicy | Per-namespace egress whitelisting for cross-namespace traffic |
+
+---
+
 ## January 30, 2026 — Phase 4.8.1: AdGuard DNS Alerting
 
 ### Milestone: Synthetic DNS Monitoring for L2 Lease Misalignment

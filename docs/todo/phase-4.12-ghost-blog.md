@@ -1,7 +1,7 @@
 # Phase 4.12: Ghost Blog Platform
 
-> **Status:** Planned
-> **Target:** v0.14.0
+> **Status:** In Progress
+> **Target:** v0.11.0
 > **Prerequisite:** Phase 4.8 complete (AdGuard Client IP)
 > **DevOps Topics:** CMS deployment, MySQL StatefulSet, CI/CD theme pipelines, database migrations
 > **CKA Topics:** StatefulSet, PersistentVolumeClaim, ConfigMap, Secret, HTTPRoute, multi-environment deployment
@@ -40,15 +40,17 @@ Deploy Ghost CMS to Kubernetes with two environments:
 │   └─────────────────────┘           └─────────────────────┘         │
 │                                                                      │
 │   HTTPRoute (internal)              HTTPRoute + Cloudflare Tunnel   │
-│   ghost-dev.k8s.home...             blog.rommelporras.com           │
+│   blog-dev.k8s.home...              blog.rommelporras.com           │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│   Theme Repo: gitlab.k8s.home.rommelporras.com/rommel/blog          │
-│   - Forked from Casper                                               │
+│   Theme Repo: gitlab.k8s.home.rommelporras.com/0xwsh/               │
+│               eventually-consistent                                  │
+│   - Forked from Dawn                                                 │
 │   - GitLab CI/CD builds theme zip                                    │
 │   - Deploys to Ghost via Admin API                                   │
-│   - Mirror: github.com/rommelporras/blog (private, backup)          │
+│   - Mirror: github.com/rommelporras/eventually-consistent (public)  │
+│   - Dual-remote: origin (GitLab) + github (GitHub)                  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -83,7 +85,7 @@ Deploy Ghost CMS to Kubernetes with two environments:
 
 | Environment | URL | Access |
 |-------------|-----|--------|
-| Dev | ghost-dev.k8s.home.rommelporras.com | Internal only (HTTPRoute) |
+| Dev | blog-dev.k8s.home.rommelporras.com | Internal only (HTTPRoute) |
 | Prod | blog.rommelporras.com | Public (Cloudflare Tunnel) |
 
 ---
@@ -132,7 +134,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 
 ## 4.12.1 Create Namespaces
 
-- [ ] 4.12.1.1 Create ghost-dev namespace
+- [x] 4.12.1.1 Create ghost-dev namespace
   ```yaml
   # manifests/ghost-dev/namespace.yaml
   apiVersion: v1
@@ -146,7 +148,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   kubectl-homelab apply -f manifests/ghost-dev/namespace.yaml
   ```
 
-- [ ] 4.12.1.2 Create ghost-prod namespace
+- [x] 4.12.1.2 Create ghost-prod namespace
   ```yaml
   # manifests/ghost-prod/namespace.yaml
   apiVersion: v1
@@ -164,7 +166,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 
 ## 4.12.2 Create 1Password Secrets
 
-- [ ] 4.12.2.1 Create Ghost Dev MySQL credentials in 1Password
+- [x] 4.12.2.1 Create Ghost Dev MySQL credentials in 1Password
   ```
   Vault: Kubernetes
   Item: Ghost Dev MySQL
@@ -173,7 +175,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
     - user-password: (generate with: openssl rand -hex 32)
   ```
 
-- [ ] 4.12.2.2 Create Ghost Prod MySQL credentials in 1Password
+- [x] 4.12.2.2 Create Ghost Prod MySQL credentials in 1Password
   ```
   Vault: Kubernetes
   Item: Ghost Prod MySQL
@@ -182,7 +184,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
     - user-password: (generate with: openssl rand -hex 32)
   ```
 
-- [ ] 4.12.2.3 Create Ghost Mail credentials in 1Password (or reuse existing SMTP)
+- [x] 4.12.2.3 Create Ghost Mail credentials in 1Password (or reuse existing SMTP) — reused iCloud SMTP
   ```
   Vault: Kubernetes
   Item: Ghost Mail
@@ -194,7 +196,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   Note: Port (587) is hardcoded in deployment, not stored in secret
   ```
 
-- [ ] 4.12.2.4 Create Kubernetes secrets from 1Password (dev)
+- [x] 4.12.2.4 Create Kubernetes secrets from 1Password (dev)
   ```bash
   eval $(op signin)
 
@@ -211,7 +213,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
     --from-literal=from-address="$(op read 'op://Kubernetes/Ghost Mail/from-address')"
   ```
 
-- [ ] 4.12.2.5 Create Kubernetes secrets from 1Password (prod)
+- [x] 4.12.2.5 Create Kubernetes secrets from 1Password (prod)
   ```bash
   kubectl-homelab create secret generic ghost-mysql \
     --namespace ghost-prod \
@@ -230,7 +232,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 
 ## 4.12.3 Deploy MySQL StatefulSets
 
-- [ ] 4.12.3.1 Create MySQL manifests for dev
+- [x] 4.12.3.1 Create MySQL manifests for dev
   ```bash
   mkdir -p manifests/ghost-dev
   ```
@@ -318,7 +320,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
             storage: 10Gi
   ```
 
-- [ ] 4.12.3.2 Create MySQL Service for dev
+- [x] 4.12.3.2 Create MySQL Service for dev
   ```yaml
   # manifests/ghost-dev/mysql-service.yaml
   apiVersion: v1
@@ -335,13 +337,13 @@ Ghost health endpoint: `/ghost/api/admin/site/`
     clusterIP: None
   ```
 
-- [ ] 4.12.3.3 Create MySQL manifests for prod (same structure, different namespace)
+- [x] 4.12.3.3 Create MySQL manifests for prod (same structure, different namespace)
   ```bash
   mkdir -p manifests/ghost-prod
   # Copy and modify namespace from ghost-dev to ghost-prod
   ```
 
-- [ ] 4.12.3.4 Deploy MySQL to both environments
+- [x] 4.12.3.4 Deploy MySQL to both environments
   ```bash
   kubectl-homelab apply -f manifests/ghost-dev/mysql-statefulset.yaml
   kubectl-homelab apply -f manifests/ghost-dev/mysql-service.yaml
@@ -349,7 +351,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   kubectl-homelab apply -f manifests/ghost-prod/mysql-service.yaml
   ```
 
-- [ ] 4.12.3.5 Verify MySQL is running
+- [x] 4.12.3.5 Verify MySQL is running
   ```bash
   kubectl-homelab get pods -n ghost-dev -l app=ghost-mysql
   kubectl-homelab get pods -n ghost-prod -l app=ghost-mysql
@@ -359,7 +361,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 
 ## 4.12.4 Deploy Ghost Deployments
 
-- [ ] 4.12.4.1 Create Ghost PVC for content (dev)
+- [x] 4.12.4.1 Create Ghost PVC for content (dev)
   ```yaml
   # manifests/ghost-dev/ghost-pvc.yaml
   apiVersion: v1
@@ -376,7 +378,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
         storage: 5Gi
   ```
 
-- [ ] 4.12.4.2 Create Ghost Deployment (dev)
+- [x] 4.12.4.2 Create Ghost Deployment (dev)
   ```yaml
   # manifests/ghost-dev/ghost-deployment.yaml
   apiVersion: apps/v1
@@ -406,7 +408,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
           - containerPort: 2368
           env:
           - name: url
-            value: https://ghost-dev.k8s.home.rommelporras.com
+            value: https://blog-dev.k8s.home.rommelporras.com
           # Database configuration
           - name: database__client
             value: mysql
@@ -490,7 +492,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
             claimName: ghost-content
   ```
 
-- [ ] 4.12.4.3 Create Ghost Service (dev)
+- [x] 4.12.4.3 Create Ghost Service (dev)
   ```yaml
   # manifests/ghost-dev/ghost-service.yaml
   apiVersion: v1
@@ -506,7 +508,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
       targetPort: 2368
   ```
 
-- [ ] 4.12.4.4 Create Ghost manifests for prod
+- [x] 4.12.4.4 Create Ghost manifests for prod
   ```yaml
   # manifests/ghost-prod/ghost-deployment.yaml
   # Same as dev, but change:
@@ -514,13 +516,13 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   #   - url: https://blog.rommelporras.com
   ```
 
-- [ ] 4.12.4.5 Deploy Ghost to both environments
+- [x] 4.12.4.5 Deploy Ghost to both environments
   ```bash
   kubectl-homelab apply -f manifests/ghost-dev/
   kubectl-homelab apply -f manifests/ghost-prod/
   ```
 
-- [ ] 4.12.4.6 Verify Ghost is running
+- [x] 4.12.4.6 Verify Ghost is running
   ```bash
   kubectl-homelab get pods -n ghost-dev -l app=ghost
   kubectl-homelab get pods -n ghost-prod -l app=ghost
@@ -531,7 +533,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 
 ## 4.12.5 Create HTTPRoutes and Cloudflare Tunnel
 
-- [ ] 4.12.5.1 Create HTTPRoute for dev (internal)
+- [x] 4.12.5.1 Create HTTPRoute for dev (internal)
   ```yaml
   # manifests/ghost-dev/httproute.yaml
   apiVersion: gateway.networking.k8s.io/v1
@@ -544,7 +546,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
     - name: homelab-gateway
       namespace: kube-system
     hostnames:
-    - ghost-dev.k8s.home.rommelporras.com
+    - blog-dev.k8s.home.rommelporras.com
     rules:
     - matches:
       - path:
@@ -555,7 +557,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
         port: 2368
   ```
 
-- [ ] 4.12.5.2 Create HTTPRoute for prod (internal access)
+- [x] 4.12.5.2 Create HTTPRoute for prod (internal access)
   ```yaml
   # manifests/ghost-prod/httproute.yaml
   apiVersion: gateway.networking.k8s.io/v1
@@ -568,7 +570,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
     - name: homelab-gateway
       namespace: kube-system
     hostnames:
-    - ghost.k8s.home.rommelporras.com
+    - blog.k8s.home.rommelporras.com
     rules:
     - matches:
       - path:
@@ -579,7 +581,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
         port: 2368
   ```
 
-- [ ] 4.12.5.3 Update Cloudflare Tunnel config for public prod access
+- [x] 4.12.5.3 Update Cloudflare Tunnel config for public prod access
   ```
   # Cloudflare Tunnel uses Dashboard configuration (token-based), not ConfigMap
   # Go to: Cloudflare Zero Trust → Networks → Tunnels → homelab → Public Hostname
@@ -590,14 +592,14 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   #   URL: ghost.ghost-prod.svc.cluster.local:2368
   ```
 
-- [ ] 4.12.5.4 Apply HTTPRoutes
+- [x] 4.12.5.4 Apply HTTPRoutes
   ```bash
   kubectl-homelab apply -f manifests/ghost-dev/httproute.yaml
   kubectl-homelab apply -f manifests/ghost-prod/httproute.yaml
   # Note: No cloudflared restart needed - Cloudflare Dashboard changes are instant
   ```
 
-- [ ] 4.12.5.5 Add DNS record in Cloudflare (if not using wildcard)
+- [x] 4.12.5.5 Add DNS record in Cloudflare (if not using wildcard)
   ```
   Type: CNAME
   Name: blog
@@ -605,10 +607,10 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   Proxy: ON
   ```
 
-- [ ] 4.12.5.6 Verify access
+- [x] 4.12.5.6 Verify access
   ```bash
   # Internal dev
-  curl -I https://ghost-dev.k8s.home.rommelporras.com
+  curl -I https://blog-dev.k8s.home.rommelporras.com
 
   # Public prod
   curl -I https://blog.rommelporras.com
@@ -616,21 +618,111 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 
 ---
 
-## 4.12.6 Create Theme Repo in GitLab
+## 4.12.5b Cloudflare Security — Block Public `/ghost` Admin Access
 
-- [ ] 4.12.6.1 Theme folder prepared
-  ```bash
-  # Already created at ~/personal/blog
-  # Contains: CLAUDE.md, docker-compose.dev.yml, .gitlab-ci.yml,
-  # Handlebars templates, CSS, JS, and all necessary files
-  cd ~/personal/blog
+> **Why?** The `/ghost` path is the Ghost admin portal. Public access exposes the login page to brute force attacks.
+> Internal access via `blog.k8s.home.rommelporras.com/ghost/` is unaffected (bypasses Cloudflare entirely).
+
+### Approach: WAF Custom Rules (two ordered rules)
+
+> **Why WAF over Cloudflare Access?** Access path precedence ("most specific path wins") has
+> [known bugs](https://community.cloudflare.com/t/policy-inheritance-not-prioritizing-most-specific-path/820213)
+> where broader rules override more specific ones. WAF custom rules evaluate in strict order —
+> deterministic and reliable. Admin access is available internally via the `.home.rommelporras.com`
+> domain, so external authenticated access is unnecessary.
+
+#### Ghost `/ghost/*` path classification (from research):
+
+| Path | Purpose | Public? |
+|------|---------|---------|
+| `/ghost/` | Admin panel (Ember.js SPA) | No — admin only |
+| `/ghost/api/content/*` | Content API (search, headless frontends) | **Yes — required by Sodo Search** |
+| `/ghost/api/admin/*` | Admin API (create posts, upload themes) | No — admin only |
+| `/ghost/*` (all other) | Admin SPA assets (JS/CSS bundles) | No — admin only |
+
+> **Note:** Hash routes (`/ghost/#/dashboard`) are never sent to the server — Cloudflare only
+> sees `/ghost`. Portal/comments/membership use `/members/api/` (outside `/ghost/`), unaffected.
+
+- [x] 4.12.5b.1 Create WAF Rule 1: Allow Ghost Content API
+  ```
+  Cloudflare Dashboard → Security → WAF → Custom Rules → Create Rule
+
+  Rule name: Ghost - Allow Content API
+  Expression (edit expression):
+    (http.host eq "blog.rommelporras.com" and
+     starts_with(http.request.uri.path, "/ghost/api/content"))
+
+  Action: Skip → Skip all remaining custom rules
+
+  Priority: This rule MUST be ordered ABOVE the block rule (Rule 2).
+
+  Why: Ghost's Sodo Search widget calls /ghost/api/content/posts/,
+       /ghost/api/content/tags/, and /ghost/api/content/authors/ from
+       the browser. Blocking this breaks public site search.
+       The Content API is read-only and requires a public API key parameter.
   ```
 
-- [ ] 4.12.6.2 Local development docker-compose (already created in ~/personal/blog)
+- [x] 4.12.5b.2 Create WAF Rule 2: Block Ghost Admin
+  ```
+  Cloudflare Dashboard → Security → WAF → Custom Rules → Create Rule
+
+  Rule name: Ghost - Block Admin
+  Expression (edit expression):
+    (http.host eq "blog.rommelporras.com" and
+     starts_with(http.request.uri.path, "/ghost"))
+
+  Action: Block
+
+  Priority: This rule MUST be ordered BELOW the skip rule (Rule 1).
+
+  Why: Blocks /ghost/ (admin panel), /ghost/api/admin/ (Admin API),
+       and all other /ghost/* paths (admin SPA assets).
+       Content API traffic never reaches this rule because Rule 1 skips it.
+  ```
+
+- [x] 4.12.5b.3 Verify WAF protection
+  ```bash
+  # Should return 403 Forbidden (blocked by WAF)
+  curl -sI https://blog.rommelporras.com/ghost/ | head -5
+
+  # Should return 403 Forbidden (Admin API also blocked)
+  curl -sI https://blog.rommelporras.com/ghost/api/admin/site/ | head -5
+
+  # Should return 200 OK (Content API allowed through)
+  curl -s https://blog.rommelporras.com/ghost/api/content/settings/?key=placeholder | head -5
+
+  # Public blog should work normally
+  curl -sI https://blog.rommelporras.com/ | head -5
+
+  # Internal access still works directly (bypasses Cloudflare)
+  curl -sI https://blog.k8s.home.rommelporras.com/ghost/ | head -5
+  ```
+
+### Rejected: Cloudflare Access approach
+
+> Two Access apps (`/ghost/api` Bypass + `/ghost` Allow) was the original plan but rejected because:
+> 1. Access path precedence has [known bugs](https://community.cloudflare.com/t/policy-inheritance-not-prioritizing-most-specific-path/820213) — broader rules sometimes override specific ones
+> 2. Bypass policy on `/ghost/api` would expose the Admin API (`/ghost/api/admin/`) — only `/ghost/api/content/` should be public
+> 3. Bypass disables audit logging — no visibility into API access
+> 4. WAF rules evaluate in strict order — deterministic and debuggable
+
+---
+
+## 4.12.6 Create Theme Repo in GitLab
+
+- [x] 4.12.6.1 Theme folder prepared
+  ```bash
+  # Created at ~/personal/eventually-consistent
+  # Contains: CLAUDE.md, docker-compose.dev.yml, .gitlab-ci.yml,
+  # Handlebars templates, CSS, JS, and all necessary files
+  cd ~/personal/eventually-consistent
+  ```
+
+- [x] 4.12.6.2 Local development docker-compose (already created in ~/personal/eventually-consistent)
 
   Key configuration includes utf8mb4 charset and health checks:
   ```yaml
-  # docker-compose.dev.yml (summary - full file in ~/personal/blog)
+  # docker-compose.dev.yml (summary - full file in ~/personal/eventually-consistent)
   services:
     ghost:
       image: ghost:6.14.0
@@ -647,15 +739,20 @@ Ghost health endpoint: `/ghost/api/admin/site/`
         - --collation-server=utf8mb4_0900_ai_ci
   ```
 
-- [ ] 4.12.6.3 Create GitLab repo and push
+- [x] 4.12.6.3 Create GitLab repo and push
   ```bash
-  # Create repo in GitLab UI first: gitlab.k8s.home.rommelporras.com/rommel/blog
-  cd ~/personal/blog
-  git init
-  git remote add origin git@ssh.gitlab.k8s.home.rommelporras.com:rommel/blog.git
+  # GitLab: gitlab.k8s.home.rommelporras.com/0xwsh/eventually-consistent
+  cd ~/personal/eventually-consistent
+  git init -b main
+  git remote add origin git@ssh.gitlab.k8s.home.rommelporras.com:0xwsh/eventually-consistent.git
+  git remote add github git@github.com:rommelporras/eventually-consistent.git
   git add .
-  git commit -m "feat: initial theme based on Casper"
+  git commit -m "feat: eventually-consistent Ghost theme"
   git push -u origin main
+  git push -u github main
+  git checkout -b develop
+  git push -u origin develop
+  git push -u github develop
   ```
 
 ---
@@ -665,7 +762,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 > **Note:** Steps 4.12.7.1-4.12.7.2 require Ghost Admin access. Complete 4.12.10.3 first
 > (initial Ghost setup), then return here to create API integrations.
 
-- [ ] 4.12.7.1 Create Ghost Admin API integrations (after Ghost Admin is accessible)
+- [x] 4.12.7.1 Create Ghost Admin API integrations (after Ghost Admin is accessible)
   ```
   1. Go to Ghost Admin → Settings → Integrations
   2. Create "GitLab CI/CD" integration (do this in BOTH dev and prod)
@@ -675,17 +772,17 @@ Ghost health endpoint: `/ghost/api/admin/site/`
      - Item: Ghost Prod Admin API (key field)
   ```
 
-- [ ] 4.12.7.2 Add CI/CD variables in GitLab
+- [x] 4.12.7.2 Add CI/CD variables in GitLab
   ```
   Settings → CI/CD → Variables:
 
-  GHOST_DEV_URL = https://ghost-dev.k8s.home.rommelporras.com
+  GHOST_DEV_URL = https://blog-dev.k8s.home.rommelporras.com
   GHOST_DEV_ADMIN_API_KEY = (from 1Password)
   GHOST_PROD_URL = https://blog.rommelporras.com
   GHOST_PROD_ADMIN_API_KEY = (from 1Password)
   ```
 
-- [ ] 4.12.7.3 Create .gitlab-ci.yml (already created in ~/personal/blog)
+- [x] 4.12.7.3 Create .gitlab-ci.yml (already created in ~/personal/blog)
 
   **Important:** Ghost Admin API requires JWT authentication, not raw API keys.
   The pipeline generates a JWT token from the `id:secret` format API key.
@@ -698,7 +795,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
     - deploy
 
   variables:
-    THEME_NAME: blog
+    THEME_NAME: eventually-consistent
 
   deploy-dev:
     stage: deploy
@@ -736,12 +833,12 @@ Ghost health endpoint: `/ghost/api/admin/site/`
       - if: $CI_COMMIT_BRANCH == "develop"
   ```
 
-- [ ] 4.12.7.4 Add npm scripts for theme building
+- [x] 4.12.7.4 Add npm scripts for theme building
   ```json
   // package.json (add to scripts)
   {
     "scripts": {
-      "zip": "npm run build && zip -r dist/blog.zip . -x 'node_modules/*' -x '.git/*' -x 'dist/*'"
+      "zip": "npm run build && zip -r dist/eventually-consistent.zip . -x 'node_modules/*' -x '.git/*' -x 'dist/*'"
     }
   }
   ```
@@ -750,30 +847,31 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 
 ## 4.12.8 Set Up GitHub Mirror
 
-- [ ] 4.12.8.1 Create private GitHub repo
+> **Approach changed:** Instead of GitLab push mirror, using dual-remote setup with `/push` command.
+> This gives explicit control over when both remotes are updated.
+
+- [x] 4.12.8.1 Create public GitHub repo
   ```
-  github.com/rommelporras/blog (private)
+  github.com/rommelporras/eventually-consistent (public)
   ```
 
-- [ ] 4.12.8.2 Configure GitLab push mirror
-  ```
-  GitLab → Settings → Repository → Mirroring repositories
-
-  Git repository URL: https://github.com/rommelporras/blog.git
-  Mirror direction: Push
-  Authentication method: Password (use GitHub PAT)
-  ```
-
-- [ ] 4.12.8.3 Verify mirror sync
+- [x] 4.12.8.2 Configure dual-remote (replaced GitLab push mirror)
   ```bash
-  # After pushing to GitLab, check GitHub shows the commits
+  # Remotes configured in 4.12.6.3:
+  # origin → GitLab (primary, CI/CD)
+  # github → GitHub (public mirror/showcase)
+  #
+  # Use /push command to push current branch to both remotes
+  # Use /release command for full GitFlow release to both remotes
   ```
+
+- [x] 4.12.8.3 Verify mirror sync — both remotes in sync at v1.0.0
 
 ---
 
 ## 4.12.9 Create Database Sync Script
 
-- [ ] 4.12.9.1 Create sync script
+- [x] 4.12.9.1 Create sync script
   ```bash
   # scripts/sync-ghost-prod-to-dev.sh
   #!/bin/bash
@@ -816,7 +914,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   echo "Updating site URL in dev database..."
   kubectl-homelab exec -n ${DEV_NS} ghost-mysql-0 -- \
     mysql -u ghost -p"$(kubectl-homelab get secret -n ${DEV_NS} ghost-mysql -o jsonpath='{.data.user-password}' | base64 -d)" \
-    -e "UPDATE ghost.settings SET value='https://ghost-dev.k8s.home.rommelporras.com' WHERE \`key\`='url';" \
+    -e "UPDATE ghost.settings SET value='https://blog-dev.k8s.home.rommelporras.com' WHERE \`key\`='url';" \
     ghost
 
   # 6. Copy content to dev pod (after scaling up)
@@ -834,10 +932,10 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 
   echo "=== Sync complete! ==="
   echo "Backup retained at: ${BACKUP_DIR}"
-  echo "Dev URL: https://ghost-dev.k8s.home.rommelporras.com"
+  echo "Dev URL: https://blog-dev.k8s.home.rommelporras.com"
   ```
 
-- [ ] 4.12.9.2 Create local sync script
+- [x] 4.12.9.2 Create local sync script
   ```bash
   # scripts/sync-ghost-prod-to-local.sh
   #!/bin/bash
@@ -846,7 +944,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   # Sync Ghost production to local docker-compose
   # Usage: ./scripts/sync-ghost-prod-to-local.sh <theme-repo-path>
 
-  THEME_PATH="${1:-$HOME/personal/blog}"
+  THEME_PATH="${1:-$HOME/personal/eventually-consistent}"
   PROD_NS="ghost-prod"
   BACKUP_DIR="/tmp/ghost-backup-$(date +%Y%m%d-%H%M%S)"
 
@@ -873,7 +971,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   echo "  docker compose -f docker-compose.dev.yml up -d ghost"
   ```
 
-- [ ] 4.12.9.3 Make scripts executable
+- [x] 4.12.9.3 Make scripts executable
   ```bash
   chmod +x scripts/sync-ghost-prod-to-dev.sh
   chmod +x scripts/sync-ghost-prod-to-local.sh
@@ -883,27 +981,13 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 
 ## 4.12.10 Verification & Smoke Tests
 
-- [ ] 4.12.10.1 Verify MySQL connectivity
-  ```bash
-  # Dev
-  kubectl-homelab exec -n ghost-dev ghost-mysql-0 -- mysql -u ghost -p -e "SHOW DATABASES;"
+- [x] 4.12.10.1 Verify MySQL connectivity — confirmed by Ghost running successfully in both environments
 
-  # Prod
-  kubectl-homelab exec -n ghost-prod ghost-mysql-0 -- mysql -u ghost -p -e "SHOW DATABASES;"
+- [x] 4.12.10.2 Verify Ghost health — confirmed by Ghost Admin accessible and blog serving traffic in both environments
+
+- [x] 4.12.10.3 Access Ghost Admin and complete setup (dev + prod done)
   ```
-
-- [ ] 4.12.10.2 Verify Ghost health
-  ```bash
-  # Dev (Ghost 5+ uses /ghost/api/admin/site/, not /v4/)
-  kubectl-homelab exec -n ghost-dev -l app=ghost -- wget -qO- http://localhost:2368/ghost/api/admin/site/
-
-  # Prod
-  kubectl-homelab exec -n ghost-prod -l app=ghost -- wget -qO- http://localhost:2368/ghost/api/admin/site/
-  ```
-
-- [ ] 4.12.10.3 Access Ghost Admin and complete setup
-  ```
-  Dev: https://ghost-dev.k8s.home.rommelporras.com/ghost/
+  Dev: https://blog-dev.k8s.home.rommelporras.com/ghost/
   Prod: https://blog.rommelporras.com/ghost/
 
   1. Create admin account (first-time setup wizard)
@@ -913,34 +997,27 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   IMPORTANT: After this step, go back to 4.12.7.1 to create Admin API integrations
   ```
 
-- [ ] 4.12.10.4 Test theme deployment pipeline
+- [x] 4.12.10.4 Test theme deployment pipeline (dev pipeline passed)
   ```bash
-  cd ~/personal/blog
-  git checkout -b develop
-  # Make a small CSS change
-  git commit -am "test: verify CI/CD pipeline"
-  git push -u origin develop
-  # Verify theme deploys to dev
+  cd ~/personal/eventually-consistent
+  # On develop branch, make changes, then:
+  # /commit → /push → verify theme deploys to dev
   ```
 
-- [ ] 4.12.10.5 Test mail delivery
-  ```
-  Ghost Admin → Settings → Labs → Send test email
-  Verify email received
-  ```
+- [x] 4.12.10.5 Test mail delivery — confirmed working (2FA emails and admin account creation)
 
-- [ ] 4.12.10.6 Test database sync script
+- [~] 4.12.10.6 Database sync scripts — ready but untested (fixed path: `blog` → `eventually-consistent`)
   ```bash
-  # Create a test post in prod, then sync to dev
-  ./scripts/sync-ghost-prod-to-dev.sh
-  # Verify post appears in dev
+  # Scripts prepared and reviewed, not yet run:
+  ./scripts/sync-ghost-prod-to-dev.sh    # Prod → Dev (K8s)
+  ./scripts/sync-ghost-prod-to-local.sh  # Prod → Local (Docker)
   ```
 
 ---
 
 ## 4.12.11 Documentation Updates
 
-- [ ] 4.12.11.1 Update VERSIONS.md
+- [x] 4.12.11.1 Update VERSIONS.md
   ```markdown
   ## Home Services (Phase 4)
 
@@ -953,11 +1030,11 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   **HTTPRoutes:**
   | Service | URL | Namespace |
   |---------|-----|-----------|
-  | Ghost Dev | ghost-dev.k8s.home.rommelporras.com | ghost-dev |
+  | Ghost Dev | blog-dev.k8s.home.rommelporras.com | ghost-dev |
   | Ghost Prod | blog.rommelporras.com (Cloudflare) | ghost-prod |
   ```
 
-- [ ] 4.12.11.2 Update docs/context/Secrets.md
+- [x] 4.12.11.2 Update docs/context/Secrets.md
   ```markdown
   | Item | Fields | Used By |
   |------|--------|---------|
@@ -968,10 +1045,10 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   | Ghost Mail | smtp-host, smtp-user, smtp-password, from-address | Ghost email |
   ```
 
-- [ ] 4.12.11.3 Update docs/reference/CHANGELOG.md
+- [x] 4.12.11.3 Update docs/reference/CHANGELOG.md
   - Add Phase 4.12 section with decisions and learnings
 
-- [ ] 4.12.11.4 Update Homepage dashboard (optional)
+- [x] 4.12.11.4 Update Homepage dashboard — added Blog (Dev) and Blog (Prod) to Apps section
   ```yaml
   # Add Ghost to services.yaml
   - Ghost Blog:
@@ -984,19 +1061,20 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 
 ## Verification Checklist
 
-- [ ] `ghost-dev` and `ghost-prod` namespaces exist
-- [ ] MySQL StatefulSets running (1 pod each)
-- [ ] Ghost Deployments running (1 pod each)
-- [ ] PVCs bound (ghost-content + mysql-data per environment)
-- [ ] HTTPRoutes resolving internally
-- [ ] Cloudflare Tunnel routing `blog.rommelporras.com` to prod
-- [ ] Ghost Admin accessible and setup complete
-- [ ] Theme repo exists in GitLab
-- [ ] GitLab CI/CD variables configured
-- [ ] Theme deploys on push to develop/main
-- [ ] GitHub mirror syncing
-- [ ] Mail delivery working
-- [ ] Database sync scripts functional
+- [x] `ghost-dev` and `ghost-prod` namespaces exist
+- [x] MySQL StatefulSets running (1 pod each)
+- [x] Ghost Deployments running (1 pod each)
+- [x] PVCs bound (ghost-content + mysql-data per environment)
+- [x] HTTPRoutes resolving internally
+- [x] Cloudflare Tunnel routing `blog.rommelporras.com` to prod
+- [x] WAF rules protecting `/ghost` admin path (public)
+- [x] Ghost Admin accessible and setup complete (dev + prod done)
+- [x] Theme repo exists in GitLab
+- [x] GitLab CI/CD variables configured (dev + prod done)
+- [x] Theme deploys on push to develop (dev pipeline passed)
+- [x] GitHub mirror syncing (dual-remote, both at v1.0.0)
+- [x] Mail delivery working (2FA + admin account creation)
+- [~] Database sync scripts ready (untested)
 
 ---
 
@@ -1098,14 +1176,14 @@ scripts/
 ├── sync-ghost-prod-to-dev.sh
 └── sync-ghost-prod-to-local.sh
 
-# In separate blog repo:
-blog/
+# In separate theme repo (~/personal/eventually-consistent):
+eventually-consistent/
 ├── .gitlab-ci.yml
 ├── docker-compose.dev.yml
 ├── package.json
-├── backup/
-│   └── .gitkeep
-└── (Casper theme files)
+├── CLAUDE.md
+├── README.md
+└── eventually-consistent/    # Ghost theme (forked from Dawn)
 ```
 
 ---
@@ -1129,10 +1207,11 @@ blog/
 When customizing the theme:
 
 1. **Local development:** Run `docker compose -f docker-compose.dev.yml up`
-2. **Live reload:** Edit files, Ghost auto-detects changes, refresh browser
+2. **Live reload:** Edit files, run `gulp build` + restart Ghost, refresh browser
 3. **Test with real content:** Use `sync-ghost-prod-to-local.sh` to get production data
-4. **Deploy to dev:** Push to `develop` branch → CI/CD deploys automatically
-5. **Deploy to prod:** Merge to `main` branch → CI/CD deploys automatically
+4. **Commit:** Use `/commit` for conventional commit messages
+5. **Deploy to dev:** Use `/push` to push `develop` to both remotes → CI/CD deploys automatically
+6. **Deploy to prod:** Use `/release` for full GitFlow release (develop→main merge, tag, gh release)
 
 **Theme structure:**
 - `*.hbs` - Handlebars templates (index, post, page, etc.)
@@ -1150,9 +1229,9 @@ When customizing the theme:
   /commit
   ```
 
-- [ ] Release v0.14.0
+- [ ] Release v0.11.0
   ```bash
-  /release v0.14.0
+  /release v0.11.0
   ```
 
 - [ ] Move this file to completed folder

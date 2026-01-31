@@ -1,0 +1,23 @@
+# Ghost Prod content PVC (images, themes, uploaded files)
+# Phase 4.12 - Ghost Blog Platform
+#
+# RWO access mode - requires Recreate deployment strategy
+# Longhorn provides 2x replication across NVMe drives
+#
+# CKA topic: PersistentVolumeClaim, storageClassName, accessModes
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ghost-content
+  namespace: ghost-prod
+  labels:
+    app: ghost
+    app.kubernetes.io/part-of: ghost
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi

@@ -1,0 +1,31 @@
+# HTTPRoute for Ghost Prod (internal access via Gateway)
+# URL: https://blog.k8s.home.rommelporras.com
+#
+# Gateway API Architecture:
+#   Client -> Gateway (10.10.30.20:443) -> HTTPRoute -> Service -> Pod
+#
+# Public access is via Cloudflare Tunnel (blog.rommelporras.com)
+# which routes directly to ghost.ghost-prod.svc.cluster.local:2368
+#
+# CKA topic: Gateway API (replaces Ingress), cross-namespace routing, parentRefs
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ghost
+  namespace: ghost-prod
+spec:
+  parentRefs:
+    - name: homelab-gateway
+      namespace: default
+      sectionName: https
+  hostnames:
+    - blog.k8s.home.rommelporras.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: ghost
+          port: 2368

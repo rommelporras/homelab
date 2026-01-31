@@ -1,0 +1,141 @@
+# Ghost Prod Deployment
+# Phase 4.12 - Ghost Blog Platform
+#
+# Ghost 6.14.0 (Debian Bookworm) with MySQL backend
+# Init container waits for MySQL readiness before Ghost starts
+# Recreate strategy required due to RWO PVC
+# Public access via Cloudflare Tunnel (blog.rommelporras.com)
+#
+# CKA topics: Init containers, security context (runAsNonRoot, drop ALL),
+#             liveness/readiness probes, Recreate vs RollingUpdate strategy
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ghost
+  namespace: ghost-prod
+  labels:
+    app: ghost
+    app.kubernetes.io/part-of: ghost
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Required: RWO PVC cannot be mounted by two pods
+  selector:
+    matchLabels:
+      app: ghost
+  template:
+    metadata:
+      labels:
+        app: ghost
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      # Wait for MySQL to be ready before starting Ghost
+      initContainers:
+      - name: wait-for-mysql
+        image: busybox:1.36
+        command: ['sh', '-c', 'until nc -z ghost-mysql 3306; do echo "Waiting for MySQL..."; sleep 2; done; echo "MySQL is ready!"']
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+      containers:
+      - name: ghost
+        image: ghost:6.14.0
+        ports:
+        - containerPort: 2368
+        env:
+        - name: url
+          value: https://blog.rommelporras.com
+        # Database configuration
+        - name: database__client
+          value: mysql
+        - name: database__connection__host
+          value: ghost-mysql
+        - name: database__connection__port
+          value: "3306"
+        - name: database__connection__user
+          value: ghost
+        - name: database__connection__password
+          valueFrom:
+            secretKeyRef:
+              name: ghost-mysql
+              key: user-password
+        - name: database__connection__database
+          value: ghost
+        - name: database__connection__charset
+          value: utf8mb4
+        # Mail configuration (iCloud SMTP with STARTTLS)
+        - name: mail__transport
+          value: SMTP
+        - name: mail__options__host
+          valueFrom:
+            secretKeyRef:
+              name: ghost-mail
+              key: smtp-host
+        - name: mail__options__port
+          value: "587"
+        - name: mail__options__secure
+          value: "false"  # STARTTLS (port 587), not implicit TLS (port 465)
+        - name: mail__options__auth__user
+          valueFrom:
+            secretKeyRef:
+              name: ghost-mail
+              key: smtp-user
+        - name: mail__options__auth__pass
+          valueFrom:
+            secretKeyRef:
+              name: ghost-mail
+              key: smtp-password
+        - name: mail__from
+          valueFrom:
+            secretKeyRef:
+              name: ghost-mail
+              key: from-address
+        # Logging
+        - name: logging__level
+          value: info
+        - name: logging__transports
+          value: '["stdout"]'
+        volumeMounts:
+        - name: ghost-content
+          mountPath: /var/lib/ghost/content
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        livenessProbe:
+          httpGet:
+            path: /ghost/api/admin/site/
+            port: 2368
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ghost/api/admin/site/
+            port: 2368
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: ghost-content
+        persistentVolumeClaim:
+          claimName: ghost-content

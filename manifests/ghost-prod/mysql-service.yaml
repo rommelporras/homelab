@@ -1,0 +1,23 @@
+# Headless Service for Ghost Prod MySQL StatefulSet
+# Phase 4.12 - Ghost Blog Platform
+#
+# clusterIP: None creates a headless Service for StatefulSet DNS
+# Ghost connects via: ghost-mysql.ghost-prod.svc.cluster.local
+#
+# CKA topic: Headless Service (clusterIP: None), StatefulSet DNS
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ghost-mysql
+  namespace: ghost-prod
+  labels:
+    app: ghost-mysql
+    app.kubernetes.io/part-of: ghost
+spec:
+  selector:
+    app: ghost-mysql
+  ports:
+  - port: 3306
+    targetPort: 3306
+  clusterIP: None

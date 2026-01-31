@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-01-30
+updated: 2026-02-01
 ---
 
 # Monitoring

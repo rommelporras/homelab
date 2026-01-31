@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password]
-updated: 2026-01-25
+updated: 2026-02-01
 ---
 
 # Secrets
@@ -28,6 +28,11 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | NUT Admin | `username`, `password` | NUT server |
 | NUT Monitor | `username`, `password` | NUT clients, nut-exporter |
 | Homepage | Multiple (see below) | Homepage dashboard widgets |
+| Ghost Dev MySQL | `root-password`, `user-password` | ghost-dev MySQL StatefulSet |
+| Ghost Prod MySQL | `root-password`, `user-password` | ghost-prod MySQL StatefulSet |
+| Ghost Dev Admin API | `key` | GitLab CI/CD (dev theme deploy) |
+| Ghost Prod Admin API | `key` | GitLab CI/CD (prod theme deploy) |
+| iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
 
 ## 1Password Paths
 
@@ -61,6 +66,20 @@ op://Kubernetes/NUT Admin/username
 op://Kubernetes/NUT Admin/password
 op://Kubernetes/NUT Monitor/username
 op://Kubernetes/NUT Monitor/password
+
+# Ghost MySQL (dev)
+op://Kubernetes/Ghost Dev MySQL/root-password
+op://Kubernetes/Ghost Dev MySQL/user-password
+
+# Ghost MySQL (prod)
+op://Kubernetes/Ghost Prod MySQL/root-password
+op://Kubernetes/Ghost Prod MySQL/user-password
+
+# Ghost Admin API (GitLab CI/CD theme deployment)
+op://Kubernetes/Ghost Dev Admin API/key
+op://Kubernetes/Ghost Prod Admin API/key
+
+# Ghost Mail (reuses iCloud SMTP - see above)
 
 # Homepage (widget credentials)
 op://Kubernetes/Homepage/proxmox-pve-user

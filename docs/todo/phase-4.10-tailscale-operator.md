@@ -1,7 +1,7 @@
 # Phase 4.10: Tailscale Kubernetes Operator
 
 > **Status:** Planned
-> **Target:** v0.12.0
+> **Target:** v0.14.0
 > **Prerequisite:** Phase 4.9 complete (Invoicetron), services to expose exist
 > **Priority:** Medium (quality of life - mobile access)
 > **DevOps Topics:** Mesh VPN, zero-trust networking, IngressClass

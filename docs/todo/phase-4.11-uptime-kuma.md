@@ -1,8 +1,8 @@
 # Phase 4.11: Uptime Kuma Monitoring
 
 > **Status:** Planned
-> **Target:** v0.13.0
-> **Prerequisite:** Phase 4.10 complete (Tailscale Operator for remote access)
+> **Target:** v0.12.0
+> **Prerequisite:** Phase 4.12 complete (Ghost Blog)
 > **DevOps Topics:** Uptime monitoring, status pages, synthetic monitoring
 > **CKA Topics:** StatefulSet, PersistentVolumeClaim, HTTPRoute, SecurityContext
 

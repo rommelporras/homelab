@@ -1,7 +1,7 @@
 # Phase 4.9: Invoicetron Migration
 
 > **Status:** Planned
-> **Target:** v0.11.0
+> **Target:** v0.13.0
 > **Prerequisite:** Phase 4.8 complete (AdGuard Client IP), Phase 4.7 patterns learned
 > **DevOps Topics:** StatefulSets, database migrations, secrets management, Prisma ORM
 > **CKA Topics:** StatefulSets, PVCs, Jobs, Secrets, environment variables

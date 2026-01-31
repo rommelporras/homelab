@@ -180,6 +180,20 @@
           username: "{{HOMEPAGE_VAR_GRAFANA_USER}}"
           password: "{{HOMEPAGE_VAR_GRAFANA_PASS}}"
 
+    - Blog (Dev):
+        icon: ghost.png
+        href: https://blog-dev.k8s.home.rommelporras.com
+        description: Ghost Dev Environment
+        statusStyle: dot
+        siteMonitor: https://blog-dev.k8s.home.rommelporras.com
+
+    - Blog (Prod):
+        icon: ghost.png
+        href: https://blog.rommelporras.com
+        description: blog.rommelporras.com
+        statusStyle: dot
+        siteMonitor: https://blog.rommelporras.com
+
 - Health:
     - UPS Status:
         icon: mdi-battery-charging

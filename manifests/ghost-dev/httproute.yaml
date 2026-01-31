@@ -1,0 +1,30 @@
+# HTTPRoute for Ghost Dev (internal access)
+# URL: https://blog-dev.k8s.home.rommelporras.com
+#
+# Gateway API Architecture:
+#   Client -> Gateway (10.10.30.20:443) -> HTTPRoute -> Service -> Pod
+#
+# The Gateway handles TLS termination using the wildcard cert.
+#
+# CKA topic: Gateway API (replaces Ingress), cross-namespace routing, parentRefs
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ghost
+  namespace: ghost-dev
+spec:
+  parentRefs:
+    - name: homelab-gateway
+      namespace: default
+      sectionName: https
+  hostnames:
+    - blog-dev.k8s.home.rommelporras.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: ghost
+          port: 2368

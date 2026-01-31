@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-01-25
+updated: 2026-02-01
 ---
 
 # Conventions
@@ -68,12 +68,16 @@ homelab/
 │   ├── cilium/
 │   ├── cloudflare/          # Cloudflare Tunnel
 │   ├── gateway/
+│   ├── ghost-dev/           # Ghost blog dev environment
+│   ├── ghost-prod/          # Ghost blog production environment
 │   ├── gitlab/              # GitLab LoadBalancer
 │   ├── home/                # Home services (AdGuard, Homepage)
 │   ├── monitoring/
 │   └── storage/             # Longhorn HTTPRoute
 ├── scripts/                 # Automation scripts
-│   └── upgrade-prometheus.sh
+│   ├── upgrade-prometheus.sh
+│   ├── sync-ghost-prod-to-dev.sh
+│   └── sync-ghost-prod-to-local.sh
 ├── docs/
 │   ├── context/             # This knowledge base
 │   └── rebuild/             # Step-by-step rebuild guides

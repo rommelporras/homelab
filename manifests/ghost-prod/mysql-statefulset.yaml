@@ -1,0 +1,95 @@
+# MySQL StatefulSet for Ghost Prod
+# Phase 4.12 - Ghost Blog Platform
+#
+# MySQL 8.4.8 LTS with utf8mb4 charset for full unicode/emoji support
+# Uses caching_sha2_password (default in 8.4, mysql_native_password deprecated)
+# Longhorn volumeClaimTemplates for persistent storage
+#
+# CKA topic: StatefulSet vs Deployment, volumeClaimTemplates, headless Service
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ghost-mysql
+  namespace: ghost-prod
+  labels:
+    app: ghost-mysql
+    app.kubernetes.io/part-of: ghost
+spec:
+  serviceName: ghost-mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ghost-mysql
+  template:
+    metadata:
+      labels:
+        app: ghost-mysql
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: mysql
+        image: mysql:8.4.8
+        args:
+          - --character-set-server=utf8mb4
+          - --collation-server=utf8mb4_0900_ai_ci
+        ports:
+        - containerPort: 3306
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ghost-mysql
+              key: root-password
+        - name: MYSQL_DATABASE
+          value: ghost
+        - name: MYSQL_USER
+          value: ghost
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ghost-mysql
+              key: user-password
+        volumeMounts:
+        - name: mysql-data
+          mountPath: /var/lib/mysql
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        # Note: MySQL entrypoint requires root (chown, setgid/setuid, gosu)
+        # Cannot restrict capabilities — PSA enforce:baseline allows this
+        livenessProbe:
+          exec:
+            command:
+              - mysqladmin
+              - ping
+              - -h
+              - localhost
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+              - mysqladmin
+              - ping
+              - -h
+              - localhost
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: longhorn
+      resources:
+        requests:
+          storage: 10Gi

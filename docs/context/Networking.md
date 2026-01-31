@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, networking, dns, vlan]
-updated: 2026-01-25
+updated: 2026-02-01
 ---
 
 # Networking
@@ -58,6 +58,9 @@ Network configuration for the homelab cluster.
 | Portfolio Dev | https://portfolio-dev.k8s.home.rommelporras.com |
 | Portfolio Staging | https://portfolio-staging.k8s.home.rommelporras.com |
 | Portfolio Prod | https://portfolio-prod.k8s.home.rommelporras.com |
+| Ghost Dev | https://blog-dev.k8s.home.rommelporras.com |
+| Ghost Prod (internal) | https://blog.k8s.home.rommelporras.com |
+| Ghost Prod (public) | https://blog.rommelporras.com |
 
 ## VLAN Configuration
 

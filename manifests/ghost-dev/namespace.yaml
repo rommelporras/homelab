@@ -1,0 +1,12 @@
+# Ghost Dev namespace for theme development and testing
+# Phase 4.12 - Ghost Blog Platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ghost-dev
+  labels:
+    app.kubernetes.io/part-of: ghost
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

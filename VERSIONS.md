@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** January 30, 2026
+> **Last Updated:** February 1, 2026
 
 ---
 
@@ -88,7 +88,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.5 complete. Cloudflare Tunnel running in K8s with HA.
+> **Status:** Phase 4.12 complete. Ghost blog deployed with dev + prod environments.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -96,6 +96,9 @@ helm-homelab repo update
 | Homepage | v1.9.0 | Running | 2 replicas, multi-tab layout |
 | Glances | v3.3.1 | Running | On OMV (apt), password auth |
 | cloudflared | 2026.1.1 | Running | 2 replicas, HA tunnel to Cloudflare Edge |
+| Ghost (Dev) | 6.14.0 | Running | Theme development, internal access |
+| Ghost (Prod) | 6.14.0 | Running | Public blog via Cloudflare Tunnel |
+| MySQL (Ghost) | 8.4.8 | Running | LTS, per-environment StatefulSets |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -112,6 +115,9 @@ helm-homelab repo update
 | Portfolio Dev | portfolio-dev.k8s.home.rommelporras.com | portfolio-dev |
 | Portfolio Staging | portfolio-staging.k8s.home.rommelporras.com | portfolio-staging |
 | Portfolio Prod | portfolio-prod.k8s.home.rommelporras.com | portfolio-prod |
+| Ghost Dev | blog-dev.k8s.home.rommelporras.com | ghost-dev |
+| Ghost Prod | blog.k8s.home.rommelporras.com | ghost-prod |
+| Ghost Prod (public) | blog.rommelporras.com (Cloudflare Tunnel) | ghost-prod |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |
@@ -221,6 +227,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-01-31 | **Ghost Blog:** Deployed Ghost 6.14.0 + MySQL 8.4.8 LTS with dev/prod environments, HTTPRoutes, sync scripts (Phase 4.12) |
 | 2026-01-30 | **AdGuard DNS Alerting:** Blackbox exporter + Probe CRD for L2 lease mismatch detection (Phase 4.8.1) |
 | 2026-01-29 | **AdGuard Client IP:** Fixed externalTrafficPolicy for client IP visibility (Phase 4.8) |
 | 2026-01-28 | **Portfolio CI/CD:** Migrated portfolio to GitLab CI/CD with 3-env deployment (Phase 4.7) |

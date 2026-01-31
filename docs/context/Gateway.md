@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, gateway, tls, cert-manager]
-updated: 2026-01-28
+updated: 2026-02-01
 ---
 
 # Gateway API
@@ -34,9 +34,9 @@ Gateway API for HTTPS ingress with automatic TLS certificates.
     ┌───────┬───────┬───────┼───────┬───────┬───────┬─────────┐
     ▼       ▼       ▼       ▼       ▼       ▼       ▼         ▼
 ┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐┌─────────┐
-│Grafan││AdGuar││Homepg││Longh.││GitLab││Regist││Portfol││Portfolio│
-│ :80  ││:3000 ││:3000 ││ :80  ││:8181 ││:5000 ││dev:80 ││stag/prod│
-└──────┘└──────┘└──────┘└──────┘└──────┘└──────┘└──────┘└─────────┘
+│Grafan││AdGuar││Homepg││Longh.││GitLab││Regist││Portfol││Portfolio││Ghost ││Ghost │
+│ :80  ││:3000 ││:3000 ││ :80  ││:8181 ││:5000 ││dev:80 ││stag/prod││dev   ││prod  │
+└──────┘└──────┘└──────┘└──────┘└──────┘└──────┘└──────┘└─────────┘└──────┘└──────┘
 ```
 
 ## Components
@@ -100,6 +100,8 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 | Portfolio Dev | https://portfolio-dev.k8s.home.rommelporras.com | portfolio | portfolio-dev |
 | Portfolio Staging | https://portfolio-staging.k8s.home.rommelporras.com | portfolio | portfolio-staging |
 | Portfolio Prod | https://portfolio-prod.k8s.home.rommelporras.com | portfolio | portfolio-prod |
+| Ghost Dev | https://blog-dev.k8s.home.rommelporras.com | ghost | ghost-dev |
+| Ghost Prod | https://blog.k8s.home.rommelporras.com | ghost | ghost-prod |
 
 ## Adding a New Service
 
