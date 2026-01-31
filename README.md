@@ -8,7 +8,7 @@
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
 > **Owner:** Rommel Porras
-> **Last Updated:** January 30, 2026
+> **Last Updated:** February 1, 2026
 
 ---
 
@@ -41,6 +41,7 @@
 | GitLab CI/CD | ✅ Complete | GitLab CE + Runner + Container Registry |
 | Portfolio CI/CD | ✅ Complete | 3-env deployment (dev/staging/prod) |
 | DNS Alerting | ✅ Complete | Blackbox exporter + synthetic DNS probe |
+| Ghost Blog | ✅ Complete | Dev + Prod environments, Cloudflare Tunnel |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/CLUSTER_STATUS.md](docs/CLUSTER_STATUS.md) - Single source of truth
@@ -221,7 +222,8 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Jan 25, 2026** | **GitLab CE** deployed with Runner, Registry, SSH access (Phase 4.6) |
 | **Jan 28, 2026** | **Portfolio CI/CD** migrated from PVE VM to K8s (Phase 4.7) |
 | **Jan 30, 2026** | **DNS Alerting** — Blackbox exporter + synthetic DNS monitoring (Phase 4.8.1) |
-| **Coming** | Invoicetron, Uptime Kuma, Immich |
+| **Jan 31, 2026** | **Ghost Blog** — Ghost 6.14.0 + MySQL 8.4.8 with dev/prod environments (Phase 4.12) |
+| **Coming** | Uptime Kuma, Invoicetron, Tailscale, Immich |
 
 See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 
@@ -229,9 +231,9 @@ See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
 
 ## 🚀 Next Steps
 
-1. **Migrate Invoicetron** to K8s - stateful app with PostgreSQL (Phase 4.9)
-2. **Deploy Uptime Kuma** for endpoint monitoring (Phase 4.10)
-3. **Deploy Immich** for photo management (Phase 4.11)
+1. **Deploy Uptime Kuma** for endpoint monitoring (Phase 4.11)
+2. **Migrate Invoicetron** to K8s - stateful app with PostgreSQL (Phase 4.9)
+3. **Deploy Tailscale Operator** for mobile access (Phase 4.10)
 4. **CKA Certification** - September 2026 target
 
 ---
