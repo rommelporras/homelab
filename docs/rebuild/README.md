@@ -17,6 +17,8 @@
 | v0.7.0 | Phase 4.5 | Cloudflare Tunnel (HA, CiliumNetworkPolicy) | [v0.7.0-cloudflare.md](v0.7.0-cloudflare.md) |
 | v0.8.0 | Phase 4.6 | GitLab CI/CD (CE, Runner, Container Registry) | [v0.8.0-gitlab.md](v0.8.0-gitlab.md) |
 | v0.9.0 | Phase 4.8.1 | DNS Alerting (Blackbox Exporter, Probe CRD) | [v0.9.0-dns-alerting.md](v0.9.0-dns-alerting.md) |
+| v0.10.0 | Phase 4.7 | Portfolio CI/CD (3-env deployment, GitFlow) | [v0.10.0-portfolio-cicd.md](v0.10.0-portfolio-cicd.md) |
+| v0.11.0 | Phase 4.12 | Ghost Blog (Ghost 6.14.0, MySQL 8.4.8, dev/prod) | [v0.11.0-ghost-blog.md](v0.11.0-ghost-blog.md) |
 
 ---
 
@@ -51,6 +53,12 @@ docs/rebuild/v0.8.0-gitlab.md
 
 # 9. DNS Alerting - Blackbox exporter, synthetic DNS monitoring
 docs/rebuild/v0.9.0-dns-alerting.md
+
+# 10. Portfolio CI/CD - 3-env deployment with GitFlow
+docs/rebuild/v0.10.0-portfolio-cicd.md
+
+# 11. Ghost Blog - Ghost CMS with dev/prod environments
+docs/rebuild/v0.11.0-ghost-blog.md
 ```
 
 ---
@@ -119,6 +127,8 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | GitLab CE | v18.8.2 | v0.8.0 |
 | GitLab Runner | v18.8.0 | v0.8.0 |
 | blackbox-exporter | v0.28.0 | v0.9.0 |
+| Ghost | 6.14.0 | v0.11.0 |
+| MySQL (Ghost) | 8.4.8 | v0.11.0 |
 
 ---
 
@@ -132,9 +142,9 @@ homelab/
 │   ├── prometheus/values.yaml          # v0.4.0
 │   ├── loki/values.yaml                # v0.4.0
 │   ├── alloy/values.yaml               # v0.4.0
-│   ├── blackbox-exporter/values.yaml   # v0.9.0
 │   ├── gitlab/values.yaml              # v0.8.0
-│   └── gitlab-runner/values.yaml       # v0.8.0
+│   ├── gitlab-runner/values.yaml       # v0.8.0
+│   └── blackbox-exporter/values.yaml   # v0.9.0
 │
 ├── manifests/
 │   ├── cert-manager/                   # v0.4.0
@@ -146,11 +156,27 @@ homelab/
 │   │   ├── homelab-gateway.yaml
 │   │   └── routes/
 │   │       ├── gitlab.yaml             # v0.8.0
-│   │       └── gitlab-registry.yaml    # v0.8.0
+│   │       ├── gitlab-registry.yaml    # v0.8.0
+│   │       ├── portfolio-dev.yaml      # v0.10.0
+│   │       ├── portfolio-staging.yaml  # v0.10.0
+│   │       └── portfolio-prod.yaml     # v0.10.0
 │   ├── gitlab/                         # v0.8.0
 │   │   └── gitlab-shell-lb.yaml
 │   ├── home/                           # v0.6.0
 │   │   └── adguard/
+│   ├── portfolio/                      # v0.10.0
+│   │   ├── deployment.yaml
+│   │   └── rbac.yaml
+│   ├── ghost-dev/                      # v0.11.0
+│   │   ├── namespace.yaml
+│   │   ├── mysql-statefulset.yaml
+│   │   ├── mysql-service.yaml
+│   │   ├── ghost-deployment.yaml
+│   │   ├── ghost-service.yaml
+│   │   ├── ghost-pvc.yaml
+│   │   └── httproute.yaml
+│   ├── ghost-prod/                     # v0.11.0
+│   │   └── (same structure as ghost-dev)
 │   ├── cloudflare/                     # v0.7.0
 │   │   ├── deployment.yaml
 │   │   ├── networkpolicy.yaml
@@ -169,7 +195,9 @@ homelab/
 │       └── adguard-dns-alert.yaml      # v0.9.0
 │
 ├── scripts/
-│   └── upgrade-prometheus.sh           # v0.5.0
+│   ├── upgrade-prometheus.sh           # v0.5.0
+│   ├── sync-ghost-prod-to-dev.sh      # v0.11.0
+│   └── sync-ghost-prod-to-local.sh    # v0.11.0
 ```
 
 ---
@@ -189,3 +217,7 @@ homelab/
 | Healthchecks Ping URL | Kubernetes | v0.6.0 |
 | Cloudflare Tunnel | Kubernetes | v0.7.0 |
 | GitLab | Kubernetes | v0.8.0 |
+| Ghost Dev MySQL | Kubernetes | v0.11.0 |
+| Ghost Prod MySQL | Kubernetes | v0.11.0 |
+| Ghost Dev Admin API | Kubernetes | v0.11.0 |
+| Ghost Prod Admin API | Kubernetes | v0.11.0 |

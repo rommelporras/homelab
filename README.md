@@ -170,6 +170,8 @@ Step-by-step instructions to rebuild the cluster from scratch:
 | [v0.7.0-cloudflare](docs/rebuild/v0.7.0-cloudflare.md) | Phase 4.5 | Cloudflare Tunnel (HA, CiliumNetworkPolicy) |
 | [v0.8.0-gitlab](docs/rebuild/v0.8.0-gitlab.md) | Phase 4.6 | GitLab CE, Runner, Container Registry |
 | [v0.9.0-dns-alerting](docs/rebuild/v0.9.0-dns-alerting.md) | Phase 4.8.1 | Blackbox exporter, synthetic DNS monitoring |
+| [v0.10.0-portfolio-cicd](docs/rebuild/v0.10.0-portfolio-cicd.md) | Phase 4.7 | Portfolio CI/CD with 3-env deployment |
+| [v0.11.0-ghost-blog](docs/rebuild/v0.11.0-ghost-blog.md) | Phase 4.12 | Ghost CMS with dev/prod environments |
 
 ### Reference
 
