@@ -38,7 +38,7 @@
 │              K8s Cluster (uptime-kuma namespace)                    │
 │  ┌─────────────────────────────────────────────────────────────┐   │
 │  │  StatefulSet (1 replica)                                    │   │
-│  │  - Image: louislam/uptime-kuma:2.0.2                        │   │
+│  │  - Image: louislam/uptime-kuma:2.0.2-slim-rootless              │   │
 │  │  - SecurityContext (non-root, capabilities dropped)         │   │
 │  │  - PVC for SQLite database (Longhorn)                       │   │
 │  └─────────────────────────────────────────────────────────────┘   │
@@ -67,6 +67,27 @@
 | Privacy | Third-party | Self-hosted |
 
 **Decision:** Self-host Uptime Kuma for unlimited monitors, faster intervals, and data ownership.
+
+### Image Variant Selection
+
+| Tag | Size | Root | Embedded MariaDB | Embedded Chromium |
+|-----|------|------|-----------------|-------------------|
+| `2` | ~800MB | Yes | Yes | Yes |
+| `2-slim` | ~400MB | Yes | No | No |
+| `2-rootless` | ~800MB | No (UID 1000) | Yes | Yes |
+| **`2-slim-rootless`** | **~400MB** | **No (UID 1000)** | **No** | **No** |
+
+**Decision:** Use `2-slim-rootless` — smallest image, runs as non-root natively (matches
+`restricted` PSS), no unused embedded services. We use SQLite (not MariaDB) and don't
+need browser-engine monitors.
+
+### v2.0 Breaking Changes (from v1)
+
+- MariaDB support added (optional, we use SQLite)
+- Rootless Docker image variants available
+- **JSON Backup/Restore removed** — back up `/app/data` directory directly
+- Badge endpoints only accept: `24`, `24h`, `30d`, `1y`
+- Legacy browser support dropped
 
 ---
 
@@ -118,41 +139,16 @@
 
 ---
 
-## 4.11.2 Create Storage
+## 4.11.2 Create Manifests Directory
 
 - [ ] 4.11.2.1 Create manifests directory
   ```bash
   mkdir -p manifests/uptime-kuma
   ```
 
-- [ ] 4.11.2.2 Create PersistentVolumeClaim
-  ```yaml
-  # manifests/uptime-kuma/pvc.yaml
-  # 1Gi for SQLite database (actual usage ~50MB)
-  apiVersion: v1
-  kind: PersistentVolumeClaim
-  metadata:
-    name: uptime-kuma-data
-    namespace: uptime-kuma
-  spec:
-    accessModes:
-      - ReadWriteOnce
-    storageClassName: longhorn
-    resources:
-      requests:
-        storage: 1Gi
-  ```
-
-- [ ] 4.11.2.3 Apply PVC
-  ```bash
-  kubectl-homelab apply -f manifests/uptime-kuma/pvc.yaml
-  ```
-
-- [ ] 4.11.2.4 Verify PVC bound
-  ```bash
-  kubectl-homelab get pvc -n uptime-kuma
-  # Should show STATUS: Bound
-  ```
+> **Note:** PVC is managed via `volumeClaimTemplates` in the StatefulSet (4.11.3.1).
+> This is the idiomatic StatefulSet pattern — Kubernetes auto-creates and binds the PVC
+> when the StatefulSet is applied. No separate PVC manifest needed.
 
 ---
 
@@ -162,6 +158,7 @@
   ```yaml
   # manifests/uptime-kuma/statefulset.yaml
   # StatefulSet for persistent SQLite database (single replica only)
+  # Uses slim-rootless image: no embedded MariaDB/Chromium, runs as node (UID 1000)
   #
   apiVersion: apps/v1
   kind: StatefulSet
@@ -181,7 +178,7 @@
         labels:
           app: uptime-kuma
       spec:
-        # Security: Run as non-root
+        # Security: Run as non-root (matches rootless image UID 1000)
         securityContext:
           runAsNonRoot: true
           runAsUser: 1000
@@ -191,7 +188,9 @@
             type: RuntimeDefault
         containers:
         - name: uptime-kuma
-          image: louislam/uptime-kuma:2.0.2
+          # slim-rootless: ~400MB smaller (no MariaDB/Chromium), runs as node user
+          # Pinned to 2.0.2 for reproducibility; bump manually when upgrading
+          image: louislam/uptime-kuma:2.0.2-slim-rootless
           ports:
           - name: http
             containerPort: 3001
@@ -199,9 +198,6 @@
           env:
           - name: UPTIME_KUMA_PORT
             value: "3001"
-          # Data directory (maps to PVC)
-          - name: DATA_DIR
-            value: "/app/data"
           volumeMounts:
           - name: data
             mountPath: /app/data
@@ -218,25 +214,39 @@
             capabilities:
               drop:
                 - ALL
-          # Health checks
+          # Startup probe: allows up to 5 min for first-boot DB migrations
+          # Once startup succeeds, liveness takes over with aggressive checks
+          startupProbe:
+            httpGet:
+              path: /
+              port: 3001
+            periodSeconds: 10
+            failureThreshold: 30
+          # Liveness: restart if unresponsive (only active after startup succeeds)
           livenessProbe:
             httpGet:
               path: /
               port: 3001
-            initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 3
+          # Readiness: remove from service if temporarily unhealthy
           readinessProbe:
             httpGet:
               path: /
               port: 3001
-            initialDelaySeconds: 10
             periodSeconds: 5
             failureThreshold: 2
-        volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: uptime-kuma-data
+    # Use volumeClaimTemplates (idiomatic StatefulSet pattern)
+    volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 1Gi
   ```
 
 - [ ] 4.11.3.2 Create Service
@@ -270,7 +280,7 @@
   spec:
     parentRefs:
     - name: homelab-gateway
-      namespace: gateway
+      namespace: default
     hostnames:
     - "uptime.k8s.home.rommelporras.com"
     rules:
@@ -290,10 +300,16 @@
 
 - [ ] 4.11.3.5 Wait for pod to be ready
   ```bash
-  kubectl-homelab rollout status statefulset/uptime-kuma -n uptime-kuma --timeout=120s
+  kubectl-homelab rollout status statefulset/uptime-kuma -n uptime-kuma --timeout=300s
   ```
 
-- [ ] 4.11.3.6 Check pod logs
+- [ ] 4.11.3.6 Verify PVC auto-created and bound
+  ```bash
+  kubectl-homelab get pvc -n uptime-kuma
+  # Should show: data-uptime-kuma-0  Bound  (auto-created by volumeClaimTemplates)
+  ```
+
+- [ ] 4.11.3.7 Check pod logs
   ```bash
   kubectl-homelab logs -n uptime-kuma -l app=uptime-kuma --tail=50
   # Look for: "Listening on 3001"
@@ -490,10 +506,11 @@
   # Retain: 7 snapshots
   ```
 
-- [ ] 4.11.9.3 (Optional) Export data manually
-  ```
-  # Uptime Kuma UI → Settings → Backup
-  # Export JSON backup periodically
+- [ ] 4.11.9.3 (Optional) Manual backup of data directory
+  ```bash
+  # JSON export was removed in v2.0. Back up the /app/data directory directly.
+  # Copy SQLite DB from pod to local machine:
+  kubectl-homelab cp uptime-kuma/uptime-kuma-0:/app/data/kuma.db ./kuma-backup-$(date +%F).db
   ```
 
 ---
@@ -503,7 +520,7 @@
 - [ ] 4.11.10.1 Update VERSIONS.md
   ```markdown
   # Add to Home Services section:
-  | Uptime Kuma | v2.0.2 | Running | Self-hosted uptime monitoring |
+  | Uptime Kuma | v2.0.2 (slim-rootless) | Running | Self-hosted uptime monitoring |
 
   # Add to Version History:
   | YYYY-MM-DD | Phase 4.11: Uptime Kuma deployed for endpoint monitoring |
@@ -533,8 +550,8 @@
 ## Verification Checklist
 
 - [ ] Namespace `uptime-kuma` exists with **restricted** PSS
-- [ ] PVC `uptime-kuma-data` bound to Longhorn volume
-- [ ] StatefulSet running with 1 replica
+- [ ] PVC `data-uptime-kuma-0` auto-created and bound to Longhorn volume
+- [ ] StatefulSet running with 1 replica (image: `2.0.2-slim-rootless`)
 - [ ] Pod running as non-root (UID 1000)
 - [ ] HTTPRoute accessible: https://uptime.k8s.home.rommelporras.com
 - [ ] Admin account created and stored in 1Password
@@ -559,7 +576,8 @@ kubectl-homelab get events -n uptime-kuma --sort-by='.lastTimestamp'
 
 # Common issues:
 # - PVC not bound → check Longhorn status
-# - Permission denied → check securityContext matches image expectations
+# - Permission denied → ensure using slim-rootless image (not default root image)
+# - Startup timeout → first boot runs DB migrations, may need up to 5 min
 ```
 
 ### Database locked error
@@ -590,7 +608,7 @@ kubectl-homelab get pods -n kube-system -l k8s-app=kube-dns
 kubectl-homelab get httproute -n uptime-kuma
 
 # Check Gateway status
-kubectl-homelab get gateway -n gateway
+kubectl-homelab get gateway -n default
 
 # Verify DNS resolves to Gateway IP (10.10.30.20)
 nslookup uptime.k8s.home.rommelporras.com
@@ -602,7 +620,7 @@ nslookup uptime.k8s.home.rommelporras.com
 
 | Feature | Implementation |
 |---------|----------------|
-| **Non-root execution** | `runAsUser: 1000` (uptime-kuma default) |
+| **Non-root execution** | `runAsUser: 1000` via `2-slim-rootless` image |
 | **No privilege escalation** | `allowPrivilegeEscalation: false` |
 | **Minimal capabilities** | `capabilities.drop: ["ALL"]` |
 | **Pod Security Standard** | `restricted` |
