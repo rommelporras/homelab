@@ -467,23 +467,53 @@ need browser-engine monitors.
 
 ---
 
-## 4.11.8 Create Status Page (Optional)
+## 4.11.8 Create Public Status Page (Optional)
 
-> **Create a public status page for personal sites.**
+> **Expose a public status page for personal sites via Cloudflare Tunnel.**
+> The admin dashboard (`/dashboard`) is blocked at the Cloudflare edge —
+> only the status page path is publicly accessible.
 
-- [ ] 4.11.8.1 Create status page
+- [ ] 4.11.8.1 Create status page in Uptime Kuma UI
   ```
   Status Pages → New Status Page:
   - Title: Rommel Porras Services
   - Slug: status
   - Add monitors: rommelporras.com, blog, etc.
+  # Status page will be at: /status/status
   ```
 
-- [ ] 4.11.8.2 Configure Cloudflare Tunnel route (after Phase 4.5)
+- [ ] 4.11.8.2 Configure Cloudflare Tunnel route
   ```
-  # In Cloudflare dashboard:
+  # Cloudflare Zero Trust → Networks → Tunnels → homelab tunnel → Public Hostname:
   # Add public hostname: status.rommelporras.com
   # Service: http://uptime-kuma.uptime-kuma.svc.cluster.local:3001
+  ```
+
+- [ ] 4.11.8.3 Create Cloudflare Access policy to block admin paths
+  ```
+  # Cloudflare Zero Trust → Access → Applications → Add an application:
+  #
+  # Application name: Uptime Kuma Admin Block
+  # Application domain: status.rommelporras.com
+  # Path: /dashboard
+  #
+  # Policy name: Block Public
+  # Action: Block
+  # Include: Everyone
+  #
+  # This blocks /dashboard (admin UI) at the Cloudflare edge.
+  # Only /status/* (public status page) is accessible to the internet.
+  ```
+
+- [ ] 4.11.8.4 Verify public access
+  ```bash
+  # Status page should load:
+  curl -I https://status.rommelporras.com/status/status
+  # Expected: 200 OK
+
+  # Admin dashboard should be blocked:
+  curl -I https://status.rommelporras.com/dashboard
+  # Expected: 403 Forbidden (blocked by Cloudflare Access)
   ```
 
 ---
@@ -515,9 +545,22 @@ need browser-engine monitors.
 
 ---
 
-## 4.11.10 Documentation Updates
+## 4.11.10 Commit Deployment
 
-- [ ] 4.11.10.1 Update VERSIONS.md
+> **First commit: manifests and configuration only.**
+
+- [ ] 4.11.10.1 Commit deployment changes
+  ```bash
+  /commit
+  ```
+
+---
+
+## 4.11.11 Documentation and Audit
+
+> **Second commit: documentation updates and audit.**
+
+- [ ] 4.11.11.1 Update VERSIONS.md
   ```markdown
   # Add to Home Services section:
   | Uptime Kuma | v2.0.2 (slim-rootless) | Running | Self-hosted uptime monitoring |
@@ -526,7 +569,7 @@ need browser-engine monitors.
   | YYYY-MM-DD | Phase 4.11: Uptime Kuma deployed for endpoint monitoring |
   ```
 
-- [ ] 4.11.10.2 Update docs/context/Secrets.md
+- [ ] 4.11.11.2 Update docs/context/Secrets.md
   ```markdown
   # Add 1Password item:
   | Uptime Kuma | `username`, `password` | Uptime Kuma admin login |
@@ -536,13 +579,34 @@ need browser-engine monitors.
   op://Kubernetes/Uptime Kuma/password
   ```
 
-- [ ] 4.11.10.3 Update docs/context/Monitoring.md
+- [ ] 4.11.11.3 Update docs/context/Monitoring.md
   ```markdown
   # Add to Components table:
   | Uptime Kuma | v2.0.2 | uptime-kuma |
 
   # Add Access URL:
   | Uptime Kuma | https://uptime.k8s.home.rommelporras.com |
+  ```
+
+- [ ] 4.11.11.4 Update README.md
+  ```markdown
+  # Add Uptime Kuma to services list and architecture overview
+  ```
+
+- [ ] 4.11.11.5 Create rebuild guide
+  ```bash
+  # docs/rebuild/v0.12.0-uptime-kuma.md
+  # Step-by-step rebuild instructions for disaster recovery
+  ```
+
+- [ ] 4.11.11.6 Run audit-docs
+  ```bash
+  /audit-docs
+  ```
+
+- [ ] 4.11.11.7 Commit documentation changes
+  ```bash
+  /commit
   ```
 
 ---
@@ -648,16 +712,11 @@ nslookup uptime.k8s.home.rommelporras.com
 
 ---
 
-## Final: Commit and Release
+## Final: Release
 
-- [ ] Commit changes
+- [ ] Release v0.12.0
   ```bash
-  /commit
-  ```
-
-- [ ] Release v0.13.0
-  ```bash
-  /release v0.13.0
+  /release v0.12.0
   ```
 
 - [ ] Move this file to completed folder
