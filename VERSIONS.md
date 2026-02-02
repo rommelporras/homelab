@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** February 1, 2026
+> **Last Updated:** February 2, 2026
 
 ---
 
@@ -88,7 +88,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.12 complete. Ghost blog deployed with dev + prod environments.
+> **Status:** Phase 4.13 complete. Domain migration to `*.k8s.rommelporras.com` with tiered wildcards.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -105,19 +105,19 @@ helm-homelab repo update
 - Secondary: 10.10.30.54 (FW LXC failover)
 
 **HTTPRoutes:**
-| Service | URL | Namespace |
-|---------|-----|-----------|
-| AdGuard | adguard.k8s.home.rommelporras.com | home |
-| Homepage | portal.k8s.home.rommelporras.com | home |
-| Longhorn | longhorn.k8s.home.rommelporras.com | longhorn-system |
-| GitLab | gitlab.k8s.home.rommelporras.com | gitlab |
-| GitLab Registry | registry.k8s.home.rommelporras.com | gitlab |
-| Portfolio Dev | portfolio-dev.k8s.home.rommelporras.com | portfolio-dev |
-| Portfolio Staging | portfolio-staging.k8s.home.rommelporras.com | portfolio-staging |
-| Portfolio Prod | portfolio-prod.k8s.home.rommelporras.com | portfolio-prod |
-| Ghost Dev | blog-dev.k8s.home.rommelporras.com | ghost-dev |
-| Ghost Prod | blog.k8s.home.rommelporras.com | ghost-prod |
-| Ghost Prod (public) | blog.rommelporras.com (Cloudflare Tunnel) | ghost-prod |
+| Service | URL | Tier | Namespace |
+|---------|-----|------|-----------|
+| AdGuard | adguard.k8s.rommelporras.com | base | home |
+| Homepage | portal.k8s.rommelporras.com | base | home |
+| Longhorn | longhorn.k8s.rommelporras.com | base | longhorn-system |
+| GitLab | gitlab.k8s.rommelporras.com | base | gitlab |
+| GitLab Registry | registry.k8s.rommelporras.com | base | gitlab |
+| Portfolio Prod | portfolio.k8s.rommelporras.com | base | portfolio-prod |
+| Portfolio Dev | portfolio.dev.k8s.rommelporras.com | dev | portfolio-dev |
+| Portfolio Stg | portfolio.stg.k8s.rommelporras.com | stg | portfolio-staging |
+| Ghost Prod | blog.k8s.rommelporras.com | base | ghost-prod |
+| Ghost Dev | blog.dev.k8s.rommelporras.com | dev | ghost-dev |
+| Ghost Prod (public) | blog.rommelporras.com (Cloudflare Tunnel) | — | ghost-prod |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |
@@ -142,9 +142,9 @@ helm-homelab repo update
 **Access:**
 | Type | URL/IP |
 |------|--------|
-| Web UI | https://gitlab.k8s.home.rommelporras.com |
-| Container Registry | https://registry.k8s.home.rommelporras.com |
-| SSH (git clone) | ssh://git@ssh.gitlab.k8s.home.rommelporras.com (→ 10.10.30.21:22) |
+| Web UI | https://gitlab.k8s.rommelporras.com |
+| Container Registry | https://registry.k8s.rommelporras.com |
+| SSH (git clone) | ssh://git@ssh.gitlab.k8s.rommelporras.com (→ 10.10.30.21:22) |
 
 **Storage (Longhorn):**
 | PVC | Size |
@@ -189,7 +189,7 @@ helm-homelab repo update
 | k8s-cp2 | Control Plane | 10.10.30.12 | M80q i5-10400T |
 | k8s-cp3 | Control Plane | 10.10.30.13 | M80q i5-10400T |
 
-**VIP:** 10.10.30.10 (k8s-api.home.rommelporras.com)
+**VIP:** 10.10.30.10 (api.k8s.rommelporras.com)
 
 ---
 
@@ -227,6 +227,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-02-02 | **Domain Migration:** Migrated all services to `*.k8s.rommelporras.com` with tiered wildcards (base/dev/stg) (Phase 4.13) |
 | 2026-01-31 | **Ghost Blog:** Deployed Ghost 6.14.0 + MySQL 8.4.8 LTS with dev/prod environments, HTTPRoutes, sync scripts (Phase 4.12) |
 | 2026-01-30 | **AdGuard DNS Alerting:** Blackbox exporter + Probe CRD for L2 lease mismatch detection (Phase 4.8.1) |
 | 2026-01-29 | **AdGuard Client IP:** Fixed externalTrafficPolicy for client IP visibility (Phase 4.8) |

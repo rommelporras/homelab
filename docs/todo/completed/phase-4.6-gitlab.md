@@ -10,7 +10,7 @@
 > **Why GitLab:** Free CI/CD for private repos, built-in registry, Kubernetes-native
 
 > **Security:** INTERNAL ACCESS ONLY - No Cloudflare Tunnel route
-> Access via: `gitlab.k8s.home.rommelporras.com` (home network / Tailscale only)
+> Access via: `gitlab.k8s.rommelporras.com` (home network / Tailscale only)
 > CiliumNetworkPolicy blocks cloudflared from reaching GitLab namespace
 
 ---
@@ -159,7 +159,7 @@ deploy-app:
 │                          ▼                                      │
 │  ┌───────────────────────────────────────────────────────────┐ │
 │  │              GitLab Webservice (Deployment)               │ │
-│  │         gitlab.k8s.home.rommelporras.com                  │ │
+│  │         gitlab.k8s.rommelporras.com                  │ │
 │  └───────────────────────────────────────────────────────────┘ │
 │                          │                                      │
 │         ┌────────────────┼────────────────┐                    │
@@ -336,12 +336,12 @@ deploy-app:
 
     # Domain configuration
     hosts:
-      domain: k8s.home.rommelporras.com
+      domain: k8s.rommelporras.com
       gitlab:
-        name: gitlab.k8s.home.rommelporras.com
+        name: gitlab.k8s.rommelporras.com
         https: true
       registry:
-        name: registry.k8s.home.rommelporras.com
+        name: registry.k8s.rommelporras.com
         https: true
       # Disable external IP assignment (we use Gateway API)
       externalIP: null
@@ -663,7 +663,7 @@ cloudflared cannot reach the GitLab namespace (internal access only).
       - name: homelab-gateway
         namespace: default
     hostnames:
-      - "gitlab.k8s.home.rommelporras.com"
+      - "gitlab.k8s.rommelporras.com"
     rules:
       - matches:
           - path:
@@ -693,7 +693,7 @@ cloudflared cannot reach the GitLab namespace (internal access only).
       - name: homelab-gateway
         namespace: default
     hostnames:
-      - "registry.k8s.home.rommelporras.com"
+      - "registry.k8s.rommelporras.com"
     rules:
       - matches:
           - path:
@@ -724,8 +724,8 @@ cloudflared cannot reach the GitLab namespace (internal access only).
   # Add to both AdGuard instances (primary and secondary):
   # Settings → DNS rewrites → Add
 
-  gitlab.k8s.home.rommelporras.com → 10.10.30.20
-  registry.k8s.home.rommelporras.com → 10.10.30.20
+  gitlab.k8s.rommelporras.com → 10.10.30.20
+  registry.k8s.rommelporras.com → 10.10.30.20
   ```
 
 ---
@@ -734,19 +734,19 @@ cloudflared cannot reach the GitLab namespace (internal access only).
 
 - [ ] 4.6.7.1 Test DNS resolution
   ```bash
-  nslookup gitlab.k8s.home.rommelporras.com
+  nslookup gitlab.k8s.rommelporras.com
   # Should resolve to 10.10.30.20
   ```
 
 - [ ] 4.6.7.2 Test HTTP connectivity
   ```bash
-  curl -I https://gitlab.k8s.home.rommelporras.com
+  curl -I https://gitlab.k8s.rommelporras.com
   # Should return 200 OK or 302 redirect
   ```
 
 - [ ] 4.6.7.3 Access GitLab web UI
   ```
-  https://gitlab.k8s.home.rommelporras.com
+  https://gitlab.k8s.rommelporras.com
   Login: root / (password from 1Password: op://Kubernetes/GitLab/root-password)
   ```
 
@@ -845,7 +845,7 @@ cloudflared cannot reach the GitLab namespace (internal access only).
   #     --values helm/gitlab-runner/values.yaml
 
   # GitLab instance URL
-  gitlabUrl: https://gitlab.k8s.home.rommelporras.com
+  gitlabUrl: https://gitlab.k8s.rommelporras.com
 
   # Runner authentication token (from secret)
   # The secret must have a key named 'runner-token' containing the glrt-xxx token
@@ -1027,8 +1027,8 @@ using GitLab's built-in Container Registry.
 
 | Project | Registry URL |
 |---------|-------------|
-| invoicetron | `registry.k8s.home.rommelporras.com/invoicetron/invoicetron` |
-| portfolio | `registry.k8s.home.rommelporras.com/portfolio/portfolio` |
+| invoicetron | `registry.k8s.rommelporras.com/invoicetron/invoicetron` |
+| portfolio | `registry.k8s.rommelporras.com/portfolio/portfolio` |
 
 > **Note:** GitLab auto-provides `$CI_REGISTRY_IMAGE` variable containing the full registry path.
 
@@ -1160,7 +1160,7 @@ deploy:
     - kubectl rollout status deployment/${CI_PROJECT_NAME} -n ${CI_PROJECT_NAME} --timeout=300s
   environment:
     name: production
-    url: https://${CI_PROJECT_NAME}.k8s.home.rommelporras.com
+    url: https://${CI_PROJECT_NAME}.k8s.rommelporras.com
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
   # Requires: KUBECONFIG variable or ServiceAccount with RBAC
@@ -1193,7 +1193,7 @@ For Kubernetes to pull images from your private registry, create an image pull s
 ```bash
 # Create registry credentials secret in your app namespace
 kubectl-homelab create secret docker-registry gitlab-registry \
-  --docker-server=registry.k8s.home.rommelporras.com \
+  --docker-server=registry.k8s.rommelporras.com \
   --docker-username=<gitlab-username> \
   --docker-password=<gitlab-personal-access-token> \
   --docker-email=<your-email> \
@@ -1295,18 +1295,18 @@ After GitLab is installed, verify registry works:
 
 ```bash
 # From your local machine (with Docker installed)
-docker login registry.k8s.home.rommelporras.com
+docker login registry.k8s.rommelporras.com
 # Username: root (or your GitLab username)
 # Password: (your GitLab password or access token)
 
 # Test push
 docker pull alpine:latest
-docker tag alpine:latest registry.k8s.home.rommelporras.com/test/alpine:latest
-docker push registry.k8s.home.rommelporras.com/test/alpine:latest
+docker tag alpine:latest registry.k8s.rommelporras.com/test/alpine:latest
+docker push registry.k8s.rommelporras.com/test/alpine:latest
 
 # Test pull
-docker rmi registry.k8s.home.rommelporras.com/test/alpine:latest
-docker pull registry.k8s.home.rommelporras.com/test/alpine:latest
+docker rmi registry.k8s.rommelporras.com/test/alpine:latest
+docker pull registry.k8s.rommelporras.com/test/alpine:latest
 
 # Clean up test image
 # GitLab → Admin → Packages & Registries → Container Registry → Delete test project
@@ -1348,12 +1348,12 @@ docker pull registry.k8s.home.rommelporras.com/test/alpine:latest
 - [ ] PVCs bound: `kubectl-homelab get pvc -n gitlab`
 - [ ] CiliumNetworkPolicy applied: `kubectl-homelab get cnp -n gitlab`
 - [ ] HTTPRoutes accepted: `kubectl-homelab get httproute -n gitlab`
-- [ ] DNS resolves: `nslookup gitlab.k8s.home.rommelporras.com`
-- [ ] GitLab web UI accessible at https://gitlab.k8s.home.rommelporras.com
+- [ ] DNS resolves: `nslookup gitlab.k8s.rommelporras.com`
+- [ ] GitLab web UI accessible at https://gitlab.k8s.rommelporras.com
 - [ ] Can login as root with 1Password password
 - [ ] 2FA configured for root account
-- [ ] Container registry accessible at https://registry.k8s.home.rommelporras.com
-- [ ] Docker login to registry works: `docker login registry.k8s.home.rommelporras.com`
+- [ ] Container registry accessible at https://registry.k8s.rommelporras.com
+- [ ] Docker login to registry works: `docker login registry.k8s.rommelporras.com`
 - [ ] GitLab Runner registered and showing "online" in Admin → CI/CD → Runners
 - [ ] Test pipeline runs successfully (simple alpine echo test)
 - [ ] Docker build pipeline works (builds and pushes image to registry)
@@ -1455,7 +1455,7 @@ kubectl-homelab get secret gitlab-runner-token -n gitlab-runner \
 ```bash
 # Test connectivity from runner namespace
 kubectl-homelab run test --rm -it --image=curlimages/curl -n gitlab-runner -- \
-  curl -v https://gitlab.k8s.home.rommelporras.com/api/v4/runners
+  curl -v https://gitlab.k8s.rommelporras.com/api/v4/runners
 
 # Check if network policy is blocking
 kubectl-homelab get ciliumnetworkpolicy -A
@@ -1487,7 +1487,7 @@ kubectl-homelab get events -n gitlab-runner --sort-by='.lastTimestamp'
 
 ```bash
 # Test registry connectivity
-curl -v https://registry.k8s.home.rommelporras.com/v2/
+curl -v https://registry.k8s.rommelporras.com/v2/
 
 # Check registry pod
 kubectl-homelab logs -n gitlab -l app=registry --tail=50

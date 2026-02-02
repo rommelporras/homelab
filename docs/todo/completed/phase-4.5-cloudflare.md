@@ -475,12 +475,12 @@ helm install cloudflared cloudflare/cloudflare-tunnel \
 │                                                                      │
 ├─────────────────────────────────────────────────────────────────────┤
 │                        INTERNAL ACCESS                               │
-│            (*.k8s.home.rommelporras.com → K8s Gateway)              │
+│            (*.k8s.rommelporras.com → K8s Gateway)              │
 │                                                                      │
-│  gitlab.k8s.home.rommelporras.com ────► GitLab (NO public route)   │
-│  grafana.k8s.home.rommelporras.com ───► Grafana (NO public route)  │
-│  portfolio.k8s.home.rommelporras.com ─► Portfolio (internal too)   │
-│  invoicetron.k8s.home.rommelporras.com► Invoicetron (internal too) │
+│  gitlab.k8s.rommelporras.com ────► GitLab (NO public route)   │
+│  grafana.k8s.rommelporras.com ───► Grafana (NO public route)  │
+│  portfolio.k8s.rommelporras.com ─► Portfolio (internal too)   │
+│  invoicetron.k8s.rommelporras.com► Invoicetron (internal too) │
 │                                                                      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -520,10 +520,10 @@ helm install cloudflared cloudflare/cloudflare-tunnel \
   **Services NOT exposed via tunnel (internal only):**
   | Service | Internal URL | Public Route |
   |---------|--------------|--------------|
-  | GitLab | gitlab.k8s.home.rommelporras.com | ❌ None |
-  | Grafana | grafana.k8s.home.rommelporras.com | ❌ None |
-  | AdGuard | adguard.k8s.home.rommelporras.com | ❌ None |
-  | Longhorn | longhorn.k8s.home.rommelporras.com | ❌ None |
+  | GitLab | gitlab.k8s.rommelporras.com | ❌ None |
+  | Grafana | grafana.k8s.rommelporras.com | ❌ None |
+  | AdGuard | adguard.k8s.rommelporras.com | ❌ None |
+  | Longhorn | longhorn.k8s.rommelporras.com | ❌ None |
 
 - [x] 4.5.4.4 Test tunnel connectivity from external network
   ```bash

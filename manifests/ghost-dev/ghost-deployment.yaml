@@ -52,7 +52,7 @@ spec:
         - containerPort: 2368
         env:
         - name: url
-          value: https://blog-dev.k8s.home.rommelporras.com
+          value: https://blog.dev.k8s.rommelporras.com
         # Database configuration
         - name: database__client
           value: mysql

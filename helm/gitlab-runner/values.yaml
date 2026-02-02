@@ -21,7 +21,7 @@
 #     --values helm/gitlab-runner/values.yaml
 
 # GitLab instance URL
-gitlabUrl: https://gitlab.k8s.home.rommelporras.com
+gitlabUrl: https://gitlab.k8s.rommelporras.com
 
 # Runner authentication token (from secret)
 runners:

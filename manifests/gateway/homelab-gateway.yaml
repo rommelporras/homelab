@@ -22,17 +22,44 @@ spec:
         namespaces:
           from: All
 
-    # HTTPS listener - main entry point with TLS termination
+    # HTTPS: Base tier (infrastructure + production apps)
     - name: https
       protocol: HTTPS
       port: 443
-      hostname: "*.k8s.home.rommelporras.com"
+      hostname: "*.k8s.rommelporras.com"
       allowedRoutes:
         namespaces:
-          from: All  # Allow HTTPRoutes from any namespace
+          from: All
       tls:
         mode: Terminate
         certificateRefs:
-          # cert-manager will create this secret automatically
-          - name: wildcard-k8s-home-tls
+          - name: wildcard-k8s-tls
+            kind: Secret
+
+    # HTTPS: Dev tier (development environments)
+    - name: https-dev
+      protocol: HTTPS
+      port: 443
+      hostname: "*.dev.k8s.rommelporras.com"
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-dev-k8s-tls
+            kind: Secret
+
+    # HTTPS: Stg tier (staging environments)
+    - name: https-stg
+      protocol: HTTPS
+      port: 443
+      hostname: "*.stg.k8s.rommelporras.com"
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-stg-k8s-tls
             kind: Secret

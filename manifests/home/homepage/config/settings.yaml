@@ -13,7 +13,7 @@ showStats: true
 providers:
   openweathermap: {{HOMEPAGE_VAR_WEATHER_KEY}}
   longhorn:
-    url: https://longhorn.k8s.home.rommelporras.com
+    url: https://longhorn.k8s.rommelporras.com
 
 # Multi-tab layout configuration
 # Tab 1: Main (overview dashboard)

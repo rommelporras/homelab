@@ -1,5 +1,5 @@
 # HTTPRoute for Ghost Dev (internal access)
-# URL: https://blog-dev.k8s.home.rommelporras.com
+# URL: https://blog.dev.k8s.rommelporras.com
 #
 # Gateway API Architecture:
 #   Client -> Gateway (10.10.30.20:443) -> HTTPRoute -> Service -> Pod
@@ -17,9 +17,9 @@ spec:
   parentRefs:
     - name: homelab-gateway
       namespace: default
-      sectionName: https
+      sectionName: https-dev
   hostnames:
-    - blog-dev.k8s.home.rommelporras.com
+    - blog.dev.k8s.rommelporras.com
   rules:
     - matches:
         - path:

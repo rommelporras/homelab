@@ -20,9 +20,9 @@
 > **Environments:**
 > | Environment | Internal URL | Public URL |
 > |-------------|--------------|------------|
-> | Dev | `portfolio-dev.k8s.home.rommelporras.com` | - |
-> | Staging | `portfolio-staging.k8s.home.rommelporras.com` | `beta.rommelporras.com` |
-> | Prod | `portfolio-prod.k8s.home.rommelporras.com` | `www.rommelporras.com` |
+> | Dev | `portfolio.dev.k8s.rommelporras.com` | - |
+> | Staging | `portfolio.stg.k8s.rommelporras.com` | `beta.rommelporras.com` |
+> | Prod | `portfolio.k8s.rommelporras.com` | `www.rommelporras.com` |
 
 ---
 
@@ -244,7 +244,7 @@
       spec:
         containers:
         - name: portfolio
-          image: registry.k8s.home.rommelporras.com/root/portfolio:latest
+          image: registry.k8s.rommelporras.com/root/portfolio:latest
           ports:
           - containerPort: 80
           resources:
@@ -303,7 +303,7 @@
     - name: homelab-gateway
       namespace: default
     hostnames:
-    - "portfolio-dev.k8s.home.rommelporras.com"
+    - "portfolio.dev.k8s.rommelporras.com"
     rules:
     - matches:
       - path:
@@ -327,7 +327,7 @@
     - name: homelab-gateway
       namespace: default
     hostnames:
-    - "portfolio-staging.k8s.home.rommelporras.com"
+    - "portfolio.stg.k8s.rommelporras.com"
     rules:
     - matches:
       - path:
@@ -351,7 +351,7 @@
     - name: homelab-gateway
       namespace: default
     hostnames:
-    - "portfolio-prod.k8s.home.rommelporras.com"
+    - "portfolio.k8s.rommelporras.com"
     rules:
     - matches:
       - path:
@@ -376,7 +376,7 @@
 - [x] 4.7.6.1 Verify DNS rewrites in AdGuard Home ✅
   ```
   Existing wildcard already covers all environments:
-  *.k8s.home.rommelporras.com → 10.10.30.20
+  *.k8s.rommelporras.com → 10.10.30.20
 
   AdGuard uses pattern matching (not strict DNS wildcards),
   so multi-level subdomains like *.dev.k8s.home... are covered.
@@ -384,7 +384,7 @@
 
 - [x] 4.7.6.2 Test internal DNS resolution ✅
   ```bash
-  nslookup portfolio-dev.k8s.home.rommelporras.com
+  nslookup portfolio.dev.k8s.rommelporras.com
   # Returns: 10.10.30.20 (Gateway IP)
   ```
 
@@ -534,7 +534,7 @@
   # portfolio-549cdcc76-hqzv8   1/1     Running   0          37s
   # portfolio-549cdcc76-qx5p9   1/1     Running   0          45s
 
-  curl -sk https://portfolio-dev.k8s.home.rommelporras.com
+  curl -sk https://portfolio.dev.k8s.rommelporras.com
   # Returns 200 OK (cert warning expected - multi-level subdomain)
   ```
 
@@ -549,7 +549,7 @@
   kubectl-homelab get pods -n portfolio-staging
   # 2/2 Running
 
-  curl -I https://portfolio-staging.k8s.home.rommelporras.com
+  curl -I https://portfolio.stg.k8s.rommelporras.com
   # 200 OK
 
   curl -I https://beta.rommelporras.com
@@ -570,7 +570,7 @@
   # portfolio-5658bff458-mkq7s   1/1     Running
   # portfolio-5658bff458-s4tx9   1/1     Running
 
-  curl -I https://portfolio-prod.k8s.home.rommelporras.com
+  curl -I https://portfolio.k8s.rommelporras.com
   # 200 OK
 
   curl -I https://www.rommelporras.com
@@ -622,9 +622,9 @@
 - [x] Manual staging promotion works ✅
 - [x] Production deploy works ✅ (main branch auto-deploy)
 - [x] All internal URLs accessible:
-  - [x] portfolio-dev.k8s.home.rommelporras.com ✅
-  - [x] portfolio-staging.k8s.home.rommelporras.com ✅
-  - [x] portfolio-prod.k8s.home.rommelporras.com ✅ (pods running, internal access works)
+  - [x] portfolio.dev.k8s.rommelporras.com ✅
+  - [x] portfolio.stg.k8s.rommelporras.com ✅
+  - [x] portfolio.k8s.rommelporras.com ✅ (pods running, internal access works)
 - [x] Cloudflare Tunnel routes working:
   - [x] beta.rommelporras.com → staging ✅
   - [x] www.rommelporras.com → prod ✅
@@ -649,7 +649,7 @@ kubectl-homelab rollout undo deployment/portfolio -n portfolio-prod --to-revisio
 ```bash
 # Deploy previous version
 kubectl-homelab set image deployment/portfolio \
-  portfolio=registry.k8s.home.rommelporras.com/root/portfolio:v1.18.3 \
+  portfolio=registry.k8s.rommelporras.com/root/portfolio:v1.18.3 \
   -n portfolio-prod
 ```
 
@@ -729,7 +729,7 @@ kubectl-homelab logs -n portfolio-dev -l app=portfolio
 
 # Option B: For private registries, create imagePullSecret:
 kubectl-homelab create secret docker-registry gitlab-registry \
-  --docker-server=registry.k8s.home.rommelporras.com \
+  --docker-server=registry.k8s.rommelporras.com \
   --docker-username=<gitlab-deploy-token-user> \
   --docker-password=<gitlab-deploy-token> \
   -n portfolio-dev

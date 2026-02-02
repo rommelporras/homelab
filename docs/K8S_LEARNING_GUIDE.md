@@ -38,7 +38,7 @@ For every command, we answer:
 
 Every example uses YOUR actual setup (see [CLUSTER_STATUS.md](CLUSTER_STATUS.md) for details):
 - **Nodes:** k8s-cp1 (.11), k8s-cp2 (.12), k8s-cp3 (.13) on 10.10.30.0/24
-- **VIP:** 10.10.30.10 (k8s-api.home.rommelporras.com)
+- **VIP:** 10.10.30.10 (api.k8s.rommelporras.com)
 - **CNI:** Cilium (NetworkPolicy enabled)
 - **Storage:** Longhorn on NVMe
 - **NAS:** Dell 3090 OMV at 10.10.30.4 (NFS)

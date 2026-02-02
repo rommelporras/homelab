@@ -109,7 +109,7 @@
 - [x] 3.5.4.1 Configure DNS rewrites in BOTH AdGuard instances
   ```
   # Add wildcard rewrite in each AdGuard Home UI:
-  #   Domain: *.k8s.home.rommelporras.com
+  #   Domain: *.k8s.rommelporras.com
   #   Answer: 10.10.30.20 (Gateway LoadBalancer IP)
   #
   # Instances to configure:
@@ -192,7 +192,7 @@
 
 > **CKA Topics:** DaemonSets, ServiceMonitors, StatefulSets, Resource Metrics
 >
-> **Access:** https://grafana.k8s.home.rommelporras.com (via Gateway API)
+> **Access:** https://grafana.k8s.rommelporras.com (via Gateway API)
 >
 > **Note:** kube-prometheus-stack uses OCI registry (recommended by upstream).
 > No `helm repo add` needed.
@@ -238,7 +238,7 @@
 
 - [x] 3.6.6 Access Grafana via HTTPS
   ```
-  https://grafana.k8s.home.rommelporras.com
+  https://grafana.k8s.rommelporras.com
   Login: admin / (from 1Password)
   ```
 
@@ -783,7 +783,7 @@ battery-check)
   #   - manifests/monitoring/dashboards/ups-monitoring.json
   #   - manifests/monitoring/ups-dashboard-configmap.yaml
   #
-  # Access: https://grafana.k8s.home.rommelporras.com/d/ups-monitoring
+  # Access: https://grafana.k8s.rommelporras.com/d/ups-monitoring
   ```
 
 ### 3.8.5 Create PrometheusRule for UPS Alerts ✅

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, networking, dns, vlan]
-updated: 2026-02-01
+updated: 2026-02-02
 ---
 
 # Networking
@@ -11,10 +11,10 @@ Network configuration for the homelab cluster.
 
 | VIP | IP | DNS | Implementation |
 |-----|-----|-----|----------------|
-| K8s API | 10.10.30.10 | k8s-api.home.rommelporras.com | kube-vip (ARP) |
-| Gateway | 10.10.30.20 | *.k8s.home.rommelporras.com | Cilium L2 |
-| GitLab SSH | 10.10.30.21 | ssh.gitlab.k8s.home.rommelporras.com | Cilium L2 |
-| AdGuard DNS | 10.10.30.53 | adguard.k8s.home.rommelporras.com | Cilium L2 |
+| K8s API | 10.10.30.10 | api.k8s.rommelporras.com | kube-vip (ARP) |
+| Gateway | 10.10.30.20 | *.k8s.rommelporras.com | Cilium L2 |
+| GitLab SSH | 10.10.30.21 | ssh.gitlab.k8s.rommelporras.com | Cilium L2 |
+| AdGuard DNS | 10.10.30.53 | adguard.k8s.rommelporras.com | Cilium L2 |
 
 ## Node IPs
 
@@ -29,7 +29,7 @@ Network configuration for the homelab cluster.
 | Resource | IP | DNS |
 |----------|-----|-----|
 | Gateway | 10.10.30.1 | — |
-| DNS Primary | 10.10.30.53 | adguard.k8s.home.rommelporras.com (K8s) |
+| DNS Primary | 10.10.30.53 | adguard.k8s.rommelporras.com (K8s) |
 | DNS Secondary | 10.10.30.54 | fw-agh.home.rommelporras.com (FW LXC failover) |
 | NAS | 10.10.30.4 | omv.home.rommelporras.com |
 | NPM | 10.10.30.80 | *.home.rommelporras.com |
@@ -38,29 +38,31 @@ Network configuration for the homelab cluster.
 
 | Record | Type | Value |
 |--------|------|-------|
-| k8s-api.home.rommelporras.com | A | 10.10.30.10 |
-| k8s-cp1.home.rommelporras.com | A | 10.10.30.11 |
-| k8s-cp2.home.rommelporras.com | A | 10.10.30.12 |
-| k8s-cp3.home.rommelporras.com | A | 10.10.30.13 |
-| *.k8s.home.rommelporras.com | A | 10.10.30.20 |
+| api.k8s.rommelporras.com | A | 10.10.30.10 |
+| cp1.k8s.rommelporras.com | A | 10.10.30.11 |
+| cp2.k8s.rommelporras.com | A | 10.10.30.12 |
+| cp3.k8s.rommelporras.com | A | 10.10.30.13 |
+| *.k8s.rommelporras.com | A | 10.10.30.20 |
+| *.dev.k8s.rommelporras.com | A | 10.10.30.20 |
+| *.stg.k8s.rommelporras.com | A | 10.10.30.20 |
 
 ## Service URLs
 
-| Service | URL |
-|---------|-----|
-| Grafana | https://grafana.k8s.home.rommelporras.com |
-| Longhorn | https://longhorn.k8s.home.rommelporras.com |
-| AdGuard | https://adguard.k8s.home.rommelporras.com |
-| Homepage | https://portal.k8s.home.rommelporras.com |
-| GitLab | https://gitlab.k8s.home.rommelporras.com |
-| GitLab Registry | https://registry.k8s.home.rommelporras.com |
-| GitLab SSH | ssh://git@ssh.gitlab.k8s.home.rommelporras.com |
-| Portfolio Dev | https://portfolio-dev.k8s.home.rommelporras.com |
-| Portfolio Staging | https://portfolio-staging.k8s.home.rommelporras.com |
-| Portfolio Prod | https://portfolio-prod.k8s.home.rommelporras.com |
-| Ghost Dev | https://blog-dev.k8s.home.rommelporras.com |
-| Ghost Prod (internal) | https://blog.k8s.home.rommelporras.com |
-| Ghost Prod (public) | https://blog.rommelporras.com |
+| Service | URL | Tier |
+|---------|-----|------|
+| Grafana | https://grafana.k8s.rommelporras.com | base |
+| Longhorn | https://longhorn.k8s.rommelporras.com | base |
+| AdGuard | https://adguard.k8s.rommelporras.com | base |
+| Homepage | https://portal.k8s.rommelporras.com | base |
+| GitLab | https://gitlab.k8s.rommelporras.com | base |
+| GitLab Registry | https://registry.k8s.rommelporras.com | base |
+| GitLab SSH | ssh://git@ssh.gitlab.k8s.rommelporras.com | base |
+| Portfolio Dev | https://portfolio.dev.k8s.rommelporras.com | dev |
+| Portfolio Staging | https://portfolio.stg.k8s.rommelporras.com | stg |
+| Portfolio Prod | https://portfolio.k8s.rommelporras.com | base |
+| Ghost Dev | https://blog.dev.k8s.rommelporras.com | dev |
+| Ghost Prod (internal) | https://blog.k8s.rommelporras.com | base |
+| Ghost Prod (public) | https://blog.rommelporras.com | — |
 
 ## VLAN Configuration
 
@@ -108,7 +110,10 @@ Network configuration for the homelab cluster.
 |---------|-------|
 | Issuer | Let's Encrypt (production) |
 | Challenge | DNS-01 via Cloudflare |
-| Wildcard | *.k8s.home.rommelporras.com |
+| Base wildcard | *.k8s.rommelporras.com |
+| Dev wildcard | *.dev.k8s.rommelporras.com |
+| Stg wildcard | *.stg.k8s.rommelporras.com |
+| Cert secrets | wildcard-k8s-tls, wildcard-dev-k8s-tls, wildcard-stg-k8s-tls |
 
 ## Related
 

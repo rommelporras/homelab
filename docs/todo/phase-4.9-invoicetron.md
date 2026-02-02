@@ -14,7 +14,7 @@
 
 > **Access:**
 > - **Public:** `invoicetron.rommelporras.com` (via Cloudflare Tunnel)
-> - **Internal:** `invoicetron.k8s.home.rommelporras.com` (home network / Tailscale)
+> - **Internal:** `invoicetron.k8s.rommelporras.com` (home network / Tailscale)
 
 ---
 
@@ -319,7 +319,7 @@ This phase introduces **stateful** applications. Understand the difference:
       spec:
         containers:
         - name: invoicetron
-          image: registry.k8s.home.rommelporras.com/invoicetron:latest
+          image: registry.k8s.rommelporras.com/invoicetron:latest
           ports:
           - containerPort: 3000
           env:
@@ -331,7 +331,7 @@ This phase introduces **stateful** applications. Understand the difference:
                 name: invoicetron-secrets
                 key: better-auth-secret
           - name: NEXT_PUBLIC_APP_URL
-            value: https://invoicetron.k8s.home.rommelporras.com
+            value: https://invoicetron.k8s.rommelporras.com
           envFrom:
           - secretRef:
               name: invoicetron-secrets
@@ -497,7 +497,7 @@ This phase introduces **stateful** applications. Understand the difference:
 - [ ] Invoicetron deployment running with 2 replicas
 - [ ] Prisma migration Job completed successfully
 - [ ] Secrets created (invoicetron-secrets)
-- [ ] HTTPRoute configured for invoicetron.k8s.home.rommelporras.com
+- [ ] HTTPRoute configured for invoicetron.k8s.rommelporras.com
 - [ ] DNS rewrite configured in AdGuard
 - [ ] GitLab CI/CD pipeline passes all stages
 - [ ] Can login to Invoicetron web UI

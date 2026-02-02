@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-02-01
+updated: 2026-02-02
 ---
 
 # Monitoring
@@ -25,7 +25,7 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 
 | Service | URL |
 |---------|-----|
-| Grafana | https://grafana.k8s.home.rommelporras.com |
+| Grafana | https://grafana.k8s.rommelporras.com |
 | Prometheus | ClusterIP (port-forward: 9090) |
 | Alertmanager | ClusterIP (port-forward: 9093) |
 

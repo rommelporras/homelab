@@ -90,7 +90,7 @@ grafana:
   grafana.ini:
     server:
       # Root URL for links in emails, etc.
-      root_url: https://grafana.k8s.home.rommelporras.com
+      root_url: https://grafana.k8s.rommelporras.com
 
     # Disable analytics/telemetry
     analytics:

@@ -1,7 +1,7 @@
 # manifests/gateway/routes/portfolio-prod.yaml
 # HTTPRoute for Portfolio production environment via Cilium Gateway API
 #
-# Routes: portfolio-prod.k8s.home.rommelporras.com → portfolio:80
+# Routes: portfolio.k8s.rommelporras.com → portfolio:80
 # External access via Cloudflare Tunnel: www.rommelporras.com
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -14,7 +14,7 @@ spec:
       namespace: default
       sectionName: https
   hostnames:
-    - "portfolio-prod.k8s.home.rommelporras.com"
+    - "portfolio.k8s.rommelporras.com"
   rules:
     - matches:
         - path:

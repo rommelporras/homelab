@@ -49,7 +49,8 @@ longhorn_prerequisites:
 
 # All hostnames/IPs that should be valid for the API server certificate
 cert_sans:
-  - "k8s-api.home.rommelporras.com"
+  - "api.k8s.rommelporras.com"
+  - "k8s-api.home.rommelporras.com"  # keep for rollback
   - "10.10.30.10"  # VIP
   - "10.10.30.11"  # cp1
   - "10.10.30.12"  # cp2

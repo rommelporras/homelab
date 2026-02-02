@@ -39,21 +39,21 @@
 
     - k8s-cp1:
         icon: mdi-kubernetes
-        href: https://grafana.k8s.home.rommelporras.com/d/rYdddlPWk/node-exporter-full?var-node=k8s-cp1
+        href: https://grafana.k8s.rommelporras.com/d/rYdddlPWk/node-exporter-full?var-node=k8s-cp1
         description: Control Plane 1 (10.10.30.11)
         statusStyle: dot
         siteMonitor: http://10.10.30.11:9100/metrics
 
     - k8s-cp2:
         icon: mdi-kubernetes
-        href: https://grafana.k8s.home.rommelporras.com/d/rYdddlPWk/node-exporter-full?var-node=k8s-cp2
+        href: https://grafana.k8s.rommelporras.com/d/rYdddlPWk/node-exporter-full?var-node=k8s-cp2
         description: Control Plane 2 (10.10.30.12)
         statusStyle: dot
         siteMonitor: http://10.10.30.12:9100/metrics
 
     - k8s-cp3:
         icon: mdi-kubernetes
-        href: https://grafana.k8s.home.rommelporras.com/d/rYdddlPWk/node-exporter-full?var-node=k8s-cp3
+        href: https://grafana.k8s.rommelporras.com/d/rYdddlPWk/node-exporter-full?var-node=k8s-cp3
         description: Control Plane 3 (10.10.30.13)
         statusStyle: dot
         siteMonitor: http://10.10.30.13:9100/metrics
@@ -72,12 +72,12 @@
 
     - AdGuard (Primary):
         icon: adguard-home.png
-        href: https://adguard.k8s.home.rommelporras.com
+        href: https://adguard.k8s.rommelporras.com
         description: DNS Ad-blocker (K8s)
         statusStyle: dot
         widget:
           type: adguard
-          url: https://adguard.k8s.home.rommelporras.com
+          url: https://adguard.k8s.rommelporras.com
           username: "{{HOMEPAGE_VAR_ADGUARD_USER}}"
           password: "{{HOMEPAGE_VAR_ADGUARD_PASS}}"
 
@@ -114,10 +114,10 @@
 - Storage:
     - Longhorn:
         icon: longhorn.png
-        href: https://longhorn.k8s.home.rommelporras.com
+        href: https://longhorn.k8s.rommelporras.com
         description: K8s Distributed Storage
         statusStyle: dot
-        siteMonitor: https://longhorn.k8s.home.rommelporras.com
+        siteMonitor: https://longhorn.k8s.rommelporras.com
 
     - OpenMediaVault:
         icon: openmediavault.png
@@ -170,22 +170,22 @@
 
     - Grafana:
         icon: grafana.png
-        href: https://grafana.k8s.home.rommelporras.com
+        href: https://grafana.k8s.rommelporras.com
         description: Dashboards & Metrics
         statusStyle: dot
-        siteMonitor: https://grafana.k8s.home.rommelporras.com
+        siteMonitor: https://grafana.k8s.rommelporras.com
         widget:
           type: grafana
-          url: https://grafana.k8s.home.rommelporras.com
+          url: https://grafana.k8s.rommelporras.com
           username: "{{HOMEPAGE_VAR_GRAFANA_USER}}"
           password: "{{HOMEPAGE_VAR_GRAFANA_PASS}}"
 
     - Blog (Dev):
         icon: ghost.png
-        href: https://blog-dev.k8s.home.rommelporras.com
+        href: https://blog.dev.k8s.rommelporras.com
         description: Ghost Dev Environment
         statusStyle: dot
-        siteMonitor: https://blog-dev.k8s.home.rommelporras.com
+        siteMonitor: https://blog.dev.k8s.rommelporras.com
 
     - Blog (Prod):
         icon: ghost.png
@@ -197,10 +197,10 @@
 - Health:
     - UPS Status:
         icon: mdi-battery-charging
-        href: https://grafana.k8s.home.rommelporras.com/d/ups-monitoring
+        href: https://grafana.k8s.rommelporras.com/d/ups-monitoring
         description: CyberPower UPS
         statusStyle: dot
-        siteMonitor: https://grafana.k8s.home.rommelporras.com/d/ups-monitoring
+        siteMonitor: https://grafana.k8s.rommelporras.com/d/ups-monitoring
 
     - Speed Test:
         icon: myspeed.png
@@ -243,37 +243,37 @@
 - Kubernetes:
     - Grafana:
         icon: grafana.png
-        href: https://grafana.k8s.home.rommelporras.com
+        href: https://grafana.k8s.rommelporras.com
         description: Observability Platform
         statusStyle: dot
-        siteMonitor: https://grafana.k8s.home.rommelporras.com
+        siteMonitor: https://grafana.k8s.rommelporras.com
         widget:
           type: grafana
-          url: https://grafana.k8s.home.rommelporras.com
+          url: https://grafana.k8s.rommelporras.com
           username: "{{HOMEPAGE_VAR_GRAFANA_USER}}"
           password: "{{HOMEPAGE_VAR_GRAFANA_PASS}}"
 
     - Longhorn:
         icon: longhorn.png
-        href: https://longhorn.k8s.home.rommelporras.com
+        href: https://longhorn.k8s.rommelporras.com
         description: Distributed Block Storage
         statusStyle: dot
-        siteMonitor: https://longhorn.k8s.home.rommelporras.com
+        siteMonitor: https://longhorn.k8s.rommelporras.com
 
     - AdGuard Home:
         icon: adguard-home.png
-        href: https://adguard.k8s.home.rommelporras.com
+        href: https://adguard.k8s.rommelporras.com
         description: DNS & Ad Blocking
         statusStyle: dot
         widget:
           type: adguard
-          url: https://adguard.k8s.home.rommelporras.com
+          url: https://adguard.k8s.rommelporras.com
           username: "{{HOMEPAGE_VAR_ADGUARD_USER}}"
           password: "{{HOMEPAGE_VAR_ADGUARD_PASS}}"
 
     - Homepage:
         icon: homepage.png
-        href: https://homepage.k8s.home.rommelporras.com
+        href: https://portal.k8s.rommelporras.com
         description: This Dashboard
         statusStyle: dot
-        siteMonitor: https://homepage.k8s.home.rommelporras.com
+        siteMonitor: https://portal.k8s.rommelporras.com

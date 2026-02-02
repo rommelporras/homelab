@@ -44,7 +44,7 @@ Deploy Ghost CMS to Kubernetes with two environments:
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│   Theme Repo: gitlab.k8s.home.rommelporras.com/0xwsh/               │
+│   Theme Repo: gitlab.k8s.rommelporras.com/0xwsh/               │
 │               eventually-consistent                                  │
 │   - Forked from Dawn                                                 │
 │   - GitLab CI/CD builds theme zip                                    │
@@ -85,7 +85,7 @@ Deploy Ghost CMS to Kubernetes with two environments:
 
 | Environment | URL | Access |
 |-------------|-----|--------|
-| Dev | blog-dev.k8s.home.rommelporras.com | Internal only (HTTPRoute) |
+| Dev | blog.dev.k8s.rommelporras.com | Internal only (HTTPRoute) |
 | Prod | blog.rommelporras.com | Public (Cloudflare Tunnel) |
 
 ---
@@ -408,7 +408,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
           - containerPort: 2368
           env:
           - name: url
-            value: https://blog-dev.k8s.home.rommelporras.com
+            value: https://blog.dev.k8s.rommelporras.com
           # Database configuration
           - name: database__client
             value: mysql
@@ -546,7 +546,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
     - name: homelab-gateway
       namespace: kube-system
     hostnames:
-    - blog-dev.k8s.home.rommelporras.com
+    - blog.dev.k8s.rommelporras.com
     rules:
     - matches:
       - path:
@@ -570,7 +570,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
     - name: homelab-gateway
       namespace: kube-system
     hostnames:
-    - blog.k8s.home.rommelporras.com
+    - blog.k8s.rommelporras.com
     rules:
     - matches:
       - path:
@@ -610,7 +610,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 - [x] 4.12.5.6 Verify access
   ```bash
   # Internal dev
-  curl -I https://blog-dev.k8s.home.rommelporras.com
+  curl -I https://blog.dev.k8s.rommelporras.com
 
   # Public prod
   curl -I https://blog.rommelporras.com
@@ -621,7 +621,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 ## 4.12.5b Cloudflare Security — Block Public `/ghost` Admin Access
 
 > **Why?** The `/ghost` path is the Ghost admin portal. Public access exposes the login page to brute force attacks.
-> Internal access via `blog.k8s.home.rommelporras.com/ghost/` is unaffected (bypasses Cloudflare entirely).
+> Internal access via `blog.k8s.rommelporras.com/ghost/` is unaffected (bypasses Cloudflare entirely).
 
 ### Approach: WAF Custom Rules (two ordered rules)
 
@@ -695,7 +695,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   curl -sI https://blog.rommelporras.com/ | head -5
 
   # Internal access still works directly (bypasses Cloudflare)
-  curl -sI https://blog.k8s.home.rommelporras.com/ghost/ | head -5
+  curl -sI https://blog.k8s.rommelporras.com/ghost/ | head -5
   ```
 
 ### Rejected: Cloudflare Access approach
@@ -741,10 +741,10 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 
 - [x] 4.12.6.3 Create GitLab repo and push
   ```bash
-  # GitLab: gitlab.k8s.home.rommelporras.com/0xwsh/eventually-consistent
+  # GitLab: gitlab.k8s.rommelporras.com/0xwsh/eventually-consistent
   cd ~/personal/eventually-consistent
   git init -b main
-  git remote add origin git@ssh.gitlab.k8s.home.rommelporras.com:0xwsh/eventually-consistent.git
+  git remote add origin git@ssh.gitlab.k8s.rommelporras.com:0xwsh/eventually-consistent.git
   git remote add github git@github.com:rommelporras/eventually-consistent.git
   git add .
   git commit -m "feat: eventually-consistent Ghost theme"
@@ -776,7 +776,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   ```
   Settings → CI/CD → Variables:
 
-  GHOST_DEV_URL = https://blog-dev.k8s.home.rommelporras.com
+  GHOST_DEV_URL = https://blog.dev.k8s.rommelporras.com
   GHOST_DEV_ADMIN_API_KEY = (from 1Password)
   GHOST_PROD_URL = https://blog.rommelporras.com
   GHOST_PROD_ADMIN_API_KEY = (from 1Password)
@@ -914,7 +914,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   echo "Updating site URL in dev database..."
   kubectl-homelab exec -n ${DEV_NS} ghost-mysql-0 -- \
     mysql -u ghost -p"$(kubectl-homelab get secret -n ${DEV_NS} ghost-mysql -o jsonpath='{.data.user-password}' | base64 -d)" \
-    -e "UPDATE ghost.settings SET value='https://blog-dev.k8s.home.rommelporras.com' WHERE \`key\`='url';" \
+    -e "UPDATE ghost.settings SET value='https://blog.dev.k8s.rommelporras.com' WHERE \`key\`='url';" \
     ghost
 
   # 6. Copy content to dev pod (after scaling up)
@@ -932,7 +932,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 
   echo "=== Sync complete! ==="
   echo "Backup retained at: ${BACKUP_DIR}"
-  echo "Dev URL: https://blog-dev.k8s.home.rommelporras.com"
+  echo "Dev URL: https://blog.dev.k8s.rommelporras.com"
   ```
 
 - [x] 4.12.9.2 Create local sync script
@@ -987,7 +987,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
 
 - [x] 4.12.10.3 Access Ghost Admin and complete setup (dev + prod done)
   ```
-  Dev: https://blog-dev.k8s.home.rommelporras.com/ghost/
+  Dev: https://blog.dev.k8s.rommelporras.com/ghost/
   Prod: https://blog.rommelporras.com/ghost/
 
   1. Create admin account (first-time setup wizard)
@@ -1030,7 +1030,7 @@ Ghost health endpoint: `/ghost/api/admin/site/`
   **HTTPRoutes:**
   | Service | URL | Namespace |
   |---------|-----|-----------|
-  | Ghost Dev | blog-dev.k8s.home.rommelporras.com | ghost-dev |
+  | Ghost Dev | blog.dev.k8s.rommelporras.com | ghost-dev |
   | Ghost Prod | blog.rommelporras.com (Cloudflare) | ghost-prod |
   ```
 

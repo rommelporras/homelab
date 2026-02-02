@@ -1,7 +1,7 @@
 # manifests/gateway/routes/gitlab.yaml
 # HTTPRoute for GitLab web UI via Cilium Gateway API
 #
-# Routes: gitlab.k8s.home.rommelporras.com → gitlab-webservice-default:8181
+# Routes: gitlab.k8s.rommelporras.com → gitlab-webservice-default:8181
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -13,7 +13,7 @@ spec:
       namespace: default
       sectionName: https
   hostnames:
-    - "gitlab.k8s.home.rommelporras.com"
+    - "gitlab.k8s.rommelporras.com"
   rules:
     - matches:
         - path:

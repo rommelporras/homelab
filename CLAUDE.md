@@ -60,7 +60,7 @@ homelab/
 | k8s-cp3 | 10.10.30.13 |
 | VIP | 10.10.30.10 |
 | NAS | 10.10.30.4 |
-| SSH | wawashi@k8s-cp{1,2,3}.home.rommelporras.com |
+| SSH | wawashi@cp{1,2,3}.k8s.rommelporras.com |
 
 ## Architecture Decisions
 
@@ -88,7 +88,7 @@ homelab/
 
 ```bash
 # SSH to nodes
-ssh wawashi@k8s-cp1.home.rommelporras.com
+ssh wawashi@cp1.k8s.rommelporras.com
 
 # Homelab Kubernetes (uses ~/.kube/homelab.yaml)
 kubectl-homelab get nodes

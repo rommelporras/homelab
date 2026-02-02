@@ -71,7 +71,7 @@ kubectl exec -i -n ${DEV_NS} ghost-mysql-0 -- \
 echo -e "${YELLOW}[6/7] Updating site URL in dev database...${NC}"
 kubectl exec -n ${DEV_NS} ghost-mysql-0 -- \
   mysql -u ghost -p"${DEV_MYSQL_PASS}" \
-  -e "UPDATE ghost.settings SET value='https://blog-dev.k8s.home.rommelporras.com' WHERE \`key\`='url';" \
+  -e "UPDATE ghost.settings SET value='https://blog.dev.k8s.rommelporras.com' WHERE \`key\`='url';" \
   ghost
 
 # 7. Copy content to dev pod (after scaling up)
@@ -87,4 +87,4 @@ kubectl rollout restart deployment ghost -n ${DEV_NS}
 
 echo -e "\n${GREEN}=== Sync complete! ===${NC}"
 echo -e "Backup retained at: ${BACKUP_DIR}"
-echo -e "Dev URL: https://blog-dev.k8s.home.rommelporras.com"
+echo -e "Dev URL: https://blog.dev.k8s.rommelporras.com"

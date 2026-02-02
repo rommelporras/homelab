@@ -75,7 +75,7 @@ Before starting any rebuild, ensure you have:
 | k8s-cp2 | Control Plane | 10.10.30.12 | M80q i5-10400T, 16GB, 512GB NVMe |
 | k8s-cp3 | Control Plane | 10.10.30.13 | M80q i5-10400T, 16GB, 512GB NVMe |
 
-**VIP:** 10.10.30.10 (k8s-api.home.rommelporras.com)
+**VIP:** 10.10.30.10 (api.k8s.rommelporras.com)
 
 ### Workstation Tools
 
@@ -94,11 +94,11 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 
 | Record | Type | Value |
 |--------|------|-------|
-| k8s-api.home.rommelporras.com | A | 10.10.30.10 |
-| k8s-cp1.home.rommelporras.com | A | 10.10.30.11 |
-| k8s-cp2.home.rommelporras.com | A | 10.10.30.12 |
-| k8s-cp3.home.rommelporras.com | A | 10.10.30.13 |
-| *.k8s.home.rommelporras.com | A | 10.10.30.20 |
+| api.k8s.rommelporras.com | A | 10.10.30.10 |
+| cp1.k8s.rommelporras.com | A | 10.10.30.11 |
+| cp2.k8s.rommelporras.com | A | 10.10.30.12 |
+| cp3.k8s.rommelporras.com | A | 10.10.30.13 |
+| *.k8s.rommelporras.com | A | 10.10.30.20 |
 
 ---
 

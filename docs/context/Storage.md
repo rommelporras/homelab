@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, storage, longhorn, nfs]
-updated: 2026-02-01
+updated: 2026-02-02
 ---
 
 # Storage
@@ -41,7 +41,7 @@ kubectl-homelab -n longhorn-system port-forward svc/longhorn-frontend 8080:80
 # Open http://localhost:8080
 ```
 
-Or via: https://longhorn.k8s.home.rommelporras.com
+Or via: https://longhorn.k8s.rommelporras.com
 
 ## NFS (Dell 3090)
 

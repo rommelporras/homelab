@@ -1,5 +1,5 @@
 # HTTPRoute for AdGuard Home web UI
-# URL: https://adguard.k8s.home.rommelporras.com
+# URL: https://adguard.k8s.rommelporras.com
 #
 # Gateway API Architecture:
 #   Client -> Gateway (10.10.30.20:443) -> HTTPRoute -> Service -> Pod
@@ -17,7 +17,7 @@ spec:
       namespace: default
       sectionName: https
   hostnames:
-    - adguard.k8s.home.rommelporras.com
+    - adguard.k8s.rommelporras.com
   rules:
     - matches:
         - path:

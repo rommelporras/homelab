@@ -28,7 +28,7 @@ containerd_version: "1.7"  # Ubuntu 24.04 default
 
 # Virtual IP for API server HA
 vip_address: "10.10.30.10"
-vip_hostname: "k8s-api.home.rommelporras.com"
+vip_hostname: "api.k8s.rommelporras.com"
 vip_interface: "eno1"  # Intel I219-LM on M80q
 
 # Pod and Service CIDRs
@@ -60,4 +60,4 @@ kubeadm_config_file: "/etc/kubernetes/kubeadm-config.yaml"
 # DNS
 # =============================================================================
 
-cluster_domain: "home.rommelporras.com"
+cluster_domain: "rommelporras.com"

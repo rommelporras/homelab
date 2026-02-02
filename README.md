@@ -8,7 +8,7 @@
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
 > **Owner:** Rommel Porras
-> **Last Updated:** February 1, 2026
+> **Last Updated:** February 2, 2026
 
 ---
 
@@ -42,6 +42,7 @@
 | Portfolio CI/CD | ✅ Complete | 3-env deployment (dev/staging/prod) |
 | DNS Alerting | ✅ Complete | Blackbox exporter + synthetic DNS probe |
 | Ghost Blog | ✅ Complete | Dev + Prod environments, Cloudflare Tunnel |
+| Domain Migration | ✅ Complete | Tiered wildcards (base/dev/stg) |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/CLUSTER_STATUS.md](docs/CLUSTER_STATUS.md) - Single source of truth
@@ -172,6 +173,7 @@ Step-by-step instructions to rebuild the cluster from scratch:
 | [v0.9.0-dns-alerting](docs/rebuild/v0.9.0-dns-alerting.md) | Phase 4.8.1 | Blackbox exporter, synthetic DNS monitoring |
 | [v0.10.0-portfolio-cicd](docs/rebuild/v0.10.0-portfolio-cicd.md) | Phase 4.7 | Portfolio CI/CD with 3-env deployment |
 | [v0.11.0-ghost-blog](docs/rebuild/v0.11.0-ghost-blog.md) | Phase 4.12 | Ghost CMS with dev/prod environments |
+| [v0.12.0-domain-migration](docs/rebuild/v0.12.0-domain-migration.md) | Phase 4.13 | Domain migration to `*.k8s.rommelporras.com` with tiered wildcards |
 
 ### Reference
 
@@ -225,6 +227,7 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Jan 28, 2026** | **Portfolio CI/CD** migrated from PVE VM to K8s (Phase 4.7) |
 | **Jan 30, 2026** | **DNS Alerting** — Blackbox exporter + synthetic DNS monitoring (Phase 4.8.1) |
 | **Jan 31, 2026** | **Ghost Blog** — Ghost 6.14.0 + MySQL 8.4.8 with dev/prod environments (Phase 4.12) |
+| **Feb 2, 2026** | **Domain Migration** — `*.k8s.rommelporras.com` with tiered wildcards (Phase 4.13) |
 | **Coming** | Uptime Kuma, Invoicetron, Tailscale, Immich |
 
 See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.

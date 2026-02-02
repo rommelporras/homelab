@@ -4,6 +4,90 @@
 
 ---
 
+## February 2, 2026 — Phase 4.13: Domain Migration
+
+### Milestone: Corporate-Style Domain Hierarchy
+
+Migrated all Kubernetes services from `*.k8s.home.rommelporras.com` to a tiered domain scheme under `*.k8s.rommelporras.com`. Introduced corporate-style environment tiers (base, dev, stg) with scoped wildcard TLS certificates.
+
+| Component | Change |
+|-----------|--------|
+| Gateway | 3 HTTPS listeners (base, dev, stg) with scoped wildcards |
+| TLS | 3 wildcard certs via cert-manager DNS-01 |
+| API Server | New SAN `api.k8s.rommelporras.com` on all 3 nodes |
+| DNS (K8s AdGuard) | New rewrites for all tiers + node hostnames |
+| DNS (Failover LXC) | Matching rewrites for failover safety |
+
+### Domain Scheme
+
+| Tier | Wildcard | Purpose |
+|------|----------|---------|
+| Base | `*.k8s.rommelporras.com` | Infrastructure + production |
+| Dev | `*.dev.k8s.rommelporras.com` | Development environments |
+| Stg | `*.stg.k8s.rommelporras.com` | Staging environments |
+
+### Service Migration
+
+| Service | Old Domain | New Domain |
+|---------|-----------|------------|
+| Homepage | portal.k8s.home.rommelporras.com | portal.k8s.rommelporras.com |
+| Grafana | grafana.k8s.home.rommelporras.com | grafana.k8s.rommelporras.com |
+| GitLab | gitlab.k8s.home.rommelporras.com | gitlab.k8s.rommelporras.com |
+| Registry | registry.k8s.home.rommelporras.com | registry.k8s.rommelporras.com |
+| Blog Prod | blog.k8s.home.rommelporras.com | blog.k8s.rommelporras.com |
+| Blog Dev | blog-dev.k8s.home.rommelporras.com | blog.dev.k8s.rommelporras.com |
+| Portfolio Prod | portfolio-prod.k8s.home.rommelporras.com | portfolio.k8s.rommelporras.com |
+| Portfolio Dev | portfolio-dev.k8s.home.rommelporras.com | portfolio.dev.k8s.rommelporras.com |
+| Portfolio Stg | portfolio-staging.k8s.home.rommelporras.com | portfolio.stg.k8s.rommelporras.com |
+| K8s API | k8s-api.home.rommelporras.com | api.k8s.rommelporras.com |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Tier convention | prod=default, non-prod=qualified | Corporate pattern: `blog.k8s` is prod, `blog.dev.k8s` is dev |
+| Wildcard scope | Per-tier wildcards | `*.k8s`, `*.dev.k8s`, `*.stg.k8s` — no broad `*.rommelporras.com` |
+| Legacy boundary | `*.home.rommelporras.com` untouched | Proxmox, OPNsense, OMV stay on NPM |
+| Node hostnames | `cp{1,2,3}.k8s.rommelporras.com` | Hierarchical, consistent with service naming |
+| API hostname | `api.k8s.rommelporras.com` | Short, follows corporate convention |
+
+### Lessons Learned
+
+1. **kubeadm `certs renew` does NOT add new SANs** — It only renews expiration, reusing existing SANs. To add a new SAN: delete the cert+key, then run `kubeadm init phase certs apiserver --config /path/to/config.yaml`.
+
+2. **Local kubeadm config takes priority over ConfigMap** — If `/etc/kubernetes/kubeadm-config.yaml` exists on a node, `kubeadm init phase certs` uses it instead of the kube-system ConfigMap. Must update (or create) the local file on each node.
+
+3. **AdGuard configmap is only an init template** — The init container copies config to PVC only on first boot (`if [ ! -f ... ]`). Runtime changes must be made via web UI. Configmap should still be updated as rebuild source of truth.
+
+4. **RWO PVC + RollingUpdate = deadlock** — Grafana's Longhorn RWO volume caused a stuck rollout: new pod scheduled on different node couldn't attach the volume, old pod couldn't terminate (rolling update). Fix: scale to 0 then back to 1.
+
+5. **Gateway API multi-listener migration pattern** — Add new listeners alongside old ones, switch HTTPRoutes to new listeners, verify, then remove old listeners in cleanup phase. Zero-downtime migration.
+
+### CKA Learnings
+
+| Topic | Concept |
+|-------|---------|
+| Gateway API | Multi-listener pattern, scoped wildcards, sectionName routing |
+| cert-manager | Automatic Certificate creation from Gateway annotations, DNS-01 challenges |
+| kubeadm | certSANs management, cert regeneration vs renewal, ConfigMap vs local config |
+| TLS | Wildcard scope (one subdomain level only), multi-cert Gateway |
+
+### Files Modified
+
+| Category | Files |
+|----------|-------|
+| Gateway | manifests/gateway/homelab-gateway.yaml |
+| HTTPRoutes (8) | gitlab, gitlab-registry, portfolio-prod, ghost-prod, longhorn, adguard, homepage, grafana |
+| HTTPRoutes (3) | portfolio-dev, portfolio-staging, ghost-dev |
+| Helm | gitlab/values.yaml, gitlab-runner/values.yaml, prometheus/values.yaml |
+| Manifests | portfolio/deployment.yaml, ghost-dev/ghost-deployment.yaml, homepage/deployment.yaml |
+| Config | homepage/config/services.yaml, homepage/config/settings.yaml |
+| DNS | home/adguard/configmap.yaml |
+| Scripts | scripts/sync-ghost-prod-to-dev.sh |
+| Ansible | group_vars/all.yml, group_vars/control_plane.yml |
+
+---
+
 ## January 31, 2026 — Phase 4.12: Ghost Blog Platform
 
 ### Milestone: Self-hosted Ghost CMS with Dev/Prod Environments

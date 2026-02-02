@@ -1,5 +1,5 @@
 # HTTPRoute for Ghost Prod (internal access via Gateway)
-# URL: https://blog.k8s.home.rommelporras.com
+# URL: https://blog.k8s.rommelporras.com
 #
 # Gateway API Architecture:
 #   Client -> Gateway (10.10.30.20:443) -> HTTPRoute -> Service -> Pod
@@ -20,7 +20,7 @@ spec:
       namespace: default
       sectionName: https
   hostnames:
-    - blog.k8s.home.rommelporras.com
+    - blog.k8s.rommelporras.com
   rules:
     - matches:
         - path:

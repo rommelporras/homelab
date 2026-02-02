@@ -60,7 +60,7 @@
   manifests/home/adguard/
   ├── configmap.yaml      # Full sanitized config
   ├── deployment.yaml     # v0.107.71, init container, security context
-  ├── httproute.yaml      # adguard.k8s.home.rommelporras.com
+  ├── httproute.yaml      # adguard.k8s.rommelporras.com
   ├── pvc.yaml            # 5Gi Longhorn storage
   └── service.yaml        # LoadBalancer (DNS) + ClusterIP (HTTP)
   ```
@@ -73,7 +73,7 @@
 - [x] 4.2.9 Verify DNS resolution
   ```bash
   dig @10.10.30.55 google.com
-  dig @10.10.30.55 homepage.k8s.home.rommelporras.com
+  dig @10.10.30.55 homepage.k8s.rommelporras.com
   ```
 
 ### Key Learnings (For Talos Rebuild)
@@ -193,7 +193,7 @@
 
 - [x] 4.3.4 Verify accessible
   ```bash
-  curl -I https://homepage.k8s.home.rommelporras.com
+  curl -I https://homepage.k8s.rommelporras.com
   ```
 
 ### Key Learnings (For Talos Rebuild)
@@ -284,12 +284,12 @@ Homepage's Kubernetes widget requires metrics-server for CPU/memory stats.
 
 - [x] 4.4.3 Homepage accessible with working widgets
   ```bash
-  curl -I https://homepage.k8s.home.rommelporras.com
+  curl -I https://homepage.k8s.rommelporras.com
   ```
 
 - [x] 4.4.4 AdGuard web UI accessible
   ```bash
-  curl -I https://adguard.k8s.home.rommelporras.com
+  curl -I https://adguard.k8s.rommelporras.com
   ```
 
 - [x] 4.4.5 Metrics server providing cluster stats

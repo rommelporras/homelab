@@ -8,7 +8,7 @@ metadata:
   namespace: longhorn-system
 spec:
   hostnames:
-    - longhorn.k8s.home.rommelporras.com
+    - longhorn.k8s.rommelporras.com
   parentRefs:
     - name: homelab-gateway
       namespace: default

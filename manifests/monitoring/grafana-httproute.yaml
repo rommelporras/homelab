@@ -1,5 +1,5 @@
 # HTTPRoute for Grafana - exposes via Gateway API
-# URL: https://grafana.k8s.home.rommelporras.com
+# URL: https://grafana.k8s.rommelporras.com
 #
 # Gateway API Architecture:
 #   Client -> Gateway (10.10.30.20:443) -> HTTPRoute -> Service -> Pod
@@ -13,15 +13,13 @@ metadata:
   name: grafana
   namespace: monitoring
 spec:
-  # Reference to the shared Gateway in default namespace
   parentRefs:
     - name: homelab-gateway
       namespace: default
-      sectionName: https  # Use the HTTPS listener
+      sectionName: https
 
-  # Match requests for grafana.k8s.home.rommelporras.com
   hostnames:
-    - grafana.k8s.home.rommelporras.com
+    - grafana.k8s.rommelporras.com
 
   # Route to Grafana service
   rules:

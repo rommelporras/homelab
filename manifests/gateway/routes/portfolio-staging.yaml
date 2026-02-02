@@ -1,7 +1,7 @@
 # manifests/gateway/routes/portfolio-staging.yaml
 # HTTPRoute for Portfolio staging environment via Cilium Gateway API
 #
-# Routes: portfolio-staging.k8s.home.rommelporras.com → portfolio:80
+# Routes: portfolio.stg.k8s.rommelporras.com → portfolio:80
 # External access via Cloudflare Tunnel: beta.rommelporras.com
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -12,9 +12,9 @@ spec:
   parentRefs:
     - name: homelab-gateway
       namespace: default
-      sectionName: https
+      sectionName: https-stg
   hostnames:
-    - "portfolio-staging.k8s.home.rommelporras.com"
+    - "portfolio.stg.k8s.rommelporras.com"
   rules:
     - matches:
         - path:

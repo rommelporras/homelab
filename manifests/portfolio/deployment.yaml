@@ -32,7 +32,7 @@ spec:
       containers:
       - name: portfolio
         # Placeholder image - CI/CD will patch this with actual image
-        image: registry.k8s.home.rommelporras.com/0xwsh/portfolio:latest
+        image: registry.k8s.rommelporras.com/0xwsh/portfolio:latest
         ports:
         - containerPort: 80
           name: http

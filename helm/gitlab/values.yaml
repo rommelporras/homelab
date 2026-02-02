@@ -30,12 +30,12 @@ global:
 
   # Domain configuration
   hosts:
-    domain: k8s.home.rommelporras.com
+    domain: k8s.rommelporras.com
     gitlab:
-      name: gitlab.k8s.home.rommelporras.com
+      name: gitlab.k8s.rommelporras.com
       https: true
     registry:
-      name: registry.k8s.home.rommelporras.com
+      name: registry.k8s.rommelporras.com
       https: true
     # Disable external IP assignment (we use Gateway API)
     externalIP: null

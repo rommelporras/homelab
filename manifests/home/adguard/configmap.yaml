@@ -4,7 +4,7 @@
 #
 # Sanitized from Dell 3090 config with these changes:
 # - HTTP port: 80 → 3000 (non-root container)
-# - Rewrite: *.home.rommelporras.com → 10.10.30.20 (Gateway API, was NPM)
+# - Rewrite: *.k8s.rommelporras.com → 10.10.30.20 (Gateway API)
 # - safe_fs_patterns: updated for K8s paths
 ---
 apiVersion: v1
@@ -248,22 +248,37 @@ data:
         - domain: '*.home.rommelporras.com'
           answer: 10.10.30.80
           enabled: true
-        # Gateway API VIP - K8s services only
-        - domain: '*.k8s.home.rommelporras.com'
+
+        # K8s services — Gateway VIP
+        - domain: '*.k8s.rommelporras.com'
           answer: 10.10.30.20
           enabled: true
-        # K8s nodes - direct access
-        - domain: k8s-cp1.home.rommelporras.com
+        - domain: '*.dev.k8s.rommelporras.com'
+          answer: 10.10.30.20
+          enabled: true
+        - domain: '*.stg.k8s.rommelporras.com'
+          answer: 10.10.30.20
+          enabled: true
+
+        # API server — explicit override (VIP 10.10.30.10, NOT Gateway 10.10.30.20)
+        - domain: api.k8s.rommelporras.com
+          answer: 10.10.30.10
+          enabled: true
+
+        # GitLab SSH — explicit override (NodePort on cp1)
+        - domain: ssh.gitlab.k8s.rommelporras.com
+          answer: 10.10.30.21
+          enabled: true
+
+        # Node hostnames
+        - domain: cp1.k8s.rommelporras.com
           answer: 10.10.30.11
           enabled: true
-        - domain: k8s-cp2.home.rommelporras.com
+        - domain: cp2.k8s.rommelporras.com
           answer: 10.10.30.12
           enabled: true
-        - domain: k8s-cp3.home.rommelporras.com
+        - domain: cp3.k8s.rommelporras.com
           answer: 10.10.30.13
-          enabled: true
-        - domain: k8s-api.home.rommelporras.com
-          answer: 10.10.30.10
           enabled: true
       safe_fs_patterns:
         - /opt/adguardhome/userfilters/*

@@ -17,7 +17,7 @@ This guide contains the **project-specific commands** to bootstrap your 3-node H
 |------|-------|
 | **First control plane** | k8s-cp1 (10.10.30.11) |
 | **Additional control planes** | k8s-cp2 (.12), k8s-cp3 (.13) |
-| **VIP** | 10.10.30.10 (k8s-api.home.rommelporras.com) |
+| **VIP** | 10.10.30.10 (api.k8s.rommelporras.com) |
 | **CNI** | Cilium |
 | **Pod CIDR** | 10.244.0.0/16 |
 | **Service CIDR** | 10.96.0.0/12 |
@@ -52,7 +52,7 @@ ip link | grep -E "^[0-9]:" | awk -F: '{print $2}' | tr -d ' '
 
 ```bash
 # VIP hostname must resolve
-nslookup k8s-api.home.rommelporras.com
+nslookup api.k8s.rommelporras.com
 # Should return: 10.10.30.10
 
 # All nodes must be resolvable
@@ -296,13 +296,13 @@ nodeRegistration:
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
 kubernetesVersion: "v1.35.0"
-controlPlaneEndpoint: "k8s-api.home.rommelporras.com:6443"
+controlPlaneEndpoint: "api.k8s.rommelporras.com:6443"
 networking:
   podSubnet: "10.244.0.0/16"
   serviceSubnet: "10.96.0.0/12"
 apiServer:
   certSANs:
-    - "k8s-api.home.rommelporras.com"
+    - "api.k8s.rommelporras.com"
     - "10.10.30.10"
     - "10.10.30.11"
     - "10.10.30.12"
@@ -419,7 +419,7 @@ On k8s-cp2 and k8s-cp3:
 
 ```bash
 # Use the join command from above, adding --control-plane and --certificate-key
-sudo kubeadm join k8s-api.home.rommelporras.com:6443 \
+sudo kubeadm join api.k8s.rommelporras.com:6443 \
     --token <token> \
     --discovery-token-ca-cert-hash sha256:<hash> \
     --control-plane \
@@ -503,7 +503,7 @@ sudo rm -rf /etc/kubernetes /var/lib/etcd
 sudo journalctl -xeu kubelet
 
 # Verify DNS resolution
-nslookup k8s-api.home.rommelporras.com
+nslookup api.k8s.rommelporras.com
 
 # Verify VIP is reachable
 ping 10.10.30.10
