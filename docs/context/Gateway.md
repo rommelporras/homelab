@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, gateway, tls, cert-manager]
-updated: 2026-02-02
+updated: 2026-02-03
 ---
 
 # Gateway API

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, architecture, decisions]
-updated: 2026-02-01
+updated: 2026-02-03
 ---
 
 # Architecture

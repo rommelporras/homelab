@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, index]
-updated: 2026-02-02
+updated: 2026-02-03
 ---
 
 # Homelab Kubernetes Context

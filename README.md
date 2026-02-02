@@ -8,7 +8,7 @@
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
 > **Owner:** Rommel Porras
-> **Last Updated:** February 2, 2026
+> **Last Updated:** February 3, 2026
 
 ---
 
@@ -45,7 +45,7 @@
 | Domain Migration | ✅ Complete | Tiered wildcards (base/dev/stg) |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
-**Current State:** [docs/CLUSTER_STATUS.md](docs/CLUSTER_STATUS.md) - Single source of truth
+**Current State:** [docs/context/Cluster.md](docs/context/Cluster.md) - Single source of truth
 
 ---
 
@@ -143,17 +143,17 @@
 
 ## Documentation
 
-**[CLUSTER_STATUS.md](docs/CLUSTER_STATUS.md) is the single source of truth for all values.**
+**[Cluster.md](docs/context/Cluster.md) is the single source of truth for all values.**
 
 | Document | Purpose |
 |----------|---------|
-| [CLUSTER_STATUS.md](docs/CLUSTER_STATUS.md) | **Source of truth** — nodes, IPs, hardware |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Design decisions and rationale |
-| [NETWORK_INTEGRATION.md](docs/NETWORK_INTEGRATION.md) | Network, VLANs, switch, kube-vip |
+| [Cluster.md](docs/context/Cluster.md) | **Source of truth** — nodes, IPs, hardware |
+| [Architecture.md](docs/context/Architecture.md) | Design decisions and rationale |
+| [Networking.md](docs/context/Networking.md) | Network, VLANs, switch, kube-vip |
 | [KUBEADM_BOOTSTRAP.md](docs/KUBEADM_BOOTSTRAP.md) | Cluster bootstrap commands |
-| [STORAGE_SETUP.md](docs/STORAGE_SETUP.md) | Longhorn installation |
-| [EXISTING_INFRA.md](docs/EXISTING_INFRA.md) | Dell 3090 NAS integration |
-| [ROADMAP.md](docs/ROADMAP.md) | Timeline and CKA schedule |
+| [Storage.md](docs/context/Storage.md) | Longhorn and NFS storage |
+| [Gateway.md](docs/context/Gateway.md) | HTTPRoutes, TLS, cert-manager |
+| [Monitoring.md](docs/context/Monitoring.md) | Prometheus, Grafana, Alerting |
 | [K8S_LEARNING_GUIDE.md](docs/K8S_LEARNING_GUIDE.md) | CKA study material |
 
 ### Rebuild Guides
@@ -230,7 +230,7 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Feb 2, 2026** | **Domain Migration** — `*.k8s.rommelporras.com` with tiered wildcards (Phase 4.13) |
 | **Coming** | Uptime Kuma, Invoicetron, Tailscale, Immich |
 
-See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
+See rebuild guides below for detailed project history.
 
 ---
 

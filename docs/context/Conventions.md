@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-02-02
+updated: 2026-02-03
 ---
 
 # Conventions

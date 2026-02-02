@@ -10,7 +10,7 @@ Kubernetes homelab learning project for CKA certification prep. 3-node HA cluste
 
 ## Single Source of Truth
 
-**docs/CLUSTER_STATUS.md** contains all canonical values (IPs, MACs, hostnames, hardware specs). Other docs reference it, don't duplicate values.
+**docs/context/Cluster.md** contains all canonical values (IPs, MACs, hostnames, hardware specs). Other docs reference it, don't duplicate values.
 
 ## Repository Structure
 
@@ -19,7 +19,6 @@ homelab/
 ├── CLAUDE.md                      # This file (Claude Code context)
 ├── LICENSE                        # MIT License
 ├── README.md                      # GitHub landing page
-├── TODO.md                        # Bootstrap progress tracker
 ├── VERSIONS.md                    # Component version tracking
 │
 ├── ansible/                       # Cluster automation
@@ -27,28 +26,37 @@ homelab/
 │   ├── group_vars/all.yml         # Shared variables
 │   └── playbooks/                 # Bootstrap playbooks (00-07)
 │
-├── helm/                          # Helm values files (GitOps-friendly)
-│   └── longhorn/values.yaml       # Longhorn distributed storage
+├── helm/                          # Helm values files (one dir per chart)
+│   ├── prometheus/                # kube-prometheus-stack
+│   ├── gitlab/                    # GitLab CE
+│   ├── gitlab-runner/             # GitLab Runner
+│   └── ...                        # longhorn, cilium, loki, alloy, etc.
 │
 ├── manifests/                     # Raw K8s manifests (non-Helm resources)
-│   └── storage/                   # PV/PVC for NFS, etc.
+│   ├── gateway/                   # Gateway + HTTPRoutes
+│   ├── home/                      # AdGuard, Homepage
+│   ├── monitoring/                # Grafana HTTPRoute, probes, alerts
+│   ├── cloudflare/                # Cloudflare Tunnel + network policies
+│   ├── ghost-dev/                 # Ghost blog dev environment
+│   ├── ghost-prod/                # Ghost blog prod environment
+│   ├── portfolio/                 # Portfolio deployment
+│   └── storage/                   # Longhorn HTTPRoute, NFS PVs
+│
+├── scripts/                       # Operational scripts
 │
 └── docs/
-    ├── 00_PROJECT_CONTEXT.md      # Project orientation / quick reference
-    ├── ARCHITECTURE.md            # Design decisions (why)
-    ├── CLUSTER_STATUS.md          # Source of truth (nodes, IPs, hardware)
-    ├── EXISTING_INFRA.md          # Dell 3090 NAS integration
-    ├── K8S_LEARNING_GUIDE.md      # CKA study material
-    ├── K8S_v135_NOTES.md          # Kubernetes v1.35 features
+    ├── context/                   # Knowledge base (10 topic files)
+    │   ├── Cluster.md             # Source of truth (nodes, IPs, hardware)
+    │   ├── Gateway.md             # HTTPRoutes, TLS, cert-manager
+    │   ├── Networking.md          # VIPs, DNS, VLANs
+    │   └── ...                    # Architecture, Monitoring, Storage, etc.
+    ├── rebuild/                   # Step-by-step rebuild guides (v0.1.0–v0.12.0)
+    ├── todo/                      # Active and completed phase plans
     ├── KUBEADM_BOOTSTRAP.md       # Cluster bootstrap commands
-    ├── NETWORK_INTEGRATION.md     # Network, switch, VLANs, kube-vip
-    ├── ROADMAP.md                 # Timeline, CKA schedule
-    ├── STORAGE_SETUP.md           # Longhorn installation
-    │
+    ├── K8S_LEARNING_GUIDE.md      # CKA study material
     └── reference/                 # Historical reference docs
         ├── CHANGELOG.md           # Decision history
-        ├── PRE_INSTALLATION_CHECKLIST.md
-        └── PROXMOX_OPNSENSE_GUIDE.md
+        └── PRE_INSTALLATION_CHECKLIST.md
 ```
 
 ## Cluster Quick Reference
@@ -74,13 +82,13 @@ homelab/
 
 | When you need... | Read... |
 |------------------|---------|
-| Current values (IPs, MACs) | docs/CLUSTER_STATUS.md |
+| Current values (IPs, MACs) | docs/context/Cluster.md |
 | Component versions | VERSIONS.md |
-| Why a decision was made | docs/ARCHITECTURE.md |
+| Why a decision was made | docs/context/Architecture.md |
 | How to bootstrap cluster | docs/KUBEADM_BOOTSTRAP.md |
-| Network/switch setup | docs/NETWORK_INTEGRATION.md |
-| Storage setup | docs/STORAGE_SETUP.md |
-| Project timeline | docs/ROADMAP.md |
+| Network/switch setup | docs/context/Networking.md |
+| Storage setup | docs/context/Storage.md |
+| Gateway, HTTPRoutes, TLS | docs/context/Gateway.md |
 
 ## Common Commands
 

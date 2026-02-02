@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** February 2, 2026
+> **Last Updated:** February 3, 2026
 
 ---
 
@@ -109,6 +109,7 @@ helm-homelab repo update
 |---------|-----|------|-----------|
 | AdGuard | adguard.k8s.rommelporras.com | base | home |
 | Homepage | portal.k8s.rommelporras.com | base | home |
+| Grafana | grafana.k8s.rommelporras.com | base | monitoring |
 | Longhorn | longhorn.k8s.rommelporras.com | base | longhorn-system |
 | GitLab | gitlab.k8s.rommelporras.com | base | gitlab |
 | GitLab Registry | registry.k8s.rommelporras.com | base | gitlab |
