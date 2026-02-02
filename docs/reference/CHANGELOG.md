@@ -441,7 +441,7 @@ Deployed GitLab CE v18.8.2 with GitLab Runner for CI/CD pipelines, Container Reg
 
 | Item | Vault | Fields |
 |------|-------|--------|
-| GitLab | Kubernetes | root-password, postgresql-password |
+| GitLab | Kubernetes | username, password, postgresql-password |
 | GitLab Runner | Kubernetes | runner-token |
 | iCloud SMTP | Kubernetes | username, password (renamed from "iCloud SMTP Alertmanager") |
 

@@ -22,7 +22,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Discord Webhook Incidents | `credential` | Alertmanager |
 | Discord Webhook Status | `credential` | Alertmanager |
 | iCloud SMTP | `username`, `password`, `server`, `port` | Alertmanager, GitLab |
-| GitLab | `root-password`, `postgresql-password` | GitLab CE |
+| GitLab | `username`, `password`, `postgresql-password` | GitLab CE |
 | GitLab Runner | `runner-token` | GitLab Runner |
 | Healthchecks Ping URL | `password` | Alertmanager Watchdog (dead man's switch) |
 | NUT Admin | `username`, `password` | NUT server |
@@ -52,7 +52,8 @@ op://Kubernetes/iCloud SMTP/username
 op://Kubernetes/iCloud SMTP/password
 
 # GitLab
-op://Kubernetes/GitLab/root-password
+op://Kubernetes/GitLab/username
+op://Kubernetes/GitLab/password
 op://Kubernetes/GitLab/postgresql-password
 
 # GitLab Runner
