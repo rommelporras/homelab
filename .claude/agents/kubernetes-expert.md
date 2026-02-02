@@ -93,8 +93,8 @@ kubectl-homelab get svc -A
 kubectl-homelab describe node <node-name> | grep -A5 Conditions
 
 # Kubelet status (run on node via SSH)
-ssh wawashi@<node>.home.rommelporras.com "systemctl status kubelet"
-ssh wawashi@<node>.home.rommelporras.com "journalctl -u kubelet --since '10 minutes ago' | tail -50"
+ssh wawashi@<node>.k8s.rommelporras.com "systemctl status kubelet"
+ssh wawashi@<node>.k8s.rommelporras.com "journalctl -u kubelet --since '10 minutes ago' | tail -50"
 
 # Resource pressure
 kubectl-homelab top nodes
@@ -106,8 +106,8 @@ kubectl-homelab describe node <node-name> | grep -A3 "Allocated resources"
 ### Node NotReady
 ```bash
 # Check kubelet (run on node via SSH)
-ssh wawashi@<node>.home.rommelporras.com "systemctl status kubelet"
-ssh wawashi@<node>.home.rommelporras.com "journalctl -u kubelet -f"
+ssh wawashi@<node>.k8s.rommelporras.com "systemctl status kubelet"
+ssh wawashi@<node>.k8s.rommelporras.com "journalctl -u kubelet -f"
 
 # Common causes:
 # 1. CNI not installed/running
@@ -119,7 +119,7 @@ ssh wawashi@<node>.home.rommelporras.com "journalctl -u kubelet -f"
 kubectl-homelab -n kube-system delete pod -l k8s-app=cilium
 
 # Fix containerd (run on node via SSH)
-ssh wawashi@<node>.home.rommelporras.com "sudo systemctl restart containerd && sudo systemctl restart kubelet"
+ssh wawashi@<node>.k8s.rommelporras.com "sudo systemctl restart containerd && sudo systemctl restart kubelet"
 ```
 
 ### Pod Stuck in Pending

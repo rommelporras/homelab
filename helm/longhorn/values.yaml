@@ -104,7 +104,7 @@ ingress:
   enabled: false
   # When you're ready for ingress:
   # enabled: true
-  # host: longhorn.home.rommelporras.com
+  # host: longhorn.k8s.rommelporras.com
   # annotations:
   #   nginx.ingress.kubernetes.io/auth-type: basic
   #   nginx.ingress.kubernetes.io/auth-secret: longhorn-basic-auth

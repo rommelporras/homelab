@@ -24,7 +24,7 @@ Hardware setup and initial infrastructure configuration.
 | k8s-cp2 | Control Plane | 10.10.30.12 | M80q i5-10400T |
 | k8s-cp3 | Control Plane | 10.10.30.13 | M80q i5-10400T |
 
-**VIP:** 10.10.30.10 (k8s-api.home.rommelporras.com)
+**VIP:** 10.10.30.10 (api.k8s.rommelporras.com)
 
 ## Related Documents
 

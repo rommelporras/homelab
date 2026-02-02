@@ -215,13 +215,13 @@ spec:
 
 ```bash
 # 1. Verify cgroup v2 on ALL nodes
-for node in k8s-cp1 k8s-cp2 k8s-cp3; do
-    ssh wawashi@$node.home.rommelporras.com "stat -fc %T /sys/fs/cgroup/"
+for node in cp1 cp2 cp3; do
+    ssh wawashi@$node.k8s.rommelporras.com "stat -fc %T /sys/fs/cgroup/"
 done
 
 # 2. Check containerd version
-for node in k8s-cp1 k8s-cp2 k8s-cp3; do
-    ssh wawashi@$node.home.rommelporras.com "containerd --version"
+for node in cp1 cp2 cp3; do
+    ssh wawashi@$node.k8s.rommelporras.com "containerd --version"
 done
 
 # 3. Update RBAC if using kubectl exec/attach automation

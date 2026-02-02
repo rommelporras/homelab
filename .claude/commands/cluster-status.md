@@ -98,8 +98,8 @@ If issues found:
 **Node NotReady:**
 ```bash
 kubectl-homelab describe node <node-name>
-ssh wawashi@<node>.home.rommelporras.com "systemctl status kubelet"
-ssh wawashi@<node>.home.rommelporras.com "journalctl -u kubelet --since '5 minutes ago'"
+ssh wawashi@<node>.k8s.rommelporras.com "systemctl status kubelet"
+ssh wawashi@<node>.k8s.rommelporras.com "journalctl -u kubelet --since '5 minutes ago'"
 ```
 
 **Pod Issues:**
