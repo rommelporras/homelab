@@ -56,9 +56,9 @@ nslookup api.k8s.rommelporras.com
 # Should return: 10.10.30.10
 
 # All nodes must be resolvable
-ping -c 1 k8s-cp1.home.rommelporras.com
-ping -c 1 k8s-cp2.home.rommelporras.com
-ping -c 1 k8s-cp3.home.rommelporras.com
+ping -c 1 cp1.k8s.rommelporras.com
+ping -c 1 cp2.k8s.rommelporras.com
+ping -c 1 cp3.k8s.rommelporras.com
 ```
 
 ### 0.4 Verify Connectivity Between Nodes
@@ -469,7 +469,7 @@ From your workstation:
 
 ```bash
 mkdir -p ~/.kube
-scp wawashi@k8s-cp1.home.rommelporras.com:~/.kube/config ~/.kube/config
+scp wawashi@cp1.k8s.rommelporras.com:~/.kube/config ~/.kube/config
 
 # Edit to use VIP instead of node IP
 sed -i 's/10.10.30.11/10.10.30.10/' ~/.kube/config

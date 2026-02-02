@@ -144,11 +144,10 @@ This checklist documents the completed setup from hardware arrival to Ubuntu ins
 
 | Domain | IP |
 |--------|-----|
-| *.home.rommelporras.com | 10.10.30.80 (NPM) |
-| k8s-cp1.home.rommelporras.com | 10.10.30.11 |
-| k8s-cp2.home.rommelporras.com | 10.10.30.12 |
-| k8s-cp3.home.rommelporras.com | 10.10.30.13 |
-| k8s-api.home.rommelporras.com | 10.10.30.10 |
+| cp1.k8s.rommelporras.com | 10.10.30.11 |
+| cp2.k8s.rommelporras.com | 10.10.30.12 |
+| cp3.k8s.rommelporras.com | 10.10.30.13 |
+| api.k8s.rommelporras.com | 10.10.30.10 |
 
 - [x] DNS entries created
 - [x] Resolution verified
@@ -168,9 +167,9 @@ ssh-copy-id wawashi@10.10.30.13
 ### Verified Access
 
 ```bash
-ssh wawashi@k8s-cp1.home.rommelporras.com "hostname"  # k8s-cp1
-ssh wawashi@k8s-cp2.home.rommelporras.com "hostname"  # k8s-cp2
-ssh wawashi@k8s-cp3.home.rommelporras.com "hostname"  # k8s-cp3
+ssh wawashi@cp1.k8s.rommelporras.com "hostname"  # k8s-cp1
+ssh wawashi@cp2.k8s.rommelporras.com "hostname"  # k8s-cp2
+ssh wawashi@cp3.k8s.rommelporras.com "hostname"  # k8s-cp3
 ```
 
 - [x] SSH keys copied to all nodes

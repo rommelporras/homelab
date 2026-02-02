@@ -56,7 +56,7 @@ kubectl-homelab get --raw='/readyz?verbose'
 ### Step 2: Check Control Plane
 ```bash
 # Static pod manifests (run on node via SSH)
-ssh wawashi@k8s-cp1.home.rommelporras.com "ls -la /etc/kubernetes/manifests/"
+ssh wawashi@cp1.k8s.rommelporras.com "ls -la /etc/kubernetes/manifests/"
 
 # Control plane pods
 kubectl-homelab -n kube-system get pods -l tier=control-plane
@@ -167,13 +167,13 @@ kubectl-homelab -n kube-system exec -it etcd-k8s-cp1 -- etcdctl alarm list
 ### Certificate Issues
 ```bash
 # Check certificate expiry (run on node via SSH)
-ssh wawashi@k8s-cp1.home.rommelporras.com "sudo kubeadm certs check-expiration"
+ssh wawashi@cp1.k8s.rommelporras.com "sudo kubeadm certs check-expiration"
 
 # Renew certificates (run on node via SSH)
-ssh wawashi@k8s-cp1.home.rommelporras.com "sudo kubeadm certs renew all && sudo systemctl restart kubelet"
+ssh wawashi@cp1.k8s.rommelporras.com "sudo kubeadm certs renew all && sudo systemctl restart kubelet"
 
 # Regenerate kubeconfig (run on node via SSH)
-ssh wawashi@k8s-cp1.home.rommelporras.com "sudo kubeadm kubeconfig user --client-name=admin"
+ssh wawashi@cp1.k8s.rommelporras.com "sudo kubeadm kubeconfig user --client-name=admin"
 ```
 
 ## Best Practices Checklist
