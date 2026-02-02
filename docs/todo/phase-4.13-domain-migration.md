@@ -59,9 +59,9 @@
   *.dev.k8s.rommelporras.com    → 10.10.30.20
   *.stg.k8s.rommelporras.com    → 10.10.30.20
   api.k8s.rommelporras.com      → 10.10.30.10
-  k8s-cp1.rommelporras.com      → 10.10.30.11
-  k8s-cp2.rommelporras.com      → 10.10.30.12
-  k8s-cp3.rommelporras.com      → 10.10.30.13
+  cp1.k8s.rommelporras.com      → 10.10.30.11
+  cp2.k8s.rommelporras.com      → 10.10.30.12
+  cp3.k8s.rommelporras.com      → 10.10.30.13
   ```
 
   > **Do NOT remove old rewrites from LXC yet.** Both old and new must coexist.
@@ -114,13 +114,13 @@
       enabled: true
 
     # NEW node hostnames
-    - domain: k8s-cp1.rommelporras.com
+    - domain: cp1.k8s.rommelporras.com
       answer: 10.10.30.11
       enabled: true
-    - domain: k8s-cp2.rommelporras.com
+    - domain: cp2.k8s.rommelporras.com
       answer: 10.10.30.12
       enabled: true
-    - domain: k8s-cp3.rommelporras.com
+    - domain: cp3.k8s.rommelporras.com
       answer: 10.10.30.13
       enabled: true
 
@@ -911,12 +911,13 @@ These are independent — order doesn't matter.
 
   Edit `manifests/home/adguard/configmap.yaml` — remove:
   ```yaml
-  # Remove these:
+  # Remove these (old domains):
   - domain: '*.k8s.home.rommelporras.com'
   - domain: k8s-cp1.home.rommelporras.com
   - domain: k8s-cp2.home.rommelporras.com
   - domain: k8s-cp3.home.rommelporras.com
   - domain: k8s-api.home.rommelporras.com
+  # Note: new node hostnames are cp1.k8s / cp2.k8s / cp3.k8s (keep those)
   ```
 
   ```bash
