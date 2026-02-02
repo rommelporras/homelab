@@ -4,7 +4,7 @@
 > **Target:** v0.13.0
 > **Prerequisite:** Phase 4.13 complete (Domain Migration)
 > **DevOps Topics:** Uptime monitoring, status pages, synthetic monitoring
-> **CKA Topics:** StatefulSet, PersistentVolumeClaim, HTTPRoute, SecurityContext
+> **CKA Topics:** StatefulSet, PersistentVolumeClaim, HTTPRoute, SecurityContext, CiliumNetworkPolicy
 
 > **Purpose:** Self-hosted uptime monitoring for personal and work-related endpoints
 > **Alternative to:** UptimeRobot (SaaS, paid for advanced features)
@@ -77,9 +77,9 @@
 | `2-rootless` | ~800MB | No (UID 1000) | Yes | Yes |
 | **`2-slim-rootless`** | **~400MB** | **No (UID 1000)** | **No** | **No** |
 
-**Decision:** Use `2-slim-rootless` — smallest image, runs as non-root natively (matches
-`restricted` PSS), no unused embedded services. We use SQLite (not MariaDB) and don't
-need browser-engine monitors.
+**Decision:** Use `2-slim-rootless` — smallest image, runs as non-root natively (compatible
+with `baseline` PSS enforcement), no unused embedded services. We use SQLite (not MariaDB)
+and don't need browser-engine monitors.
 
 ### v2.0 Breaking Changes (from v1)
 
@@ -119,47 +119,64 @@ need browser-engine monitors.
 | adguard.k8s.rommelporras.com | HTTPS | 60s | DNS admin |
 | portal.k8s.rommelporras.com | HTTPS | 60s | Homepage dashboard |
 | longhorn.k8s.rommelporras.com | HTTPS | 60s | Storage dashboard |
-| healthchecks.io ping | HTTP | 60s | Dead man's switch (verify it's being pinged) |
+| healthchecks.io dashboard | HTTPS | 300s | Verify healthchecks.io itself is reachable (external dependency) |
 
 ---
 
-## 4.14.1 Create Namespace
+## 4.14.1 Create Namespace and Manifests Directory
 
-- [ ] 4.14.1.1 Create namespace with restricted PSS
-  ```bash
-  kubectl-homelab create namespace uptime-kuma
-  kubectl-homelab label namespace uptime-kuma pod-security.kubernetes.io/enforce=restricted
-  ```
-
-- [ ] 4.14.1.2 Verify namespace created
-  ```bash
-  kubectl-homelab get namespace uptime-kuma -o yaml | grep -A2 labels
-  # Should show pod-security.kubernetes.io/enforce: restricted
-  ```
-
----
-
-## 4.14.2 Create Manifests Directory
-
-- [ ] 4.14.2.1 Create manifests directory
+- [ ] 4.14.1.1 Create manifests directory
   ```bash
   mkdir -p manifests/uptime-kuma
   ```
 
-> **Note:** PVC is managed via `volumeClaimTemplates` in the StatefulSet (4.14.3.1).
+- [ ] 4.14.1.2 Create namespace manifest
+  ```yaml
+  # manifests/uptime-kuma/namespace.yaml
+  # Uptime Kuma namespace with baseline PSS enforcement
+  # Phase 4.14 - Uptime Kuma Monitoring
+  ---
+  apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: uptime-kuma
+    labels:
+      app.kubernetes.io/part-of: uptime-kuma
+      pod-security.kubernetes.io/enforce: baseline
+      pod-security.kubernetes.io/audit: restricted
+      pod-security.kubernetes.io/warn: restricted
+  ```
+
+- [ ] 4.14.1.3 Apply namespace
+  ```bash
+  kubectl-homelab apply -f manifests/uptime-kuma/namespace.yaml
+  ```
+
+- [ ] 4.14.1.4 Verify namespace created
+  ```bash
+  kubectl-homelab get namespace uptime-kuma -o yaml | grep -A5 labels
+  # Should show:
+  #   pod-security.kubernetes.io/enforce: baseline
+  #   pod-security.kubernetes.io/audit: restricted
+  #   pod-security.kubernetes.io/warn: restricted
+  ```
+
+> **Note:** PVC is managed via `volumeClaimTemplates` in the StatefulSet (4.14.2.1).
 > This is the idiomatic StatefulSet pattern — Kubernetes auto-creates and binds the PVC
 > when the StatefulSet is applied. No separate PVC manifest needed.
 
 ---
 
-## 4.14.3 Deploy Uptime Kuma
+## 4.14.2 Deploy Uptime Kuma
 
-- [ ] 4.14.3.1 Create StatefulSet manifest
+- [ ] 4.14.2.1 Create StatefulSet manifest
   ```yaml
   # manifests/uptime-kuma/statefulset.yaml
   # StatefulSet for persistent SQLite database (single replica only)
-  # Uses slim-rootless image: no embedded MariaDB/Chromium, runs as node (UID 1000)
+  # Uses slim-rootless image: no embedded MariaDB/Chromium, runs as non-root (UID 1000)
   #
+  # CKA topic: StatefulSet vs Deployment, volumeClaimTemplates, headless Service
+  ---
   apiVersion: apps/v1
   kind: StatefulSet
   metadata:
@@ -167,8 +184,9 @@ need browser-engine monitors.
     namespace: uptime-kuma
     labels:
       app: uptime-kuma
+      app.kubernetes.io/part-of: uptime-kuma
   spec:
-    serviceName: uptime-kuma
+    serviceName: uptime-kuma-headless
     replicas: 1
     selector:
       matchLabels:
@@ -249,9 +267,32 @@ need browser-engine monitors.
             storage: 1Gi
   ```
 
-- [ ] 4.14.3.2 Create Service
+- [ ] 4.14.2.2 Create Services (headless + ClusterIP)
   ```yaml
   # manifests/uptime-kuma/service.yaml
+  # Headless service for StatefulSet pod DNS identity (uptime-kuma-0.uptime-kuma-headless)
+  # Regular ClusterIP service for HTTPRoute backend
+  #
+  # CKA topic: Headless Service (clusterIP: None) for StatefulSet stable network identity
+  ---
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: uptime-kuma-headless
+    namespace: uptime-kuma
+    labels:
+      app: uptime-kuma
+      app.kubernetes.io/part-of: uptime-kuma
+  spec:
+    clusterIP: None
+    selector:
+      app: uptime-kuma
+    ports:
+    - name: http
+      port: 3001
+      targetPort: 3001
+      protocol: TCP
+  ---
   apiVersion: v1
   kind: Service
   metadata:
@@ -259,6 +300,7 @@ need browser-engine monitors.
     namespace: uptime-kuma
     labels:
       app: uptime-kuma
+      app.kubernetes.io/part-of: uptime-kuma
   spec:
     selector:
       app: uptime-kuma
@@ -269,9 +311,18 @@ need browser-engine monitors.
       protocol: TCP
   ```
 
-- [ ] 4.14.3.3 Create HTTPRoute for internal access
+- [ ] 4.14.2.3 Create HTTPRoute for internal access
   ```yaml
   # manifests/uptime-kuma/httproute.yaml
+  # HTTPRoute for Uptime Kuma - exposes via Gateway API
+  # URL: https://uptime.k8s.rommelporras.com
+  #
+  # Gateway API Architecture:
+  #   Client -> Gateway (10.10.30.20:443) -> HTTPRoute -> Service -> Pod
+  #
+  # The Gateway handles TLS termination using the wildcard cert.
+  # This HTTPRoute just defines the routing rules.
+  ---
   apiVersion: gateway.networking.k8s.io/v1
   kind: HTTPRoute
   metadata:
@@ -281,6 +332,7 @@ need browser-engine monitors.
     parentRefs:
     - name: homelab-gateway
       namespace: default
+      sectionName: https
     hostnames:
     - "uptime.k8s.rommelporras.com"
     rules:
@@ -293,61 +345,134 @@ need browser-engine monitors.
         port: 3001
   ```
 
-- [ ] 4.14.3.4 Apply all manifests
+- [ ] 4.14.2.4 Apply all manifests
   ```bash
   kubectl-homelab apply -f manifests/uptime-kuma/
   ```
 
-- [ ] 4.14.3.5 Wait for pod to be ready
+- [ ] 4.14.2.5 Wait for pod to be ready
   ```bash
   kubectl-homelab rollout status statefulset/uptime-kuma -n uptime-kuma --timeout=300s
   ```
 
-- [ ] 4.14.3.6 Verify PVC auto-created and bound
+- [ ] 4.14.2.6 Verify PVC auto-created and bound
   ```bash
   kubectl-homelab get pvc -n uptime-kuma
   # Should show: data-uptime-kuma-0  Bound  (auto-created by volumeClaimTemplates)
   ```
 
-- [ ] 4.14.3.7 Check pod logs
+- [ ] 4.14.2.7 Check pod logs
   ```bash
   kubectl-homelab logs -n uptime-kuma -l app=uptime-kuma --tail=50
   # Look for: "Listening on 3001"
   ```
 
+- [ ] 4.14.2.8 Create CiliumNetworkPolicy
+  ```yaml
+  # manifests/uptime-kuma/networkpolicy.yaml
+  # CiliumNetworkPolicy - Egress rules for Uptime Kuma
+  #
+  # ALLOWED: DNS, internet (for external endpoint monitoring), cluster services
+  # BLOCKED: NAS, other private subnets not needed
+  #
+  # Uptime Kuma needs broad outbound access to monitor external endpoints.
+  # We allow internet egress and cluster-internal DNS but document the scope.
+  ---
+  apiVersion: cilium.io/v2
+  kind: CiliumNetworkPolicy
+  metadata:
+    name: uptime-kuma-egress
+    namespace: uptime-kuma
+    labels:
+      app: uptime-kuma
+      app.kubernetes.io/part-of: uptime-kuma
+  spec:
+    endpointSelector:
+      matchLabels:
+        app: uptime-kuma
+
+    egress:
+    # DNS (required for service discovery and external domain resolution)
+    - toEndpoints:
+      - matchLabels:
+          k8s:io.kubernetes.pod.namespace: kube-system
+          k8s-app: kube-dns
+      toPorts:
+      - ports:
+        - port: "53"
+          protocol: UDP
+
+    # Internet egress for monitoring external endpoints (HTTPS)
+    - toCIDRSet:
+      - cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+      toPorts:
+      - ports:
+        - port: "443"
+          protocol: TCP
+        - port: "80"
+          protocol: TCP
+
+    # Cluster-internal monitoring (homelab services via Gateway VIP)
+    - toCIDR:
+      - 10.10.30.20/32
+      toPorts:
+      - ports:
+        - port: "443"
+          protocol: TCP
+
+    # AdGuard DNS (for monitoring AdGuard directly)
+    - toCIDR:
+      - 10.10.30.53/32
+      toPorts:
+      - ports:
+        - port: "53"
+          protocol: UDP
+        - port: "443"
+          protocol: TCP
+  ```
+
+- [ ] 4.14.2.9 Apply network policy
+  ```bash
+  kubectl-homelab apply -f manifests/uptime-kuma/networkpolicy.yaml
+  ```
+
 ---
 
-## 4.14.4 Configure DNS
+## 4.14.3 Configure DNS
 
-- [ ] 4.14.4.1 Add DNS record in AdGuard
+- [ ] 4.14.3.1 Add DNS record in AdGuard
   ```
   # AdGuard Home → Filters → DNS rewrites
   # Add: uptime.k8s.rommelporras.com → 10.10.30.20
   ```
 
-- [ ] 4.14.4.2 Verify DNS resolution
+- [ ] 4.14.3.2 Verify DNS resolution
   ```bash
   nslookup uptime.k8s.rommelporras.com 10.10.30.55
   # Should resolve to 10.10.30.20 (Gateway IP)
   ```
 
-- [ ] 4.14.4.3 Access Uptime Kuma UI
+- [ ] 4.14.3.3 Access Uptime Kuma UI
   ```
   https://uptime.k8s.rommelporras.com
   ```
 
 ---
 
-## 4.14.5 Initial Setup
+## 4.14.4 Initial Setup
 
-- [ ] 4.14.5.1 Create admin account
+- [ ] 4.14.4.1 Create admin account
   ```
   # First access prompts for admin account creation
   # Username: admin (or your preference)
   # Password: Store in 1Password
   ```
 
-- [ ] 4.14.5.2 Store credentials in 1Password
+- [ ] 4.14.4.2 Store credentials in 1Password
   ```bash
   op item create \
     --category=login \
@@ -357,7 +482,7 @@ need browser-engine monitors.
     "password=<your-password>"
   ```
 
-- [ ] 4.14.5.3 Configure general settings
+- [ ] 4.14.4.3 Configure general settings
   ```
   Settings → General:
   - Primary Base URL: https://uptime.k8s.rommelporras.com
@@ -366,11 +491,11 @@ need browser-engine monitors.
 
 ---
 
-## 4.14.6 Configure Notifications
+## 4.14.5 Configure Notifications
 
 > **Reuse existing notification channels from Alertmanager.**
 
-- [ ] 4.14.6.1 Add Discord notification
+- [ ] 4.14.5.1 Add Discord notification
   ```
   Settings → Notifications → Setup Notification:
   - Notification Type: Discord
@@ -379,7 +504,7 @@ need browser-engine monitors.
   - Test → Should receive test message
   ```
 
-- [ ] 4.14.6.2 (Optional) Add Email notification
+- [ ] 4.14.5.2 (Optional) Add Email notification
   ```
   Settings → Notifications → Setup Notification:
   - Notification Type: SMTP
@@ -395,11 +520,11 @@ need browser-engine monitors.
 
 ---
 
-## 4.14.7 Add Monitors
+## 4.14.6 Add Monitors
 
 ### Personal Sites
 
-- [ ] 4.14.7.1 Add rommelporras.com
+- [ ] 4.14.6.1 Add rommelporras.com
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s)
@@ -412,7 +537,7 @@ need browser-engine monitors.
 
 ### Homelab Services
 
-- [ ] 4.14.7.2 Add Grafana
+- [ ] 4.14.6.2 Add Grafana
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s) - Keyword
@@ -423,7 +548,7 @@ need browser-engine monitors.
   - Notification: Discord Incidents
   ```
 
-- [ ] 4.14.7.3 Add AdGuard
+- [ ] 4.14.6.3 Add AdGuard
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s)
@@ -433,7 +558,7 @@ need browser-engine monitors.
   - Notification: Discord Incidents
   ```
 
-- [ ] 4.14.7.4 Add Homepage
+- [ ] 4.14.6.4 Add Homepage
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s)
@@ -443,7 +568,7 @@ need browser-engine monitors.
   - Notification: Discord Incidents
   ```
 
-- [ ] 4.14.7.5 Add Longhorn
+- [ ] 4.14.6.5 Add Longhorn
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s)
@@ -455,7 +580,7 @@ need browser-engine monitors.
 
 ### Work-Related (Add your own)
 
-- [ ] 4.14.7.6 Add work monitors as needed
+- [ ] 4.14.6.6 Add work monitors as needed
   ```
   # Example:
   Add New Monitor:
@@ -467,13 +592,13 @@ need browser-engine monitors.
 
 ---
 
-## 4.14.8 Create Public Status Page (Optional)
+## 4.14.7 Create Public Status Page (Optional)
 
 > **Expose a public status page for personal sites via Cloudflare Tunnel.**
-> The admin dashboard (`/dashboard`) is blocked at the Cloudflare edge —
-> only the status page path is publicly accessible.
+> Uses an allowlist approach: only `/status/*` is publicly accessible.
+> Everything else (`/dashboard`, `/api/*`, etc.) is blocked at the Cloudflare edge.
 
-- [ ] 4.14.8.1 Create status page in Uptime Kuma UI
+- [ ] 4.14.7.1 Create status page in Uptime Kuma UI
   ```
   Status Pages → New Status Page:
   - Title: Rommel Porras Services
@@ -482,30 +607,58 @@ need browser-engine monitors.
   # Status page will be at: /status/status
   ```
 
-- [ ] 4.14.8.2 Configure Cloudflare Tunnel route
+- [ ] 4.14.7.2 Configure Cloudflare Tunnel route
   ```
   # Cloudflare Zero Trust → Networks → Tunnels → homelab tunnel → Public Hostname:
   # Add public hostname: status.rommelporras.com
   # Service: http://uptime-kuma.uptime-kuma.svc.cluster.local:3001
   ```
 
-- [ ] 4.14.8.3 Create Cloudflare Access policy to block admin paths
+- [ ] 4.14.7.2a Update cloudflared CiliumNetworkPolicy
+  ```yaml
+  # Add to manifests/cloudflare/networkpolicy.yaml egress rules:
+  # (after the invoicetron block)
+
+  # Uptime Kuma namespace (status.rommelporras.com)
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: uptime-kuma
+    toPorts:
+    - ports:
+      - port: "3001"
+        protocol: TCP
+  ```
+  ```bash
+  kubectl-homelab apply -f manifests/cloudflare/networkpolicy.yaml
+  ```
+
+- [ ] 4.14.7.3 Create Cloudflare Access policy (allowlist approach)
   ```
   # Cloudflare Zero Trust → Access → Applications → Add an application:
   #
-  # Application name: Uptime Kuma Admin Block
+  # --- Application 1: Block everything by default ---
+  # Application name: Uptime Kuma Block All
   # Application domain: status.rommelporras.com
-  # Path: /dashboard
+  # Path: /                (catches everything)
   #
   # Policy name: Block Public
   # Action: Block
   # Include: Everyone
   #
-  # This blocks /dashboard (admin UI) at the Cloudflare edge.
-  # Only /status/* (public status page) is accessible to the internet.
+  # --- Application 2: Allow status page only ---
+  # Application name: Uptime Kuma Status Page
+  # Application domain: status.rommelporras.com
+  # Path: /status/         (public status page only)
+  #
+  # Policy name: Allow Public
+  # Action: Bypass
+  # Include: Everyone
+  #
+  # ORDER MATTERS: Cloudflare evaluates more-specific paths first.
+  # /status/* is allowed, everything else (/dashboard, /api/*, etc.) is blocked.
   ```
 
-- [ ] 4.14.8.4 Verify public access
+- [ ] 4.14.7.4 Verify public access
   ```bash
   # Status page should load:
   curl -I https://status.rommelporras.com/status/status
@@ -514,21 +667,25 @@ need browser-engine monitors.
   # Admin dashboard should be blocked:
   curl -I https://status.rommelporras.com/dashboard
   # Expected: 403 Forbidden (blocked by Cloudflare Access)
+
+  # API should also be blocked:
+  curl -I https://status.rommelporras.com/api/status-page/status
+  # Expected: 403 Forbidden
   ```
 
 ---
 
-## 4.14.9 Backup Strategy
+## 4.14.8 Backup Strategy
 
 > **SQLite database should be backed up regularly.**
 
-- [ ] 4.14.9.1 Longhorn handles storage replication (2x)
+- [ ] 4.14.8.1 Longhorn handles storage replication (2x)
   ```bash
   # Verify Longhorn volume replication
   kubectl-homelab -n longhorn-system get volumes.longhorn.io | grep uptime-kuma
   ```
 
-- [ ] 4.14.9.2 (Optional) Enable Longhorn snapshots
+- [ ] 4.14.8.2 (Optional) Enable Longhorn snapshots
   ```bash
   # Create recurring snapshot job in Longhorn UI
   # Longhorn → Volume → uptime-kuma-data → Recurring Jobs
@@ -536,11 +693,57 @@ need browser-engine monitors.
   # Retain: 7 snapshots
   ```
 
-- [ ] 4.14.9.3 (Optional) Manual backup of data directory
+- [ ] 4.14.8.3 (Optional) Manual backup of data directory
   ```bash
   # JSON export was removed in v2.0. Back up the /app/data directory directly.
   # Copy SQLite DB from pod to local machine:
   kubectl-homelab cp uptime-kuma/uptime-kuma-0:/app/data/kuma.db ./kuma-backup-$(date +%F).db
+  ```
+
+---
+
+## 4.14.9 Prometheus Probe (Monitor the Monitor)
+
+> **Add a blackbox-exporter Probe so Prometheus monitors Uptime Kuma itself.**
+> Matches the existing pattern in `manifests/monitoring/adguard-dns-probe.yaml`.
+
+- [ ] 4.14.9.1 Create Probe manifest
+  ```yaml
+  # manifests/monitoring/uptime-kuma-probe.yaml
+  # Blackbox HTTP probe for Uptime Kuma
+  # Fires alert if Uptime Kuma becomes unreachable
+  ---
+  apiVersion: monitoring.coreos.com/v1
+  kind: Probe
+  metadata:
+    name: uptime-kuma
+    namespace: monitoring
+    labels:
+      app: uptime-kuma-probe
+  spec:
+    jobName: uptime-kuma
+    interval: 60s
+    module: http_2xx
+    prober:
+      url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+    targets:
+      staticConfig:
+        static:
+        - https://uptime.k8s.rommelporras.com
+        labels:
+          target_name: uptime-kuma
+  ```
+
+- [ ] 4.14.9.2 Apply probe
+  ```bash
+  kubectl-homelab apply -f manifests/monitoring/uptime-kuma-probe.yaml
+  ```
+
+- [ ] 4.14.9.3 Verify probe in Prometheus
+  ```bash
+  # Check target is up in Prometheus UI or via API
+  kubectl-homelab -n monitoring port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090
+  # Open http://localhost:9090/targets and look for uptime-kuma job
   ```
 
 ---
@@ -565,8 +768,11 @@ need browser-engine monitors.
   # Add to Home Services section:
   | Uptime Kuma | v2.0.2 (slim-rootless) | Running | Self-hosted uptime monitoring |
 
+  # Add to HTTPRoutes table:
+  | Uptime Kuma | uptime.k8s.rommelporras.com | base | uptime-kuma |
+
   # Add to Version History:
-  | YYYY-MM-DD | Phase 4.11: Uptime Kuma deployed for endpoint monitoring |
+  | YYYY-MM-DD | Phase 4.14: Uptime Kuma deployed for endpoint monitoring |
   ```
 
 - [ ] 4.14.11.2 Update docs/context/Secrets.md
@@ -594,9 +800,17 @@ need browser-engine monitors.
   ```
 
 - [ ] 4.14.11.5 Create rebuild guide
-  ```bash
-  # docs/rebuild/v0.12.0-uptime-kuma.md
-  # Step-by-step rebuild instructions for disaster recovery
+  ```markdown
+  # docs/rebuild/v0.13.0-uptime-kuma.md
+  # Must include (matching v0.11.0-ghost-blog.md pattern):
+  #   - Header with release info, phase, goal, prerequisite
+  #   - Overview with architecture and access URLs
+  #   - Numbered steps with exact commands and full YAML
+  #   - 1Password items table (Uptime Kuma: username, password)
+  #   - Verification checklist
+  #   - Rollback procedure (kubectl delete namespace uptime-kuma)
+  #   - Files reference table
+  #   - Key learnings table
   ```
 
 - [ ] 4.14.11.6 Run audit-docs
@@ -613,17 +827,23 @@ need browser-engine monitors.
 
 ## Verification Checklist
 
-- [ ] Namespace `uptime-kuma` exists with **restricted** PSS
+- [ ] Namespace `uptime-kuma` exists with **baseline** PSS enforce, **restricted** audit/warn
 - [ ] PVC `data-uptime-kuma-0` auto-created and bound to Longhorn volume
 - [ ] StatefulSet running with 1 replica (image: `2.0.2-slim-rootless`)
+- [ ] Headless service `uptime-kuma-headless` exists (`clusterIP: None`)
+- [ ] ClusterIP service `uptime-kuma` exists (for HTTPRoute backend)
+- [ ] CiliumNetworkPolicy `uptime-kuma-egress` applied
 - [ ] Pod running as non-root (UID 1000)
 - [ ] HTTPRoute accessible: https://uptime.k8s.rommelporras.com
+- [ ] HTTPRoute has `sectionName: https` in parentRef
+- [ ] Prometheus blackbox probe target is UP
 - [ ] Admin account created and stored in 1Password
 - [ ] Discord notification configured and tested
 - [ ] Monitors added for personal sites
 - [ ] Monitors added for homelab services
-- [ ] (Optional) Status page created
-- [ ] Documentation updated (VERSIONS.md, Secrets.md, Monitoring.md)
+- [ ] (Optional) Status page created with allowlist Cloudflare Access
+- [ ] (Optional) cloudflared-egress networkpolicy updated for uptime-kuma
+- [ ] Documentation updated (VERSIONS.md, Secrets.md, Monitoring.md, README.md)
 
 ---
 
@@ -687,9 +907,11 @@ nslookup uptime.k8s.rommelporras.com
 | **Non-root execution** | `runAsUser: 1000` via `2-slim-rootless` image |
 | **No privilege escalation** | `allowPrivilegeEscalation: false` |
 | **Minimal capabilities** | `capabilities.drop: ["ALL"]` |
-| **Pod Security Standard** | `restricted` |
+| **Pod Security Standard** | `baseline` enforce, `restricted` audit/warn |
+| **Network policy** | CiliumNetworkPolicy: DNS + internet HTTPS + Gateway VIP |
 | **Credential storage** | 1Password (admin password) |
 | **Network access** | Outbound only (no ingress, uses Gateway) |
+| **Public access** | Cloudflare Access allowlist: only `/status/*` exposed |
 
 > **Note:** `readOnlyRootFilesystem` is NOT enabled because the Node.js app
 > requires writable `/tmp` for runtime operations. The data directory is
@@ -714,12 +936,12 @@ nslookup uptime.k8s.rommelporras.com
 
 ## Final: Release
 
-- [ ] Release v0.12.0
+- [ ] Release v0.13.0
   ```bash
-  /release v0.12.0
+  /release v0.13.0
   ```
 
 - [ ] Move this file to completed folder
   ```bash
-  mv docs/todo/phase-4.11-uptime-kuma.md docs/todo/completed/
+  mv docs/todo/phase-4.14-uptime-kuma.md docs/todo/completed/
   ```
