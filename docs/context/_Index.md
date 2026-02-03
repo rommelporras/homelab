@@ -22,6 +22,7 @@ updated: 2026-02-03
 | Prometheus, Grafana, Alerting | [[Monitoring]] |
 | Longhorn, NFS | [[Storage]] |
 | NUT, graceful shutdown | [[UPS]] |
+| GA4, GTM, Cloudflare, SMTP | [[ExternalServices]] |
 
 ## Current State
 

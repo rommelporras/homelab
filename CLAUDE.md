@@ -90,6 +90,7 @@ homelab/
 | Network/switch setup | docs/context/Networking.md |
 | Storage setup | docs/context/Storage.md |
 | Gateway, HTTPRoutes, TLS | docs/context/Gateway.md |
+| GA4, GTM, Cloudflare, SMTP | docs/context/ExternalServices.md |
 
 ## Common Commands
 
