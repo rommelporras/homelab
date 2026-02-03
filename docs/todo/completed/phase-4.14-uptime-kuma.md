@@ -126,12 +126,12 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 
 ## 4.14.1 Create Namespace and Manifests Directory
 
-- [ ] 4.14.1.1 Create manifests directory
+- [x] 4.14.1.1 Create manifests directory
   ```bash
   mkdir -p manifests/uptime-kuma
   ```
 
-- [ ] 4.14.1.2 Create namespace manifest
+- [x] 4.14.1.2 Create namespace manifest
   ```yaml
   # manifests/uptime-kuma/namespace.yaml
   # Uptime Kuma namespace with baseline PSS enforcement
@@ -148,12 +148,12 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
       pod-security.kubernetes.io/warn: restricted
   ```
 
-- [ ] 4.14.1.3 Apply namespace
+- [x] 4.14.1.3 Apply namespace
   ```bash
   kubectl-homelab apply -f manifests/uptime-kuma/namespace.yaml
   ```
 
-- [ ] 4.14.1.4 Verify namespace created
+- [x] 4.14.1.4 Verify namespace created
   ```bash
   kubectl-homelab get namespace uptime-kuma -o yaml | grep -A5 labels
   # Should show:
@@ -170,7 +170,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 
 ## 4.14.2 Deploy Uptime Kuma
 
-- [ ] 4.14.2.1 Create StatefulSet manifest
+- [x] 4.14.2.1 Create StatefulSet manifest
   ```yaml
   # manifests/uptime-kuma/statefulset.yaml
   # StatefulSet for persistent SQLite database (single replica only)
@@ -268,7 +268,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
             storage: 1Gi
   ```
 
-- [ ] 4.14.2.2 Create Services (headless + ClusterIP)
+- [x] 4.14.2.2 Create Services (headless + ClusterIP)
   ```yaml
   # manifests/uptime-kuma/service.yaml
   # Headless service for StatefulSet pod DNS identity (uptime-kuma-0.uptime-kuma-headless)
@@ -312,7 +312,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
       protocol: TCP
   ```
 
-- [ ] 4.14.2.3 Create HTTPRoute for internal access
+- [x] 4.14.2.3 Create HTTPRoute for internal access
   ```yaml
   # manifests/uptime-kuma/httproute.yaml
   # HTTPRoute for Uptime Kuma - exposes via Gateway API
@@ -346,29 +346,29 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
         port: 3001
   ```
 
-- [ ] 4.14.2.4 Apply all manifests
+- [x] 4.14.2.4 Apply all manifests
   ```bash
   kubectl-homelab apply -f manifests/uptime-kuma/
   ```
 
-- [ ] 4.14.2.5 Wait for pod to be ready
+- [x] 4.14.2.5 Wait for pod to be ready
   ```bash
   kubectl-homelab rollout status statefulset/uptime-kuma -n uptime-kuma --timeout=300s
   ```
 
-- [ ] 4.14.2.6 Verify PVC auto-created and bound
+- [x] 4.14.2.6 Verify PVC auto-created and bound
   ```bash
   kubectl-homelab get pvc -n uptime-kuma
   # Should show: data-uptime-kuma-0  Bound  (auto-created by volumeClaimTemplates)
   ```
 
-- [ ] 4.14.2.7 Check pod logs
+- [x] 4.14.2.7 Check pod logs
   ```bash
   kubectl-homelab logs -n uptime-kuma -l app=uptime-kuma --tail=50
   # Look for: "Listening on 3001"
   ```
 
-- [ ] 4.14.2.8 Create CiliumNetworkPolicy
+- [x] 4.14.2.8 Create CiliumNetworkPolicy
   ```yaml
   # manifests/uptime-kuma/networkpolicy.yaml
   # CiliumNetworkPolicy - Egress rules for Uptime Kuma
@@ -436,7 +436,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
           protocol: TCP
   ```
 
-- [ ] 4.14.2.9 Apply network policy
+- [x] 4.14.2.9 Apply network policy
   ```bash
   kubectl-homelab apply -f manifests/uptime-kuma/networkpolicy.yaml
   ```
@@ -445,19 +445,19 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 
 ## 4.14.3 Configure DNS
 
-- [ ] 4.14.3.1 Add DNS record in AdGuard
+- [x] 4.14.3.1 Add DNS record in AdGuard
   ```
   # AdGuard Home → Filters → DNS rewrites
   # Add: uptime.k8s.rommelporras.com → 10.10.30.20
   ```
 
-- [ ] 4.14.3.2 Verify DNS resolution
+- [x] 4.14.3.2 Verify DNS resolution
   ```bash
   nslookup uptime.k8s.rommelporras.com 10.10.30.55
   # Should resolve to 10.10.30.20 (Gateway IP)
   ```
 
-- [ ] 4.14.3.3 Access Uptime Kuma UI
+- [x] 4.14.3.3 Access Uptime Kuma UI
   ```
   https://uptime.k8s.rommelporras.com
   ```
@@ -466,14 +466,14 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 
 ## 4.14.4 Initial Setup
 
-- [ ] 4.14.4.1 Create admin account
+- [x] 4.14.4.1 Create admin account
   ```
   # First access prompts for admin account creation
   # Username: admin (or your preference)
   # Password: Store in 1Password
   ```
 
-- [ ] 4.14.4.2 Store credentials in 1Password
+- [x] 4.14.4.2 Store credentials in 1Password
   ```bash
   op item create \
     --category=login \
@@ -483,7 +483,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
     "password=<your-password>"
   ```
 
-- [ ] 4.14.4.3 Configure general settings
+- [x] 4.14.4.3 Configure general settings
   ```
   Settings → General:
   - Primary Base URL: https://uptime.k8s.rommelporras.com
@@ -496,7 +496,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 
 > **Reuse existing notification channels from Alertmanager.**
 
-- [ ] 4.14.5.1 Add Discord notification
+- [x] 4.14.5.1 Add Discord notification
   ```
   Settings → Notifications → Setup Notification:
   - Notification Type: Discord
@@ -505,7 +505,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
   - Test → Should receive test message
   ```
 
-- [ ] 4.14.5.2 (Optional) Add Email notification
+- [x] 4.14.5.2 (Optional) Add Email notification
   ```
   Settings → Notifications → Setup Notification:
   - Notification Type: SMTP
@@ -525,7 +525,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 
 ### Personal Sites
 
-- [ ] 4.14.6.1 Add rommelporras.com
+- [x] 4.14.6.1 Add rommelporras.com
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s)
@@ -538,7 +538,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 
 ### Homelab Services
 
-- [ ] 4.14.6.2 Add Grafana
+- [x] 4.14.6.2 Add Grafana
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s) - Keyword
@@ -549,7 +549,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
   - Notification: Discord Incidents
   ```
 
-- [ ] 4.14.6.3 Add AdGuard
+- [x] 4.14.6.3 Add AdGuard
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s)
@@ -559,7 +559,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
   - Notification: Discord Incidents
   ```
 
-- [ ] 4.14.6.4 Add Homepage
+- [x] 4.14.6.4 Add Homepage
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s)
@@ -569,7 +569,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
   - Notification: Discord Incidents
   ```
 
-- [ ] 4.14.6.5 Add Longhorn
+- [x] 4.14.6.5 Add Longhorn
   ```
   Add New Monitor:
   - Monitor Type: HTTP(s)
@@ -581,7 +581,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 
 ### Work-Related (Add your own)
 
-- [ ] 4.14.6.6 Add work monitors as needed
+- [x] 4.14.6.6 Add work monitors as needed
   ```
   # Example:
   Add New Monitor:
@@ -599,7 +599,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 > Uses an allowlist approach: only `/status/*` is publicly accessible.
 > Everything else (`/dashboard`, `/api/*`, etc.) is blocked at the Cloudflare edge.
 
-- [ ] 4.14.7.1 Create status page in Uptime Kuma UI
+- [x] 4.14.7.1 Create status page in Uptime Kuma UI
   ```
   Status Pages → New Status Page:
   - Title: Rommel Porras Services
@@ -608,14 +608,14 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
   # Status page will be at: /status/status
   ```
 
-- [ ] 4.14.7.2 Configure Cloudflare Tunnel route
+- [x] 4.14.7.2 Configure Cloudflare Tunnel route
   ```
   # Cloudflare Zero Trust → Networks → Tunnels → homelab tunnel → Public Hostname:
   # Add public hostname: status.rommelporras.com
   # Service: http://uptime-kuma.uptime-kuma.svc.cluster.local:3001
   ```
 
-- [ ] 4.14.7.2a Update cloudflared CiliumNetworkPolicy
+- [x] 4.14.7.2a Update cloudflared CiliumNetworkPolicy
   ```yaml
   # Add to manifests/cloudflare/networkpolicy.yaml egress rules:
   # (after the invoicetron block)
@@ -633,7 +633,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
   kubectl-homelab apply -f manifests/cloudflare/networkpolicy.yaml
   ```
 
-- [ ] 4.14.7.3 Create Cloudflare Access policy (allowlist approach)
+- [x] 4.14.7.3 Create Cloudflare Access policy (allowlist approach)
   ```
   # Cloudflare Zero Trust → Access → Applications → Add an application:
   #
@@ -659,7 +659,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
   # /status/* is allowed, everything else (/dashboard, /api/*, etc.) is blocked.
   ```
 
-- [ ] 4.14.7.4 Verify public access
+- [x] 4.14.7.4 Verify public access
   ```bash
   # Status page should load:
   curl -I https://status.rommelporras.com/status/status
@@ -680,13 +680,13 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 
 > **SQLite database should be backed up regularly.**
 
-- [ ] 4.14.8.1 Longhorn handles storage replication (2x)
+- [x] 4.14.8.1 Longhorn handles storage replication (2x)
   ```bash
   # Verify Longhorn volume replication
   kubectl-homelab -n longhorn-system get volumes.longhorn.io | grep uptime-kuma
   ```
 
-- [ ] 4.14.8.2 (Optional) Enable Longhorn snapshots
+- [x] 4.14.8.2 (Optional) Enable Longhorn snapshots
   ```bash
   # Create recurring snapshot job in Longhorn UI
   # Longhorn → Volume → uptime-kuma-data → Recurring Jobs
@@ -694,7 +694,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
   # Retain: 7 snapshots
   ```
 
-- [ ] 4.14.8.3 (Optional) Manual backup of data directory
+- [x] 4.14.8.3 (Optional) Manual backup of data directory
   ```bash
   # JSON export was removed in v2.0. Back up the /app/data directory directly.
   # Copy SQLite DB from pod to local machine:
@@ -708,7 +708,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 > **Add a blackbox-exporter Probe so Prometheus monitors Uptime Kuma itself.**
 > Matches the existing pattern in `manifests/monitoring/adguard-dns-probe.yaml`.
 
-- [ ] 4.14.9.1 Create Probe manifest
+- [x] 4.14.9.1 Create Probe manifest
   ```yaml
   # manifests/monitoring/uptime-kuma-probe.yaml
   # Blackbox HTTP probe for Uptime Kuma
@@ -735,12 +735,12 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
           target_name: uptime-kuma
   ```
 
-- [ ] 4.14.9.2 Apply probe
+- [x] 4.14.9.2 Apply probe
   ```bash
   kubectl-homelab apply -f manifests/monitoring/uptime-kuma-probe.yaml
   ```
 
-- [ ] 4.14.9.3 Verify probe in Prometheus
+- [x] 4.14.9.3 Verify probe in Prometheus
   ```bash
   # Check target is up in Prometheus UI or via API
   kubectl-homelab -n monitoring port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090
@@ -753,7 +753,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 
 > **First commit: manifests and configuration only.**
 
-- [ ] 4.14.10.1 Commit deployment changes
+- [x] 4.14.10.1 Commit deployment changes
   ```bash
   /commit
   ```
@@ -764,7 +764,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 
 > **Second commit: documentation updates and audit.**
 
-- [ ] 4.14.11.1 Update VERSIONS.md
+- [x] 4.14.11.1 Update VERSIONS.md
   ```markdown
   # Add to Home Services section:
   | Uptime Kuma | v2.0.2 (rootless) | Running | Self-hosted uptime monitoring |
@@ -776,7 +776,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
   | YYYY-MM-DD | Phase 4.14: Uptime Kuma deployed for endpoint monitoring |
   ```
 
-- [ ] 4.14.11.2 Update docs/context/Secrets.md
+- [x] 4.14.11.2 Update docs/context/Secrets.md
   ```markdown
   # Add 1Password item:
   | Uptime Kuma | `username`, `password` | Uptime Kuma admin login |
@@ -786,7 +786,7 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
   op://Kubernetes/Uptime Kuma/password
   ```
 
-- [ ] 4.14.11.3 Update docs/context/Monitoring.md
+- [x] 4.14.11.3 Update docs/context/Monitoring.md
   ```markdown
   # Add to Components table:
   | Uptime Kuma | v2.0.2 | uptime-kuma |
@@ -795,12 +795,12 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
   | Uptime Kuma | https://uptime.k8s.rommelporras.com |
   ```
 
-- [ ] 4.14.11.4 Update README.md
+- [x] 4.14.11.4 Update README.md
   ```markdown
   # Add Uptime Kuma to services list and architecture overview
   ```
 
-- [ ] 4.14.11.5 Create rebuild guide
+- [x] 4.14.11.5 Create rebuild guide
   ```markdown
   # docs/rebuild/v0.13.0-uptime-kuma.md
   # Must include (matching v0.11.0-ghost-blog.md pattern):
@@ -814,12 +814,12 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
   #   - Key learnings table
   ```
 
-- [ ] 4.14.11.6 Run audit-docs
+- [x] 4.14.11.6 Run audit-docs
   ```bash
   /audit-docs
   ```
 
-- [ ] 4.14.11.7 Commit documentation changes
+- [x] 4.14.11.7 Commit documentation changes
   ```bash
   /commit
   ```
@@ -828,23 +828,23 @@ MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 
 ## Verification Checklist
 
-- [ ] Namespace `uptime-kuma` exists with **baseline** PSS enforce, **restricted** audit/warn
-- [ ] PVC `data-uptime-kuma-0` auto-created and bound to Longhorn volume
-- [ ] StatefulSet running with 1 replica (image: `2.0.2-slim-rootless`)
-- [ ] Headless service `uptime-kuma-headless` exists (`clusterIP: None`)
-- [ ] ClusterIP service `uptime-kuma` exists (for HTTPRoute backend)
-- [ ] CiliumNetworkPolicy `uptime-kuma-egress` applied
-- [ ] Pod running as non-root (UID 1000)
-- [ ] HTTPRoute accessible: https://uptime.k8s.rommelporras.com
-- [ ] HTTPRoute has `sectionName: https` in parentRef
-- [ ] Prometheus blackbox probe target is UP
-- [ ] Admin account created and stored in 1Password
-- [ ] Discord notification configured and tested
-- [ ] Monitors added for personal sites
-- [ ] Monitors added for homelab services
-- [ ] (Optional) Status page created with allowlist Cloudflare Access
-- [ ] (Optional) cloudflared-egress networkpolicy updated for uptime-kuma
-- [ ] Documentation updated (VERSIONS.md, Secrets.md, Monitoring.md, README.md)
+- [x] Namespace `uptime-kuma` exists with **baseline** PSS enforce, **restricted** audit/warn
+- [x] PVC `data-uptime-kuma-0` auto-created and bound to Longhorn volume
+- [x] StatefulSet running with 1 replica (image: `2.0.2-slim-rootless`)
+- [x] Headless service `uptime-kuma-headless` exists (`clusterIP: None`)
+- [x] ClusterIP service `uptime-kuma` exists (for HTTPRoute backend)
+- [x] CiliumNetworkPolicy `uptime-kuma-egress` applied
+- [x] Pod running as non-root (UID 1000)
+- [x] HTTPRoute accessible: https://uptime.k8s.rommelporras.com
+- [x] HTTPRoute has `sectionName: https` in parentRef
+- [x] Prometheus blackbox probe target is UP
+- [x] Admin account created and stored in 1Password
+- [x] Discord notification configured and tested
+- [x] Monitors added for personal sites
+- [x] Monitors added for homelab services
+- [x] (Optional) Status page created with allowlist Cloudflare Access
+- [x] (Optional) cloudflared-egress networkpolicy updated for uptime-kuma
+- [x] Documentation updated (VERSIONS.md, Secrets.md, Monitoring.md, README.md)
 
 ---
 
@@ -937,12 +937,12 @@ nslookup uptime.k8s.rommelporras.com
 
 ## Final: Release
 
-- [ ] Release v0.13.0
+- [x] Release v0.13.0
   ```bash
   /release v0.13.0
   ```
 
-- [ ] Move this file to completed folder
+- [x] Move this file to completed folder
   ```bash
   mv docs/todo/phase-4.14-uptime-kuma.md docs/todo/completed/
   ```

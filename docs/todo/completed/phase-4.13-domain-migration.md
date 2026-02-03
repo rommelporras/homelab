@@ -50,7 +50,7 @@
 > **WHY FIRST:** If K8s AdGuard restarts during migration, all clients fall back to the LXC at
 > 10.10.30.54. Without new rewrites there, new domains won't resolve and you lose access.
 
-- [ ] 4.13.0.1 Update failover AdGuard LXC (10.10.30.54) via web UI
+- [x] 4.13.0.1 Update failover AdGuard LXC (10.10.30.54) via web UI
 
   Add these DNS rewrites in the LXC AdGuard web UI (`http://10.10.30.54:3000`):
 
@@ -66,7 +66,7 @@
 
   > **Do NOT remove old rewrites from LXC yet.** Both old and new must coexist.
 
-- [ ] 4.13.0.2 Verify failover DNS resolves new domains
+- [x] 4.13.0.2 Verify failover DNS resolves new domains
 
   ```bash
   nslookup portal.k8s.rommelporras.com 10.10.30.54
@@ -81,7 +81,7 @@
 
 ## 4.13.1 Update K8s AdGuard DNS (additive)
 
-- [ ] 4.13.1.1 Update AdGuard configmap with new rewrites
+- [x] 4.13.1.1 Update AdGuard configmap with new rewrites
 
   Edit `manifests/home/adguard/configmap.yaml` — add new rewrites **alongside** existing ones:
 
@@ -139,20 +139,20 @@
       enabled: true
   ```
 
-- [ ] 4.13.1.2 Apply AdGuard configmap
+- [x] 4.13.1.2 Apply AdGuard configmap
 
   ```bash
   kubectl-homelab apply -f manifests/home/adguard/configmap.yaml
   ```
 
-- [ ] 4.13.1.3 Restart AdGuard pod to pick up new configmap
+- [x] 4.13.1.3 Restart AdGuard pod to pick up new configmap
 
   ```bash
   kubectl-homelab -n home rollout restart deployment adguard
   kubectl-homelab -n home rollout status deployment adguard
   ```
 
-- [ ] 4.13.1.4 Verify new DNS rewrites work
+- [x] 4.13.1.4 Verify new DNS rewrites work
 
   ```bash
   nslookup portal.k8s.rommelporras.com 10.10.30.53
@@ -161,7 +161,7 @@
   nslookup portfolio.stg.k8s.rommelporras.com 10.10.30.53
   ```
 
-- [ ] 4.13.1.5 Verify OLD domains still resolve (parallel operation)
+- [x] 4.13.1.5 Verify OLD domains still resolve (parallel operation)
 
   ```bash
   nslookup portal.k8s.home.rommelporras.com 10.10.30.53
@@ -174,7 +174,7 @@
 
 ## 4.13.2 Update Gateway (add new listeners)
 
-- [ ] 4.13.2.1 Update Gateway manifest
+- [x] 4.13.2.1 Update Gateway manifest
 
   Edit `manifests/gateway/homelab-gateway.yaml` — keep old listener as `https` (so existing
   HTTPRoutes keep working), add new listeners alongside it:
@@ -258,13 +258,13 @@
   > During Phase 2, HTTPRoutes switch from `sectionName: https` (old) to `sectionName: https-base` (new).
   > During Phase 3 cleanup, remove old `https` listener and rename `https-base` → `https`.
 
-- [ ] 4.13.2.2 Apply Gateway
+- [x] 4.13.2.2 Apply Gateway
 
   ```bash
   kubectl-homelab apply -f manifests/gateway/homelab-gateway.yaml
   ```
 
-- [ ] 4.13.2.3 Verify Gateway accepted all listeners
+- [x] 4.13.2.3 Verify Gateway accepted all listeners
 
   ```bash
   kubectl-homelab get gateway homelab-gateway -o yaml | grep -A5 'listeners'
@@ -273,7 +273,7 @@
 
   Expected: `http`, `https`, `https-base`, `https-dev`, `https-stg`
 
-- [ ] 4.13.2.4 Wait for all new certificates to reach Ready
+- [x] 4.13.2.4 Wait for all new certificates to reach Ready
 
   ```bash
   kubectl-homelab get certificate -A -w
@@ -290,7 +290,7 @@
   > kubectl-homelab -n cert-manager logs -l app=cert-manager --tail=50
   > ```
 
-- [ ] 4.13.2.5 Verify existing services still work on old domain
+- [x] 4.13.2.5 Verify existing services still work on old domain
 
   ```bash
   curl -sk https://portal.k8s.home.rommelporras.com | head -5
@@ -307,7 +307,7 @@
 > We need to add `api.k8s.rommelporras.com` before updating kubeconfig.
 > Old SANs remain valid — this is additive, not destructive.
 
-- [ ] 4.13.3.1 SSH to k8s-cp1 and check current SANs
+- [x] 4.13.3.1 SSH to k8s-cp1 and check current SANs
 
   ```bash
   ssh wawashi@10.10.30.11
@@ -316,7 +316,7 @@
 
   Confirm `k8s-api.home.rommelporras.com` is present.
 
-- [ ] 4.13.3.2 Update kubeadm ClusterConfiguration ConfigMap
+- [x] 4.13.3.2 Update kubeadm ClusterConfiguration ConfigMap
 
   The kubeadm config is stored as a ConfigMap in `kube-system`. Update it so all nodes
   read the new SANs when renewing certs:
@@ -334,7 +334,7 @@
 
   > **Note:** The ConfigMap is the source of truth. Each node reads it during `kubeadm certs renew`.
 
-- [ ] 4.13.3.3 Renew API server cert on k8s-cp1
+- [x] 4.13.3.3 Renew API server cert on k8s-cp1
 
   ```bash
   ssh wawashi@10.10.30.11
@@ -345,7 +345,7 @@
   sleep 15
   ```
 
-- [ ] 4.13.3.4 Verify new SAN and API health on k8s-cp1
+- [x] 4.13.3.4 Verify new SAN and API health on k8s-cp1
 
   ```bash
   sudo openssl x509 -in /etc/kubernetes/pki/apiserver.crt -noout -text | grep "api.k8s.rommelporras.com"
@@ -359,7 +359,7 @@
 
   > **STOP if any node shows NotReady.** Wait for recovery before proceeding.
 
-- [ ] 4.13.3.5 Renew API server cert on k8s-cp2
+- [x] 4.13.3.5 Renew API server cert on k8s-cp2
 
   ```bash
   ssh wawashi@10.10.30.12
@@ -374,7 +374,7 @@
   kubectl-homelab get nodes
   ```
 
-- [ ] 4.13.3.6 Renew API server cert on k8s-cp3
+- [x] 4.13.3.6 Renew API server cert on k8s-cp3
 
   ```bash
   ssh wawashi@10.10.30.13
@@ -389,7 +389,7 @@
   kubectl-homelab get nodes
   ```
 
-- [ ] 4.13.3.7 Update local kubeconfig
+- [x] 4.13.3.7 Update local kubeconfig
 
   ```bash
   # Edit ~/.kube/homelab.yaml
@@ -397,7 +397,7 @@
   # To:     server: https://api.k8s.rommelporras.com:6443
   ```
 
-- [ ] 4.13.3.8 Verify kubectl works on new API hostname
+- [x] 4.13.3.8 Verify kubectl works on new API hostname
 
   ```bash
   kubectl-homelab get nodes
@@ -407,7 +407,7 @@
   > **If this fails:** Revert kubeconfig to `k8s-api.home.rommelporras.com` (old SAN still valid).
   > Debug: `openssl s_client -connect 10.10.30.10:6443 -servername api.k8s.rommelporras.com </dev/null 2>/dev/null | openssl x509 -noout -text | grep -A1 SAN`
 
-- [ ] 4.13.3.9 Verify old kubeconfig hostname still works (rollback safety)
+- [x] 4.13.3.9 Verify old kubeconfig hostname still works (rollback safety)
 
   ```bash
   # Temporarily test old hostname
@@ -421,7 +421,7 @@
 > **WHY FIRST:** Portfolio pulls container images from `registry.k8s.rommelporras.com`.
 > Registry must work on the new domain before portfolio image refs are updated.
 
-- [ ] 4.13.4.1 Update GitLab Helm values
+- [x] 4.13.4.1 Update GitLab Helm values
 
   Edit `helm/gitlab/values.yaml`:
 
@@ -435,7 +435,7 @@
         name: registry.k8s.rommelporras.com  # was: registry.k8s.home.rommelporras.com
   ```
 
-- [ ] 4.13.4.2 Update GitLab HTTPRoutes
+- [x] 4.13.4.2 Update GitLab HTTPRoutes
 
   Edit `manifests/gateway/routes/gitlab.yaml`:
   ```yaml
@@ -455,14 +455,14 @@
       sectionName: https-base    # was: https
   ```
 
-- [ ] 4.13.4.3 Apply GitLab HTTPRoutes
+- [x] 4.13.4.3 Apply GitLab HTTPRoutes
 
   ```bash
   kubectl-homelab apply -f manifests/gateway/routes/gitlab.yaml
   kubectl-homelab apply -f manifests/gateway/routes/gitlab-registry.yaml
   ```
 
-- [ ] 4.13.4.4 Helm upgrade GitLab
+- [x] 4.13.4.4 Helm upgrade GitLab
 
   ```bash
   helm-homelab upgrade gitlab gitlab/gitlab \
@@ -471,21 +471,21 @@
     --timeout 10m
   ```
 
-- [ ] 4.13.4.5 Verify GitLab accessible on new domain
+- [x] 4.13.4.5 Verify GitLab accessible on new domain
 
   ```bash
   curl -sk https://gitlab.k8s.rommelporras.com/users/sign_in | grep "GitLab"
   curl -sk https://registry.k8s.rommelporras.com/v2/ | head -5
   ```
 
-- [ ] 4.13.4.6 Update GitLab Runner Helm values
+- [x] 4.13.4.6 Update GitLab Runner Helm values
 
   Edit `helm/gitlab-runner/values.yaml`:
   ```yaml
   gitlabUrl: https://gitlab.k8s.rommelporras.com  # was: https://gitlab.k8s.home.rommelporras.com
   ```
 
-- [ ] 4.13.4.7 Helm upgrade GitLab Runner
+- [x] 4.13.4.7 Helm upgrade GitLab Runner
 
   ```bash
   helm-homelab upgrade gitlab-runner gitlab/gitlab-runner \
@@ -493,7 +493,7 @@
     -f helm/gitlab-runner/values.yaml
   ```
 
-- [ ] 4.13.4.8 Verify Runner connected
+- [x] 4.13.4.8 Verify Runner connected
 
   ```bash
   kubectl-homelab -n gitlab-runner get pods
@@ -509,7 +509,7 @@
 
 > **Prerequisite:** GitLab registry accessible on new domain (4.13.4.5 verified).
 
-- [ ] 4.13.5.1 Update Portfolio image reference
+- [x] 4.13.5.1 Update Portfolio image reference
 
   Edit `manifests/portfolio/deployment.yaml`:
   ```yaml
@@ -517,7 +517,7 @@
   # was: registry.k8s.home.rommelporras.com/0xwsh/portfolio:latest
   ```
 
-- [ ] 4.13.5.2 Update Portfolio HTTPRoutes
+- [x] 4.13.5.2 Update Portfolio HTTPRoutes
 
   Edit `manifests/gateway/routes/portfolio-prod.yaml`:
   ```yaml
@@ -546,7 +546,7 @@
       sectionName: https-stg
   ```
 
-- [ ] 4.13.5.3 Apply Portfolio changes
+- [x] 4.13.5.3 Apply Portfolio changes
 
   ```bash
   kubectl-homelab apply -f manifests/portfolio/deployment.yaml
@@ -555,7 +555,7 @@
   kubectl-homelab apply -f manifests/gateway/routes/portfolio-staging.yaml
   ```
 
-- [ ] 4.13.5.4 Verify Portfolio accessible on new domains
+- [x] 4.13.5.4 Verify Portfolio accessible on new domains
 
   ```bash
   curl -sk https://portfolio.k8s.rommelporras.com | head -5
@@ -567,7 +567,7 @@
 
 ## 4.13.6 Cutover: Grafana + Prometheus Stack
 
-- [ ] 4.13.6.1 Update Grafana HTTPRoute
+- [x] 4.13.6.1 Update Grafana HTTPRoute
 
   Edit `manifests/monitoring/grafana-httproute.yaml`:
   ```yaml
@@ -578,7 +578,7 @@
       sectionName: https-base
   ```
 
-- [ ] 4.13.6.2 Update Grafana root_url in Helm values
+- [x] 4.13.6.2 Update Grafana root_url in Helm values
 
   Edit `helm/prometheus/values.yaml`:
   ```yaml
@@ -588,14 +588,14 @@
         root_url: https://grafana.k8s.rommelporras.com
   ```
 
-- [ ] 4.13.6.3 Apply HTTPRoute and Helm upgrade
+- [x] 4.13.6.3 Apply HTTPRoute and Helm upgrade
 
   ```bash
   kubectl-homelab apply -f manifests/monitoring/grafana-httproute.yaml
   ./scripts/upgrade-prometheus.sh
   ```
 
-- [ ] 4.13.6.4 Verify Grafana accessible
+- [x] 4.13.6.4 Verify Grafana accessible
 
   ```bash
   curl -sk https://grafana.k8s.rommelporras.com/api/health
@@ -607,7 +607,7 @@
 
 These are independent — order doesn't matter.
 
-- [ ] 4.13.7.1 Update Longhorn HTTPRoute
+- [x] 4.13.7.1 Update Longhorn HTTPRoute
 
   Edit `manifests/storage/longhorn/httproute.yaml`:
   ```yaml
@@ -623,7 +623,7 @@ These are independent — order doesn't matter.
   curl -sk https://longhorn.k8s.rommelporras.com | head -5
   ```
 
-- [ ] 4.13.7.2 Update AdGuard HTTPRoute
+- [x] 4.13.7.2 Update AdGuard HTTPRoute
 
   Edit `manifests/home/adguard/httproute.yaml`:
   ```yaml
@@ -639,7 +639,7 @@ These are independent — order doesn't matter.
   curl -sk https://adguard.k8s.rommelporras.com | head -5
   ```
 
-- [ ] 4.13.7.3 Update Ghost Dev (HTTPRoute + deployment)
+- [x] 4.13.7.3 Update Ghost Dev (HTTPRoute + deployment)
 
   Edit `manifests/ghost-dev/httproute.yaml`:
   ```yaml
@@ -665,7 +665,7 @@ These are independent — order doesn't matter.
   curl -sk https://blog.dev.k8s.rommelporras.com | head -5
   ```
 
-- [ ] 4.13.7.4 Update Ghost Prod HTTPRoute
+- [x] 4.13.7.4 Update Ghost Prod HTTPRoute
 
   Edit `manifests/ghost-prod/httproute.yaml`:
   ```yaml
@@ -690,7 +690,7 @@ These are independent — order doesn't matter.
 > **WHY LAST:** Homepage has ~33 bookmark URLs pointing to other services.
 > All services must be on new domains before updating bookmarks.
 
-- [ ] 4.13.8.1 Update Homepage HTTPRoute
+- [x] 4.13.8.1 Update Homepage HTTPRoute
 
   Edit `manifests/home/homepage/httproute.yaml`:
   ```yaml
@@ -701,7 +701,7 @@ These are independent — order doesn't matter.
       sectionName: https-base
   ```
 
-- [ ] 4.13.8.2 Update Homepage deployment HOMEPAGE_ALLOWED_HOSTS
+- [x] 4.13.8.2 Update Homepage deployment HOMEPAGE_ALLOWED_HOSTS
 
   Edit `manifests/home/homepage/deployment.yaml`:
   ```yaml
@@ -710,7 +710,7 @@ These are independent — order doesn't matter.
       value: "portal.k8s.rommelporras.com"
   ```
 
-- [ ] 4.13.8.3 Update Homepage services.yaml (all bookmark URLs)
+- [x] 4.13.8.3 Update Homepage services.yaml (all bookmark URLs)
 
   Edit `manifests/home/homepage/config/services.yaml`:
 
@@ -735,14 +735,14 @@ These are independent — order doesn't matter.
   - `myspeed.home.rommelporras.com` (MySpeed)
   - `blog.rommelporras.com` (Public blog — Cloudflare Tunnel)
 
-- [ ] 4.13.8.4 Update Homepage settings.yaml
+- [x] 4.13.8.4 Update Homepage settings.yaml
 
   Edit `manifests/home/homepage/config/settings.yaml`:
   ```yaml
   url: https://longhorn.k8s.rommelporras.com
   ```
 
-- [ ] 4.13.8.5 Apply all Homepage changes
+- [x] 4.13.8.5 Apply all Homepage changes
 
   ```bash
   kubectl-homelab apply -f manifests/home/homepage/httproute.yaml
@@ -754,7 +754,7 @@ These are independent — order doesn't matter.
   kubectl-homelab -n home rollout status deployment homepage
   ```
 
-- [ ] 4.13.8.6 Verify Homepage accessible and all bookmarks work
+- [x] 4.13.8.6 Verify Homepage accessible and all bookmarks work
 
   ```bash
   curl -sk https://portal.k8s.rommelporras.com | head -5
@@ -766,7 +766,7 @@ These are independent — order doesn't matter.
 
 ## 4.13.9 Cutover: Remaining Items
 
-- [ ] 4.13.9.1 Verify Blackbox exporter probe targets
+- [x] 4.13.9.1 Verify Blackbox exporter probe targets
 
   `manifests/monitoring/adguard-dns-probe.yaml` uses IP `10.10.30.53`, not a domain — no changes needed.
   Verify probes still work after migration:
@@ -775,7 +775,7 @@ These are independent — order doesn't matter.
   kubectl-homelab -n monitoring get probe -o wide
   ```
 
-- [ ] 4.13.9.2 Update local SSH config (GitLab)
+- [x] 4.13.9.2 Update local SSH config (GitLab)
 
   Edit `~/.ssh/config`:
   ```
@@ -789,13 +789,13 @@ These are independent — order doesn't matter.
   ssh -T git@gitlab.k8s.rommelporras.com
   ```
 
-- [ ] 4.13.9.3 Update sync script
+- [x] 4.13.9.3 Update sync script
 
   Edit `scripts/sync-ghost-prod-to-dev.sh`:
   - Line 74: SQL URL → `https://blog.dev.k8s.rommelporras.com`
   - Line 90: output message → `https://blog.dev.k8s.rommelporras.com`
 
-- [ ] 4.13.9.4 Update Ansible group_vars
+- [x] 4.13.9.4 Update Ansible group_vars
 
   Edit `ansible/group_vars/all.yml`:
   ```yaml
@@ -823,7 +823,7 @@ These are independent — order doesn't matter.
 > **Every service must be verified before proceeding to cleanup.
 > Cleanup removes the old domain — there is no rollback after that.**
 
-- [ ] 4.13.10.1 Verify all services on new domains
+- [x] 4.13.10.1 Verify all services on new domains
 
   | Service | URL | Expected |
   |---------|-----|----------|
@@ -842,14 +842,14 @@ These are independent — order doesn't matter.
   | K8s API | `kubectl-homelab get nodes` | 3 nodes Ready |
   | GitLab SSH | `ssh -T git@gitlab.k8s.rommelporras.com` | Welcome message |
 
-- [ ] 4.13.10.2 Check for alert firing
+- [x] 4.13.10.2 Check for alert firing
 
   ```bash
   kubectl-homelab -n monitoring get prometheusrule -o name
   # Check Discord #status for any alerts triggered during migration
   ```
 
-- [ ] 4.13.10.3 Verify Cloudflare Tunnel still works
+- [x] 4.13.10.3 Verify Cloudflare Tunnel still works
 
   ```bash
   curl -s https://blog.rommelporras.com | head -5
@@ -861,7 +861,7 @@ These are independent — order doesn't matter.
 
 > **Commit all manifest, helm, script, and ansible changes. Do NOT commit docs yet.**
 
-- [ ] 4.13.11.1 Commit deployment changes
+- [x] 4.13.11.1 Commit deployment changes
 
   Stage and commit all changed files in `manifests/`, `helm/`, `scripts/`, `ansible/`.
 
@@ -882,7 +882,7 @@ These are independent — order doesn't matter.
 
 > **Only proceed after 4.13.10 full verification is complete.**
 
-- [ ] 4.13.12.1 Remove old Gateway listener
+- [x] 4.13.12.1 Remove old Gateway listener
 
   Edit `manifests/gateway/homelab-gateway.yaml`:
   - Remove the `https` listener (old `*.k8s.home.rommelporras.com`)
@@ -892,7 +892,7 @@ These are independent — order doesn't matter.
   kubectl-homelab apply -f manifests/gateway/homelab-gateway.yaml
   ```
 
-- [ ] 4.13.12.2 Update all HTTPRoute sectionNames
+- [x] 4.13.12.2 Update all HTTPRoute sectionNames
 
   All HTTPRoutes currently referencing `sectionName: https-base` → change to `sectionName: https`.
 
@@ -907,7 +907,7 @@ These are independent — order doesn't matter.
   kubectl-homelab apply -f manifests/ghost-prod/httproute.yaml
   ```
 
-- [ ] 4.13.12.3 Remove old AdGuard DNS rewrites (K8s)
+- [x] 4.13.12.3 Remove old AdGuard DNS rewrites (K8s)
 
   Edit `manifests/home/adguard/configmap.yaml` — remove:
   ```yaml
@@ -925,21 +925,21 @@ These are independent — order doesn't matter.
   kubectl-homelab -n home rollout restart deployment adguard
   ```
 
-- [ ] 4.13.12.4 Remove old DNS rewrites from failover AdGuard LXC
+- [x] 4.13.12.4 Remove old DNS rewrites from failover AdGuard LXC
 
   Via web UI at `http://10.10.30.54:3000` — remove old `*.k8s.home` rewrites.
 
-- [ ] 4.13.12.5 Delete orphaned TLS secret
+- [x] 4.13.12.5 Delete orphaned TLS secret
 
   ```bash
   kubectl-homelab delete secret wildcard-k8s-home-tls -n default
   ```
 
-- [ ] 4.13.12.6 Check Cloudflare dashboard
+- [x] 4.13.12.6 Check Cloudflare dashboard
 
   Verify tunnel ingress rules don't reference old `*.k8s.home` origins.
 
-- [ ] 4.13.12.7 Final verification after cleanup
+- [x] 4.13.12.7 Final verification after cleanup
 
   Re-run the full verification from 4.13.10.1. All services must work.
 
@@ -949,7 +949,7 @@ These are independent — order doesn't matter.
   # Should return NXDOMAIN or no answer
   ```
 
-- [ ] 4.13.12.8 Commit cleanup
+- [x] 4.13.12.8 Commit cleanup
 
   ```
   refactor: remove legacy k8s.home.rommelporras.com domain
@@ -964,23 +964,23 @@ These are independent — order doesn't matter.
 
 ## 4.13.13 Documentation and Audit
 
-- [ ] 4.13.13.1 Update VERSIONS.md
+- [x] 4.13.13.1 Update VERSIONS.md
 
   Update all HTTPRoute URLs, domain references, add version history entry.
 
-- [ ] 4.13.13.2 Update CLAUDE.md
+- [x] 4.13.13.2 Update CLAUDE.md
 
   Update SSH references, HTTPRoute table, quick reference section.
 
-- [ ] 4.13.13.3 Update docs/CLUSTER_STATUS.md
+- [x] 4.13.13.3 Update docs/CLUSTER_STATUS.md
 
   Update all domain entries (source of truth).
 
-- [ ] 4.13.13.4 Update docs/ARCHITECTURE.md
+- [x] 4.13.13.4 Update docs/ARCHITECTURE.md
 
   Add domain tier rationale.
 
-- [ ] 4.13.13.5 Update docs/context/ files
+- [x] 4.13.13.5 Update docs/context/ files
 
   - `Networking.md` (18 occurrences)
   - `Gateway.md` (18 occurrences)
@@ -988,7 +988,7 @@ These are independent — order doesn't matter.
   - `Conventions.md` (1 occurrence)
   - `Storage.md` (1 occurrence)
 
-- [ ] 4.13.13.6 Update docs/rebuild/ guides
+- [x] 4.13.13.6 Update docs/rebuild/ guides
 
   - `v0.4.0-observability.md` (3 occurrences)
   - `v0.6.0-home-services.md` (7 occurrences)
@@ -998,12 +998,12 @@ These are independent — order doesn't matter.
   - `v0.11.0-ghost-blog.md` (11 occurrences)
   - `README.md` (1 occurrence)
 
-- [ ] 4.13.13.7 Update active plans
+- [x] 4.13.13.7 Update active plans
 
   - `docs/todo/phase-4.14-uptime-kuma.md` (already updated)
   - `docs/todo/phase-4.9-invoicetron.md` (4 occurrences)
 
-- [ ] 4.13.13.8 Update completed phase history
+- [x] 4.13.13.8 Update completed phase history
 
   - `docs/todo/completed/phase-4.6-gitlab.md` (28 occurrences)
   - `docs/todo/completed/phase-4.7-portfolio.md` (17 occurrences)
@@ -1012,23 +1012,23 @@ These are independent — order doesn't matter.
   - `docs/todo/completed/phase-4.1-4.4-stateless.md` (5 occurrences)
   - `docs/todo/completed/phase-3.5-3.8-monitoring.md` (4 occurrences)
 
-- [ ] 4.13.13.9 Update docs/reference/CHANGELOG.md
+- [x] 4.13.13.9 Update docs/reference/CHANGELOG.md
 
   Add domain migration entry (11 existing occurrences to update).
 
-- [ ] 4.13.13.10 Update README.md
+- [x] 4.13.13.10 Update README.md
 
-- [ ] 4.13.13.11 Create rebuild guide
+- [x] 4.13.13.11 Create rebuild guide
 
   Create `docs/rebuild/v0.12.0-domain-migration.md` with the exact commands used.
 
-- [ ] 4.13.13.12 Run audit-docs
+- [x] 4.13.13.12 Run audit-docs
 
   ```bash
   # /audit-docs to verify consistency
   ```
 
-- [ ] 4.13.13.13 Commit documentation
+- [x] 4.13.13.13 Commit documentation
 
   ```
   docs: update all references for domain migration to k8s.rommelporras.com
@@ -1043,17 +1043,17 @@ These are independent — order doesn't matter.
 
 ## Final Checklist
 
-- [ ] All services accessible on new `*.k8s.rommelporras.com` domains
-- [ ] All dev services on `*.dev.k8s.rommelporras.com`
-- [ ] All staging services on `*.stg.k8s.rommelporras.com`
-- [ ] `kubectl-homelab get nodes` works via `api.k8s.rommelporras.com`
-- [ ] GitLab SSH works via `gitlab.k8s.rommelporras.com`
-- [ ] Blog public access via `blog.rommelporras.com` (Cloudflare Tunnel)
-- [ ] Old `*.k8s.home.rommelporras.com` domains no longer resolve
-- [ ] No alerts firing in Discord #status
-- [ ] Failover AdGuard LXC updated (old rewrites removed)
-- [ ] All docs updated and committed
-- [ ] Release tagged as v0.12.0
+- [x] All services accessible on new `*.k8s.rommelporras.com` domains
+- [x] All dev services on `*.dev.k8s.rommelporras.com`
+- [x] All staging services on `*.stg.k8s.rommelporras.com`
+- [x] `kubectl-homelab get nodes` works via `api.k8s.rommelporras.com`
+- [x] GitLab SSH works via `gitlab.k8s.rommelporras.com`
+- [x] Blog public access via `blog.rommelporras.com` (Cloudflare Tunnel)
+- [x] Old `*.k8s.home.rommelporras.com` domains no longer resolve
+- [x] No alerts firing in Discord #status
+- [x] Failover AdGuard LXC updated (old rewrites removed)
+- [x] All docs updated and committed
+- [x] Release tagged as v0.12.0
 
 ---
 
