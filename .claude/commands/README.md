@@ -11,6 +11,7 @@ Analyzes changes and creates properly formatted conventional commit.
 
 **What it does:**
 - Detects commit type (feat/fix/docs/infra/etc.)
+- Scans staged changes for leaked secrets (blocks commit if found)
 - Generates descriptive message
 - Stages all changes
 - Creates commit (NO AI attribution)
@@ -37,7 +38,7 @@ Creates version tags with changelog and pushes to GitHub.
 ---
 
 ### `/cluster-status` - Kubernetes Health Check
-Quick overview of cluster health and status.
+Quick overview of cluster health and status. Requires cluster access.
 
 **Usage:** `/cluster-status`
 
@@ -64,27 +65,45 @@ Validate Kubernetes manifests and YAML files.
 
 ---
 
-### `/update-docs` - Documentation Audit
-Audit and update docs/context/ files to match current cluster state.
+### `/audit-docs` - Documentation Audit
+Audit docs/context/ files against current cluster state. Requires cluster access.
 
-**Usage:**
-```
-/update-docs          # Audit only (read-only)
-/update-docs --apply  # Update dates, flag content changes
-```
+**Usage:** `/audit-docs`
 
 **What it does:**
+- Compares docs against live cluster (namespaces, HTTPRoutes, versions)
 - Checks frontmatter dates are current
-- Verifies versions match VERSIONS.md
-- Finds undocumented namespaces, HTTPRoutes, services
-- Auto-updates dates with `--apply`
-- Flags content changes for manual review
+- Reports issues, waits for "fix it" approval before changing files
 
-**Recommended before `/release`:**
-```
-/update-docs --apply
-/release
-```
+---
+
+### `/audit-security` - Pre-Commit Security Scan
+Scan manifests, Helm values, and docs for security issues. No cluster access needed.
+
+**Usage:** `/audit-security`
+
+**What it does:**
+- Scans entire repo for leaked secrets (broader than `/commit`'s staged-only scan)
+- Reads each manifest to check security context, capabilities, PSS, image pinning
+- Verifies network policy coverage for all workload namespaces
+- Checks Helm values for hardcoded credentials
+- Reports findings with file:line references and severity levels
+
+---
+
+### `/audit-cluster` - Live Cluster Security Audit
+Deep security check of running cluster. Requires cluster access.
+
+**Usage:** `/audit-cluster`
+
+**What it does:**
+- Verifies PSS enforcement on all namespaces
+- Checks running containers (including init containers) for root, privileged, missing security context
+- Flags workloads in the default namespace
+- Audits network policy coverage
+- Reviews RBAC for unexpected cluster-admin bindings
+- Cross-references exposed services against Gateway.md
+- Detects image version drift against VERSIONS.md
 
 ---
 
@@ -117,43 +136,45 @@ PATCH: Bug fixes, documentation updates
 ## Typical Workflows
 
 ### Making Changes
-```bash
+```
 # 1. Make infrastructure changes
-vim manifests/network-policy.yaml
-
-# 2. Validate changes
-/validate
-
-# 3. Commit with smart message
-/commit
-
-# 4. Push to remote
-git push
+# 2. /validate          — Check YAML syntax and K8s schemas
+# 3. /audit-security    — Full repo security scan
+# 4. /commit            — Stage and commit (includes secrets scan on diff)
 ```
 
 ### Creating a Release
-```bash
-# 1. Audit and update docs first
-/update-docs --apply
-
-# 2. Review any flagged changes
-git diff docs/context/
-
-# 3. Commit doc updates if needed
-/commit
-
-# 4. Create release
-/release
-
-# Or with explicit version
-/release v0.2.0
+```
+# 1. /audit-docs        — Compare docs against live cluster
+# 2. "fix it"           — Apply doc fixes if needed
+# 3. /commit            — Commit doc fixes
+# 4. /release v0.x.0    — Tag, push, GitHub release
 ```
 
-### Checking Cluster (when running)
-```bash
-# Quick health check
+### Security Review
+```
+# Pre-commit (fast, no cluster needed):
+/audit-security
+
+# Deep cluster check (needs cluster access):
+/audit-cluster
+```
+
+### Checking Cluster Health
+```
 /cluster-status
 ```
+
+---
+
+## Which audit command when?
+
+| Situation | Command | Needs cluster? |
+|-----------|---------|----------------|
+| Before committing manifests | `/audit-security` | No |
+| Before a release | `/audit-docs` | Yes |
+| Periodic security review | `/audit-cluster` | Yes |
+| Quick health check | `/cluster-status` | Yes |
 
 ---
 
@@ -164,7 +185,9 @@ All commands are in `.claude/commands/`:
 - `release.md` - Release automation
 - `cluster-status.md` - Cluster health
 - `validate.md` - Config validation
-- `update-docs.md` - Documentation audit
+- `audit-docs.md` - Documentation audit
+- `audit-security.md` - Pre-commit security scan
+- `audit-cluster.md` - Live cluster security audit
 
 ---
 
