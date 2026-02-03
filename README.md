@@ -43,6 +43,7 @@
 | DNS Alerting | ✅ Complete | Blackbox exporter + synthetic DNS probe |
 | Ghost Blog | ✅ Complete | Dev + Prod environments, Cloudflare Tunnel |
 | Domain Migration | ✅ Complete | Tiered wildcards (base/dev/stg) |
+| Uptime Kuma | ✅ Complete | Endpoint monitoring + public status page |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/context/Cluster.md](docs/context/Cluster.md) - Single source of truth
@@ -174,6 +175,7 @@ Step-by-step instructions to rebuild the cluster from scratch:
 | [v0.10.0-portfolio-cicd](docs/rebuild/v0.10.0-portfolio-cicd.md) | Phase 4.7 | Portfolio CI/CD with 3-env deployment |
 | [v0.11.0-ghost-blog](docs/rebuild/v0.11.0-ghost-blog.md) | Phase 4.12 | Ghost CMS with dev/prod environments |
 | [v0.12.0-domain-migration](docs/rebuild/v0.12.0-domain-migration.md) | Phase 4.13 | Domain migration to `*.k8s.rommelporras.com` with tiered wildcards |
+| [v0.13.0-uptime-kuma](docs/rebuild/v0.13.0-uptime-kuma.md) | Phase 4.14 | Uptime Kuma endpoint monitoring + public status page |
 
 ### Reference
 
@@ -228,7 +230,8 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Jan 30, 2026** | **DNS Alerting** — Blackbox exporter + synthetic DNS monitoring (Phase 4.8.1) |
 | **Jan 31, 2026** | **Ghost Blog** — Ghost 6.14.0 + MySQL 8.4.8 with dev/prod environments (Phase 4.12) |
 | **Feb 2, 2026** | **Domain Migration** — `*.k8s.rommelporras.com` with tiered wildcards (Phase 4.13) |
-| **Coming** | Uptime Kuma, Invoicetron, Tailscale, Immich |
+| **Feb 3, 2026** | **Uptime Kuma** — Endpoint monitoring + public status page via Cloudflare Tunnel (Phase 4.14) |
+| **Coming** | Invoicetron, Tailscale, Immich |
 
 See rebuild guides below for detailed project history.
 
@@ -236,10 +239,9 @@ See rebuild guides below for detailed project history.
 
 ## 🚀 Next Steps
 
-1. **Deploy Uptime Kuma** for endpoint monitoring (Phase 4.11)
-2. **Migrate Invoicetron** to K8s - stateful app with PostgreSQL (Phase 4.9)
-3. **Deploy Tailscale Operator** for mobile access (Phase 4.10)
-4. **CKA Certification** - September 2026 target
+1. **Migrate Invoicetron** to K8s - stateful app with PostgreSQL (Phase 4.9)
+2. **Deploy Tailscale Operator** for mobile access (Phase 4.10)
+3. **CKA Certification** - September 2026 target
 
 ---
 

@@ -88,7 +88,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.13 complete. Domain migration to `*.k8s.rommelporras.com` with tiered wildcards.
+> **Status:** Phase 4.14 complete. Uptime Kuma endpoint monitoring with public status page.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -99,6 +99,7 @@ helm-homelab repo update
 | Ghost (Dev) | 6.14.0 | Running | Theme development, internal access |
 | Ghost (Prod) | 6.14.0 | Running | Public blog via Cloudflare Tunnel |
 | MySQL (Ghost) | 8.4.8 | Running | LTS, per-environment StatefulSets |
+| Uptime Kuma | v2.0.2 (rootless) | Running | Self-hosted uptime monitoring |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -119,6 +120,8 @@ helm-homelab repo update
 | Ghost Prod | blog.k8s.rommelporras.com | base | ghost-prod |
 | Ghost Dev | blog.dev.k8s.rommelporras.com | dev | ghost-dev |
 | Ghost Prod (public) | blog.rommelporras.com (Cloudflare Tunnel) | — | ghost-prod |
+| Uptime Kuma | uptime.k8s.rommelporras.com | base | uptime-kuma |
+| Uptime Kuma (public) | status.rommelporras.com (Cloudflare Tunnel) | — | uptime-kuma |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |
@@ -228,6 +231,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-02-03 | **Uptime Kuma:** Deployed v2.0.2 (rootless) for endpoint monitoring with public status page via Cloudflare Tunnel (Phase 4.14) |
 | 2026-02-02 | **Domain Migration:** Migrated all services to `*.k8s.rommelporras.com` with tiered wildcards (base/dev/stg) (Phase 4.13) |
 | 2026-01-31 | **Ghost Blog:** Deployed Ghost 6.14.0 + MySQL 8.4.8 LTS with dev/prod environments, HTTPRoutes, sync scripts (Phase 4.12) |
 | 2026-01-30 | **AdGuard DNS Alerting:** Blackbox exporter + Probe CRD for L2 lease mismatch detection (Phase 4.8.1) |

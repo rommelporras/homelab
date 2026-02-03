@@ -4,6 +4,129 @@
 
 ---
 
+## February 3, 2026 — Phase 4.14: Uptime Kuma Monitoring
+
+### Milestone: Self-hosted Endpoint Monitoring with Public Status Page
+
+Deployed Uptime Kuma v2.0.2 for HTTP(s) endpoint monitoring of personal websites, homelab services, and infrastructure. Public status page exposed via Cloudflare Tunnel with Access policies blocking admin routes. Discord notifications on the #incidents channel.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| Uptime Kuma | v2.0.2 (rootless) | Running (uptime-kuma namespace) |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/uptime-kuma/namespace.yaml | Namespace with PSS labels (baseline enforce, restricted audit/warn) |
+| manifests/uptime-kuma/statefulset.yaml | StatefulSet with volumeClaimTemplates (Longhorn 1Gi) |
+| manifests/uptime-kuma/service.yaml | Headless + ClusterIP services on port 3001 |
+| manifests/uptime-kuma/httproute.yaml | Gateway API HTTPRoute for `uptime.k8s.rommelporras.com` |
+| manifests/uptime-kuma/networkpolicy.yaml | CiliumNetworkPolicy (DNS, internet HTTPS, cluster-internal, home network) |
+| manifests/monitoring/uptime-kuma-probe.yaml | Blackbox HTTP probe for Prometheus |
+| docs/rebuild/v0.13.0-uptime-kuma.md | Full rebuild guide |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| manifests/cloudflare/networkpolicy.yaml | Added uptime-kuma namespace egress on port 3001 |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Workload type | StatefulSet | Stable identity + persistent SQLite storage |
+| Image variant | rootless (not slim-rootless) | Includes Chromium for browser-engine monitors |
+| Database | SQLite | Single-instance, no external DB dependency |
+| Storage | volumeClaimTemplates (1Gi) | Auto-creates PVC per pod, no separate manifest |
+| Public access | Cloudflare Tunnel + block-admin | SPA-compatible; block `/dashboard`, `/manage-status-page`, `/settings` |
+| Notifications | Reuse #incidents channel | Unified incident channel, no channel sprawl |
+| Monitor retries | 1 for public/prod, 3 for internal/dev | Faster alerting for critical services |
+
+### Architecture
+
+```
+uptime-kuma namespace
+┌───────────────────────────────────┐
+│ StatefulSet (1 replica)           │
+│ - Image: 2.0.2-rootless           │
+│ - SQLite on Longhorn PVC (1Gi)   │
+│ - Non-root (UID 1000)            │
+└───────────────┬───────────────────┘
+                │
+     ┌──────────┼──────────┐
+     │          │          │
+  Headless   ClusterIP   HTTPRoute
+  Service    Service     uptime.k8s.rommelporras.com
+                          │
+               Cloudflare Tunnel
+               status.rommelporras.com/status/homelab
+```
+
+### Access
+
+| Environment | URL | Access |
+|-------------|-----|--------|
+| Admin | https://uptime.k8s.rommelporras.com | Internal (HTTPRoute) |
+| Status Page | https://status.rommelporras.com/status/homelab | Public (Cloudflare Tunnel) |
+
+### Monitors Configured
+
+| Group | Monitors |
+|-------|----------|
+| Website | rommelporras.com, beta.rommelporras.com (Staging), Blog Prod, Blog Dev |
+| Apps | Grafana, Homepage Dashboard, Longhorn Storage, Immich, Karakeep, MySpeed, Homepage (Proxmox) |
+| Infrastructure | Proxmox PVE, Proxmox Firewall, OPNsense, OpenMediaVault, NAS Glances |
+| DNS | AdGuard Primary, AdGuard Failover |
+
+Tags: Kubernetes (Blue), Proxmox (Orange), Network (Purple), Storage (Pink), Public (Green)
+
+### Cloudflare Access (Block Admin)
+
+| Path | Action |
+|------|--------|
+| `status.rommelporras.com/dashboard` | Blocked (Everyone) |
+| `status.rommelporras.com/manage-status-page` | Blocked (Everyone) |
+| `status.rommelporras.com/settings` | Blocked (Everyone) |
+| `status.rommelporras.com/status/homelab` | Public (no policy) |
+
+### CKA Learnings
+
+| Topic | Concept |
+|-------|---------|
+| StatefulSet | volumeClaimTemplates auto-create PVCs, headless Service for stable DNS |
+| CiliumNetworkPolicy | Uses pod ports not service ports; private IP exclusion requires explicit toCIDR for home network |
+| Gateway API | HTTPRoute sectionName for listener selection |
+| Cloudflare Access | Block-admin simpler than allowlist for SPAs (JS/CSS/API paths) |
+| Hairpin routing | Cilium Gateway returns 403 for pod-to-VIP-to-pod traffic |
+
+### Lessons Learned
+
+1. **StatefulSet vs Deployment for SQLite** — StatefulSet provides stable pod identity (`uptime-kuma-0`) and volumeClaimTemplates auto-create PVCs. No separate PVC manifest needed.
+
+2. **CiliumNetworkPolicy uses pod ports, not service ports** — A service mapping port 80→3000 requires the network policy to allow port 3000 (the pod port). Service port abstraction doesn't apply at the CNI level.
+
+3. **Private IP exclusion blocks home network** — `toCIDRSet` with `except: 10.0.0.0/8` blocks home network devices (AdGuard failover, OPNsense, NAS). Must add explicit `toCIDR` rules for specific IPs.
+
+4. **Hairpin routing with Cilium Gateway** — Pods accessing their own service via the Gateway VIP (pod→VIP→pod) get 403. Use internal service URLs for self-monitoring or accept the limitation.
+
+5. **Cloudflare Access: block-admin > allowlist for SPAs** — Allowlisting only `/status/homelab` blocks JS/CSS/API paths the SPA needs. Blocking only admin paths (`/dashboard`, `/manage-status-page`, `/settings`) is simpler and SPA-compatible.
+
+6. **rootless vs slim-rootless** — The `rootless` image includes Chromium for browser-engine monitors (real browser rendering checks). `slim-rootless` saves ~200MB but loses this capability. Memory limits need bumping (256Mi→768Mi).
+
+7. **HTTPRoute BackendNotFound timing issue** — Cilium Gateway controller may report `Service "uptime-kuma" not found` even when the service exists. Delete and re-apply the HTTPRoute to force re-reconciliation.
+
+8. **Cloudflare Zero Trust requires payment method** — Even the free plan ($0/month, 50 seats) requires a credit card or PayPal for identity verification. Standard anti-abuse measure.
+
+### 1Password Items
+
+| Item | Vault | Fields |
+|------|-------|--------|
+| Uptime Kuma | Kubernetes | username, password, website |
+
+---
+
 ## February 2, 2026 — Phase 4.13: Domain Migration
 
 ### Milestone: Corporate-Style Domain Hierarchy

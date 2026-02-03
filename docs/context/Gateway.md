@@ -118,6 +118,7 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 | Portfolio Prod | https://portfolio.k8s.rommelporras.com | portfolio | portfolio-prod | https |
 | Ghost Dev | https://blog.dev.k8s.rommelporras.com | ghost | ghost-dev | https-dev |
 | Ghost Prod | https://blog.k8s.rommelporras.com | ghost | ghost-prod | https |
+| Uptime Kuma | https://uptime.k8s.rommelporras.com | uptime-kuma | uptime-kuma | https |
 
 ## Adding a New Service
 

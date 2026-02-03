@@ -32,6 +32,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Ghost Prod MySQL | `root-password`, `user-password` | ghost-prod MySQL StatefulSet |
 | Ghost Dev Admin API | `key` | GitLab CI/CD (dev theme deploy) |
 | Ghost Prod Admin API | `key` | GitLab CI/CD (prod theme deploy) |
+| Uptime Kuma | `username`, `password` | Uptime Kuma admin login |
 | iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
 
 ## 1Password Paths
@@ -81,6 +82,10 @@ op://Kubernetes/Ghost Dev Admin API/key
 op://Kubernetes/Ghost Prod Admin API/key
 
 # Ghost Mail (reuses iCloud SMTP - see above)
+
+# Uptime Kuma
+op://Kubernetes/Uptime Kuma/username
+op://Kubernetes/Uptime Kuma/password
 
 # Homepage (widget credentials)
 op://Kubernetes/Homepage/proxmox-pve-user

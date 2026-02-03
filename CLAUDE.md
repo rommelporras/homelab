@@ -40,6 +40,7 @@ homelab/
 │   ├── ghost-dev/                 # Ghost blog dev environment
 │   ├── ghost-prod/                # Ghost blog prod environment
 │   ├── portfolio/                 # Portfolio deployment
+│   ├── uptime-kuma/               # Uptime Kuma monitoring
 │   └── storage/                   # Longhorn HTTPRoute, NFS PVs
 │
 ├── scripts/                       # Operational scripts

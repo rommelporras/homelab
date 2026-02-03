@@ -20,6 +20,7 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 | node-exporter | — | monitoring |
 | nut-exporter | 3.1.1 | monitoring |
 | blackbox-exporter | v0.28.0 | monitoring |
+| Uptime Kuma | v2.0.2 | uptime-kuma |
 
 ## Access
 
@@ -28,6 +29,8 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 | Grafana | https://grafana.k8s.rommelporras.com |
 | Prometheus | ClusterIP (port-forward: 9090) |
 | Alertmanager | ClusterIP (port-forward: 9093) |
+| Uptime Kuma | https://uptime.k8s.rommelporras.com |
+| Uptime Kuma (public) | https://status.rommelporras.com/status/homelab |
 
 ## Grafana
 
@@ -111,6 +114,7 @@ See `docs/todo/deferred.md` for future fix instructions.
 | manifests/monitoring/test-alert.yaml | Test PrometheusRule |
 | manifests/monitoring/adguard-dns-probe.yaml | Blackbox DNS probe for AdGuard |
 | manifests/monitoring/adguard-dns-alert.yaml | Alert on DNS probe failure |
+| manifests/monitoring/uptime-kuma-probe.yaml | Blackbox HTTP probe for Uptime Kuma |
 | helm/blackbox-exporter/values.yaml | Blackbox exporter config (dns_udp module) |
 
 ## Upgrade Prometheus Stack

@@ -65,6 +65,7 @@ ssh wawashi@cp3.k8s.rommelporras.com
 | portfolio-prod | Portfolio production environment |
 | ghost-dev | Ghost blog dev environment |
 | ghost-prod | Ghost blog production environment |
+| uptime-kuma | Uptime Kuma endpoint monitoring |
 
 ## System
 
