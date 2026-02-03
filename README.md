@@ -155,6 +155,7 @@
 | [Storage.md](docs/context/Storage.md) | Longhorn and NFS storage |
 | [Gateway.md](docs/context/Gateway.md) | HTTPRoutes, TLS, cert-manager |
 | [Monitoring.md](docs/context/Monitoring.md) | Prometheus, Grafana, Alerting |
+| [ExternalServices.md](docs/context/ExternalServices.md) | GA4, GTM, Cloudflare, SMTP, domain |
 | [K8S_LEARNING_GUIDE.md](docs/K8S_LEARNING_GUIDE.md) | CKA study material |
 
 ### Rebuild Guides
