@@ -1,6 +1,6 @@
 # Phase 4.14: Uptime Kuma Monitoring
 
-> **Status:** Planned
+> **Status:** Complete (v0.13.0)
 > **Target:** v0.13.0
 > **Prerequisite:** Phase 4.13 complete (Domain Migration)
 > **DevOps Topics:** Uptime monitoring, status pages, synthetic monitoring

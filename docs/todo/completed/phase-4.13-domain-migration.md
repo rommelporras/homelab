@@ -1,6 +1,6 @@
 # Phase 4.13: Domain Migration (k8s.home → k8s.rommelporras.com)
 
-> **Status:** Complete
+> **Status:** Complete (v0.12.0)
 > **Target:** v0.12.0
 > **Prerequisite:** Phase 4.12 complete (Ghost Blog)
 > **DevOps Topics:** DNS management, TLS certificates, Gateway API, zero-downtime migration
