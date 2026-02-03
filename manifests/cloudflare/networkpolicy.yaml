@@ -1,7 +1,7 @@
 # manifests/cloudflare/networkpolicy.yaml
 # CiliumNetworkPolicy - Security isolation for cloudflared
 #
-# ALLOWED: DNS, Cloudflare Edge, portfolio, invoicetron, DMZ VM (temporary)
+# ALLOWED: DNS, Cloudflare Edge, portfolio, invoicetron, uptime-kuma, DMZ VM (temporary)
 # BLOCKED: NAS, GitLab, Grafana, Longhorn, all other private IPs
 #
 apiVersion: cilium.io/v2
@@ -73,6 +73,15 @@ spec:
     toPorts:
     - ports:
       - port: "3000"
+        protocol: TCP
+
+  # Uptime Kuma namespace (status.rommelporras.com)
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: uptime-kuma
+    toPorts:
+    - ports:
+      - port: "3001"
         protocol: TCP
 
   # TEMPORARY: DMZ VM (remove after Phase 4.7/4.8 migration)

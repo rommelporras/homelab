@@ -1,0 +1,39 @@
+# Headless service for StatefulSet pod DNS identity (uptime-kuma-0.uptime-kuma-headless)
+# Regular ClusterIP service for HTTPRoute backend
+#
+# CKA topic: Headless Service (clusterIP: None) for StatefulSet stable network identity
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: uptime-kuma-headless
+  namespace: uptime-kuma
+  labels:
+    app: uptime-kuma
+    app.kubernetes.io/part-of: uptime-kuma
+spec:
+  clusterIP: None
+  selector:
+    app: uptime-kuma
+  ports:
+  - name: http
+    port: 3001
+    targetPort: 3001
+    protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: uptime-kuma
+  namespace: uptime-kuma
+  labels:
+    app: uptime-kuma
+    app.kubernetes.io/part-of: uptime-kuma
+spec:
+  selector:
+    app: uptime-kuma
+  ports:
+  - name: http
+    port: 3001
+    targetPort: 3001
+    protocol: TCP

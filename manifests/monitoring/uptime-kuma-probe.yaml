@@ -1,0 +1,22 @@
+# Blackbox HTTP probe for Uptime Kuma
+# Fires alert if Uptime Kuma becomes unreachable
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: uptime-kuma
+  namespace: monitoring
+  labels:
+    app: uptime-kuma-probe
+spec:
+  jobName: uptime-kuma
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+      - https://uptime.k8s.rommelporras.com
+      labels:
+        target_name: uptime-kuma

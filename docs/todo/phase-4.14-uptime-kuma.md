@@ -38,7 +38,7 @@
 │              K8s Cluster (uptime-kuma namespace)                    │
 │  ┌─────────────────────────────────────────────────────────────┐   │
 │  │  StatefulSet (1 replica)                                    │   │
-│  │  - Image: louislam/uptime-kuma:2.0.2-slim-rootless              │   │
+│  │  - Image: louislam/uptime-kuma:2.0.2-rootless                   │   │
 │  │  - SecurityContext (non-root, capabilities dropped)         │   │
 │  │  - PVC for SQLite database (Longhorn)                       │   │
 │  └─────────────────────────────────────────────────────────────┘   │
@@ -75,11 +75,12 @@
 | `2` | ~800MB | Yes | Yes | Yes |
 | `2-slim` | ~400MB | Yes | No | No |
 | `2-rootless` | ~800MB | No (UID 1000) | Yes | Yes |
-| **`2-slim-rootless`** | **~400MB** | **No (UID 1000)** | **No** | **No** |
+| `2-slim-rootless` | ~400MB | No (UID 1000) | No | No |
+| **`2-rootless`** | **~800MB** | **No (UID 1000)** | **Yes** | **Yes** |
 
-**Decision:** Use `2-slim-rootless` — smallest image, runs as non-root natively (compatible
-with `baseline` PSS enforcement), no unused embedded services. We use SQLite (not MariaDB)
-and don't need browser-engine monitors.
+**Decision:** Use `2-rootless` — runs as non-root natively (compatible with `baseline` PSS
+enforcement), includes embedded Chromium for browser-engine monitors. We use SQLite (not
+MariaDB) but want Chromium for JavaScript-rendered page monitoring.
 
 ### v2.0 Breaking Changes (from v1)
 
@@ -206,9 +207,9 @@ and don't need browser-engine monitors.
             type: RuntimeDefault
         containers:
         - name: uptime-kuma
-          # slim-rootless: ~400MB smaller (no MariaDB/Chromium), runs as node user
+          # rootless: includes Chromium for browser-engine monitors, runs as node user
           # Pinned to 2.0.2 for reproducibility; bump manually when upgrading
-          image: louislam/uptime-kuma:2.0.2-slim-rootless
+          image: louislam/uptime-kuma:2.0.2-rootless
           ports:
           - name: http
             containerPort: 3001
@@ -766,7 +767,7 @@ and don't need browser-engine monitors.
 - [ ] 4.14.11.1 Update VERSIONS.md
   ```markdown
   # Add to Home Services section:
-  | Uptime Kuma | v2.0.2 (slim-rootless) | Running | Self-hosted uptime monitoring |
+  | Uptime Kuma | v2.0.2 (rootless) | Running | Self-hosted uptime monitoring |
 
   # Add to HTTPRoutes table:
   | Uptime Kuma | uptime.k8s.rommelporras.com | base | uptime-kuma |
@@ -904,7 +905,7 @@ nslookup uptime.k8s.rommelporras.com
 
 | Feature | Implementation |
 |---------|----------------|
-| **Non-root execution** | `runAsUser: 1000` via `2-slim-rootless` image |
+| **Non-root execution** | `runAsUser: 1000` via `2-rootless` image |
 | **No privilege escalation** | `allowPrivilegeEscalation: false` |
 | **Minimal capabilities** | `capabilities.drop: ["ALL"]` |
 | **Pod Security Standard** | `baseline` enforce, `restricted` audit/warn |

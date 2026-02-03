@@ -1,0 +1,93 @@
+# StatefulSet for persistent SQLite database (single replica only)
+# Uses rootless image: includes Chromium for browser-engine monitors, runs as non-root (UID 1000)
+#
+# CKA topic: StatefulSet vs Deployment, volumeClaimTemplates, headless Service
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: uptime-kuma
+  namespace: uptime-kuma
+  labels:
+    app: uptime-kuma
+    app.kubernetes.io/part-of: uptime-kuma
+spec:
+  serviceName: uptime-kuma-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: uptime-kuma
+  template:
+    metadata:
+      labels:
+        app: uptime-kuma
+    spec:
+      # Security: Run as non-root (matches rootless image UID 1000)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: uptime-kuma
+        # rootless: includes Chromium for browser-engine monitors, runs as node user
+        # Pinned to 2.0.2 for reproducibility; bump manually when upgrading
+        image: louislam/uptime-kuma:2.0.2-rootless
+        ports:
+        - name: http
+          containerPort: 3001
+          protocol: TCP
+        env:
+        - name: UPTIME_KUMA_PORT
+          value: "3001"
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "768Mi"
+            cpu: "500m"
+        # Container security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        # Startup probe: allows up to 5 min for first-boot DB migrations
+        # Once startup succeeds, liveness takes over with aggressive checks
+        startupProbe:
+          httpGet:
+            path: /
+            port: 3001
+          periodSeconds: 10
+          failureThreshold: 30
+        # Liveness: restart if unresponsive (only active after startup succeeds)
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3001
+          periodSeconds: 10
+          failureThreshold: 3
+        # Readiness: remove from service if temporarily unhealthy
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3001
+          periodSeconds: 5
+          failureThreshold: 2
+  # Use volumeClaimTemplates (idiomatic StatefulSet pattern)
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: longhorn
+      resources:
+        requests:
+          storage: 1Gi

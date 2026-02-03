@@ -1,0 +1,97 @@
+# CiliumNetworkPolicy - Egress rules for Uptime Kuma
+#
+# ALLOWED: DNS, internet (for external endpoint monitoring), cluster services
+# BLOCKED: NAS, other private subnets not needed
+#
+# Uptime Kuma needs broad outbound access to monitor external endpoints.
+# We allow internet egress and cluster-internal DNS but document the scope.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: uptime-kuma-egress
+  namespace: uptime-kuma
+  labels:
+    app: uptime-kuma
+    app.kubernetes.io/part-of: uptime-kuma
+spec:
+  endpointSelector:
+    matchLabels:
+      app: uptime-kuma
+
+  egress:
+  # DNS (required for service discovery and external domain resolution)
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+
+  # Internet egress for monitoring external endpoints (HTTPS)
+  - toCIDRSet:
+    - cidr: 0.0.0.0/0
+      except:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "80"
+        protocol: TCP
+
+  # Cluster-internal monitoring (homelab services via service DNS)
+  # Note: CiliumNetworkPolicy uses pod ports, not service ports
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+    toPorts:
+    - ports:
+      - port: "3000"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: home
+    toPorts:
+    - ports:
+      - port: "3000"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: longhorn-system
+    toPorts:
+    - ports:
+      - port: "8000"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: ghost-dev
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: ghost-prod
+    toPorts:
+    - ports:
+      - port: "2368"
+        protocol: TCP
+
+  # Home network services (outside cluster)
+  # AdGuard failover (10.10.30.80), OPNsense (10.10.10.1), NAS Glances (10.10.30.4)
+  - toCIDR:
+    - 10.10.30.80/32
+    - 10.10.10.1/32
+    - 10.10.30.4/32
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "80"
+        protocol: TCP
+  - toCIDR:
+    - 10.10.30.4/32
+    toPorts:
+    - ports:
+      - port: "61208"
+        protocol: TCP

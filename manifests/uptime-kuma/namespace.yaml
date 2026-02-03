@@ -1,0 +1,12 @@
+# Uptime Kuma namespace with baseline PSS enforcement
+# Phase 4.14 - Uptime Kuma Monitoring
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: uptime-kuma
+  labels:
+    app.kubernetes.io/part-of: uptime-kuma
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
