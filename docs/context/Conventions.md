@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-02-03
+updated: 2026-02-05
 ---
 
 # Conventions
@@ -57,30 +57,40 @@ See [[Secrets]] for all 1Password paths.
 ```
 homelab/
 ├── helm/                    # Helm values files
-│   ├── prometheus/values.yaml
-│   ├── loki/values.yaml
 │   ├── alloy/values.yaml
-│   ├── metrics-server/values.yaml
+│   ├── blackbox-exporter/values.yaml
+│   ├── cilium/values.yaml
 │   ├── gitlab/values.yaml
-│   └── gitlab-runner/values.yaml
+│   ├── gitlab-runner/values.yaml
+│   ├── loki/values.yaml
+│   ├── longhorn/values.yaml
+│   ├── metrics-server/values.yaml
+│   └── prometheus/values.yaml
 ├── manifests/               # Raw K8s manifests
-│   ├── cert-manager/
-│   ├── cilium/
-│   ├── cloudflare/          # Cloudflare Tunnel
-│   ├── gateway/
+│   ├── cert-manager/        # ClusterIssuer
+│   ├── cilium/              # IP pool, L2 announcements
+│   ├── cloudflare/          # Cloudflare Tunnel + network policy
+│   ├── gateway/             # Gateway + HTTPRoutes (routes/ subdir)
 │   ├── ghost-dev/           # Ghost blog dev environment
 │   ├── ghost-prod/          # Ghost blog production environment
-│   ├── gitlab/              # GitLab LoadBalancer
+│   ├── gitlab/              # GitLab SSH LoadBalancer
 │   ├── home/                # Home services (AdGuard, Homepage)
-│   ├── monitoring/
-│   └── storage/             # Longhorn HTTPRoute
+│   ├── invoicetron/         # Invoicetron app + PostgreSQL + backup
+│   ├── monitoring/          # Grafana, probes, alerts, dashboards
+│   ├── network-policies/    # Namespace network policies
+│   ├── portfolio/           # Portfolio deployment + RBAC
+│   ├── storage/             # Longhorn HTTPRoute, NFS PVs
+│   └── uptime-kuma/         # Uptime Kuma StatefulSet
 ├── scripts/                 # Automation scripts
 │   ├── upgrade-prometheus.sh
 │   ├── sync-ghost-prod-to-dev.sh
-│   └── sync-ghost-prod-to-local.sh
+│   ├── sync-ghost-prod-to-local.sh
+│   └── test-cloudflare-networkpolicy.sh
 ├── docs/
-│   ├── context/             # This knowledge base
-│   └── rebuild/             # Step-by-step rebuild guides
+│   ├── context/             # This knowledge base (RAG source)
+│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.14.0)
+│   ├── todo/                # Active and completed phase plans
+│   └── reference/           # CHANGELOG, historical docs
 └── ansible/                 # Bootstrap automation
 ```
 
