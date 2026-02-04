@@ -1,7 +1,7 @@
 # Phase 4.9: Invoicetron Migration
 
-> **Status:** Complete (pending commit + release v0.13.0)
-> **Target:** v0.13.0
+> **Status:** Complete (pending release v0.14.0)
+> **Target:** v0.14.0
 > **Prerequisite:** Phase 4.8 complete (AdGuard Client IP), Phase 4.7 patterns learned
 > **DevOps Topics:** StatefulSets, database migrations, secrets management, Prisma ORM, database backups
 > **CKA Topics:** StatefulSets, PVCs, Jobs, CronJobs, Secrets, environment variables
@@ -924,7 +924,7 @@ Daily pg_dump for production data safety. Database is ~14MB, so this is lightwei
 - [x] External access via Cloudflare Tunnel works
 - [x] Cloudflare Access with email OTP configured (reused Allow Admin policy)
 - [x] Database backup CronJob manifest applied in prod
-- [ ] Database backup CronJob tested manually
+- [x] Database backup CronJob tested manually
 - [x] Push mirror to GitHub working
 - [x] CiliumNetworkPolicy updated for invoicetron-prod namespace
 
@@ -1117,17 +1117,17 @@ op read "op://Kubernetes/Invoicetron Prod/better-auth-secret"
 
 ## Final: Commit and Release
 
-- [ ] Commit changes
+- [x] Commit changes
   ```bash
   /commit
   ```
 
-- [ ] Release v0.13.0
+- [ ] Release v0.14.0
   ```bash
-  /release v0.13.0
+  /release v0.14.0
   ```
 
-- [ ] Move this file to completed folder
+- [x] Move this file to completed folder
   ```bash
   mv docs/todo/phase-4.9-invoicetron.md docs/todo/completed/
   ```

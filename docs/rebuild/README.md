@@ -19,6 +19,9 @@
 | v0.9.0 | Phase 4.8.1 | DNS Alerting (Blackbox Exporter, Probe CRD) | [v0.9.0-dns-alerting.md](v0.9.0-dns-alerting.md) |
 | v0.10.0 | Phase 4.7 | Portfolio CI/CD (3-env deployment, GitFlow) | [v0.10.0-portfolio-cicd.md](v0.10.0-portfolio-cicd.md) |
 | v0.11.0 | Phase 4.12 | Ghost Blog (Ghost 6.14.0, MySQL 8.4.8, dev/prod) | [v0.11.0-ghost-blog.md](v0.11.0-ghost-blog.md) |
+| v0.12.0 | Phase 4.13 | Domain Migration (tiered wildcards, cert-manager) | [v0.12.0-domain-migration.md](v0.12.0-domain-migration.md) |
+| v0.13.0 | Phase 4.14 | Uptime Kuma (endpoint monitoring, public status page) | [v0.13.0-uptime-kuma.md](v0.13.0-uptime-kuma.md) |
+| v0.14.0 | Phase 4.9 | Invoicetron (Next.js + PostgreSQL, GitLab CI/CD, Cloudflare Access) | [v0.14.0-invoicetron.md](v0.14.0-invoicetron.md) |
 
 ---
 
@@ -59,6 +62,15 @@ docs/rebuild/v0.10.0-portfolio-cicd.md
 
 # 11. Ghost Blog - Ghost CMS with dev/prod environments
 docs/rebuild/v0.11.0-ghost-blog.md
+
+# 12. Domain Migration - Tiered wildcards (base/dev/stg)
+docs/rebuild/v0.12.0-domain-migration.md
+
+# 13. Uptime Kuma - Endpoint monitoring with public status page
+docs/rebuild/v0.13.0-uptime-kuma.md
+
+# 14. Invoicetron - Stateful app with PostgreSQL, GitLab CI/CD
+docs/rebuild/v0.14.0-invoicetron.md
 ```
 
 ---
@@ -129,6 +141,9 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | blackbox-exporter | v0.28.0 | v0.9.0 |
 | Ghost | 6.14.0 | v0.11.0 |
 | MySQL (Ghost) | 8.4.8 | v0.11.0 |
+| Uptime Kuma | v2.0.2 | v0.13.0 |
+| Invoicetron | Next.js 16.1.0 | v0.14.0 |
+| PostgreSQL (Invoicetron) | 18-alpine | v0.14.0 |
 
 ---
 
@@ -159,7 +174,9 @@ homelab/
 │   │       ├── gitlab-registry.yaml    # v0.8.0
 │   │       ├── portfolio-dev.yaml      # v0.10.0
 │   │       ├── portfolio-staging.yaml  # v0.10.0
-│   │       └── portfolio-prod.yaml     # v0.10.0
+│   │       ├── portfolio-prod.yaml     # v0.10.0
+│   │       ├── invoicetron-dev.yaml    # v0.14.0
+│   │       └── invoicetron-prod.yaml   # v0.14.0
 │   ├── gitlab/                         # v0.8.0
 │   │   └── gitlab-shell-lb.yaml
 │   ├── home/                           # v0.6.0
@@ -177,6 +194,18 @@ homelab/
 │   │   └── httproute.yaml
 │   ├── ghost-prod/                     # v0.11.0
 │   │   └── (same structure as ghost-dev)
+│   ├── uptime-kuma/                    # v0.13.0
+│   │   ├── namespace.yaml
+│   │   ├── statefulset.yaml
+│   │   ├── service.yaml
+│   │   ├── httproute.yaml
+│   │   └── networkpolicy.yaml
+│   ├── invoicetron/                    # v0.14.0
+│   │   ├── deployment.yaml
+│   │   ├── postgresql.yaml
+│   │   ├── rbac.yaml
+│   │   ├── secret.yaml
+│   │   └── backup-cronjob.yaml
 │   ├── cloudflare/                     # v0.7.0
 │   │   ├── deployment.yaml
 │   │   ├── networkpolicy.yaml
@@ -192,7 +221,8 @@ homelab/
 │       ├── ups-dashboard-configmap.yaml
 │       ├── test-alert.yaml             # v0.5.0
 │       ├── adguard-dns-probe.yaml      # v0.9.0
-│       └── adguard-dns-alert.yaml      # v0.9.0
+│       ├── adguard-dns-alert.yaml      # v0.9.0
+│       └── uptime-kuma-probe.yaml      # v0.13.0
 │
 ├── scripts/
 │   ├── upgrade-prometheus.sh           # v0.5.0
@@ -221,3 +251,6 @@ homelab/
 | Ghost Prod MySQL | Kubernetes | v0.11.0 |
 | Ghost Dev Admin API | Kubernetes | v0.11.0 |
 | Ghost Prod Admin API | Kubernetes | v0.11.0 |
+| Uptime Kuma | Kubernetes | v0.13.0 |
+| Invoicetron Dev | Kubernetes | v0.14.0 |
+| Invoicetron Prod | Kubernetes | v0.14.0 |
