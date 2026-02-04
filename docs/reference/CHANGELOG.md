@@ -266,8 +266,9 @@ Configured Cloudflare Tunnel for public access and WAF custom rules to protect t
 |-----------|--------|
 | Cloudflare Tunnel | Added `blog.rommelporras.com` → `http://ghost.ghost-prod.svc.cluster.local:2368` |
 | CiliumNetworkPolicy | Added ghost-prod:2368 egress rule for cloudflared |
-| Cloudflare WAF Rule 1 | Skip: Allow `/ghost/api/content` (public Content API for search) |
-| Cloudflare WAF Rule 2 | Block: All other `/ghost` paths (admin panel, Admin API) |
+| Cloudflare WAF Rule 1 | Skip: Allow `/rss/` (public RSS feed for GitHub Actions blog-post workflow) |
+| Cloudflare WAF Rule 2 | Skip: Allow `/ghost/api/content` (public Content API for search) |
+| Cloudflare WAF Rule 3 | Block: All other `/ghost` paths (admin panel, Admin API) |
 
 ### Files Modified
 
@@ -281,6 +282,8 @@ Configured Cloudflare Tunnel for public access and WAF custom rules to protect t
 |----------|--------|-----------|
 | Tunnel protocol | HTTP (not HTTPS) | Ghost serves plain HTTP on 2368; cloudflared sends X-Forwarded-Proto: https |
 | Admin protection | WAF custom rules | Cloudflare Access has known path precedence bugs; WAF evaluates in strict order |
+| RSS feed | Skip rule (allow) + skip Super Bot Fight Mode | Cloudflare Bot Management blocks GitHub Actions IPs; `/rss/` is public read-only |
+| Bot Fight Mode | Disabled globally | Free tier cannot create path-specific exceptions; blocks all cloud provider IPs |
 | Content API | Skip rule (allow) | Sodo Search widget calls /ghost/api/content/ from browser; blocking breaks search |
 | Admin API | Block rule | /ghost/api/admin/ is write-capable; original plan would have bypassed it |
 

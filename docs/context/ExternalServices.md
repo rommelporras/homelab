@@ -62,6 +62,18 @@ Exposes public services from the cluster without opening firewall ports.
 | status.rommelporras.com | uptime-kuma/uptime-kuma |
 | invoicetron.rommelporras.com | invoicetron (DMZ VM) |
 
+### WAF Custom Rules
+
+Protect Ghost admin panel and allow public endpoints. Rules evaluate in strict order (Security → WAF → Custom Rules).
+
+| # | Rule Name | Expression | Action |
+|---|-----------|-----------|--------|
+| 1 | Blog - Allow RSS Feed | `http.host eq "blog.rommelporras.com" and http.request.uri.path eq "/rss/"` | Skip all remaining custom rules + Super Bot Fight Mode |
+| 2 | Ghost - Allow Content API | `http.host eq "blog.rommelporras.com" and starts_with(http.request.uri.path, "/ghost/api/content")` | Skip all remaining custom rules |
+| 3 | Ghost - Block Admin | `http.host eq "blog.rommelporras.com" and starts_with(http.request.uri.path, "/ghost")` | Block |
+
+Rule 1 skips both custom rules and Super Bot Fight Mode. Bot Fight Mode is disabled globally (Security → Settings) because the free tier cannot create path-specific exceptions — it blocks all cloud provider IPs including GitHub Actions.
+
 ### DNS API Token
 
 Used by cert-manager for DNS-01 challenge (Let's Encrypt wildcard certs).
