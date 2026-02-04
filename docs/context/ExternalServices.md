@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, external-services, cloudflare, analytics, smtp]
-updated: 2026-02-03
+updated: 2026-02-05
 ---
 
 # External Services
@@ -60,7 +60,7 @@ Exposes public services from the cluster without opening firewall ports.
 | www.rommelporras.com | portfolio-prod/portfolio |
 | blog.rommelporras.com | ghost-prod/ghost |
 | status.rommelporras.com | uptime-kuma/uptime-kuma |
-| invoicetron.rommelporras.com | invoicetron (DMZ VM) |
+| invoicetron.rommelporras.com | invoicetron-prod/invoicetron |
 
 ### WAF Custom Rules
 
@@ -73,6 +73,23 @@ Protect Ghost admin panel and allow public endpoints. Rules evaluate in strict o
 | 3 | Ghost - Block Admin | `http.host eq "blog.rommelporras.com" and starts_with(http.request.uri.path, "/ghost")` | Block |
 
 Rule 1 skips both custom rules and Super Bot Fight Mode. Bot Fight Mode is disabled globally (Security → Settings) because the free tier cannot create path-specific exceptions — it blocks all cloud provider IPs including GitHub Actions.
+
+### Cloudflare Access
+
+Protects public-facing applications with access policies.
+
+| Application | Domain | Policy | Method |
+|-------------|--------|--------|--------|
+| Uptime Kuma | status.rommelporras.com | Block Admin (blocks /dashboard, /manage-status-page, /settings) | Block Everyone |
+| Invoicetron | invoicetron.rommelporras.com | Allow Admin | Email OTP |
+
+**Note:** Ghost blog uses WAF custom rules (not Cloudflare Access) for admin protection.
+See WAF Custom Rules section above.
+
+**Allow Admin policy:**
+- Action: Allow
+- Include: Emails (cloudflare@rommelporras.com, rommelcporras@gmail.com)
+- Session duration: 24 hours
 
 ### DNS API Token
 

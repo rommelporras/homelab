@@ -1,0 +1,116 @@
+# Invoicetron App Deployment + Service
+# Phase 4.9 - Invoicetron Migration
+# Apply to each namespace: invoicetron-dev, invoicetron-prod
+#
+# Next.js 16 + Bun app with PostgreSQL backend
+# Init container waits for DB readiness before app starts
+# NEXT_PUBLIC_APP_URL is baked at Docker build time, not runtime
+# Each environment has its own image built with the correct URL
+#
+# CKA topics: Init containers, Deployments, RollingUpdate strategy,
+#             security context (runAsNonRoot, drop ALL), liveness/readiness probes
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: invoicetron
+  labels:
+    app: invoicetron
+    app.kubernetes.io/part-of: invoicetron
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: invoicetron
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: invoicetron
+    spec:
+      imagePullSecrets:
+      - name: gitlab-registry
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+      - name: wait-for-db
+        image: busybox:1.36
+        command: ['sh', '-c', 'until nc -z invoicetron-db 5432; do echo "Waiting for PostgreSQL..."; sleep 2; done; echo "PostgreSQL is ready!"']
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+      containers:
+      - name: invoicetron
+        # Placeholder image - CI/CD will patch this with actual image
+        image: registry.k8s.rommelporras.com/0xwsh/invoicetron:latest
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: invoicetron-app
+              key: database-url
+        - name: BETTER_AUTH_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: invoicetron-app
+              key: better-auth-secret
+        - name: NODE_ENV
+          value: production
+        - name: ADDITIONAL_TRUSTED_ORIGINS
+          value: "https://invoicetron.k8s.rommelporras.com"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: invoicetron
+  labels:
+    app: invoicetron
+    app.kubernetes.io/part-of: invoicetron
+spec:
+  type: ClusterIP
+  selector:
+    app: invoicetron
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+    name: http

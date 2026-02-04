@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password]
-updated: 2026-02-03
+updated: 2026-02-05
 ---
 
 # Secrets
@@ -33,6 +33,8 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Ghost Dev Admin API | `key` | GitLab CI/CD (dev theme deploy) |
 | Ghost Prod Admin API | `key` | GitLab CI/CD (prod theme deploy) |
 | Uptime Kuma | `username`, `password` | Uptime Kuma admin login |
+| Invoicetron Dev | `postgres-password`, `better-auth-secret`, `database-url` | invoicetron-dev namespace |
+| Invoicetron Prod | `postgres-password`, `better-auth-secret`, `database-url` | invoicetron-prod namespace |
 | iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
 
 ## 1Password Paths
@@ -86,6 +88,16 @@ op://Kubernetes/Ghost Prod Admin API/key
 # Uptime Kuma
 op://Kubernetes/Uptime Kuma/username
 op://Kubernetes/Uptime Kuma/password
+
+# Invoicetron Dev
+op://Kubernetes/Invoicetron Dev/postgres-password
+op://Kubernetes/Invoicetron Dev/better-auth-secret
+op://Kubernetes/Invoicetron Dev/database-url
+
+# Invoicetron Prod
+op://Kubernetes/Invoicetron Prod/postgres-password
+op://Kubernetes/Invoicetron Prod/better-auth-secret
+op://Kubernetes/Invoicetron Prod/database-url
 
 # Homepage (widget credentials)
 op://Kubernetes/Homepage/proxmox-pve-user

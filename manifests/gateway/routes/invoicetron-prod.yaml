@@ -1,0 +1,25 @@
+# manifests/gateway/routes/invoicetron-prod.yaml
+# HTTPRoute for Invoicetron production environment via Cilium Gateway API
+#
+# Routes: invoicetron.k8s.rommelporras.com → invoicetron:3000
+# External access via Cloudflare Tunnel: invoicetron.rommelporras.com
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: invoicetron
+  namespace: invoicetron-prod
+spec:
+  parentRefs:
+    - name: homelab-gateway
+      namespace: default
+      sectionName: https
+  hostnames:
+    - "invoicetron.k8s.rommelporras.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: invoicetron
+          port: 3000

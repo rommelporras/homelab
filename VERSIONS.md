@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** February 4, 2026
+> **Last Updated:** February 5, 2026
 
 ---
 
@@ -88,7 +88,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.14 complete. Uptime Kuma endpoint monitoring with public status page.
+> **Status:** Phase 4.9 complete. Invoicetron stateful migration with GitLab CI/CD.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -99,6 +99,8 @@ helm-homelab repo update
 | Ghost (Dev) | 6.14.0 | Running | Theme development, internal access |
 | Ghost (Prod) | 6.14.0 | Running | Public blog via Cloudflare Tunnel |
 | MySQL (Ghost) | 8.4.8 | Running | LTS, per-environment StatefulSets |
+| Invoicetron | Next.js 16.1.0 | Running | Invoice management (Bun + Prisma) |
+| PostgreSQL (Invoicetron) | 18-alpine | Running | Invoicetron database (StatefulSet) |
 | Uptime Kuma | v2.0.2 (rootless) | Running | Self-hosted uptime monitoring |
 
 **DNS Configuration:**
@@ -120,6 +122,9 @@ helm-homelab repo update
 | Ghost Prod | blog.k8s.rommelporras.com | base | ghost-prod |
 | Ghost Dev | blog.dev.k8s.rommelporras.com | dev | ghost-dev |
 | Ghost Prod (public) | blog.rommelporras.com (Cloudflare Tunnel) | — | ghost-prod |
+| Invoicetron Prod | invoicetron.k8s.rommelporras.com | base | invoicetron-prod |
+| Invoicetron Dev | invoicetron.dev.k8s.rommelporras.com | dev | invoicetron-dev |
+| Invoicetron (public) | invoicetron.rommelporras.com (Cloudflare Tunnel) | — | invoicetron-prod |
 | Uptime Kuma | uptime.k8s.rommelporras.com | base | uptime-kuma |
 | Uptime Kuma (public) | status.rommelporras.com (Cloudflare Tunnel) | — | uptime-kuma |
 
@@ -231,6 +236,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-02-05 | **Invoicetron:** Migrated stateful app (Next.js 16 + Bun + PostgreSQL 18 + Prisma 7) to K8s with GitLab CI/CD, Cloudflare Tunnel + Access (Phase 4.9) |
 | 2026-02-04 | **Cloudflare WAF:** Added RSS skip rule + disabled Bot Fight Mode for GitHub Profile README blog workflow |
 | 2026-02-03 | **Uptime Kuma:** Deployed v2.0.2 (rootless) for endpoint monitoring with public status page via Cloudflare Tunnel (Phase 4.14) |
 | 2026-02-02 | **Domain Migration:** Migrated all services to `*.k8s.rommelporras.com` with tiered wildcards (base/dev/stg) (Phase 4.13) |

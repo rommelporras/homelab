@@ -1,0 +1,68 @@
+# Database Backup CronJob for Invoicetron
+# Phase 4.9 - Invoicetron Migration
+# Apply to invoicetron-prod namespace only
+#
+# Daily pg_dump at 3 AM with 7-day retention
+# Database is ~14MB so backups are lightweight
+#
+# CKA topics: CronJobs, volume mounts, backup strategies
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: invoicetron-db-backup
+  labels:
+    app: invoicetron-db
+    app.kubernetes.io/part-of: invoicetron
+spec:
+  schedule: "0 3 * * *"  # Daily at 3 AM
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: backup
+            image: postgres:18-alpine
+            command:
+            - /bin/sh
+            - -c
+            - |
+              TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              BACKUP_FILE="/backups/invoicetron_${TIMESTAMP}.sql"
+              pg_dump -h invoicetron-db -U invoicetron -d invoicetron > "${BACKUP_FILE}"
+              echo "Backup completed: ${BACKUP_FILE}"
+              # Keep only last 7 days of backups
+              find /backups -name "invoicetron_*.sql" -mtime +7 -delete
+            env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: invoicetron-db
+                  key: postgres-password
+            volumeMounts:
+            - name: backups
+              mountPath: /backups
+          restartPolicy: OnFailure
+          volumes:
+          - name: backups
+            persistentVolumeClaim:
+              claimName: invoicetron-backups
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: invoicetron-backups
+  labels:
+    app: invoicetron-db
+    app.kubernetes.io/part-of: invoicetron
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi

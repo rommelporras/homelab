@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, index]
-updated: 2026-02-03
+updated: 2026-02-05
 ---
 
 # Homelab Kubernetes Context
@@ -32,7 +32,7 @@ updated: 2026-02-03
 | Nodes | 3 control planes (k8s-cp1, cp2, cp3) |
 | CNI | Cilium 1.18.6 |
 | Storage | Longhorn 1.10.1 |
-| Status | Domain migration to *.k8s.rommelporras.com with tiered wildcards (Phase 4.13) |
+| Status | Invoicetron stateful migration to K8s with GitLab CI/CD (Phase 4.9) |
 
 ## Source
 

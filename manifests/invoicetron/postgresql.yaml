@@ -1,0 +1,89 @@
+# PostgreSQL StatefulSet for Invoicetron
+# Phase 4.9 - Invoicetron Migration
+# Apply to each namespace: invoicetron-dev, invoicetron-prod
+#
+# PostgreSQL 18 (Alpine) with Longhorn persistent storage
+# Headless Service for stable StatefulSet DNS
+#
+# CKA topics: StatefulSet vs Deployment, volumeClaimTemplates, headless Service
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: invoicetron-db
+  labels:
+    app: invoicetron-db
+    app.kubernetes.io/part-of: invoicetron
+spec:
+  serviceName: invoicetron-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: invoicetron-db
+  template:
+    metadata:
+      labels:
+        app: invoicetron-db
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: postgresql
+        image: postgres:18-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          value: invoicetron
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: invoicetron-db
+              key: postgres-password
+        - name: POSTGRES_DB
+          value: invoicetron
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command: ["pg_isready", "-U", "invoicetron"]
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command: ["pg_isready", "-U", "invoicetron"]
+          initialDelaySeconds: 5
+          periodSeconds: 5
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: longhorn
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: invoicetron-db
+  labels:
+    app: invoicetron-db
+    app.kubernetes.io/part-of: invoicetron
+spec:
+  selector:
+    app: invoicetron-db
+  ports:
+  - port: 5432
+    targetPort: 5432
+  clusterIP: None  # Headless for StatefulSet

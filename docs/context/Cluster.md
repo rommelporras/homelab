@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, cluster, nodes]
-updated: 2026-02-03
+updated: 2026-02-05
 ---
 
 # Cluster
@@ -65,6 +65,8 @@ ssh wawashi@cp3.k8s.rommelporras.com
 | portfolio-prod | Portfolio production environment |
 | ghost-dev | Ghost blog dev environment |
 | ghost-prod | Ghost blog production environment |
+| invoicetron-dev | Invoicetron dev environment |
+| invoicetron-prod | Invoicetron production environment |
 | uptime-kuma | Uptime Kuma endpoint monitoring |
 
 ## System

@@ -4,6 +4,139 @@
 
 ---
 
+## February 5, 2026 — Phase 4.9: Invoicetron Migration
+
+### Milestone: Stateful Application with Database Migrated to Kubernetes
+
+Migrated Invoicetron (Next.js 16 + Bun 1.3.4 + PostgreSQL 18 + Prisma 7.2.0 + Better Auth 1.4.7) from Docker Compose on reverse-mountain VM to Kubernetes. Two environments (dev + prod) with GitLab CI/CD pipeline, Cloudflare Tunnel public access, and Cloudflare Access email OTP protection.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| Invoicetron | Next.js 16.1.0 | Running (invoicetron-dev, invoicetron-prod) |
+| PostgreSQL | 18-alpine | Running (StatefulSet per environment) |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/invoicetron/deployment.yaml | App Deployment + ClusterIP Service |
+| manifests/invoicetron/postgresql.yaml | PostgreSQL StatefulSet + headless Service |
+| manifests/invoicetron/rbac.yaml | ServiceAccount, Role, RoleBinding for CI/CD |
+| manifests/invoicetron/secret.yaml | Placeholder (1Password imperative) |
+| manifests/invoicetron/backup-cronjob.yaml | Daily pg_dump CronJob + 2Gi PVC |
+| manifests/gateway/routes/invoicetron-dev.yaml | HTTPRoute for dev (internal) |
+| manifests/gateway/routes/invoicetron-prod.yaml | HTTPRoute for prod (internal) |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| manifests/cloudflare/networkpolicy.yaml | Added invoicetron-prod egress on port 3000; removed temporary DMZ rule; fixed namespace from `invoicetron` to `invoicetron-prod` |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Per-environment builds | Separate Docker images | NEXT_PUBLIC_APP_URL baked at build time |
+| Database passwords | Hex-only (`openssl rand -hex 20`) | Avoid URL-special characters breaking Prisma |
+| Registry auth | Deploy token + imagePullSecrets | Private GitLab project = private container registry |
+| Migration strategy | K8s Job before deploy | Prisma migrations run as one-shot Job in CI/CD |
+| Auth client baseURL | `window.location.origin` fallback | Login works on any URL, not just build-time URL |
+| Cloudflare Access | Reused "Allow Admin" policy | Email OTP gate, same policy as Uptime Kuma |
+| Backup | Daily CronJob (3 AM, 7-day retention) | ~14MB database, lightweight pg_dump |
+
+### Architecture
+
+```
+┌───────────────────────────────────────────────────────────────┐
+│            invoicetron-prod namespace                         │
+├───────────────────────────────────────────────────────────────┤
+│                                                               │
+│  PostgreSQL 18         Invoicetron App                        │
+│  StatefulSet    ◄────  Deployment (1 replica)                 │
+│  (10Gi Longhorn) SQL   Next.js 16 + Bun                      │
+│                                                               │
+│  Daily:                On deploy:                             │
+│  pg_dump CronJob       Prisma Migrate Job                    │
+│  → Longhorn PVC                                              │
+│                                                               │
+│  Secrets: database-url, better-auth-secret (1Password)       │
+│  Registry: gitlab-registry imagePullSecret (deploy token)    │
+└───────────────────────────────────────────────────────────────┘
+```
+
+### CI/CD Pipeline (GitLab)
+
+```
+develop → validate → test → build:dev → deploy:dev → verify:dev
+main    → validate → test → build:prod → deploy:prod → verify:prod
+```
+
+- **validate:** type-check (tsc), lint, security-audit
+- **test:** unit tests (vitest on node:22-slim)
+- **build:** per-environment Docker image (NEXT_PUBLIC_APP_URL as build-arg)
+- **deploy:** Prisma migration Job + kubectl set image
+- **verify:** curl health check
+
+### Access
+
+| Environment | Internal URL | Public URL |
+|-------------|-------------|------------|
+| Dev | invoicetron.dev.k8s.rommelporras.com | — |
+| Prod | invoicetron.k8s.rommelporras.com | invoicetron.rommelporras.com (Cloudflare) |
+
+### Cloudflare Access
+
+| Application | Policy | Authentication |
+|-------------|--------|----------------|
+| Invoicetron | Allow Admin (reused) | Email OTP (2 addresses) |
+
+### CKA Learnings
+
+| Topic | Concept |
+|-------|---------|
+| StatefulSet | PostgreSQL with volumeClaimTemplates, headless Service |
+| Jobs | One-shot Prisma migration Job before deployment |
+| CronJobs | Daily pg_dump backup with retention |
+| Init containers | wait-for-db pattern with busybox nc |
+| imagePullSecrets | Private registry auth with deploy tokens |
+| Security context | runAsNonRoot, drop ALL, seccompProfile |
+| RollingUpdate | maxSurge: 1, maxUnavailable: 0 |
+| CiliumNetworkPolicy | Per-namespace egress with exact namespace names |
+
+### Lessons Learned
+
+1. **Private GitLab projects need imagePullSecrets** — Container registry inherits project visibility. Deploy token with `read_registry` scope + `docker-registry` secret in each namespace.
+
+2. **envFrom injects hyphenated keys** — K8s secret keys like `database-url` become env vars with hyphens. Prisma expects `DATABASE_URL`. Use explicit `env` with `valueFrom.secretKeyRef`, not `envFrom`.
+
+3. **PostgreSQL 18+ mount path** — Mount at `/var/lib/postgresql` (parent), not `/var/lib/postgresql/data`. PG creates the data subdirectory itself.
+
+4. **DATABASE_URL passwords must avoid special chars** — Passwords with `/` break Prisma URL parsing. URL-encoding (`%2F`) works for CLI but not runtime. Use hex-only passwords.
+
+5. **PostgreSQL only reads POSTGRES_PASSWORD on first init** — Changing the secret requires `ALTER USER` inside the running pod.
+
+6. **kubectl apply reverts CI/CD image** — Manifest has placeholder image. CI/CD sets actual image via `kubectl set image`. Applying manifest reverts it. Use `kubectl set env` for runtime changes.
+
+7. **CiliumNetworkPolicy needs exact namespace names** — `invoicetron` ≠ `invoicetron-prod`. Caused 502 through Cloudflare Tunnel until fixed.
+
+8. **Better Auth client baseURL** — Hardcoded `NEXT_PUBLIC_APP_URL` means login only works on that domain. Removing baseURL lets Better Auth use `window.location.origin` automatically. Server-side `ADDITIONAL_TRUSTED_ORIGINS` validates allowed origins.
+
+9. **1Password CLI session scope** — `op read` returns empty if session expired. Always `eval $(op signin)` before creating secrets. Verify secrets after creation.
+
+### 1Password Items
+
+| Item | Vault | Fields |
+|------|-------|--------|
+| Invoicetron Dev | Kubernetes | postgres-password, better-auth-secret, database-url |
+| Invoicetron Prod | Kubernetes | postgres-password, better-auth-secret, database-url |
+
+### DMZ Rule Removed
+
+With both Portfolio and Invoicetron running in K8s, the temporary DMZ rule (`10.10.50.10/32`) in the cloudflared NetworkPolicy has been removed. Security validation: 35 passed, 0 failed.
+
+---
+
 ## February 4, 2026 — Cloudflare WAF: RSS Feed Access
 
 ### Fix: GitHub Actions Blog RSS Fetch (403)
