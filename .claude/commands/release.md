@@ -14,12 +14,29 @@ Create version tag, push commits and tag, and create GitHub release.
 
 1. **Check Current State**
    ```bash
-   git status              # Must be clean working tree
-   git log --oneline -5    # Recent commits
+   git branch --show-current   # Must be on main
+   git status                  # Must be clean working tree
+   git log --oneline -5        # Recent commits
    git describe --tags --abbrev=0 2>/dev/null || echo "No tags yet"
    ```
 
-2. **Determine Version and Title**
+   - **Must be on `main`** branch — abort if on any other branch
+   - Working tree **must** be clean — abort if dirty
+
+2. **Remote Tag Collision Check**
+
+   Fetch latest tags from origin and verify the target version doesn't already exist:
+   ```bash
+   git fetch origin --tags
+   git tag -l "v<VERSION>"
+   ```
+
+   If the tag already exists on remote:
+   - **ABORT** immediately
+   - Show: `"Error: Tag v<VERSION> already exists. Check https://github.com/rommelporras/homelab/releases"`
+   - Suggest the next available version
+
+3. **Determine Version and Title**
 
    **If user provided version and title** (e.g., `/release v0.1.0 "Project Setup"`):
    - Use the provided version
@@ -42,7 +59,34 @@ Create version tag, push commits and tag, and create GitHub release.
    **First release** (no previous tags):
    - Default to `v0.1.0` unless user specifies
 
-3. **Analyze Changes for Release Notes**
+4. **Pre-Release Checks**
+
+   Before proceeding, scan for common release oversights:
+
+   **Phase plan check** — find the phase plan for this release:
+   ```bash
+   # Search active plans for the target version (e.g., "v0.14.0")
+   grep -rl "Target.*v<VERSION>\|release.*v<VERSION>" docs/todo/ --include="*.md" 2>/dev/null | grep -v completed/
+   # Also check completed/ in case it was moved but not finalized
+   grep -rl "Target.*v<VERSION>\|release.*v<VERSION>" docs/todo/completed/ --include="*.md" 2>/dev/null
+   ```
+   - If a matching plan is found, read it and check:
+     - Status line contains "Complete" (not "In Progress" or "pending release")
+     - Release checkbox is checked: `- [x] Release v<VERSION>` (not `- [ ]`)
+     - All other task checkboxes are checked (no remaining `- [ ]` items)
+   - If any are unchecked or status is not "Complete": **WARN** and show which items remain
+
+   **Orphaned active plans check** — scan `docs/todo/` (not `completed/`) for any plans with:
+   - Unchecked release boxes: `- [ ] Release` patterns
+   - "pending release" or "In Progress" status strings
+   - If found and they DON'T match this release version: **INFO** (not blocking, just notify)
+
+   **VERSIONS.md check** — read `VERSIONS.md` and check if the `Last Updated` date is older than 7 days:
+   - If stale: **WARN** "VERSIONS.md last updated on <date>. Should it be updated before release?"
+
+   If any warnings are raised, present them all at once and ask for confirmation to proceed or fix first.
+
+5. **Analyze Changes for Release Notes**
 
    Group commits by category:
    - Documentation changes
@@ -53,7 +97,7 @@ Create version tag, push commits and tag, and create GitHub release.
 
    Understand the PURPOSE, not just list commits.
 
-4. **Write Release Notes**
+6. **Write Release Notes**
 
    **Tag annotation format:**
    ```
@@ -89,18 +133,30 @@ Create version tag, push commits and tag, and create GitHub release.
    - `def5678` commit message 2
    ```
 
-5. **Execute Release**
+7. **Show Release Plan and Confirm**
 
-   **Show plan first:**
+   Present the full plan and **wait for user confirmation**:
    ```
    Release Plan:
    - Version: v0.1.0
-   - Commits: 1
+   - Title: "<title>"
+   - Commits: <N> (since <last-tag>)
    - Will push to: origin/main
+   - Will create: Annotated tag v<VERSION>
    - Will create: GitHub release
+
+   Pre-release checks:
+   - Remote tag collision: ✓ No conflict
+   - Phase plan status: ✓ All complete (or ⚠ warnings listed)
+   - VERSIONS.md: ✓ Up to date (or ⚠ stale)
+
+   Proceed with release? (waiting for confirmation)
    ```
 
-   **Then execute:**
+   **Do NOT proceed until user confirms.**
+
+8. **Execute Release**
+
    ```bash
    # Create annotated tag
    git tag -a v<VERSION> -m "<tag message>"
@@ -115,10 +171,14 @@ Create version tag, push commits and tag, and create GitHub release.
    gh release create v<VERSION> --title "<title>" --notes "<notes>"
    ```
 
-6. **Report Results**
-   - Show GitHub release URL
-   - Show tag details
-   - Confirm success
+9. **Report Results**
+   ```
+   Release Complete:
+   - Version: v<VERSION>
+   - Tag: v<VERSION> on main
+   - origin (GitHub): ✓ main + tag pushed
+   - GitHub release: <URL>
+   ```
 
 ## Examples
 
@@ -209,17 +269,24 @@ Fixes:
 ## Quality Checklist
 
 Before releasing, verify:
+- [ ] On `main` branch
 - [ ] Working tree is clean (no uncommitted changes)
+- [ ] Remote tags fetched and no version collision
+- [ ] Phase plan checkboxes all checked and status is "Complete"
+- [ ] VERSIONS.md is up to date
 - [ ] All commits are meaningful and well-formatted
 - [ ] Version number follows SemVer
 - [ ] Release notes are categorized and specific
 - [ ] Tag annotation has context sentence
 - [ ] GitHub release has full summary
+- [ ] User confirmed the release plan before execution
 
 ## Important Notes
 
 - NEVER release with uncommitted changes
 - NEVER release without meaningful release notes
+- NEVER release without user confirmation of the release plan
+- Always fetch remote tags before creating a new tag
 - Always use annotated tags (`git tag -a`)
 - Follow semantic versioning (MAJOR.MINOR.PATCH)
 - First release defaults to v0.1.0
