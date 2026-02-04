@@ -35,6 +35,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Uptime Kuma | `username`, `password` | Uptime Kuma admin login |
 | Invoicetron Dev | `postgres-password`, `better-auth-secret`, `database-url` | invoicetron-dev namespace |
 | Invoicetron Prod | `postgres-password`, `better-auth-secret`, `database-url` | invoicetron-prod namespace |
+| Invoicetron Deploy Token | `username`, `password` | gitlab-registry imagePullSecret (both namespaces) |
 | iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
 
 ## 1Password Paths
@@ -98,6 +99,10 @@ op://Kubernetes/Invoicetron Dev/database-url
 op://Kubernetes/Invoicetron Prod/postgres-password
 op://Kubernetes/Invoicetron Prod/better-auth-secret
 op://Kubernetes/Invoicetron Prod/database-url
+
+# Invoicetron Deploy Token (private registry imagePullSecret)
+op://Kubernetes/Invoicetron Deploy Token/username
+op://Kubernetes/Invoicetron Deploy Token/password
 
 # Homepage (widget credentials)
 op://Kubernetes/Homepage/proxmox-pve-user

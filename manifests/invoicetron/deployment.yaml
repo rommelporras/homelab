@@ -69,8 +69,6 @@ spec:
               key: better-auth-secret
         - name: NODE_ENV
           value: production
-        - name: ADDITIONAL_TRUSTED_ORIGINS
-          value: "https://invoicetron.k8s.rommelporras.com"
         resources:
           requests:
             memory: "512Mi"

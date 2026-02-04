@@ -37,13 +37,13 @@ Gateway API for HTTPS ingress with automatic TLS certificates.
 |  Port 443 - https-stg (*.stg.k8s.rommelporras.com)   |
 +-----------------------------------------------------+
                             |
-    +-------+-------+-------+-------+-------+---------+
-    v       v       v       v       v       v         v
-+------++------++------++------++------++--------++--------+
-|Grafan||AdGuar||Homepg||Longh.||GitLab||Portfol.||Ghost   |
-| base || base || base || base || base ||dev/stg/ ||dev/prod|
-|      ||      ||      ||      ||      || prod   ||        |
-+------++------++------++------++------++--------++--------+
+    +-------+-------+-------+-------+-------+---------+---------+---------+---------+
+    v       v       v       v       v       v         v         v         v
++------++------++------++------++------++--------++--------++--------++--------+
+|Grafan||AdGuar||Homepg||Longh.||GitLab||Portfol.||Ghost   ||Invoice-||Uptime  |
+| base || base || base || base || base ||dev/stg/ ||dev/prod|| tron   || Kuma   |
+|      ||      ||      ||      ||      || prod   ||        ||dev/prod|| base   |
++------++------++------++------++------++--------++--------++--------++--------+
 ```
 
 ## Components

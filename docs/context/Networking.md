@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, networking, dns, vlan]
-updated: 2026-02-03
+updated: 2026-02-05
 ---
 
 # Networking
@@ -63,6 +63,11 @@ Network configuration for the homelab cluster.
 | Ghost Dev | https://blog.dev.k8s.rommelporras.com | dev |
 | Ghost Prod (internal) | https://blog.k8s.rommelporras.com | base |
 | Ghost Prod (public) | https://blog.rommelporras.com | — |
+| Invoicetron Dev | https://invoicetron.dev.k8s.rommelporras.com | dev |
+| Invoicetron Prod (internal) | https://invoicetron.k8s.rommelporras.com | base |
+| Invoicetron Prod (public) | https://invoicetron.rommelporras.com | — |
+| Uptime Kuma (internal) | https://uptime.k8s.rommelporras.com | base |
+| Uptime Kuma (public) | https://status.rommelporras.com | — |
 
 ## VLAN Configuration
 

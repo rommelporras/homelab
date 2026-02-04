@@ -423,8 +423,7 @@ deleting StatefulSets+PVCs and reapplying with the correct mount path.
                 key: better-auth-secret
           - name: NODE_ENV
             value: production
-          - name: ADDITIONAL_TRUSTED_ORIGINS
-            value: "https://invoicetron.k8s.rommelporras.com"
+          # ADDITIONAL_TRUSTED_ORIGINS set imperatively for prod only (see 4.9.7.4)
           resources:
             requests:
               memory: "512Mi"
@@ -689,7 +688,7 @@ Daily pg_dump for production data safety. Database is ~14MB, so this is lightwei
       app: invoicetron-db
       app.kubernetes.io/part-of: invoicetron
   spec:
-    schedule: "0 3 * * *"  # Daily at 3 AM
+    schedule: "0 9 * * *"  # Daily at 9 AM
     successfulJobsHistoryLimit: 3
     failedJobsHistoryLimit: 3
     jobTemplate:
@@ -710,8 +709,8 @@ Daily pg_dump for production data safety. Database is ~14MB, so this is lightwei
                 BACKUP_FILE="/backups/invoicetron_${TIMESTAMP}.sql"
                 pg_dump -h invoicetron-db -U invoicetron -d invoicetron > "${BACKUP_FILE}"
                 echo "Backup completed: ${BACKUP_FILE}"
-                # Keep only last 7 days of backups
-                find /backups -name "invoicetron_*.sql" -mtime +7 -delete
+                # Keep only last 30 days of backups
+                find /backups -name "invoicetron_*.sql" -mtime +30 -delete
               env:
               - name: PGPASSWORD
                 valueFrom:
@@ -890,7 +889,7 @@ Daily pg_dump for production data safety. Database is ~14MB, so this is lightwei
   # - CI/CD: GitLab 4-stage pipeline (test → build → deploy → verify)
   # - Internal URLs: invoicetron.dev.k8s.rommelporras.com / invoicetron.k8s.rommelporras.com
   # - Public URL: invoicetron.rommelporras.com (behind Cloudflare Access, email OTP)
-  # - Daily pg_dump CronJob in prod (3 AM, 7-day retention)
+  # - Daily pg_dump CronJob in prod (9 AM, 30-day retention)
   #
   # This prevents the agent from guessing Docker Compose values or wrong URLs.
   ```

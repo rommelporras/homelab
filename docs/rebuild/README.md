@@ -254,3 +254,4 @@ homelab/
 | Uptime Kuma | Kubernetes | v0.13.0 |
 | Invoicetron Dev | Kubernetes | v0.14.0 |
 | Invoicetron Prod | Kubernetes | v0.14.0 |
+| Invoicetron Deploy Token | Kubernetes | v0.14.0 |

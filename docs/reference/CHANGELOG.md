@@ -43,7 +43,7 @@ Migrated Invoicetron (Next.js 16 + Bun 1.3.4 + PostgreSQL 18 + Prisma 7.2.0 + Be
 | Migration strategy | K8s Job before deploy | Prisma migrations run as one-shot Job in CI/CD |
 | Auth client baseURL | `window.location.origin` fallback | Login works on any URL, not just build-time URL |
 | Cloudflare Access | Reused "Allow Admin" policy | Email OTP gate, same policy as Uptime Kuma |
-| Backup | Daily CronJob (3 AM, 7-day retention) | ~14MB database, lightweight pg_dump |
+| Backup | Daily CronJob (9 AM, 30-day retention) | ~14MB database, lightweight pg_dump |
 
 ### Architecture
 
