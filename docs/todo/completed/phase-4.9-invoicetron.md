@@ -1,6 +1,6 @@
 # Phase 4.9: Invoicetron Migration
 
-> **Status:** Complete (pending release v0.14.0)
+> **Status:** Complete (released v0.14.0)
 > **Target:** v0.14.0
 > **Prerequisite:** Phase 4.8 complete (AdGuard Client IP), Phase 4.7 patterns learned
 > **DevOps Topics:** StatefulSets, database migrations, secrets management, Prisma ORM, database backups
@@ -1121,7 +1121,7 @@ op read "op://Kubernetes/Invoicetron Prod/better-auth-secret"
   /commit
   ```
 
-- [ ] Release v0.14.0
+- [x] Release v0.14.0
   ```bash
   /release v0.14.0
   ```
