@@ -148,8 +148,16 @@ Apple iCloud SMTP for email notifications. Requires an app-specific password gen
 
 ## GitHub
 
-| Setting | Value |
-|---------|-------|
-| Repository | [rommelporras/homelab](https://github.com/rommelporras/homelab) |
-| Visibility | Public (MIT License) |
-| CI/CD | Not yet (using self-hosted GitLab Runner) |
+| Repository | Visibility | Purpose |
+|-----------|------------|---------|
+| [rommelporras/homelab](https://github.com/rommelporras/homelab) | Public (MIT) | Cluster manifests, docs, Ansible |
+| [rommelporras/rommelporras](https://github.com/rommelporras/rommelporras) | Public | GitHub Profile README |
+
+### Profile README Workflows
+
+The profile repo has two GitHub Actions that run daily at midnight UTC:
+
+| Workflow | Action | Dependency |
+|----------|--------|------------|
+| `snake.yml` | Generates contribution snake SVG → `output` branch | None |
+| `blog-posts.yml` | Fetches Ghost RSS → updates README | Cloudflare WAF Rule 1 (skip `/rss/`) + Bot Fight Mode OFF |
