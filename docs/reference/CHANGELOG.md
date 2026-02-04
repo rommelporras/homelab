@@ -4,6 +4,31 @@
 
 ---
 
+## February 4, 2026 — Cloudflare WAF: RSS Feed Access
+
+### Fix: GitHub Actions Blog RSS Fetch (403)
+
+Added Cloudflare WAF skip rule and disabled Bot Fight Mode to allow the GitHub Profile README blog-post workflow to fetch the Ghost RSS feed from GitHub Actions.
+
+| Component | Change |
+|-----------|--------|
+| Cloudflare WAF Rule 1 | New: Skip + Super Bot Fight Mode for `/rss/` |
+| Cloudflare WAF Rule 2 | Renumbered: Allow `/ghost/api/content` (was Rule 1) |
+| Cloudflare WAF Rule 3 | Renumbered: Block `/ghost` paths (was Rule 2) |
+| Bot Fight Mode | Disabled globally (Security → Settings) |
+
+### Key Decision
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Bot Fight Mode | Disabled globally | Free Cloudflare tier cannot create path-specific exceptions; blocks all cloud provider IPs including GitHub Actions |
+
+### Lesson Learned
+
+WAF custom rule "Skip all remaining custom rules" does **not** skip Bot Fight Mode — they are separate systems. To skip bot protection for a specific path, you must also check "All Super Bot Fight Mode Rules" in the WAF skip action **and** disable the global Bot Fight Mode toggle.
+
+---
+
 ## February 3, 2026 — Phase 4.14: Uptime Kuma Monitoring
 
 ### Milestone: Self-hosted Endpoint Monitoring with Public Status Page

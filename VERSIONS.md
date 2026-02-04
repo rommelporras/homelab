@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** February 3, 2026
+> **Last Updated:** February 4, 2026
 
 ---
 
@@ -231,6 +231,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-02-04 | **Cloudflare WAF:** Added RSS skip rule + disabled Bot Fight Mode for GitHub Profile README blog workflow |
 | 2026-02-03 | **Uptime Kuma:** Deployed v2.0.2 (rootless) for endpoint monitoring with public status page via Cloudflare Tunnel (Phase 4.14) |
 | 2026-02-02 | **Domain Migration:** Migrated all services to `*.k8s.rommelporras.com` with tiered wildcards (base/dev/stg) (Phase 4.13) |
 | 2026-01-31 | **Ghost Blog:** Deployed Ghost 6.14.0 + MySQL 8.4.8 LTS with dev/prod environments, HTTPRoutes, sync scripts (Phase 4.12) |
