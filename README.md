@@ -8,7 +8,7 @@
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
 > **Owner:** Rommel Porras
-> **Last Updated:** February 4, 2026
+> **Last Updated:** February 5, 2026
 
 ---
 
@@ -44,6 +44,8 @@
 | Ghost Blog | ✅ Complete | Dev + Prod environments, Cloudflare Tunnel |
 | Domain Migration | ✅ Complete | Tiered wildcards (base/dev/stg) |
 | Uptime Kuma | ✅ Complete | Endpoint monitoring + public status page |
+| Invoicetron | ✅ Complete | Stateful app (Next.js + PostgreSQL) with GitLab CI/CD |
+| Claude Code Monitoring | ✅ Complete | OTel Collector → Prometheus + Loki + Grafana dashboard |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/context/Cluster.md](docs/context/Cluster.md) - Single source of truth
@@ -177,6 +179,8 @@ Step-by-step instructions to rebuild the cluster from scratch:
 | [v0.11.0-ghost-blog](docs/rebuild/v0.11.0-ghost-blog.md) | Phase 4.12 | Ghost CMS with dev/prod environments |
 | [v0.12.0-domain-migration](docs/rebuild/v0.12.0-domain-migration.md) | Phase 4.13 | Domain migration to `*.k8s.rommelporras.com` with tiered wildcards |
 | [v0.13.0-uptime-kuma](docs/rebuild/v0.13.0-uptime-kuma.md) | Phase 4.14 | Uptime Kuma endpoint monitoring + public status page |
+| [v0.14.0-invoicetron](docs/rebuild/v0.14.0-invoicetron.md) | Phase 4.9 | Invoicetron (Next.js + PostgreSQL) with GitLab CI/CD |
+| [v0.15.0-claude-monitoring](docs/rebuild/v0.15.0-claude-monitoring.md) | Phase 4.15 | Claude Code monitoring via OTel Collector |
 
 ### Reference
 
@@ -232,7 +236,9 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Jan 31, 2026** | **Ghost Blog** — Ghost 6.14.0 + MySQL 8.4.8 with dev/prod environments (Phase 4.12) |
 | **Feb 2, 2026** | **Domain Migration** — `*.k8s.rommelporras.com` with tiered wildcards (Phase 4.13) |
 | **Feb 3, 2026** | **Uptime Kuma** — Endpoint monitoring + public status page via Cloudflare Tunnel (Phase 4.14) |
-| **Coming** | Invoicetron, Tailscale, Immich |
+| **Feb 5, 2026** | **Invoicetron** — Stateful app (Next.js + PostgreSQL) migrated to K8s with GitLab CI/CD (Phase 4.9) |
+| **Feb 5, 2026** | **Claude Code Monitoring** — OTel Collector + Grafana dashboard + cost alerts (Phase 4.15) |
+| **Coming** | Tailscale, Immich |
 
 See rebuild guides below for detailed project history.
 
@@ -240,8 +246,8 @@ See rebuild guides below for detailed project history.
 
 ## 🚀 Next Steps
 
-1. **Migrate Invoicetron** to K8s - stateful app with PostgreSQL (Phase 4.9)
-2. **Deploy Tailscale Operator** for mobile access (Phase 4.10)
+1. **Deploy Tailscale Operator** for mobile access (Phase 4.10)
+2. **Deploy Immich** for photo management (Phase 4.11)
 3. **CKA Certification** - September 2026 target
 
 ---

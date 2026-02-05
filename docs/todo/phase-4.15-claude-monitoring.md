@@ -1,6 +1,6 @@
 # Phase 4.15: Claude Code Monitoring
 
-> **Status:** Planned
+> **Status:** Complete (v0.15.0)
 > **Target:** v0.15.0
 > **Prerequisite:** Phase 3.5-3.8 complete (kube-prometheus-stack + Loki running)
 > **DevOps Topics:** OpenTelemetry, OTLP, metrics pipelines, log aggregation

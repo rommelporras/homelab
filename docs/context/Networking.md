@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, networking, dns, vlan]
-updated: 2026-02-06
+updated: 2026-02-05
 ---
 
 # Networking

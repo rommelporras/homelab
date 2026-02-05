@@ -4,6 +4,114 @@
 
 ---
 
+## February 5, 2026 — Phase 4.15: Claude Code Monitoring
+
+### Milestone: Centralized Claude Code Telemetry on Kubernetes
+
+Deployed OpenTelemetry Collector to receive Claude Code metrics and events via OTLP, exporting metrics to Prometheus and structured events to Loki. Grafana dashboard and cost alerts auto-provisioned via ConfigMap and PrometheusRule.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| OTel Collector (contrib) | v0.144.0 | Running (monitoring namespace) |
+| Grafana Dashboard | ConfigMap | 33 panels, 8 sections |
+| PrometheusRule | claude-code-alerts | 4 rules (cost, availability) |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/monitoring/otel-collector-config.yaml | OTel pipeline config (OTLP → Prometheus + Loki) |
+| manifests/monitoring/otel-collector.yaml | Deployment + LoadBalancer Service (VIP 10.10.30.22) |
+| manifests/monitoring/otel-collector-servicemonitor.yaml | ServiceMonitor for Prometheus scraping |
+| manifests/monitoring/claude-dashboard-configmap.yaml | Grafana dashboard (33 panels, 8 sections) |
+| manifests/monitoring/claude-alerts.yaml | PrometheusRule (4 cost/availability alerts) |
+| docs/rebuild/v0.15.0-claude-monitoring.md | Rebuild guide |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Service type | LoadBalancer (Cilium L2) | Stable VIP for any machine on trusted VLANs |
+| VIP | 10.10.30.22 | Next free in Cilium IP pool |
+| OTLP transport | Plain HTTP (no TLS) | Trusted LAN only, telemetry counters not credentials |
+| Loki ingestion | Native OTLP (`otlphttp/loki`) | Not deprecated `loki` exporter |
+| Alert thresholds | $25 warning, $50 critical | Tuned from real usage data |
+| Machine identification | `OTEL_RESOURCE_ATTRIBUTES="machine.name=$HOST"` | Auto-resolves hostname |
+
+### Architecture
+
+```
+Client Machines (TRUSTED_WIFI / LAN)
+  Claude Code ──OTLP gRPC──→ 10.10.30.22:4317
+                                    │
+                              OTel Collector
+                              ├──→ Prometheus (:8889)
+                              └──→ Loki (:3100/otlp)
+                                    │
+                                 Grafana
+                          Claude Code Dashboard
+```
+
+### Dashboard Sections (33 panels)
+
+| Section | Panels | Datasource |
+|---------|--------|------------|
+| Overview | 4 | Prometheus |
+| Productivity | 7 | Prometheus |
+| Sessions & Activity | 5 | Prometheus |
+| Trends | 3 | Prometheus |
+| Cost Analysis | 3 | Prometheus |
+| Performance (Events) | 4 | Loki |
+| Token & Efficiency | 3 | Prometheus |
+| Insights | 4 | Mixed |
+
+### Alert Rules
+
+| Alert | Severity | Condition |
+|-------|----------|-----------|
+| ClaudeCodeHighDailySpend | warning | >$25/day |
+| ClaudeCodeCriticalDailySpend | critical | >$50/day |
+| ClaudeCodeNoActivity | info | No usage at end of weekday (5-6pm) |
+| OTelCollectorDown | critical | Collector unreachable for 2m |
+
+### Security Hardening
+
+OTel Collector fully hardened:
+- `runAsNonRoot: true` (UID 10001)
+- `readOnlyRootFilesystem: true`
+- `allowPrivilegeEscalation: false`
+- `capabilities.drop: ALL`
+- `seccompProfile: RuntimeDefault`
+- `automountServiceAccountToken: false`
+
+### CKA Learnings
+
+| Topic | Concept |
+|-------|---------|
+| ConfigMap | Dashboard JSON as ConfigMap with Grafana sidecar auto-provisioning |
+| ServiceMonitor | Custom scrape targets for non-Helm workloads |
+| PrometheusRule | Custom alert rules with PromQL time functions (`hour()`, `day_of_week()`) |
+| LoadBalancer | Cilium L2 announcement with `lbipam.cilium.io/ips` annotation |
+| Security context | Full pod hardening for non-root OTel Collector |
+
+### Lessons Learned
+
+1. **Loki OTLP native ingestion stores attributes as structured metadata** — Query with `| event_name="api_request"`, not `| json`. The `| json` parser is for unstructured log lines.
+
+2. **OTel Collector memory limit must exceed memory_limiter** — Container limit (600Mi) must be higher than the `memory_limiter` processor setting (512 MiB) or the pod OOM-kills.
+
+3. **OTLP metric names transform in Prometheus** — Dots become underscores, counters get `_total` suffix. Always verify after deployment.
+
+4. **Grafana `joinByLabels` transformation fails with Loki metric queries** — Causes "Value label not found" error. Use bar charts with `sum by` instead of tables with join transformations for Loki data.
+
+5. **Per-session counters require `increase()` or `rate()`** — Claude Code metrics reset per session. Raw `sum()` returns meaningless values. Always use `increase()` for dashboards.
+
+### Open-Source Project
+
+Dashboard and configs developed in parallel with [claude-code-monitoring](https://github.com/rommelporras/claude-code-monitoring) v2.0.0 (Loki events, updated dashboard, Docker version bumps).
+
+---
+
 ## February 5, 2026 — Phase 4.9: Invoicetron Migration
 
 ### Milestone: Stateful Application with Database Migrated to Kubernetes
