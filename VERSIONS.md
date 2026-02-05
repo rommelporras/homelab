@@ -133,6 +133,7 @@ helm-homelab repo update
 |---------|-----|------|-----------|
 | AdGuard DNS | 10.10.30.53 | 53/UDP, 53/TCP | home |
 | GitLab SSH | 10.10.30.21 | 22/TCP | gitlab |
+| OTel Collector | 10.10.30.22 | 4317/TCP, 4318/TCP, 8889/TCP | monitoring |
 
 ---
 
@@ -236,6 +237,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-02-06 | **Claude Code Monitoring:** OTel Collector v0.144.0 on K8s, Grafana dashboard, cost alerts, Loki event ingestion (Phase 4.15) |
 | 2026-02-05 | **Invoicetron:** Migrated stateful app (Next.js 16 + Bun + PostgreSQL 18 + Prisma 7) to K8s with GitLab CI/CD, Cloudflare Tunnel + Access (Phase 4.9) |
 | 2026-02-04 | **Cloudflare WAF:** Added RSS skip rule + disabled Bot Fight Mode for GitHub Profile README blog workflow |
 | 2026-02-03 | **Uptime Kuma:** Deployed v2.0.2 (rootless) for endpoint monitoring with public status page via Cloudflare Tunnel (Phase 4.14) |

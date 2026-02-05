@@ -1,0 +1,64 @@
+# PrometheusRule for Claude Code Cost Alerts
+# Alerts on high daily spend and OTel Collector availability
+#
+# Metric names (Prometheus format from OTel Collector):
+#   claude_code_cost_usage_USD_total - Cost per API request (counter)
+#
+# Apply:
+#   kubectl-homelab apply -f manifests/monitoring/claude-alerts.yaml
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: claude-code-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: claude-code
+      rules:
+        # Alert when daily Claude Code spend exceeds $25
+        - alert: ClaudeCodeHighDailySpend
+          expr: sum(increase(claude_code_cost_usage_USD_total[24h])) > 25
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Claude Code daily spend exceeds $25"
+            description: "Claude Code has spent ${{ $value | printf \"%.2f\" }} in the last 24 hours."
+
+        # Alert when daily Claude Code spend exceeds $50
+        - alert: ClaudeCodeCriticalDailySpend
+          expr: sum(increase(claude_code_cost_usage_USD_total[24h])) > 50
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Claude Code daily spend exceeds $50"
+            description: "Claude Code has spent ${{ $value | printf \"%.2f\" }} in the last 24 hours. Review active sessions."
+
+        # Alert when no Claude Code activity for an entire business day (telemetry may be broken)
+        - alert: ClaudeCodeNoActivity
+          expr: |
+            absent(increase(claude_code_cost_usage_USD_total[8h]) > 0)
+            and ON() (hour() >= 17 and hour() <= 18)
+            and ON() (day_of_week() >= 1 and day_of_week() <= 5)
+          for: 5m
+          labels:
+            severity: info
+          annotations:
+            summary: "No Claude Code activity today"
+            description: "No Claude Code usage detected in the last 8 hours. Telemetry pipeline may need attention."
+
+        # Alert when OTel Collector is unreachable
+        - alert: OTelCollectorDown
+          expr: up{job="otel-collector"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "OTel Collector is unreachable"
+            description: "Prometheus cannot scrape OTel Collector metrics. Claude Code telemetry is not being collected."
+

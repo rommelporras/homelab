@@ -43,6 +43,7 @@
 | 4.6 | GitLab CI/CD Platform | [phase-4.6-gitlab.md](phase-4.6-gitlab.md) | ⬜ Planned |
 | 4.7 | Portfolio Migration | [phase-4.7-portfolio.md](phase-4.7-portfolio.md) | ⬜ Planned |
 | 4.8 | Invoicetron Migration | [phase-4.8-invoicetron.md](phase-4.8-invoicetron.md) | ⬜ Planned |
+| 4.15 | Claude Code Monitoring | [phase-4.15-claude-monitoring.md](phase-4.15-claude-monitoring.md) | 🔄 In Progress |
 | 5 | Production Hardening | [phase-5-hardening.md](phase-5-hardening.md) | ⬜ Planned |
 | 6 | CKA Focused Learning | [phase-6-cka.md](phase-6-cka.md) | ⬜ Planned |
 

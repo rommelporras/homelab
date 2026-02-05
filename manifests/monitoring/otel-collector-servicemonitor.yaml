@@ -1,0 +1,28 @@
+# ServiceMonitor for OTel Collector - allows Prometheus to scrape collector metrics
+# Scrapes the Prometheus exporter endpoint (:8889/metrics) where Claude Code metrics are exposed
+#
+# Apply:
+#   kubectl-homelab apply -f manifests/monitoring/otel-collector-servicemonitor.yaml
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    # This label ensures Prometheus picks it up (matches kube-prometheus-stack selector)
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: otel-collector
+  namespaceSelector:
+    matchNames:
+      - monitoring
+  endpoints:
+    - port: prometheus
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-02-03
+updated: 2026-02-06
 ---
 
 # Monitoring
@@ -20,6 +20,7 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 | node-exporter | — | monitoring |
 | nut-exporter | 3.1.1 | monitoring |
 | blackbox-exporter | v0.28.0 | monitoring |
+| OTel Collector | v0.144.0 | monitoring |
 | Uptime Kuma | v2.0.2 | uptime-kuma |
 
 ## Access
@@ -105,6 +106,54 @@ These kubeadm false positives are routed to `null`:
 
 See `docs/todo/deferred.md` for future fix instructions.
 
+## OTel Collector (Claude Code Telemetry)
+
+| Setting | Value |
+|---------|-------|
+| Image | otel/opentelemetry-collector-contrib:0.144.0 |
+| VIP | 10.10.30.22 (Cilium L2 LoadBalancer) |
+| Ports | 4317 (gRPC), 4318 (HTTP), 8889 (Prometheus metrics) |
+| Replicas | 1 |
+| Memory limit | 600Mi (memory_limiter: 512 MiB) |
+
+Receives OTLP metrics and logs from Claude Code clients, exports metrics to Prometheus and events to Loki.
+
+### Client Configuration
+
+Add to `~/.zshrc` on each machine:
+```bash
+export CLAUDE_CODE_ENABLE_TELEMETRY=1
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_LOGS_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://10.10.30.22:4317
+export OTEL_METRIC_EXPORT_INTERVAL=60000
+export OTEL_LOGS_EXPORT_INTERVAL=5000
+export OTEL_RESOURCE_ATTRIBUTES="machine.name=$HOST"
+```
+
+`$HOST` resolves to the machine hostname automatically.
+
+### Query Claude Code Data
+
+Metrics (Prometheus):
+```promql
+# Daily cost
+sum(increase(claude_code_cost_usage_USD_total[24h]))
+
+# Token usage by type
+sum by (type) (increase(claude_code_token_usage_tokens_total[24h]))
+```
+
+Events (Loki):
+```logql
+# All Claude Code events
+{service_name="claude-code"}
+
+# API requests with cost
+{service_name="claude-code"} | event_name="api_request"
+```
+
 ## Configuration Files
 
 | File | Purpose |
@@ -115,6 +164,11 @@ See `docs/todo/deferred.md` for future fix instructions.
 | manifests/monitoring/adguard-dns-probe.yaml | Blackbox DNS probe for AdGuard |
 | manifests/monitoring/adguard-dns-alert.yaml | Alert on DNS probe failure |
 | manifests/monitoring/uptime-kuma-probe.yaml | Blackbox HTTP probe for Uptime Kuma |
+| manifests/monitoring/otel-collector-config.yaml | OTel Collector pipeline config |
+| manifests/monitoring/otel-collector.yaml | OTel Collector Deployment + LoadBalancer Service |
+| manifests/monitoring/otel-collector-servicemonitor.yaml | OTel Collector ServiceMonitor |
+| manifests/monitoring/claude-dashboard-configmap.yaml | Claude Code Grafana dashboard |
+| manifests/monitoring/claude-alerts.yaml | Claude Code cost alert rules |
 | helm/blackbox-exporter/values.yaml | Blackbox exporter config (dns_udp module) |
 
 ## Upgrade Prometheus Stack

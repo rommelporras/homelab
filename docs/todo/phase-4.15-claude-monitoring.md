@@ -159,89 +159,73 @@ Claude Code emits these events via `OTEL_LOGS_EXPORTER=otlp` (stored in Loki):
 
 ## Tasks
 
-### 4.15.1 Allocate LoadBalancer VIP
+### 4.15.1 Allocate LoadBalancer VIP ✅
 
-- [ ] Assign **10.10.30.22** for OTel Collector in SERVERS VLAN
-  - Current allocations: .10 (API VIP), .11-.13 (nodes), .20 (Gateway), .21 (GitLab SSH), .53 (AdGuard DNS)
-  - Next free in Cilium IP pool (10.10.30.20-99): **.22**
-- [ ] Update `docs/context/Networking.md` — add to VIPs table and DNS Records
-- [ ] Update `VERSIONS.md` — add to LoadBalancer Services table
+- [x] Assign **10.10.30.22** for OTel Collector in SERVERS VLAN
+- [x] Update `docs/context/Networking.md` — add to VIPs table and DNS Records
+- [x] Update `VERSIONS.md` — add to LoadBalancer Services table
 
-### 4.15.2 Create OTel Collector Manifests
+### 4.15.2 Create OTel Collector Manifests ✅
 
-Depends on 4.15.1 (need VIP for Service annotation).
+- [x] Create `manifests/monitoring/otel-collector-config.yaml` (ConfigMap)
+- [x] Verify Loki has OTLP ingestion enabled (`allow_structured_metadata: true`)
+- [x] Create `manifests/monitoring/otel-collector.yaml` (Deployment + Service)
+  - Image: `otel/opentelemetry-collector-contrib:0.144.0`
+  - Service: LoadBalancer at 10.10.30.22
+- [x] Create `manifests/monitoring/otel-collector-servicemonitor.yaml`
+- [x] Apply manifests and verify pod is running
 
-- [ ] Create `manifests/monitoring/otel-collector-config.yaml` (ConfigMap)
-  - Receivers: OTLP gRPC (:4317) + HTTP (:4318)
-  - Processors: memory_limiter (512 MiB), batch (1024, 1s)
-  - Exporters: prometheus (:8889), otlphttp/loki (http://loki.monitoring.svc.cluster.local:3100/otlp)
-  - Pipelines: metrics → prometheus, logs → otlphttp/loki
-  - Uses Loki native OTLP ingestion (not deprecated `loki` exporter)
-  - No debug exporter (production)
-- [ ] Verify Loki has OTLP ingestion enabled (`allow_structured_metadata: true`)
-  - Default in Loki 3.0+ (our Loki is v3.6.3), but verify with: `kubectl-homelab -n monitoring exec deploy/loki -- cat /etc/loki/local-config.yaml | grep structured_metadata`
-  - If not enabled, add `allow_structured_metadata: true` to `limits_config` in `helm/loki/values.yaml` and upgrade
-- [ ] Create `manifests/monitoring/otel-collector.yaml` (Deployment + Service)
-  - Deployment: 1 replica, `otel/opentelemetry-collector-contrib` (pinned version)
-  - Ports: 4317 (gRPC), 4318 (HTTP), 8889 (Prometheus metrics)
-  - Resources: requests 100m/128Mi, limits 500m/600Mi (must exceed memory_limiter's 512 MiB)
-  - Service: type LoadBalancer, `lbipam.cilium.io/ips: "10.10.30.22"`
-- [ ] Create `manifests/monitoring/otel-collector-servicemonitor.yaml`
-  - Port: 8889, path: /metrics, interval: 15s
-  - Namespace: monitoring
-- [ ] Apply manifests and verify pod is running
+### 4.15.3 Import Grafana Dashboard ✅
 
-### 4.15.3 Import Grafana Dashboard
+- [x] Build updated dashboard JSON (29 panels, 7 collapsible sections)
+- [x] Create `manifests/monitoring/claude-dashboard-configmap.yaml`
+- [x] Apply ConfigMap and verify dashboard loads in Grafana
+- [x] **Dashboard improvements applied:**
+  - Billing cycle tracking (`$billing_day` variable, default: 12)
+  - Token Usage pie chart (replaced 4 stat panels)
+  - Code Edit Decisions table
+  - Divide-by-zero guards on 3 panels
+  - API Latency window `[5m]` → `[1h]`
+  - Collapsible sections (Overview/Trends/Token & Efficiency open by default)
+  - Default time range `now-8h`
 
-- [ ] Build updated dashboard JSON with:
-  - **Metrics panels** (Prometheus): cost, tokens, sessions (native session.count), PRs (native pull_request.count), active time, commits, lines, code edit decisions by language
-  - **Event panels** (Loki): API latency (p95/p99), tool performance table, API error rate, recent tool executions log
-  - **Layout**: 7 collapsible sections (Overview, Productivity, Sessions, Trends, Cost Analysis, Performance, Token & Efficiency)
-  - Datasource UIDs: `prometheus` for metrics, `loki` for events
-- [ ] Create `manifests/monitoring/claude-dashboard-configmap.yaml`
-  - Label: `grafana_dashboard: "1"` (same pattern as UPS dashboard)
-- [ ] Apply ConfigMap and verify dashboard loads in Grafana
+### 4.15.4 Configure Client Machines ✅
 
-### 4.15.4 Configure Client Machines
+- [x] Update `~/.zshrc` on WSL desktop (pointing to 10.10.30.22)
+- [x] Fixed: `machine.name=$HOST` (dynamic hostname instead of hardcoded `desktop`)
+- [x] Test: metrics appear in Prometheus
+- [x] Test: events appear in Loki (`{service_name="claude-code"}`)
 
-- [ ] Update `~/.zshrc` on WSL desktop:
-  ```bash
-  export CLAUDE_CODE_ENABLE_TELEMETRY=1
-  export OTEL_METRICS_EXPORTER=otlp
-  export OTEL_LOGS_EXPORTER=otlp
-  export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
-  export OTEL_EXPORTER_OTLP_ENDPOINT=http://10.10.30.22:4317
-  export OTEL_METRIC_EXPORT_INTERVAL=60000
-  export OTEL_LOGS_EXPORT_INTERVAL=5000
-  export OTEL_RESOURCE_ATTRIBUTES="machine.name=desktop"
-  ```
-  - For other machines, set `machine.name` to identify the source (e.g., `laptop`, `work-mac`)
-- [ ] Document client setup in `docs/context/Monitoring.md` for other machines
-- [ ] Test: run Claude Code session, verify metrics appear in Prometheus
-- [ ] Test: verify events appear in Loki (`{service_name="claude-code"}`)
+### 4.15.5 Validate End-to-End ✅
 
-### 4.15.5 Validate End-to-End
+- [x] Verify all Prometheus metric panels render with real data
+- [x] Verify all Loki event panels render with real data (API latency, tool executions)
+- [ ] Test from a second machine (laptop on TRUSTED_WIFI) — deferred, no second machine available
+- [x] Verify Alertmanager can route Claude alerts
 
-- [ ] Verify all Prometheus metric panels render with real data
-- [ ] Verify all Loki event panels render with real data
-- [ ] Test from a second machine (laptop on TRUSTED_WIFI) if available
-- [ ] Verify Alertmanager can route Claude alerts (test with low threshold)
+### 4.15.6 Optional: Cost Alerts ✅
 
-### 4.15.6 Optional: Cost Alerts
+- [x] Create `manifests/monitoring/claude-alerts.yaml` (PrometheusRule)
+  - 4 alert rules loaded and inactive (correct state)
 
-- [ ] Create PrometheusRule for Claude Code cost alerts
-  - Warning: daily spend exceeds threshold (e.g., $10/day)
-  - Routes to Discord #status via existing Alertmanager config
-- [ ] Create `manifests/monitoring/claude-alerts.yaml`
+### 4.15.7 Add Insights Panels ✅
 
-### 4.15.7 Retire Local Docker Compose Stack
+New collapsed "Insights" section at bottom of dashboard (4 panels based on untapped data).
 
-- [ ] Verify homelab metrics and events flowing correctly for 24+ hours
-- [ ] Stop local Docker Compose: `cd ~/personal/claude-monitoring && docker compose down`
-- [ ] Remove Docker volumes: `docker volume rm claude_prometheus_data claude_grafana_data`
-- [ ] Keep `~/personal/claude-monitoring` repo intact (open-source project, will receive v2.0.0 backport)
+- [x] **CLI vs User Time** — pie chart using `active_time_seconds_total{type=cli|user}`
+- [x] **Tool Usage** — pie chart of `tool_name` distribution from Loki `tool_result` events
+- [x] **Tool Performance** — table with per-tool call count and avg duration_ms from Loki
+- [x] **Prompts per Hour** — bar chart of `user_prompt` event rate from Loki
+- [x] Sync updated dashboard to homelab ConfigMap and apply
 
-### 4.15.8 Documentation & Release
+### 4.15.8 Retire Local Docker Compose Stack ✅
+
+- [x] Verify homelab metrics and events flowing correctly
+- [x] Stop local Docker Compose: `docker compose stop`
+- [ ] Remove Docker volumes (deferred until confident in K8s stack)
+- [x] Keep `~/personal/claude-monitoring` repo intact (open-source project)
+
+### 4.15.9 Documentation & Release
 
 - [ ] Update all documents listed in the Documentation Checklist below
 - [ ] Add rebuild guide `docs/rebuild/v0.15.0-claude-monitoring.md`
@@ -249,16 +233,16 @@ Depends on 4.15.1 (need VIP for Service annotation).
 - [ ] `/commit` — commit all manifests, dashboard, and documentation changes
 - [ ] `/release v0.15.0 "Claude Code Monitoring"` — tag, push, create GitHub release
 
-### 4.15.9 Backport to Open-Source Project
+### 4.15.10 Backport to Open-Source Project ✅ (done in parallel)
 
-After homelab release, update `~/personal/claude-monitoring` for v2.0.0:
+Dashboard and configs developed in claude-monitoring first, synced to homelab.
 
-- [ ] Copy OTel Collector config (adapted for Docker Compose networking)
-- [ ] Copy updated dashboard JSON (update datasource UIDs for Docker Compose)
-- [ ] Update docker-compose.yml (add Loki service, pin image versions)
-- [ ] Update README.md (architecture, metrics, events, K8s guide, upgrade notes)
-- [ ] Add `docs/kubernetes.md` deployment guide (based on this phase's manifests)
-- [ ] Update CHANGELOG.md with v2.0.0 entry
+- [x] Dashboard JSON is source of truth in claude-monitoring, synced to homelab ConfigMap
+- [x] Update docker-compose.yml (Loki service, pinned versions matching homelab)
+- [x] Update README.md (billing cycle, resource attributes, LogQL fixes, sections, 8h default)
+- [x] Add `docs/kubernetes.md` deployment guide (OTel image version updated)
+- [x] Update CHANGELOG.md with v2.0.0 entry
+- [x] Update `.env.example` (OTEL_RESOURCE_ATTRIBUTES documentation)
 - [ ] `/commit` — commit all v2.0.0 changes
 - [ ] `/release v2.0.0 "Loki Events & Dashboard Upgrade"` — tag, push, create GitHub release
 

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, networking, dns, vlan]
-updated: 2026-02-05
+updated: 2026-02-06
 ---
 
 # Networking
@@ -14,6 +14,7 @@ Network configuration for the homelab cluster.
 | K8s API | 10.10.30.10 | api.k8s.rommelporras.com | kube-vip (ARP) |
 | Gateway | 10.10.30.20 | *.k8s.rommelporras.com | Cilium L2 |
 | GitLab SSH | 10.10.30.21 | ssh.gitlab.k8s.rommelporras.com | Cilium L2 |
+| OTel Collector | 10.10.30.22 | — | Cilium L2 |
 | AdGuard DNS | 10.10.30.53 | adguard.k8s.rommelporras.com | Cilium L2 |
 
 ## Node IPs

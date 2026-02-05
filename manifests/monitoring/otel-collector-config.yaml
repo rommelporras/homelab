@@ -1,0 +1,63 @@
+# OpenTelemetry Collector Configuration for Claude Code Telemetry
+# Receives OTLP metrics+logs from Claude Code, exports to Prometheus and Loki
+#
+# Data flow:
+#   Claude Code ──OTLP gRPC/HTTP──→ OTel Collector
+#     ├── metrics ──→ Prometheus exporter (:8889/metrics)
+#     └── logs ──→ Loki native OTLP endpoint (:3100/otlp)
+#
+# Apply:
+#   kubectl-homelab apply -f manifests/monitoring/otel-collector-config.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: monitoring
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/component: telemetry
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      # Prevent OOM — must be below container memory limit (600Mi)
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 512
+      batch:
+        send_batch_size: 1024
+        timeout: 1s
+
+    exporters:
+      # Prometheus scrape target for metrics
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+        enable_open_metrics: true
+      # Loki native OTLP ingestion (not deprecated loki exporter)
+      otlphttp/loki:
+        endpoint: "http://loki.monitoring.svc.cluster.local:3100/otlp"
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp/loki]
