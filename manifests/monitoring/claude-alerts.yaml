@@ -19,24 +19,24 @@ spec:
   groups:
     - name: claude-code
       rules:
-        # Alert when daily Claude Code spend exceeds $25
+        # Alert when daily Claude Code spend exceeds $100
         - alert: ClaudeCodeHighDailySpend
-          expr: sum(increase(claude_code_cost_usage_USD_total[24h])) > 25
+          expr: sum(increase(claude_code_cost_usage_USD_total[24h])) > 100
           for: 5m
           labels:
             severity: warning
           annotations:
-            summary: "Claude Code daily spend exceeds $25"
+            summary: "Claude Code daily spend exceeds $100"
             description: "Claude Code has spent ${{ $value | printf \"%.2f\" }} in the last 24 hours."
 
-        # Alert when daily Claude Code spend exceeds $50
+        # Alert when daily Claude Code spend exceeds $150
         - alert: ClaudeCodeCriticalDailySpend
-          expr: sum(increase(claude_code_cost_usage_USD_total[24h])) > 50
+          expr: sum(increase(claude_code_cost_usage_USD_total[24h])) > 150
           for: 5m
           labels:
             severity: critical
           annotations:
-            summary: "Claude Code daily spend exceeds $50"
+            summary: "Claude Code daily spend exceeds $150"
             description: "Claude Code has spent ${{ $value | printf \"%.2f\" }} in the last 24 hours. Review active sessions."
 
         # Alert when no Claude Code activity for an entire business day (telemetry may be broken)
