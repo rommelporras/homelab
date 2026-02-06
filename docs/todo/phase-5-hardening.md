@@ -1,7 +1,7 @@
 # Phase 5: Production Hardening
 
 > **Status:** ⬜ Planned
-> **Target:** v0.10.0
+> **Target:** v0.22.0
 > **Prerequisite:** Phase 4.9 complete, all applications migrated
 > **DevOps Topics:** Security posture, backup/restore, defense in depth
 > **CKA Topics:** RBAC, NetworkPolicy, Pod Security Standards, Resource Quotas
