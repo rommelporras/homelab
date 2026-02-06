@@ -127,7 +127,7 @@ export OTEL_METRICS_EXPORTER=otlp
 export OTEL_LOGS_EXPORTER=otlp
 export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://10.10.30.22:4317
-export OTEL_METRIC_EXPORT_INTERVAL=60000
+export OTEL_METRIC_EXPORT_INTERVAL=5000
 export OTEL_LOGS_EXPORT_INTERVAL=5000
 export OTEL_RESOURCE_ATTRIBUTES="machine.name=$HOST"
 ```
@@ -143,6 +143,12 @@ sum(increase(claude_code_cost_usage_USD_total[24h]))
 
 # Token usage by type
 sum by (type) (increase(claude_code_token_usage_tokens_total[24h]))
+
+# Session count (one-time counters use last_over_time, not increase)
+count(count by (session_id) (last_over_time(claude_code_session_count_total[24h])))
+
+# Total commits
+sum(max by (session_id) (last_over_time(claude_code_commit_count_total[24h])))
 ```
 
 Events (Loki):

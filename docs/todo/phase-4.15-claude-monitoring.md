@@ -139,7 +139,7 @@ Claude Code emits these metrics via OTLP (documented at https://code.claude.com/
 
 **Standard attributes on all metrics:** `session.id`, `user.account_uuid`, `organization.id`, `terminal.type`
 
-**Important:** All metrics are per-session counters. When a session ends, the time series becomes stale. Always use `increase()` or `rate()` for aggregations, never raw `sum()`.
+**Important:** All metrics are per-session counters. When a session ends, the time series becomes stale. Continuously-incrementing counters (cost, tokens, active_time) use `increase()`. One-time counters (`session_count`, `commit_count`, `pull_request_count`) use `last_over_time()` since `increase()` returns 0 on flat counters.
 
 **Note:** Metric names above are the OTLP names with dots converted to underscores. The exact Prometheus-format names (with `_total` suffix for counters and unit suffixes like `_USD`, `_tokens`, `_seconds`) should be verified after deployment by querying: `curl -s "http://localhost:9090/api/v1/label/__name__/values" | jq '.data[] | select(startswith("claude_code"))'`
 
@@ -177,7 +177,7 @@ Claude Code emits these events via `OTEL_LOGS_EXPORTER=otlp` (stored in Loki):
 
 ### 4.15.3 Import Grafana Dashboard ✅
 
-- [x] Build updated dashboard JSON (29 panels, 7 collapsible sections)
+- [x] Build updated dashboard JSON (33 panels, 8 collapsible sections)
 - [x] Create `manifests/monitoring/claude-dashboard-configmap.yaml`
 - [x] Apply ConfigMap and verify dashboard loads in Grafana
 - [x] **Dashboard improvements applied:**
@@ -186,7 +186,7 @@ Claude Code emits these events via `OTEL_LOGS_EXPORTER=otlp` (stored in Loki):
   - Code Edit Decisions table
   - Divide-by-zero guards on 3 panels
   - API Latency window `[5m]` → `[1h]`
-  - Collapsible sections (Overview/Trends/Token & Efficiency open by default)
+  - Collapsible sections (Overview/Productivity/Trends/Performance open by default)
   - Default time range `now-8h`
 
 ### 4.15.4 Configure Client Machines ✅

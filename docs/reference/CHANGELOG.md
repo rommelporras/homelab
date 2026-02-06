@@ -56,14 +56,14 @@ Client Machines (TRUSTED_WIFI / LAN)
 
 | Section | Panels | Datasource |
 |---------|--------|------------|
-| Overview | 4 | Prometheus |
+| Overview | 6 | Prometheus |
 | Productivity | 7 | Prometheus |
-| Sessions & Activity | 5 | Prometheus |
-| Trends | 3 | Prometheus |
+| Sessions & Activity | 4 | Prometheus |
+| Trends | 2 | Prometheus |
 | Cost Analysis | 3 | Prometheus |
-| Performance (Events) | 4 | Loki |
-| Token & Efficiency | 3 | Prometheus |
-| Insights | 4 | Mixed |
+| Performance (Events) | 2 | Loki |
+| Token & Efficiency | 2 | Prometheus |
+| Insights | 7 | Mixed |
 
 ### Alert Rules
 
@@ -104,7 +104,9 @@ OTel Collector fully hardened:
 
 4. **Grafana `joinByLabels` transformation fails with Loki metric queries** — Causes "Value label not found" error. Use bar charts with `sum by` instead of tables with join transformations for Loki data.
 
-5. **Per-session counters require `increase()` or `rate()`** — Claude Code metrics reset per session. Raw `sum()` returns meaningless values. Always use `increase()` for dashboards.
+5. **One-time counters need `last_over_time()`, not `increase()`** — `session_count`, `commit_count`, and `pull_request_count` increment once and never change, so `increase()` always returns 0. Use `count(count by (session_id) (last_over_time(metric[$__range])))` for counts. Continuously-incrementing counters (cost, tokens, active_time) still use `increase()`.
+
+6. **5s metric export interval prevents data loss** — The default 60s `OTEL_METRIC_EXPORT_INTERVAL` causes one-time counters (commits, PRs, sessions) to be lost if a session ends before the next export. Use 5000ms to match the logs interval.
 
 ### Open-Source Project
 

@@ -52,7 +52,7 @@ kubectl-homelab get httproute -A --no-headers 2>/dev/null
 - Check Version History has entries for recent significant changes
 
 **docs/context/*.md:**
-- Check `updated:` frontmatter dates
+- Check `updated:` frontmatter dates — only flag as stale if **older than 14 days**. Under 14 days is acceptable if content is accurate.
 - Compare content against cluster reality:
 
 | File | Check Against |
@@ -133,7 +133,7 @@ After the report:
 When user approves:
 
 **Auto-fix these:**
-- Update `updated:` dates in frontmatter
+- Update `updated:` dates in frontmatter (only if >14 days stale OR content was changed)
 - Update `Last Updated:` in VERSIONS.md
 - Fix content mismatches (URLs, IPs, names)
 - Add missing items to simple lists/tables
