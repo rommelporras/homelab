@@ -49,30 +49,62 @@ Or via: https://longhorn.k8s.rommelporras.com
 |---------|-------|
 | Server | 10.10.30.4 (omv.home.rommelporras.com) |
 | System | OpenMediaVault 7.6.0-1 |
+| NFS Version | NFSv4.1 |
+| Pseudo-root | `/export` (fsid=0) |
+| Hardware | Single drive — avoid heavy write I/O for config/DBs |
 
-### Planned Exports
+### NFS Export & Directory Convention
 
-| Export | Purpose |
-|--------|---------|
-| /export/photos | Immich photo library |
-| /export/media | Movies, TV |
-| /export/backups | Cluster backups |
+All K8s NFS storage uses a **single export** (`/export/Kubernetes`) with **one subdirectory per service group**. No new OMV shares needed for new services — just `mkdir` a new subdirectory.
 
-### NFS PV Example
+**Isolation:** Each K8s PV mounts a specific subdirectory (e.g., `/Kubernetes/Media`). Pods cannot traverse above their mount point to see sibling directories. K8s PV/PVC binding, namespace isolation, and NetworkPolicy enforce access boundaries.
+
+```
+/export/Kubernetes/                   (OMV NFS export, NFSv4 path: /Kubernetes)
+├── Immich/                           (photos/videos — PV: immich-nfs)
+├── Media/                            (ARR stack — PV: arr-data-nfs, Phase 4.25)
+│   ├── torrents/{movies,tv,music}/   (qBittorrent downloads)
+│   └── media/{movies,tv,music}/      (Sonarr/Radarr hardlinked library)
+├── Documents/                        (future — Nextcloud or Paperless-ngx)
+└── (future services)/
+```
+
+| Subdirectory | NFSv4 Mount Path | K8s PV | Namespace | Status |
+|-------------|-----------------|--------|-----------|--------|
+| `Immich/` | `/Kubernetes/Immich` | `immich-nfs` | `immich` | Deployed |
+| `Media/` | `/Kubernetes/Media` | `arr-data-nfs` | `media` | Planned (Phase 4.25) |
+| `Documents/` | `/Kubernetes/Documents` | TBD | TBD | Future (Nextcloud/Paperless-ngx) |
+
+**NFSv4 path note:** OMV has `/export` with `fsid=0` as the pseudo-root. Filesystem path `/export/Kubernetes/Media` becomes NFSv4 mount path `/Kubernetes/Media`.
+
+### NFS PV Convention
+
+All NFS PVs follow this pattern (established by `manifests/storage/nfs-immich.yaml`):
 
 ```yaml
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: media-nfs
+  name: <service>-nfs
+  labels:
+    type: nfs
+    app: <service>
 spec:
   capacity:
-    storage: 1Ti
+    storage: <size>
   accessModes:
     - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain    # ALWAYS Retain for NFS
+  storageClassName: nfs
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+    - rsize=65536
+    - wsize=65536
+    - timeo=600
   nfs:
     server: 10.10.30.4
-    path: /export/media
+    path: /Kubernetes/<Subdirectory>       # NFSv4 pseudo-root path
 ```
 
 ## When to Use What

@@ -67,7 +67,7 @@
     - Longhorn PVC 2Gi mounted at `/config`
     - `emptyDir` with `medium: Memory` + `sizeLimit: 1Gi` for `/dev/shm`
     - Password from K8s Secret (created via `op read`)
-    - Env: `PUID=1000`, `PGID=1000`, `TZ=America/Chicago`
+    - Env: `PUID=1000`, `PGID=1000`, `TZ=Asia/Manila`
     - Resource limits: `cpu: 250m/2`, `memory: 512Mi/2Gi`
   - Note: `readOnlyRootFilesystem` NOT compatible — KasmVNC needs writable dirs
 - [ ] 4.21.2.3 Create `manifests/browser/service.yaml` — ClusterIP (port 3000)
