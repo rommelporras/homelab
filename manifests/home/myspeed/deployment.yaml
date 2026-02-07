@@ -1,0 +1,70 @@
+# MySpeed Deployment
+# Internet speed test tracker with SQLite storage
+#
+# Migrated from: Proxmox LXC at 10.10.30.6:5216
+# Image docs: https://docs.myspeed.dev/setup/linux
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myspeed
+  namespace: home
+  labels:
+    app: myspeed
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # PVC is RWO — only one pod can mount at a time
+  selector:
+    matchLabels:
+      app: myspeed
+  template:
+    metadata:
+      labels:
+        app: myspeed
+    spec:
+      securityContext:
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: myspeed
+          image: germannewsmaker/myspeed:1.0.9
+          ports:
+            - name: http
+              containerPort: 5216
+              protocol: TCP
+          env:
+            - name: TZ
+              value: "Asia/Manila"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: myspeed-data
+              mountPath: /myspeed/data
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: myspeed-data
+          persistentVolumeClaim:
+            claimName: myspeed-data

@@ -1,0 +1,16 @@
+# ClusterIP Service for MySpeed
+# Accessed via Gateway API HTTPRoute — no external IP needed
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: myspeed
+  namespace: home
+spec:
+  type: ClusterIP
+  selector:
+    app: myspeed
+  ports:
+    - name: http
+      port: 5216
+      targetPort: http

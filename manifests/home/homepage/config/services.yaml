@@ -204,12 +204,12 @@
 
     - Speed Test:
         icon: myspeed.png
-        href: https://myspeed.home.rommelporras.com
+        href: https://myspeed.k8s.rommelporras.com
         description: Internet Speed History
         statusStyle: dot
         widget:
           type: myspeed
-          url: http://10.10.30.6:5216
+          url: https://myspeed.k8s.rommelporras.com
 
 #############################################
 # TAB 2: INFRASTRUCTURE DETAILS

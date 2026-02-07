@@ -1,0 +1,15 @@
+# Longhorn PVC for MySpeed data
+# Stores: SQLite database with speed test history
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: myspeed-data
+  namespace: home
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
