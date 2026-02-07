@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, gateway, tls, cert-manager]
-updated: 2026-02-05
+updated: 2026-02-08
 ---
 
 # Gateway API
@@ -37,13 +37,13 @@ Gateway API for HTTPS ingress with automatic TLS certificates.
 |  Port 443 - https-stg (*.stg.k8s.rommelporras.com)   |
 +-----------------------------------------------------+
                             |
-    +-------+-------+-------+-------+-------+---------+---------+---------+---------+
-    v       v       v       v       v       v         v         v         v
-+------++------++------++------++------++--------++--------++--------++--------+
-|Grafan||AdGuar||Homepg||Longh.||GitLab||Portfol.||Ghost   ||Invoice-||Uptime  |
-| base || base || base || base || base ||dev/stg/ ||dev/prod|| tron   || Kuma   |
-|      ||      ||      ||      ||      || prod   ||        ||dev/prod|| base   |
-+------++------++------++------++------++--------++--------++--------++--------+
+    +-------+-------+-------+-------+-------+---------+---------+---------+---------+---------+
+    v       v       v       v       v       v         v         v         v         v
++------++------++------++------++------++--------++--------++--------++--------++--------+
+|Grafan||AdGuar||Homepg||Longh.||GitLab||Portfol.||Ghost   ||Invoice-||Uptime  ||MySpeed |
+| base || base || base || base || base ||dev/stg/ ||dev/prod|| tron   || Kuma   || base   |
+|      ||      ||      ||      ||      || prod   ||        ||dev/prod|| base   ||        |
++------++------++------++------++------++--------++--------++--------++--------++--------+
 ```
 
 ## Components
@@ -121,6 +121,7 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 | Invoicetron Dev | https://invoicetron.dev.k8s.rommelporras.com | invoicetron | invoicetron-dev | https-dev |
 | Invoicetron Prod | https://invoicetron.k8s.rommelporras.com | invoicetron | invoicetron-prod | https |
 | Uptime Kuma | https://uptime.k8s.rommelporras.com | uptime-kuma | uptime-kuma | https |
+| MySpeed | https://myspeed.k8s.rommelporras.com | myspeed | home | https |
 
 ## Adding a New Service
 

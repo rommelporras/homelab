@@ -4,6 +4,67 @@
 
 ---
 
+## February 8, 2026 — Phase 4.20: MySpeed Migration
+
+### Milestone: Internet Speed Tracker Migrated from Proxmox LXC to Kubernetes
+
+Migrated MySpeed internet speed test tracker from Proxmox LXC (10.10.30.6) to Kubernetes cluster. Fresh start with no data migration — K8s instance builds its own speed test history.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| MySpeed | 1.0.9 | Running (home namespace) |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/home/myspeed/deployment.yaml | Deployment with security context (seccomp, drop ALL) |
+| manifests/home/myspeed/pvc.yaml | Longhorn PVC 1Gi for SQLite data |
+| manifests/home/myspeed/service.yaml | ClusterIP Service with named port reference |
+| manifests/home/myspeed/httproute.yaml | HTTPRoute for myspeed.k8s.rommelporras.com |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| manifests/home/homepage/config/services.yaml | Updated Speed Test widget from LXC IP to K8s URL |
+| manifests/uptime-kuma/networkpolicy.yaml | Added port 5216 to CiliumNetworkPolicy for MySpeed monitoring |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Image registry | Docker Hub (`germannewsmaker/myspeed`) | GHCR (`ghcr.io/gnmyt/myspeed`) returned 403 Forbidden |
+| Data migration | Fresh start | SQLite history on LXC during soak period, K8s builds own |
+| Security context | Partial restricted PSS | Image requires root — `runAsNonRoot` breaks data folder creation |
+| Resource limits | 100m/500m CPU, 128Mi/256Mi memory | Peak observed at 78Mi during speed test |
+| Named ports | `http` reference in probes + service | Single source of truth for port number |
+| Uptime Kuma monitors | Standardized all to external URLs | Full chain testing (DNS → Gateway → TLS → Service) over internal URLs for consistency |
+
+### CKA Learnings
+
+| Topic | Concept |
+|-------|---------|
+| PVC access modes | RWO (Longhorn) vs RWX (NFS) — RWO requires Recreate strategy |
+| Named ports | Reference `port: http` in probes/services instead of hardcoded numbers |
+| Pod Security Standards | Not all images support restricted PSS — apply what you can |
+| Kustomize | Homepage uses `-k` flag, not `-f` — `kubectl apply -f` overwrites imperative secrets |
+| Resource right-sizing | Use Prometheus `max_over_time()` to measure peak usage before setting limits |
+
+### Lessons Learned
+
+1. **Always verify container registry** — The phase plan listed `ghcr.io/gnmyt/myspeed` but the image is actually on Docker Hub as `germannewsmaker/myspeed`. GHCR returned 403 Forbidden.
+
+2. **runAsNonRoot breaks some images** — MySpeed needs root to create its `/myspeed/data` folder. Keep other security settings (seccomp, drop ALL, no privilege escalation) even when you can't run as non-root.
+
+3. **kubectl apply -f on Kustomize directories overwrites secrets** — Homepage uses Kustomize with `configMapGenerator`. Running `kubectl apply -f` instead of `kubectl apply -k` applied the placeholder `secret.yaml`, overwriting real credentials. This caused all Homepage widgets to fail with 401 errors.
+
+4. **Rate limiting from bad credentials** — When placeholder secrets triggered repeated 401s, AdGuard and OMV rate-limited the Homepage pod IP. Had to wait for lockout expiry and reset failed counters.
+
+5. **Homepage rebuild guide was incomplete** — The v0.6.0 secret creation command was missing fields added in later phases (AdGuard failover, Karakeep, OpenWRT, Glances user). Also had wrong variable names for OPNsense (USER/PASS vs KEY/SECRET).
+
+---
+
 ## February 5, 2026 — Phase 4.15: Claude Code Monitoring
 
 ### Milestone: Centralized Claude Code Telemetry on Kubernetes

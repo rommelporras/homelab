@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** February 5, 2026
+> **Last Updated:** February 8, 2026
 
 ---
 
@@ -88,7 +88,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.15 complete. Claude Code monitoring via OTel Collector.
+> **Status:** Phase 4.20 complete. MySpeed internet speed tracker migrated from Proxmox LXC.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -102,6 +102,7 @@ helm-homelab repo update
 | Invoicetron | Next.js 16.1.0 | Running | Invoice management (Bun + Prisma) |
 | PostgreSQL (Invoicetron) | 18-alpine | Running | Invoicetron database (StatefulSet) |
 | Uptime Kuma | v2.0.2 (rootless) | Running | Self-hosted uptime monitoring |
+| MySpeed | 1.0.9 | Running | Internet speed test tracker (migrated from LXC) |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -127,6 +128,7 @@ helm-homelab repo update
 | Invoicetron (public) | invoicetron.rommelporras.com (Cloudflare Tunnel) | — | invoicetron-prod |
 | Uptime Kuma | uptime.k8s.rommelporras.com | base | uptime-kuma |
 | Uptime Kuma (public) | status.rommelporras.com (Cloudflare Tunnel) | — | uptime-kuma |
+| MySpeed | myspeed.k8s.rommelporras.com | base | home |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |
@@ -237,6 +239,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-02-08 | **MySpeed Migration:** germannewsmaker/myspeed:1.0.9 migrated from Proxmox LXC to K8s (Phase 4.20) |
 | 2026-02-05 | **Claude Code Monitoring:** OTel Collector v0.144.0 on K8s, Grafana dashboard, cost alerts, Loki event ingestion (Phase 4.15) |
 | 2026-02-05 | **Invoicetron:** Migrated stateful app (Next.js 16 + Bun + PostgreSQL 18 + Prisma 7) to K8s with GitLab CI/CD, Cloudflare Tunnel + Access (Phase 4.9) |
 | 2026-02-04 | **Cloudflare WAF:** Added RSS skip rule + disabled Bot Fight Mode for GitHub Profile README blog workflow |

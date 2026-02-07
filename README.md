@@ -8,7 +8,7 @@
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
 > **Owner:** Rommel Porras
-> **Last Updated:** February 5, 2026
+> **Last Updated:** February 8, 2026
 
 ---
 
@@ -46,6 +46,7 @@
 | Uptime Kuma | ✅ Complete | Endpoint monitoring + public status page |
 | Invoicetron | ✅ Complete | Stateful app (Next.js + PostgreSQL) with GitLab CI/CD |
 | Claude Code Monitoring | ✅ Complete | OTel Collector → Prometheus + Loki + Grafana dashboard |
+| MySpeed Migration | ✅ Complete | Internet speed tracker migrated from Proxmox LXC |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/context/Cluster.md](docs/context/Cluster.md) - Single source of truth
@@ -181,6 +182,7 @@ Step-by-step instructions to rebuild the cluster from scratch:
 | [v0.13.0-uptime-kuma](docs/rebuild/v0.13.0-uptime-kuma.md) | Phase 4.14 | Uptime Kuma endpoint monitoring + public status page |
 | [v0.14.0-invoicetron](docs/rebuild/v0.14.0-invoicetron.md) | Phase 4.9 | Invoicetron (Next.js + PostgreSQL) with GitLab CI/CD |
 | [v0.15.0-claude-monitoring](docs/rebuild/v0.15.0-claude-monitoring.md) | Phase 4.15 | Claude Code monitoring via OTel Collector |
+| [v0.16.0-myspeed](docs/rebuild/v0.16.0-myspeed.md) | Phase 4.20 | MySpeed internet speed tracker migration |
 
 ### Reference
 
@@ -238,7 +240,8 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Feb 3, 2026** | **Uptime Kuma** — Endpoint monitoring + public status page via Cloudflare Tunnel (Phase 4.14) |
 | **Feb 5, 2026** | **Invoicetron** — Stateful app (Next.js + PostgreSQL) migrated to K8s with GitLab CI/CD (Phase 4.9) |
 | **Feb 5, 2026** | **Claude Code Monitoring** — OTel Collector + Grafana dashboard + cost alerts (Phase 4.15) |
-| **Coming** | Tailscale, Immich |
+| **Feb 8, 2026** | **MySpeed Migration** — Internet speed tracker from Proxmox LXC to K8s (Phase 4.20) |
+| **Coming** | Firefox Browser, Cloudflare Analytics, Ollama AI, Karakeep |
 
 See rebuild guides below for detailed project history.
 
@@ -246,8 +249,8 @@ See rebuild guides below for detailed project history.
 
 ## 🚀 Next Steps
 
-1. **Deploy Tailscale Operator** for mobile access (Phase 4.10)
-2. **Deploy Immich** for photo management (Phase 4.11)
+1. **Deploy Firefox Browser** for persistent browser sessions (Phase 4.21)
+2. **Deploy Cloudflare Traffic Analytics** (Phase 4.22)
 3. **CKA Certification** - September 2026 target
 
 ---

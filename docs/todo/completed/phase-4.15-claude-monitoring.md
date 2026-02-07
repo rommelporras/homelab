@@ -227,11 +227,11 @@ New collapsed "Insights" section at bottom of dashboard (4 panels based on untap
 
 ### 4.15.9 Documentation & Release
 
-- [ ] Update all documents listed in the Documentation Checklist below
-- [ ] Add rebuild guide `docs/rebuild/v0.15.0-claude-monitoring.md`
-- [ ] Move this plan to `docs/todo/completed/`
-- [ ] `/commit` — commit all manifests, dashboard, and documentation changes
-- [ ] `/release v0.15.0 "Claude Code Monitoring"` — tag, push, create GitHub release
+- [x] Update all documents listed in the Documentation Checklist below
+- [x] Add rebuild guide `docs/rebuild/v0.15.0-claude-monitoring.md`
+- [x] Move this plan to `docs/todo/completed/`
+- [x] `/commit` — commit all manifests, dashboard, and documentation changes
+- [x] `/release v0.15.0 "Claude Code Monitoring"` — tag, push, create GitHub release
 
 ### 4.15.10 Backport to Open-Source Project ✅ (done in parallel)
 

@@ -51,14 +51,16 @@ spec:
         k8s:io.kubernetes.pod.namespace: monitoring
     toPorts:
     - ports:
-      - port: "3000"
+      - port: "3000"        # Grafana
         protocol: TCP
   - toEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: home
     toPorts:
     - ports:
-      - port: "3000"
+      - port: "3000"        # Homepage, AdGuard web UI
+        protocol: TCP
+      - port: "5216"        # MySpeed
         protocol: TCP
   - toEndpoints:
     - matchLabels:
