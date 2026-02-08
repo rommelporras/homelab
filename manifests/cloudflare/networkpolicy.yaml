@@ -1,7 +1,7 @@
 # manifests/cloudflare/networkpolicy.yaml
 # CiliumNetworkPolicy - Security isolation for cloudflared
 #
-# ALLOWED: DNS, Cloudflare Edge, portfolio, ghost-prod, invoicetron-prod, uptime-kuma
+# ALLOWED: DNS, Cloudflare Edge, portfolio, ghost-prod (Ghost + TrafficAnalytics), invoicetron-prod, uptime-kuma
 # BLOCKED: NAS, GitLab, Grafana, Longhorn, all other private IPs
 #
 apiVersion: cilium.io/v2
@@ -57,13 +57,15 @@ spec:
       - port: "80"
         protocol: TCP
 
-  # Ghost prod namespace (blog.rommelporras.com)
+  # Ghost prod namespace (blog.rommelporras.com, blog-api.rommelporras.com)
   - toEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: ghost-prod
     toPorts:
     - ports:
-      - port: "2368"
+      - port: "2368"        # Ghost
+        protocol: TCP
+      - port: "3000"        # TrafficAnalytics
         protocol: TCP
 
   # Invoicetron namespace (invoicetron.rommelporras.com)

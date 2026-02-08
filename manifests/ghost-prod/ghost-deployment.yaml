@@ -99,6 +99,38 @@ spec:
             secretKeyRef:
               name: ghost-mail
               key: from-address
+        # Tinybird analytics (traffic analytics in Ghost admin)
+        # analytics__url: Ghost proxies /.ghost/analytics/* to TrafficAnalytics service
+        # tinybird__tracker__endpoint: URL ghost-stats.js POSTs page hits to (browser-facing)
+        # tinybird__workspaceId + adminToken: required for Ghost to validate config
+        - name: analytics__url
+          value: "http://ghost-analytics:3000"
+        - name: analytics__enabled
+          value: "true"
+        - name: tinybird__tracker__endpoint
+          value: "https://blog-api.rommelporras.com/api/v1/page_hit"
+        - name: tinybird__tracker__datasource
+          value: "analytics_events"
+        - name: tinybird__workspaceId
+          valueFrom:
+            secretKeyRef:
+              name: ghost-tinybird
+              key: workspace-id
+        - name: tinybird__adminToken
+          valueFrom:
+            secretKeyRef:
+              name: ghost-tinybird
+              key: admin-token
+        - name: tinybird__stats__endpoint
+          valueFrom:
+            secretKeyRef:
+              name: ghost-tinybird
+              key: api-url
+        - name: tinybird__stats__endpointBrowser
+          valueFrom:
+            secretKeyRef:
+              name: ghost-tinybird
+              key: api-url
         # Logging
         - name: logging__level
           value: info

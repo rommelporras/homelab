@@ -83,8 +83,8 @@
 - [x] 4.20.5.5 Update `docs/context/Gateway.md` — add HTTPRoute
 - [x] 4.20.5.6 Create `docs/rebuild/v0.16.0-myspeed.md`
 - [x] 4.20.5.7 `/audit-docs`
-- [ ] 4.20.5.8 `/commit`
-- [ ] 4.20.5.9 `/release v0.16.0 "MySpeed Migration"`
+- [x] 4.20.5.8 `/commit`
+- [x] 4.20.5.9 `/release v0.16.0 "MySpeed Migration"`
 - [x] 4.20.5.10 Move this file to `docs/todo/completed/`
 
 ---

@@ -1,0 +1,19 @@
+# Ghost Traffic Analytics Service
+# Internal ClusterIP for Ghost → TrafficAnalytics proxy communication
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ghost-analytics
+  namespace: ghost-prod
+  labels:
+    app: ghost-analytics
+    app.kubernetes.io/part-of: ghost
+spec:
+  type: ClusterIP
+  selector:
+    app: ghost-analytics
+  ports:
+  - name: http
+    port: 3000
+    targetPort: http
