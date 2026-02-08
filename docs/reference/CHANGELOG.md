@@ -4,6 +4,92 @@
 
 ---
 
+## February 9, 2026 — Phase 4.12.1: Ghost Web Analytics (Tinybird)
+
+### Milestone: Native Web Analytics for Ghost Blog
+
+Integrated Ghost's cookie-free, privacy-preserving web analytics powered by Tinybird. Deployed TrafficAnalytics proxy (`ghost/traffic-analytics:1.0.72`) that enriches page hit data (user agent parsing, referrer, privacy-preserving signatures) before forwarding to Tinybird's event ingestion API.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| TrafficAnalytics | 1.0.72 | Running (ghost-prod namespace) |
+| Tinybird | Free tier (us-east-1 AWS) | Active |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/ghost-prod/analytics-deployment.yaml | TrafficAnalytics proxy Deployment (Fastify/Node.js) |
+| manifests/ghost-prod/analytics-service.yaml | ClusterIP Service for Ghost → TrafficAnalytics |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| manifests/ghost-prod/ghost-deployment.yaml | Added Tinybird env vars (`analytics__*`, `tinybird__*`) using `__` nested config convention |
+| manifests/cloudflare/networkpolicy.yaml | Added port 3000 (TrafficAnalytics) to ghost-prod egress rule for cloudflared |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Analytics provider | Tinybird (Ghost native) | Built-in admin dashboard, cookie-free, no additional Grafana dashboards needed |
+| Tinybird region | US-East-1 (AWS) | No Asia-Pacific regions available; server pushes to Tinybird (not browser), latency acceptable |
+| Proxy memory | 128Mi/256Mi | Container uses ~145MB idle; 128Mi causes OOM kill with zero logs |
+| Public hostname | blog-api.rommelporras.com | Ad-blocker-friendly (avoids "analytics", "tracking", "stats" keywords) |
+| Subdomain level | Single-level | Cloudflare free SSL covers `*.rommelporras.com` only; two-level (`*.blog.rommelporras.com`) fails TLS |
+| Config convention | `tinybird__workspaceId` | Ghost maps `__` to nested config; flat env vars like `TINYBIRD_WORKSPACE_ID` don't work |
+
+### Architecture
+
+```
+Browser (ghost-stats.js)
+    │ POST page hit
+    ▼
+blog-api.rommelporras.com (Cloudflare Tunnel)
+    │
+    ▼
+TrafficAnalytics proxy (ghost-prod:3000)
+    │ Enriches: user agent, referrer, privacy signatures
+    ▼
+Tinybird Events API (us-east-1 AWS)
+    │
+    ▼
+Ghost Admin Dashboard (reads Tinybird stats endpoint)
+```
+
+### CKA Learnings
+
+| Topic | Concept |
+|-------|---------|
+| OOM debugging | Zero `kubectl logs` output = container OOM'd before writing stdout |
+| Nested env vars | Ghost `__` convention maps `a__b__c` → `config.a.b.c` |
+| CiliumNetworkPolicy | New services in existing namespaces need port additions to cloudflared egress |
+| Cloudflare Tunnel | Each service needing browser-direct access needs its own public hostname |
+| TLS wildcard scope | Free Cloudflare SSL covers one subdomain level only |
+
+### Lessons Learned
+
+1. **OOM kill produces zero logs** — A container that exceeds its memory limit before writing any stdout gives empty `kubectl logs`. Diagnose by running the image locally with `docker stats`.
+
+2. **Ghost `__` config convention** — Ghost maps env vars with double-underscore to nested config objects. `tinybird__workspaceId` → `config.tinybird.workspaceId`. The `web_analytics_configured` field checks `_isValidTinybirdConfig()` which validates these nested values.
+
+3. **Ghost does NOT proxy `/.ghost/analytics/`** — In Docker Compose, Caddy handles this routing. In Kubernetes without a reverse proxy, a separate Cloudflare Tunnel hostname is required for browser-facing POST requests.
+
+4. **Cloudflare free SSL subdomain limit** — Universal SSL covers `*.rommelporras.com` but NOT `*.blog.rommelporras.com`. Two-level subdomains fail TLS handshake.
+
+5. **Ad-blocker-friendly naming** — Browser ad blockers filter subdomains containing "analytics", "tracking", "stats". `blog-api` passes through ad blockers.
+
+6. **CiliumNetworkPolicy port additions** — Adding TrafficAnalytics (port 3000) to ghost-prod required updating the cloudflared egress policy. Without it, Cloudflare Tunnel returned 502.
+
+### 1Password Items
+
+| Item | Vault | Fields |
+|------|-------|--------|
+| Ghost Tinybird | Kubernetes | workspace-id, admin-token, tracker-token, api-url |
+
+---
+
 ## February 8, 2026 — Phase 4.20: MySpeed Migration
 
 ### Milestone: Internet Speed Tracker Migrated from Proxmox LXC to Kubernetes

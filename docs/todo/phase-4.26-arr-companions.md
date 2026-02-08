@@ -1,7 +1,7 @@
 # Phase 4.26: ARR Stack Companions & Monitoring
 
 > **Status:** Planned
-> **Target:** v0.22.0
+> **Target:** v0.23.0
 > **Prerequisite:** Phase 4.25 complete (ARR core stack running)
 > **Priority:** Medium (automation + observability for media stack)
 > **DevOps Topics:** CronJobs, Prometheus exporters, Grafana dashboards, network saturation monitoring

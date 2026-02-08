@@ -1,7 +1,7 @@
 # Phase 4.24: Karakeep Migration
 
 > **Status:** Planned
-> **Target:** v0.20.0
+> **Target:** v0.21.0
 > **Prerequisite:** Phase 4.23 complete (Ollama running with qwen2.5:3b)
 > **Priority:** Medium (depends on Ollama)
 > **DevOps Topics:** Application migration, multi-service deployment, cross-namespace communication

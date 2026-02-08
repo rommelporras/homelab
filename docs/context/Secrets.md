@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password]
-updated: 2026-02-05
+updated: 2026-02-09
 ---
 
 # Secrets
@@ -36,6 +36,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Invoicetron Dev | `postgres-password`, `better-auth-secret`, `database-url` | invoicetron-dev namespace |
 | Invoicetron Prod | `postgres-password`, `better-auth-secret`, `database-url` | invoicetron-prod namespace |
 | Invoicetron Deploy Token | `username`, `password` | gitlab-registry imagePullSecret (both namespaces) |
+| Ghost Tinybird | `workspace-id`, `admin-token`, `tracker-token`, `api-url` | Ghost web analytics (TrafficAnalytics proxy) |
 | iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
 
 ## 1Password Paths
@@ -83,6 +84,12 @@ op://Kubernetes/Ghost Prod MySQL/user-password
 # Ghost Admin API (GitLab CI/CD theme deployment)
 op://Kubernetes/Ghost Dev Admin API/key
 op://Kubernetes/Ghost Prod Admin API/key
+
+# Ghost Tinybird (web analytics)
+op://Kubernetes/Ghost Tinybird/workspace-id
+op://Kubernetes/Ghost Tinybird/admin-token
+op://Kubernetes/Ghost Tinybird/tracker-token
+op://Kubernetes/Ghost Tinybird/api-url
 
 # Ghost Mail (reuses iCloud SMTP - see above)
 

@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.16.0 (MySpeed Migration)
+> **Latest Release:** v0.17.0 (Ghost Web Analytics)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -25,14 +25,15 @@
 | v0.14.0 | Invoicetron (Next.js + PostgreSQL) | Phase 4.9 | ✅ Released |
 | v0.15.0 | Claude Code Monitoring (OTel Collector) | Phase 4.15 | ✅ Released |
 | v0.16.0 | MySpeed Migration | Phase 4.20 | ✅ Released |
-| v0.17.0 | Firefox Browser (KasmVNC) | Phase 4.21 | ⬜ Planned |
-| v0.18.0 | Cloudflare Traffic Analytics | Phase 4.22 | ⬜ Planned |
-| v0.19.0 | Ollama Local AI (CPU) | Phase 4.23 | ⬜ Planned |
-| v0.20.0 | Karakeep Migration | Phase 4.24 | ⬜ Planned |
-| v0.21.0 | ARR Stack Core | Phase 4.25 | ⬜ Planned |
-| v0.22.0 | ARR Companions | Phase 4.26 | ⬜ Planned |
-| v0.23.0 | Tailscale Operator | Phase 4.10 | ⬜ Planned |
-| v0.24.0 | Production Hardening | Phase 5 | ⬜ Planned |
+| v0.17.0 | Ghost Web Analytics (Tinybird) | Phase 4.12.1 | ✅ Released |
+| v0.18.0 | Firefox Browser (KasmVNC) | Phase 4.21 | ⬜ Planned |
+| v0.19.0 | Cloudflare Traffic Analytics | Phase 4.22 | ⬜ Planned |
+| v0.20.0 | Ollama Local AI (CPU) | Phase 4.23 | ⬜ Planned |
+| v0.21.0 | Karakeep Migration | Phase 4.24 | ⬜ Planned |
+| v0.22.0 | ARR Stack Core | Phase 4.25 | ⬜ Planned |
+| v0.23.0 | ARR Companions | Phase 4.26 | ⬜ Planned |
+| v0.24.0 | Tailscale Operator | Phase 4.10 | ⬜ Planned |
+| v0.25.0 | Production Hardening | Phase 5 | ⬜ Planned |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 
 ---
@@ -61,6 +62,7 @@
 | 4.14 | Uptime Kuma | [phase-4.14-uptime-kuma.md](completed/phase-4.14-uptime-kuma.md) |
 | 4.15 | Claude Code Monitoring | [phase-4.15-claude-monitoring.md](completed/phase-4.15-claude-monitoring.md) |
 | 4.20 | MySpeed Migration | [phase-4.20-myspeed.md](completed/phase-4.20-myspeed.md) |
+| 4.12.1 | Ghost Web Analytics (Tinybird) | [phase-4.12.1-ghost-analytics.md](completed/phase-4.12.1-ghost-analytics.md) |
 
 ### Planned
 
@@ -107,6 +109,8 @@
 | Namespace | Contents | Database |
 |-----------|----------|----------|
 | `home` | AdGuard, Homepage, MySpeed | None (stateless) / SQLite |
+| `ghost-prod` | Ghost Blog, MySQL, TrafficAnalytics | MySQL 8.4.8 |
+| `ghost-dev` | Ghost Blog (dev), MySQL | MySQL 8.4.8 |
 | `portfolio` | rommelporras.com (static Next.js) | None (static nginx) |
 | `invoicetron` | Invoice processing app | Own PostgreSQL |
 | `immich` | Immich server, ML, Redis | Own PostgreSQL |

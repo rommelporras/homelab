@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** February 8, 2026
+> **Last Updated:** February 9, 2026
 
 ---
 
@@ -88,7 +88,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.20 complete. MySpeed internet speed tracker migrated from Proxmox LXC.
+> **Status:** Phase 4.12.1 complete. Ghost web analytics (Tinybird) integrated.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -103,6 +103,7 @@ helm-homelab repo update
 | PostgreSQL (Invoicetron) | 18-alpine | Running | Invoicetron database (StatefulSet) |
 | Uptime Kuma | v2.0.2 (rootless) | Running | Self-hosted uptime monitoring |
 | MySpeed | 1.0.9 | Running | Internet speed test tracker (migrated from LXC) |
+| TrafficAnalytics | 1.0.72 | Running | Ghost analytics proxy (browser → Tinybird) |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -123,6 +124,7 @@ helm-homelab repo update
 | Ghost Prod | blog.k8s.rommelporras.com | base | ghost-prod |
 | Ghost Dev | blog.dev.k8s.rommelporras.com | dev | ghost-dev |
 | Ghost Prod (public) | blog.rommelporras.com (Cloudflare Tunnel) | — | ghost-prod |
+| Ghost Analytics (public) | blog-api.rommelporras.com (Cloudflare Tunnel) | — | ghost-prod |
 | Invoicetron Prod | invoicetron.k8s.rommelporras.com | base | invoicetron-prod |
 | Invoicetron Dev | invoicetron.dev.k8s.rommelporras.com | dev | invoicetron-dev |
 | Invoicetron (public) | invoicetron.rommelporras.com (Cloudflare Tunnel) | — | invoicetron-prod |
@@ -239,6 +241,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-02-09 | **Ghost Web Analytics:** TrafficAnalytics proxy 1.0.72 + Tinybird integration for cookie-free blog analytics (Phase 4.12.1) |
 | 2026-02-08 | **MySpeed Migration:** germannewsmaker/myspeed:1.0.9 migrated from Proxmox LXC to K8s (Phase 4.20) |
 | 2026-02-05 | **Claude Code Monitoring:** OTel Collector v0.144.0 on K8s, Grafana dashboard, cost alerts, Loki event ingestion (Phase 4.15) |
 | 2026-02-05 | **Invoicetron:** Migrated stateful app (Next.js 16 + Bun + PostgreSQL 18 + Prisma 7) to K8s with GitLab CI/CD, Cloudflare Tunnel + Access (Phase 4.9) |

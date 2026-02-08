@@ -1,6 +1,6 @@
 ---
-tags: [homelab, kubernetes, external-services, cloudflare, analytics, smtp]
-updated: 2026-02-05
+tags: [homelab, kubernetes, external-services, cloudflare, analytics, tinybird, smtp]
+updated: 2026-02-09
 ---
 
 # External Services
@@ -59,6 +59,7 @@ Exposes public services from the cluster without opening firewall ports.
 |----------|---------|
 | www.rommelporras.com | portfolio-prod/portfolio |
 | blog.rommelporras.com | ghost-prod/ghost |
+| blog-api.rommelporras.com | ghost-prod/ghost-analytics |
 | status.rommelporras.com | uptime-kuma/uptime-kuma |
 | invoicetron.rommelporras.com | invoicetron-prod/invoicetron |
 
@@ -151,6 +152,26 @@ Apple iCloud SMTP for email notifications. Requires an app-specific password gen
 **Used by:** Alertmanager, GitLab, Ghost (dev + prod)
 
 **Alert recipients:** critical@rommelporras.com, r3mmel023@gmail.com, rommelcporras@gmail.com
+
+## Tinybird (Ghost Web Analytics)
+
+Cookie-free, privacy-preserving web analytics for the Ghost blog. Ghost's native integration sends page hits through a TrafficAnalytics proxy to Tinybird's event ingestion API.
+
+| Setting | Value |
+|---------|-------|
+| Region | US-East-1 (AWS) |
+| Plan | Free tier |
+| Workspace | Ghost analytics |
+| Secret | `op://Kubernetes/Ghost Tinybird/{workspace-id,admin-token,tracker-token,api-url}` |
+| Console | [tinybird.co](https://www.tinybird.co) |
+
+**Architecture:**
+- `ghost-stats.min.js` (injected by Ghost) POSTs page hits from browser to `blog-api.rommelporras.com`
+- TrafficAnalytics proxy (`ghost/traffic-analytics:1.0.72`) enriches data (user agent, referrer, privacy signatures)
+- Proxy forwards to Tinybird Events API (`https://api.us-east.aws.tinybird.co/v0/events`)
+- Ghost admin dashboard reads stats from Tinybird's stats endpoint
+
+**Note:** No Asia-Pacific Tinybird regions available. US-East is closest to Philippines. Server pushes to Tinybird (not the client browser), so region only affects server-side latency.
 
 ## Domain
 

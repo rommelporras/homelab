@@ -1,7 +1,7 @@
 # Phase 4.21: Containerized Firefox Browser
 
 > **Status:** Planned
-> **Target:** v0.17.0
+> **Target:** v0.18.0
 > **Prerequisite:** Gateway API + Longhorn storage running
 > **Priority:** High (daily-use productivity tool)
 > **DevOps Topics:** KasmVNC, persistent sessions, container isolation

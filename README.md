@@ -8,7 +8,7 @@
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
 > **Owner:** Rommel Porras
-> **Last Updated:** February 8, 2026
+> **Last Updated:** February 9, 2026
 
 ---
 
@@ -47,6 +47,7 @@
 | Invoicetron | ✅ Complete | Stateful app (Next.js + PostgreSQL) with GitLab CI/CD |
 | Claude Code Monitoring | ✅ Complete | OTel Collector → Prometheus + Loki + Grafana dashboard |
 | MySpeed Migration | ✅ Complete | Internet speed tracker migrated from Proxmox LXC |
+| Ghost Web Analytics | ✅ Complete | Cookie-free Tinybird analytics for blog |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/context/Cluster.md](docs/context/Cluster.md) - Single source of truth
@@ -183,6 +184,7 @@ Step-by-step instructions to rebuild the cluster from scratch:
 | [v0.14.0-invoicetron](docs/rebuild/v0.14.0-invoicetron.md) | Phase 4.9 | Invoicetron (Next.js + PostgreSQL) with GitLab CI/CD |
 | [v0.15.0-claude-monitoring](docs/rebuild/v0.15.0-claude-monitoring.md) | Phase 4.15 | Claude Code monitoring via OTel Collector |
 | [v0.16.0-myspeed](docs/rebuild/v0.16.0-myspeed.md) | Phase 4.20 | MySpeed internet speed tracker migration |
+| [v0.17.0-ghost-analytics](docs/rebuild/v0.17.0-ghost-analytics.md) | Phase 4.12.1 | Ghost web analytics with Tinybird |
 
 ### Reference
 
@@ -241,6 +243,7 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Feb 5, 2026** | **Invoicetron** — Stateful app (Next.js + PostgreSQL) migrated to K8s with GitLab CI/CD (Phase 4.9) |
 | **Feb 5, 2026** | **Claude Code Monitoring** — OTel Collector + Grafana dashboard + cost alerts (Phase 4.15) |
 | **Feb 8, 2026** | **MySpeed Migration** — Internet speed tracker from Proxmox LXC to K8s (Phase 4.20) |
+| **Feb 9, 2026** | **Ghost Web Analytics** — Tinybird integration with TrafficAnalytics proxy for cookie-free blog analytics (Phase 4.12.1) |
 | **Coming** | Firefox Browser, Cloudflare Analytics, Ollama AI, Karakeep |
 
 See rebuild guides below for detailed project history.
@@ -250,7 +253,7 @@ See rebuild guides below for detailed project history.
 ## 🚀 Next Steps
 
 1. **Deploy Firefox Browser** for persistent browser sessions (Phase 4.21)
-2. **Deploy Cloudflare Traffic Analytics** (Phase 4.22)
+2. **Deploy Cloudflare Traffic Analytics** for infrastructure-level metrics (Phase 4.22)
 3. **CKA Certification** - September 2026 target
 
 ---

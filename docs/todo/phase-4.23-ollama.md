@@ -1,7 +1,7 @@
 # Phase 4.23: Ollama Local AI
 
 > **Status:** Planned
-> **Target:** v0.19.0
+> **Target:** v0.20.0
 > **Prerequisite:** Longhorn storage running, sufficient node resources
 > **Priority:** Medium (foundation for Karakeep AI tagging)
 > **DevOps Topics:** LLM inference, CPU-only ML workloads, resource management

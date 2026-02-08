@@ -1,7 +1,7 @@
 # Phase 4.25: ARR Media Stack
 
 > **Status:** Planned
-> **Target:** v0.21.0
+> **Target:** v0.22.0
 > **Prerequisite:** Longhorn + Gateway API + NFS storage on OMV NAS running
 > **Priority:** Medium (media automation platform)
 > **DevOps Topics:** NFS storage, multi-app deployment, cross-app API integration, hardlinks
