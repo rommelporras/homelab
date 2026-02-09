@@ -4,6 +4,42 @@
 
 ---
 
+## February 9, 2026 — Phase 4.21: Containerized Firefox Browser
+
+### Milestone: Persistent Browser Session via KasmVNC
+
+Deployed containerized Firefox accessible from any LAN device via `browser.k8s.rommelporras.com`. Uses KasmVNC for WebSocket-based display streaming — close the tab on one device, open the URL on another, same session. Firefox profile (bookmarks, cookies, extensions, open tabs) persists on Longhorn PVC.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| linuxserver/firefox | latest (lscr.io) | Running (browser namespace) |
+
+### Key Decisions
+
+- **`latest` tag instead of pinning** — Browser security patches are frequent; `imagePullPolicy: Always` ensures fresh pulls on restart
+- **AdGuard DNS routing** — Pod uses `dnsPolicy: None` with AdGuard primary (10.10.30.53) + failover (10.10.30.54) for ad-blocking and privacy
+- **LAN-only access** — NOT exposed via Cloudflare Tunnel (browser session = full machine access to logged-in accounts)
+- **TCP probes instead of HTTP** — Basic auth returns 401 on unauthenticated requests, so HTTP probes would always fail
+- **Least-privilege capabilities** — `drop: ALL` + add back only CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER (required by LinuxServer s6 init)
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/browser/namespace.yaml | Browser namespace with baseline PSS (audit/warn restricted) |
+| manifests/browser/deployment.yaml | Firefox Deployment with KasmVNC, AdGuard DNS, auth from Secret |
+| manifests/browser/pvc.yaml | Longhorn PVC (2Gi) for Firefox profile persistence |
+| manifests/browser/service.yaml | ClusterIP Service (port 3000) |
+| manifests/browser/httproute.yaml | HTTPRoute for browser.k8s.rommelporras.com |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| manifests/home/homepage/config/services.yaml | Added Firefox Browser to Apps, Uptime Kuma widget to Health section |
+
+---
+
 ## February 9, 2026 — Phase 4.12.1: Ghost Web Analytics (Tinybird)
 
 ### Milestone: Native Web Analytics for Ghost Blog

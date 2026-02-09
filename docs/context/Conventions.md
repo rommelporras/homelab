@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-02-05
+updated: 2026-02-09
 ---
 
 # Conventions
@@ -77,10 +77,12 @@ homelab/
 │   ├── home/                # Home services (AdGuard, Homepage)
 │   ├── invoicetron/         # Invoicetron app + PostgreSQL + backup
 │   ├── monitoring/          # Grafana, probes, alerts, dashboards
+│   ├── myspeed/             # MySpeed internet speed tracker
 │   ├── network-policies/    # Namespace network policies
 │   ├── portfolio/           # Portfolio deployment + RBAC
 │   ├── storage/             # Longhorn HTTPRoute, NFS PVs
-│   └── uptime-kuma/         # Uptime Kuma StatefulSet
+│   ├── uptime-kuma/         # Uptime Kuma StatefulSet
+│   └── browser/             # Firefox browser (KasmVNC)
 ├── scripts/                 # Automation scripts
 │   ├── upgrade-prometheus.sh
 │   ├── sync-ghost-prod-to-dev.sh
@@ -88,7 +90,7 @@ homelab/
 │   └── test-cloudflare-networkpolicy.sh
 ├── docs/
 │   ├── context/             # This knowledge base (RAG source)
-│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.15.0)
+│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.18.0)
 │   ├── todo/                # Active and completed phase plans
 │   └── reference/           # CHANGELOG, historical docs
 └── ansible/                 # Bootstrap automation

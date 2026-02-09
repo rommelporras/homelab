@@ -68,6 +68,7 @@ ssh wawashi@cp3.k8s.rommelporras.com
 | invoicetron-dev | Invoicetron dev environment |
 | invoicetron-prod | Invoicetron production environment |
 | uptime-kuma | Uptime Kuma endpoint monitoring |
+| browser | Containerized Firefox browser (KasmVNC) |
 
 ## System
 

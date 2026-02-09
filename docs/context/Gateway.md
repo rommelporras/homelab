@@ -37,13 +37,13 @@ Gateway API for HTTPS ingress with automatic TLS certificates.
 |  Port 443 - https-stg (*.stg.k8s.rommelporras.com)   |
 +-----------------------------------------------------+
                             |
-    +-------+-------+-------+-------+-------+---------+---------+---------+---------+---------+
-    v       v       v       v       v       v         v         v         v         v
-+------++------++------++------++------++--------++--------++--------++--------++--------+
-|Grafan||AdGuar||Homepg||Longh.||GitLab||Portfol.||Ghost   ||Invoice-||Uptime  ||MySpeed |
-| base || base || base || base || base ||dev/stg/ ||dev/prod|| tron   || Kuma   || base   |
-|      ||      ||      ||      ||      || prod   ||        ||dev/prod|| base   ||        |
-+------++------++------++------++------++--------++--------++--------++--------++--------+
+    +-------+-------+-------+-------+-------+---------+---------+---------+---------+---------+---------+
+    v       v       v       v       v       v         v         v         v         v         v
++------++------++------++------++------++--------++--------++--------++--------++--------++--------+
+|Grafan||AdGuar||Homepg||Longh.||GitLab||Portfol.||Ghost   ||Invoice-||Uptime  ||MySpeed ||Firefox |
+| base || base || base || base || base ||dev/stg/ ||dev/prod|| tron   || Kuma   || base   || base   |
+|      ||      ||      ||      ||      || prod   ||        ||dev/prod|| base   ||        ||        |
++------++------++------++------++------++--------++--------++--------++--------++--------++--------+
 ```
 
 ## Components
@@ -122,6 +122,7 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 | Invoicetron Prod | https://invoicetron.k8s.rommelporras.com | invoicetron | invoicetron-prod | https |
 | Uptime Kuma | https://uptime.k8s.rommelporras.com | uptime-kuma | uptime-kuma | https |
 | MySpeed | https://myspeed.k8s.rommelporras.com | myspeed | home | https |
+| Firefox Browser | https://browser.k8s.rommelporras.com | firefox | browser | https |
 
 ## Adding a New Service
 

@@ -48,6 +48,7 @@
 | Claude Code Monitoring | ✅ Complete | OTel Collector → Prometheus + Loki + Grafana dashboard |
 | MySpeed Migration | ✅ Complete | Internet speed tracker migrated from Proxmox LXC |
 | Ghost Web Analytics | ✅ Complete | Cookie-free Tinybird analytics for blog |
+| Firefox Browser | ✅ Complete | Persistent browser via KasmVNC (LAN-only) |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/context/Cluster.md](docs/context/Cluster.md) - Single source of truth
@@ -185,6 +186,7 @@ Step-by-step instructions to rebuild the cluster from scratch:
 | [v0.15.0-claude-monitoring](docs/rebuild/v0.15.0-claude-monitoring.md) | Phase 4.15 | Claude Code monitoring via OTel Collector |
 | [v0.16.0-myspeed](docs/rebuild/v0.16.0-myspeed.md) | Phase 4.20 | MySpeed internet speed tracker migration |
 | [v0.17.0-ghost-analytics](docs/rebuild/v0.17.0-ghost-analytics.md) | Phase 4.12.1 | Ghost web analytics with Tinybird |
+| [v0.18.0-firefox-browser](docs/rebuild/v0.18.0-firefox-browser.md) | Phase 4.21 | Containerized Firefox browser (KasmVNC) |
 
 ### Reference
 
@@ -244,7 +246,8 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Feb 5, 2026** | **Claude Code Monitoring** — OTel Collector + Grafana dashboard + cost alerts (Phase 4.15) |
 | **Feb 8, 2026** | **MySpeed Migration** — Internet speed tracker from Proxmox LXC to K8s (Phase 4.20) |
 | **Feb 9, 2026** | **Ghost Web Analytics** — Tinybird integration with TrafficAnalytics proxy for cookie-free blog analytics (Phase 4.12.1) |
-| **Coming** | Firefox Browser, Cloudflare Analytics, Ollama AI, Karakeep |
+| **Feb 9, 2026** | **Firefox Browser** — Persistent Firefox via KasmVNC with AdGuard DNS, basic auth, session persistence (Phase 4.21) |
+| **Coming** | Cloudflare Analytics, Ollama AI, Karakeep Migration |
 
 See rebuild guides below for detailed project history.
 
@@ -252,8 +255,8 @@ See rebuild guides below for detailed project history.
 
 ## 🚀 Next Steps
 
-1. **Deploy Firefox Browser** for persistent browser sessions (Phase 4.21)
-2. **Deploy Cloudflare Traffic Analytics** for infrastructure-level metrics (Phase 4.22)
+1. **Deploy Cloudflare Traffic Analytics** for infrastructure-level metrics (Phase 4.22)
+2. **Deploy Ollama Local AI** for CPU-based local AI inference (Phase 4.23)
 3. **CKA Certification** - September 2026 target
 
 ---

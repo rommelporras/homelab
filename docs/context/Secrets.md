@@ -37,6 +37,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Invoicetron Prod | `postgres-password`, `better-auth-secret`, `database-url` | invoicetron-prod namespace |
 | Invoicetron Deploy Token | `username`, `password` | gitlab-registry imagePullSecret (both namespaces) |
 | Ghost Tinybird | `workspace-id`, `admin-token`, `tracker-token`, `api-url` | Ghost web analytics (TrafficAnalytics proxy) |
+| Firefox Browser | `username`, `password` | Firefox KasmVNC basic auth (browser namespace) |
 | iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
 
 ## 1Password Paths
@@ -110,6 +111,10 @@ op://Kubernetes/Invoicetron Prod/database-url
 # Invoicetron Deploy Token (private registry imagePullSecret)
 op://Kubernetes/Invoicetron Deploy Token/username
 op://Kubernetes/Invoicetron Deploy Token/password
+
+# Firefox Browser (KasmVNC auth)
+op://Kubernetes/Firefox Browser/username
+op://Kubernetes/Firefox Browser/password
 
 # Homepage (widget credentials)
 op://Kubernetes/Homepage/proxmox-pve-user

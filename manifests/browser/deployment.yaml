@@ -60,10 +60,10 @@ spec:
           resources:
             requests:
               cpu: "250m"
-              memory: "512Mi"
+              memory: "1Gi"
             limits:
               cpu: "2"
-              memory: "2Gi"
+              memory: "4Gi"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -97,4 +97,4 @@ spec:
         - name: shm
           emptyDir:
             medium: Memory
-            sizeLimit: 1Gi
+            sizeLimit: 2Gi

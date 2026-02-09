@@ -88,7 +88,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.12.1 complete. Ghost web analytics (Tinybird) integrated.
+> **Status:** Phase 4.21 complete. Firefox browser deployed with KasmVNC.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -104,6 +104,7 @@ helm-homelab repo update
 | Uptime Kuma | v2.0.2 (rootless) | Running | Self-hosted uptime monitoring |
 | MySpeed | 1.0.9 | Running | Internet speed test tracker (migrated from LXC) |
 | TrafficAnalytics | 1.0.72 | Running | Ghost analytics proxy (browser → Tinybird) |
+| Firefox Browser | latest (lscr.io/linuxserver/firefox) | Running | Persistent browser via KasmVNC (LAN-only) |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -131,6 +132,7 @@ helm-homelab repo update
 | Uptime Kuma | uptime.k8s.rommelporras.com | base | uptime-kuma |
 | Uptime Kuma (public) | status.rommelporras.com (Cloudflare Tunnel) | — | uptime-kuma |
 | MySpeed | myspeed.k8s.rommelporras.com | base | home |
+| Firefox Browser | browser.k8s.rommelporras.com | base | browser |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |
@@ -241,6 +243,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-02-09 | **Firefox Browser:** Persistent Firefox via KasmVNC with AdGuard DNS routing, basic auth, Longhorn storage (Phase 4.21) |
 | 2026-02-09 | **Ghost Web Analytics:** TrafficAnalytics proxy 1.0.72 + Tinybird integration for cookie-free blog analytics (Phase 4.12.1) |
 | 2026-02-08 | **MySpeed Migration:** germannewsmaker/myspeed:1.0.9 migrated from Proxmox LXC to K8s (Phase 4.20) |
 | 2026-02-05 | **Claude Code Monitoring:** OTel Collector v0.144.0 on K8s, Grafana dashboard, cost alerts, Loki event ingestion (Phase 4.15) |
