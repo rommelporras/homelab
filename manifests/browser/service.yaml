@@ -1,0 +1,16 @@
+# ClusterIP Service for Firefox browser
+# Accessed via Gateway API HTTPRoute — no external IP needed
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: firefox
+  namespace: browser
+spec:
+  type: ClusterIP
+  selector:
+    app: firefox
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000

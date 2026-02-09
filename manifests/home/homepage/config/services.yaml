@@ -194,13 +194,24 @@
         statusStyle: dot
         siteMonitor: https://blog.rommelporras.com
 
-- Health:
-    - UPS Status:
-        icon: mdi-battery-charging
-        href: https://grafana.k8s.rommelporras.com/d/ups-monitoring
-        description: CyberPower UPS
+    - Firefox Browser:
+        icon: firefox.png
+        href: https://browser.k8s.rommelporras.com
+        description: Persistent Browser (KasmVNC)
         statusStyle: dot
-        siteMonitor: https://grafana.k8s.rommelporras.com/d/ups-monitoring
+        siteMonitor: https://browser.k8s.rommelporras.com
+
+- Health:
+    - Uptime Kuma:
+        icon: uptime-kuma.png
+        href: https://uptime.k8s.rommelporras.com
+        description: Service Monitoring
+        statusStyle: dot
+        siteMonitor: https://uptime.k8s.rommelporras.com
+        widget:
+          type: uptimekuma
+          url: https://uptime.k8s.rommelporras.com
+          slug: homelab
 
     - Speed Test:
         icon: myspeed.png
@@ -210,6 +221,13 @@
         widget:
           type: myspeed
           url: https://myspeed.k8s.rommelporras.com
+
+    - UPS Status:
+        icon: mdi-battery-charging
+        href: https://grafana.k8s.rommelporras.com/d/ups-monitoring
+        description: CyberPower UPS
+        statusStyle: dot
+        siteMonitor: https://grafana.k8s.rommelporras.com/d/ups-monitoring
 
 #############################################
 # TAB 2: INFRASTRUCTURE DETAILS

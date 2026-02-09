@@ -1,0 +1,15 @@
+# Longhorn PVC for Firefox browser profile
+# Stores: bookmarks, cookies, extensions, open tabs, browsing history
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: firefox-config
+  namespace: browser
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi

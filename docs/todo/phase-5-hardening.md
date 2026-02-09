@@ -242,7 +242,17 @@ Without RBAC:                    With RBAC:
   # - Remove hostNetwork, hostPID, hostIPC
   ```
 
-- [ ] 5.3.4 Enforce baseline on application namespaces
+- [ ] 5.3.4 Create namespace.yaml manifests for existing namespaces that lack them
+  - Namespaces created by Helm (`--create-namespace`) or manually (`kubectl create ns`) have no declarative manifest in git
+  - Add `namespace.yaml` to each `manifests/` directory (e.g., `home`, `ghost-prod`, `portfolio`, etc.)
+  - Include PSS labels on each so they are version-controlled and reproducible during rebuild
+
+- [ ] 5.3.5 Reorganize flat manifest directories into service-based subdirectories
+  - `manifests/home/` is the gold standard: `adguard/`, `homepage/`, `myspeed/` + shared `namespace.yaml`
+  - `manifests/monitoring/` has 18+ files flat with no grouping — reorganize into subdirectories (e.g., `grafana/`, `alerts/`, `dashboards/`, `otel/`, etc.)
+  - Apply same pattern to any other flat manifest directories
+
+- [ ] 5.3.6 Enforce baseline on application namespaces
   ```bash
   # Apply baseline to all app namespaces
   for ns in portfolio invoicetron home; do

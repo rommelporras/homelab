@@ -103,10 +103,10 @@
 - [ ] 4.21.5.5 Update `docs/context/Cluster.md` — add `browser` namespace
 - [ ] 4.21.5.6 Update `docs/context/Gateway.md` — add HTTPRoute
 - [ ] 4.21.5.7 Update `docs/context/Secrets.md` — add Firefox Browser 1Password item
-- [ ] 4.21.5.8 Create `docs/rebuild/v0.17.0-firefox-browser.md`
+- [ ] 4.21.5.8 Create `docs/rebuild/v0.18.0-firefox-browser.md`
 - [ ] 4.21.5.9 `/audit-docs`
 - [ ] 4.21.5.10 `/commit`
-- [ ] 4.21.5.11 `/release v0.17.0 "Containerized Firefox Browser"`
+- [ ] 4.21.5.11 `/release v0.18.0 "Containerized Firefox Browser"`
 - [ ] 4.21.5.12 Move this file to `docs/todo/completed/`
 
 ---

@@ -1,0 +1,100 @@
+# Firefox Browser Deployment
+# Persistent Firefox via KasmVNC — access from any device on the LAN
+#
+# Image docs: https://docs.linuxserver.io/images/docker-firefox
+# Auth: CUSTOM_USER + PASSWORD from firefox-auth Secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: firefox
+  namespace: browser
+  labels:
+    app: firefox
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # PVC is RWO — only one pod can mount at a time
+  selector:
+    matchLabels:
+      app: firefox
+  template:
+    metadata:
+      labels:
+        app: firefox
+    spec:
+      dnsPolicy: None  # bypass cluster DNS — use AdGuard for ad-blocking + privacy
+      dnsConfig:
+        nameservers:
+          - 10.10.30.53  # AdGuard Home primary (K8s LoadBalancer VIP)
+          - 10.10.30.54  # AdGuard Home failover (LXC)
+      securityContext:
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: firefox
+          image: lscr.io/linuxserver/firefox:latest
+          imagePullPolicy: Always  # latest tag — always pull for security patches
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: CUSTOM_USER
+              valueFrom:
+                secretKeyRef:
+                  name: firefox-auth
+                  key: username
+            - name: PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: firefox-auth
+                  key: password
+            - name: TZ
+              value: "Asia/Manila"
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN        # s6 init needs to chown /config, /run, nginx dirs
+                - SETUID       # s6 needs to switch to PUID user
+                - SETGID       # s6 needs to set supplementary groups
+                - DAC_OVERRIDE # nginx needs to write to /var/log/nginx/
+                - FOWNER       # s6 init needs chmod on /config files
+          volumeMounts:
+            - name: firefox-config
+              mountPath: /config
+            - name: shm
+              mountPath: /dev/shm  # Firefox needs >64MB shared memory for tab rendering
+          livenessProbe:
+            tcpSocket:  # TCP not HTTP — basic auth returns 401 on unauthenticated requests
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+      volumes:
+        - name: firefox-config
+          persistentVolumeClaim:
+            claimName: firefox-config
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
