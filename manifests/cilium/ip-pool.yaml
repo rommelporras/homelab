@@ -10,6 +10,9 @@ spec:
   blocks:
     # Range for LoadBalancer services
     # - 10.10.30.20: Gateway (primary)
-    # - 10.10.30.21-50: Future services (AdGuard, etc.)
+    # - 10.10.30.21: GitLab SSH
+    # - 10.10.30.22: OTel Collector
+    # - 10.10.30.53: AdGuard DNS
+    # - 10.10.30.23-99: Future services
     - start: "10.10.30.20"
-      stop: "10.10.30.50"
+      stop: "10.10.30.99"
