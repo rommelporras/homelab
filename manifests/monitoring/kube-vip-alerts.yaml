@@ -1,0 +1,62 @@
+# PrometheusRule for kube-vip Alerts
+# Monitor VIP health across all control plane nodes
+#
+# Metrics used:
+#   up{job="kube-vip"} — target reachability (from ServiceMonitor scrape)
+#   kube_lease_owner{lease="plndr-cp-lock"} — leader identity (from kube-state-metrics)
+#   kube_lease_renew_time{lease="plndr-cp-lock"} — lease freshness (from kube-state-metrics)
+#
+# Apply:
+#   kubectl-homelab apply -f manifests/monitoring/kube-vip-alerts.yaml
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kube-vip-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: kube-vip
+      rules:
+        # One kube-vip instance unreachable
+        - alert: KubeVipInstanceDown
+          expr: up{job="kube-vip"} == 0
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "kube-vip instance {{ $labels.instance }} is down"
+            description: "kube-vip on {{ $labels.instance }} has been unreachable for 2 minutes. VIP failover should handle this, but investigate the node."
+
+        # ALL kube-vip instances unreachable
+        - alert: KubeVipAllDown
+          expr: count(up{job="kube-vip"} == 1) == 0 or absent(up{job="kube-vip"})
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "All kube-vip instances are down"
+            description: "No kube-vip instance is reachable. The API server VIP (10.10.30.10) may be unreachable. Immediate investigation required."
+
+        # Leader election lease not renewed (stale lease)
+        - alert: KubeVipLeaseStale
+          expr: time() - kube_lease_renew_time{lease="plndr-cp-lock", namespace="kube-system"} > 30
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "kube-vip leader lease is stale"
+            description: "The plndr-cp-lock lease has not been renewed in {{ $value | humanizeDuration }}. Leader election may be stuck. Current holder: check lease object."
+
+        # Frequent pod restarts (detect crash loops)
+        - alert: KubeVipHighRestarts
+          expr: increase(kube_pod_container_status_restarts_total{namespace="kube-system", container="kube-vip"}[1h]) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "kube-vip on {{ $labels.pod }} is restarting frequently"
+            description: "kube-vip container on {{ $labels.pod }} has restarted {{ $value | humanize }} times in the last hour. Check node logs for crash reasons."

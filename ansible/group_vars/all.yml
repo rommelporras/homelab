@@ -40,7 +40,7 @@ service_cidr: "10.96.0.0/12"
 # =============================================================================
 
 # kube-vip (check: https://github.com/kube-vip/kube-vip/releases)
-kubevip_version: "v1.0.3"
+kubevip_version: "v1.0.4"
 kubevip_image: "ghcr.io/kube-vip/kube-vip:{{ kubevip_version }}"
 
 # Cilium CNI (check: https://github.com/cilium/cilium/releases)

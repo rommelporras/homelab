@@ -1,0 +1,66 @@
+# kube-vip Prometheus Monitoring
+# Scrapes metrics from kube-vip static pods on all control plane nodes
+#
+# kube-vip runs as a static pod on hostNetwork (port 2112)
+# Since static pods have no Service selector, we use manual Endpoints
+#
+# Metrics available: Go runtime + process metrics (no custom kube-vip metrics)
+# Leader election monitored via kube-state-metrics lease metrics
+#
+# Apply:
+#   kubectl-homelab apply -f manifests/monitoring/kube-vip-monitoring.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-vip
+  namespace: monitoring
+  labels:
+    app: kube-vip
+    app.kubernetes.io/name: kube-vip
+    app.kubernetes.io/component: networking
+spec:
+  clusterIP: None
+  ports:
+    - name: metrics
+      port: 2112
+      targetPort: 2112
+      protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: kube-vip
+  namespace: monitoring
+  labels:
+    app: kube-vip
+    app.kubernetes.io/name: kube-vip
+subsets:
+  - addresses:
+      - ip: 10.10.30.11
+        nodeName: k8s-cp1
+      - ip: 10.10.30.12
+        nodeName: k8s-cp2
+      - ip: 10.10.30.13
+        nodeName: k8s-cp3
+    ports:
+      - name: metrics
+        port: 2112
+        protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kube-vip
+  namespace: monitoring
+  labels:
+    app: kube-vip
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: kube-vip
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics
