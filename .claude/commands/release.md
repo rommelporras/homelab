@@ -167,8 +167,8 @@ Create version tag, push commits and tag, and create GitHub release.
    # Push tag
    git push origin v<VERSION>
 
-   # Create GitHub release
-   gh release create v<VERSION> --title "<title>" --notes "<notes>"
+   # Create GitHub release (title MUST match tag format: "v0.X.0 - Short Title")
+   gh release create v<VERSION> --title "v<VERSION> - <Short Title>" --notes "<notes>"
    ```
 
 9. **Report Results**
@@ -292,3 +292,4 @@ Before releasing, verify:
 - First release defaults to v0.1.0
 - Release notes should explain "what's in this release" not just list commits
 - NO AI attribution in release notes
+- **Title format:** Always `v<VERSION> - <Short Title>` — use a regular hyphen (`-`), NEVER an em dash (`—`). Keep titles concise (2-4 words). Example: `v0.19.0 - Cloudflare Traffic Analytics`

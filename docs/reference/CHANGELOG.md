@@ -187,6 +187,49 @@ Migrated MySpeed internet speed test tracker from Proxmox LXC (10.10.30.6) to Ku
 
 ---
 
+## February 6, 2026 — v0.15.1: Dashboard Fixes and Alert Tuning
+
+### Claude Code Dashboard Query Fixes
+
+Fixed broken PromQL queries for one-time counters (sessions, commits, PRs showed 0) and reorganized dashboard layout. Tuned alert thresholds based on real usage data.
+
+### Dashboard Fixes
+
+| Fix | Problem | Solution |
+|-----|---------|----------|
+| Sessions/Commits/PRs showing 0 | `increase()` on one-time counters always returns 0 | Use `last_over_time()` with `count by (session_id)` |
+| Code Edit Decisions showing 0 | Same one-time counter pattern | Same fix |
+| API Error Rate wrong grouping | Grouped by missing `status_code` field | Group by `error` field |
+| Avg Session Length denominator | Incorrect calculation | Fixed denominator |
+
+### Layout Changes
+
+- Productivity and Performance sections open by default
+- Token & Efficiency section auto-collapsed
+- Cost Analysis tables side-by-side (w=8, h=5)
+
+### Alert Threshold Tuning
+
+Previous $25/$50 thresholds triggered on normal daily usage (~$52 avg, ~$78 peak observed).
+
+| Alert | Before | After |
+|-------|--------|-------|
+| ClaudeCodeHighDailySpend | >$25/day | >$100/day |
+| ClaudeCodeCriticalDailySpend | >$50/day | >$150/day |
+
+### Configuration Change
+
+- `OTEL_METRIC_EXPORT_INTERVAL` reduced from 60s to 5s to prevent one-time counter data loss when sessions end before next export
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| manifests/monitoring/claude-dashboard-configmap.yaml | Fixed PromQL queries, reorganized panel layout |
+| manifests/monitoring/claude-alerts.yaml | Raised cost thresholds ($25/$50 → $100/$150) |
+
+---
+
 ## February 5, 2026 — Phase 4.15: Claude Code Monitoring
 
 ### Milestone: Centralized Claude Code Telemetry on Kubernetes
@@ -252,8 +295,8 @@ Client Machines (TRUSTED_WIFI / LAN)
 
 | Alert | Severity | Condition |
 |-------|----------|-----------|
-| ClaudeCodeHighDailySpend | warning | >$25/day |
-| ClaudeCodeCriticalDailySpend | critical | >$50/day |
+| ClaudeCodeHighDailySpend | warning | >$100/day |
+| ClaudeCodeCriticalDailySpend | critical | >$150/day |
 | ClaudeCodeNoActivity | info | No usage at end of weekday (5-6pm) |
 | OTelCollectorDown | critical | Collector unreachable for 2m |
 

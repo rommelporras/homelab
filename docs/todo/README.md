@@ -27,13 +27,12 @@
 | v0.16.0 | MySpeed Migration | Phase 4.20 | ✅ Released |
 | v0.17.0 | Ghost Web Analytics (Tinybird) | Phase 4.12.1 | ✅ Released |
 | v0.18.0 | Firefox Browser (KasmVNC) | Phase 4.21 | ✅ Released |
-| v0.19.0 | Cloudflare Traffic Analytics | Phase 4.22 | ⬜ Planned |
-| v0.20.0 | Ollama Local AI (CPU) | Phase 4.23 | ⬜ Planned |
-| v0.21.0 | Karakeep Migration | Phase 4.24 | ⬜ Planned |
-| v0.22.0 | ARR Stack Core | Phase 4.25 | ⬜ Planned |
-| v0.23.0 | ARR Companions | Phase 4.26 | ⬜ Planned |
-| v0.24.0 | Tailscale Operator | Phase 4.10 | ⬜ Planned |
-| v0.25.0 | Production Hardening | Phase 5 | ⬜ Planned |
+| v0.19.0 | Ollama Local AI (CPU) | Phase 4.23 | ⬜ Planned |
+| v0.20.0 | Karakeep Migration | Phase 4.24 | ⬜ Planned |
+| v0.21.0 | ARR Stack Core | Phase 4.25 | ⬜ Planned |
+| v0.22.0 | ARR Companions | Phase 4.26 | ⬜ Planned |
+| v0.23.0 | Tailscale Operator | Phase 4.10 | ⬜ Planned |
+| v0.24.0 | Production Hardening | Phase 5 | ⬜ Planned |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 
 ---
@@ -69,7 +68,6 @@
 
 | Phase | Description | File |
 |-------|-------------|------|
-| 4.22 | Cloudflare Traffic Analytics | [phase-4.22-cloudflare-analytics.md](phase-4.22-cloudflare-analytics.md) |
 | 4.23 | Ollama Local AI (CPU) | [phase-4.23-ollama.md](phase-4.23-ollama.md) |
 | 4.24 | Karakeep Migration | [phase-4.24-karakeep.md](phase-4.24-karakeep.md) |
 | 4.25 | ARR Stack Core | [phase-4.25-arr-stack.md](phase-4.25-arr-stack.md) |
