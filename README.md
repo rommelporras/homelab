@@ -247,7 +247,7 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Feb 8, 2026** | **MySpeed Migration** — Internet speed tracker from Proxmox LXC to K8s (Phase 4.20) |
 | **Feb 9, 2026** | **Ghost Web Analytics** — Tinybird integration with TrafficAnalytics proxy for cookie-free blog analytics (Phase 4.12.1) |
 | **Feb 9, 2026** | **Firefox Browser** — Persistent Firefox via KasmVNC with AdGuard DNS, basic auth, session persistence (Phase 4.21) |
-| **Coming** | Cloudflare Analytics, Ollama AI, Karakeep Migration |
+| **Coming** | kube-vip Upgrade + Monitoring, Ollama AI, Karakeep Migration |
 
 See rebuild guides below for detailed project history.
 
@@ -255,7 +255,7 @@ See rebuild guides below for detailed project history.
 
 ## 🚀 Next Steps
 
-1. **Deploy Cloudflare Traffic Analytics** for infrastructure-level metrics (Phase 4.22)
+1. **Upgrade kube-vip** v1.0.3 → v1.0.4 + Prometheus monitoring (Phase 2.1)
 2. **Deploy Ollama Local AI** for CPU-based local AI inference (Phase 4.23)
 3. **CKA Certification** - September 2026 target
 

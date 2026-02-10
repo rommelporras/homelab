@@ -121,10 +121,10 @@
 - [ ] 4.24.6.6 Update `docs/context/Gateway.md` — add HTTPRoute
 - [ ] 4.24.6.7 Update `docs/context/Secrets.md` — add Karakeep 1Password items (API key)
 - [ ] 4.24.6.8 Update `docs/context/ExternalServices.md` — document Ollama integration as internal service
-- [ ] 4.24.6.9 Create `docs/rebuild/v0.20.0-karakeep.md`
+- [ ] 4.24.6.9 Create `docs/rebuild/v0.21.0-karakeep.md`
 - [ ] 4.24.6.10 `/audit-docs`
 - [ ] 4.24.6.11 `/commit`
-- [ ] 4.24.6.12 `/release v0.20.0 "Karakeep Migration"`
+- [ ] 4.24.6.12 `/release v0.21.0 "Karakeep Migration"`
 - [ ] 4.24.6.13 Move this file to `docs/todo/completed/`
 
 ---

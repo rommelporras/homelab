@@ -437,9 +437,9 @@ When rebuilding on Talos Linux:
   /commit
   ```
 
-- [ ] Release v0.12.0
+- [ ] Release v0.24.0
   ```bash
-  /release v0.12.0
+  /release v0.24.0
   ```
 
 - [ ] Move this file to completed folder

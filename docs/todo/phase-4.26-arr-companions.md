@@ -203,10 +203,10 @@
 - [ ] 4.26.9.5 Update `docs/context/Monitoring.md` — add Scraparr exporter + network dashboard
 - [ ] 4.26.9.6 Update `docs/context/Gateway.md` — add Bazarr HTTPRoute
 - [ ] 4.26.9.7 Update `docs/context/Secrets.md` — document shared `arr-api-keys` secret usage by companion apps
-- [ ] 4.26.9.8 Create `docs/rebuild/v0.22.0-arr-companions.md`
+- [ ] 4.26.9.8 Create `docs/rebuild/v0.23.0-arr-companions.md`
 - [ ] 4.26.9.9 `/audit-docs`
 - [ ] 4.26.9.10 `/commit`
-- [ ] 4.26.9.11 `/release v0.22.0 "ARR Stack Companions & Monitoring"`
+- [ ] 4.26.9.11 `/release v0.23.0 "ARR Stack Companions & Monitoring"`
 - [ ] 4.26.9.12 Move this file to `docs/todo/completed/`
 
 ---

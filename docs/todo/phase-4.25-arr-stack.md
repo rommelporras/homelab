@@ -322,10 +322,10 @@ All *ARR apps and qBittorrent mount the **same NFS export** at `/data`. This ena
 - [ ] 4.25.11.7 Update `docs/context/Storage.md` — add NFS PV/PVC for media
 - [ ] 4.25.11.8 Update `docs/context/Secrets.md` — add *ARR API keys + shared `arr-api-keys` secret
 - [ ] 4.25.11.9 Update `docs/context/Networking.md` — add CiliumNetworkPolicy for `media` namespace
-- [ ] 4.25.11.10 Create `docs/rebuild/v0.21.0-arr-stack.md`
+- [ ] 4.25.11.10 Create `docs/rebuild/v0.22.0-arr-stack.md`
 - [ ] 4.25.11.11 `/audit-docs`
 - [ ] 4.25.11.12 `/commit`
-- [ ] 4.25.11.13 `/release v0.21.0 "ARR Media Stack"`
+- [ ] 4.25.11.13 `/release v0.22.0 "ARR Media Stack"`
 - [ ] 4.25.11.14 Move this file to `docs/todo/completed/`
 
 ---

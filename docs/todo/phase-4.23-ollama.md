@@ -175,10 +175,10 @@ Use **Q4_K_M** for all models (Ollama's default). The quality difference vs Q5_K
 - [ ] 4.23.5.4 Update `docs/reference/CHANGELOG.md` — add model selection + CPU inference decision entry
 - [ ] 4.23.5.5 Update `docs/context/Cluster.md` — add `ai` namespace
 - [ ] 4.23.5.6 Update `docs/context/Architecture.md` — document `ai` namespace + cross-namespace pattern for Ollama consumers
-- [ ] 4.23.5.7 Create `docs/rebuild/v0.19.0-ollama.md`
+- [ ] 4.23.5.7 Create `docs/rebuild/v0.20.0-ollama.md`
 - [ ] 4.23.5.8 `/audit-docs`
 - [ ] 4.23.5.9 `/commit`
-- [ ] 4.23.5.10 `/release v0.19.0 "Ollama Local AI"`
+- [ ] 4.23.5.10 `/release v0.20.0 "Ollama Local AI"`
 - [ ] 4.23.5.11 Move this file to `docs/todo/completed/`
 
 ---

@@ -511,9 +511,9 @@ velero backup describe <backup-name> --details
   /commit
   ```
 
-- [ ] Release v0.10.0
+- [ ] Release v0.25.0
   ```bash
-  /release v0.10.0
+  /release v0.25.0
   ```
 
 - [ ] Move this file to completed folder
