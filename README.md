@@ -8,7 +8,7 @@
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
 > **Owner:** Rommel Porras
-> **Last Updated:** February 9, 2026
+> **Last Updated:** February 11, 2026
 
 ---
 
@@ -49,6 +49,7 @@
 | MySpeed Migration | ✅ Complete | Internet speed tracker migrated from Proxmox LXC |
 | Ghost Web Analytics | ✅ Complete | Cookie-free Tinybird analytics for blog |
 | Firefox Browser | ✅ Complete | Persistent browser via KasmVNC (LAN-only) |
+| kube-vip Upgrade + Monitoring | ✅ Complete | v1.0.3→v1.0.4 + Prometheus monitoring + Grafana dashboard |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/context/Cluster.md](docs/context/Cluster.md) - Single source of truth
@@ -187,6 +188,7 @@ Step-by-step instructions to rebuild the cluster from scratch:
 | [v0.16.0-myspeed](docs/rebuild/v0.16.0-myspeed.md) | Phase 4.20 | MySpeed internet speed tracker migration |
 | [v0.17.0-ghost-analytics](docs/rebuild/v0.17.0-ghost-analytics.md) | Phase 4.12.1 | Ghost web analytics with Tinybird |
 | [v0.18.0-firefox-browser](docs/rebuild/v0.18.0-firefox-browser.md) | Phase 4.21 | Containerized Firefox browser (KasmVNC) |
+| [v0.19.0-kube-vip-upgrade](docs/rebuild/v0.19.0-kube-vip-upgrade.md) | Phase 2.1 | kube-vip v1.0.3→v1.0.4 + Prometheus monitoring |
 
 ### Reference
 
@@ -247,7 +249,8 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Feb 8, 2026** | **MySpeed Migration** — Internet speed tracker from Proxmox LXC to K8s (Phase 4.20) |
 | **Feb 9, 2026** | **Ghost Web Analytics** — Tinybird integration with TrafficAnalytics proxy for cookie-free blog analytics (Phase 4.12.1) |
 | **Feb 9, 2026** | **Firefox Browser** — Persistent Firefox via KasmVNC with AdGuard DNS, basic auth, session persistence (Phase 4.21) |
-| **Coming** | kube-vip Upgrade + Monitoring, Ollama AI, Karakeep Migration |
+| **Feb 11, 2026** | **kube-vip Upgrade** — v1.0.3→v1.0.4 (fixed leader election errors) + Prometheus monitoring + Grafana dashboard (Phase 2.1) |
+| **Coming** | Ollama Local AI, Karakeep Migration, ARR Stack |
 
 See rebuild guides below for detailed project history.
 
@@ -255,8 +258,8 @@ See rebuild guides below for detailed project history.
 
 ## 🚀 Next Steps
 
-1. **Upgrade kube-vip** v1.0.3 → v1.0.4 + Prometheus monitoring (Phase 2.1)
-2. **Deploy Ollama Local AI** for CPU-based local AI inference (Phase 4.23)
+1. **Deploy Ollama Local AI** for CPU-based local AI inference (Phase 4.23)
+2. **Karakeep Migration** from Docker Compose to K8s (Phase 4.24)
 3. **CKA Certification** - September 2026 target
 
 ---

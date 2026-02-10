@@ -32,7 +32,7 @@ updated: 2026-02-09
 | Nodes | 3 control planes (k8s-cp1, cp2, cp3) |
 | CNI | Cilium 1.18.6 |
 | Storage | Longhorn 1.10.1 |
-| Status | Firefox Browser via KasmVNC (Phase 4.21) |
+| Status | kube-vip Upgrade + Monitoring (Phase 2.1) |
 
 ## Source
 

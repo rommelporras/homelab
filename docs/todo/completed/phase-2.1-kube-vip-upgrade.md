@@ -1,6 +1,6 @@
 # Phase 2.1: kube-vip Upgrade + Monitoring
 
-> **Status:** Planned
+> **Status:** Complete
 > **Target:** v0.19.0
 > **Prerequisite:** Phase 2 (Kubernetes Bootstrap)
 > **CKA Topics:** Static pods, leader election, Lease objects, rolling upgrades, Prometheus monitoring
@@ -79,16 +79,16 @@ kube-vip v1.0.3 (and v1.0.4) only exposes **Go runtime + process metrics** on po
 
 ### 2.1.1 Pre-upgrade preparation _(MANUAL: SSH to nodes)_
 
-- [ ] 2.1.1.1 Verify VIP is healthy: `curl -sk https://10.10.30.10:6443/healthz`
-- [ ] 2.1.1.2 Record current leader: `kubectl-homelab get lease plndr-cp-lock -n kube-system -o jsonpath='{.spec.holderIdentity}'`
-- [ ] 2.1.1.3 Backup manifests from all 3 nodes:
+- [x] 2.1.1.1 Verify VIP is healthy: `curl -sk https://10.10.30.10:6443/healthz`
+- [x] 2.1.1.2 Record current leader: `kubectl-homelab get lease plndr-cp-lock -n kube-system -o jsonpath='{.spec.holderIdentity}'`
+- [x] 2.1.1.3 Backup manifests from all 3 nodes:
   ```bash
   for node in cp1 cp2 cp3; do
     ssh wawashi@${node}.k8s.rommelporras.com \
       "sudo cp /etc/kubernetes/manifests/kube-vip.yaml /etc/kubernetes/kube-vip.yaml.v1.0.3.bak"
   done
   ```
-- [ ] 2.1.1.4 Pre-pull v1.0.4 image on all 3 nodes:
+- [x] 2.1.1.4 Pre-pull v1.0.4 image on all 3 nodes:
   ```bash
   for node in cp1 cp2 cp3; do
     ssh wawashi@${node}.k8s.rommelporras.com \
@@ -100,26 +100,26 @@ kube-vip v1.0.3 (and v1.0.4) only exposes **Go runtime + process metrics** on po
 
 **Order:** Non-leaders first (cp1, cp2), then leader (cp3) last.
 
-- [ ] 2.1.2.1 Upgrade cp1 (non-leader):
+- [x] 2.1.2.1 Upgrade cp1 (non-leader):
   ```bash
   ssh wawashi@cp1.k8s.rommelporras.com \
     "sudo sed -i 's|ghcr.io/kube-vip/kube-vip:v1.0.3|ghcr.io/kube-vip/kube-vip:v1.0.4|' /etc/kubernetes/manifests/kube-vip.yaml"
   ```
-- [ ] 2.1.2.2 Wait 30s, verify cp1 pod is Running:
+- [x] 2.1.2.2 Wait 30s, verify cp1 pod is Running:
   ```bash
   kubectl-homelab get pods -n kube-system -l component=kube-vip -o wide
   ```
-- [ ] 2.1.2.3 Verify cp1 metrics still accessible: `curl -s http://10.10.30.11:2112/metrics | head -5`
-- [ ] 2.1.2.4 Upgrade cp2 (non-leader): same sed command on cp2
-- [ ] 2.1.2.5 Wait 30s, verify cp2 pod Running + metrics accessible
-- [ ] 2.1.2.6 Upgrade cp3 (LEADER — triggers VIP failover):
+- [x] 2.1.2.3 Verify cp1 metrics still accessible: `curl -s http://10.10.30.11:2112/metrics | head -5`
+- [x] 2.1.2.4 Upgrade cp2 (non-leader): same sed command on cp2
+- [x] 2.1.2.5 Wait 30s, verify cp2 pod Running + metrics accessible
+- [x] 2.1.2.6 Upgrade cp3 (LEADER — triggers VIP failover):
   ```bash
   ssh wawashi@cp3.k8s.rommelporras.com \
     "sudo sed -i 's|ghcr.io/kube-vip/kube-vip:v1.0.3|ghcr.io/kube-vip/kube-vip:v1.0.4|' /etc/kubernetes/manifests/kube-vip.yaml"
   ```
-- [ ] 2.1.2.7 Verify VIP failover: `curl -sk https://10.10.30.10:6443/healthz` (should succeed within 10s)
-- [ ] 2.1.2.8 Verify new leader: `kubectl-homelab get lease plndr-cp-lock -n kube-system -o jsonpath='{.spec.holderIdentity}'`
-- [ ] 2.1.2.9 Verify NO more lease errors on any node:
+- [x] 2.1.2.7 Verify VIP failover: `curl -sk https://10.10.30.10:6443/healthz` (should succeed within 10s)
+- [x] 2.1.2.8 Verify new leader: `kubectl-homelab get lease plndr-cp-lock -n kube-system -o jsonpath='{.spec.holderIdentity}'`
+- [x] 2.1.2.9 Verify NO more lease errors on any node:
   ```bash
   for node in k8s-cp1 k8s-cp2 k8s-cp3; do
     echo "--- $node ---"
@@ -129,46 +129,46 @@ kube-vip v1.0.3 (and v1.0.4) only exposes **Go runtime + process metrics** on po
 
 ### 2.1.3 Update Ansible version
 
-- [ ] 2.1.3.1 Update `ansible/group_vars/all.yml`: `kubevip_version: "v1.0.3"` → `"v1.0.4"`
+- [x] 2.1.3.1 Update `ansible/group_vars/all.yml`: `kubevip_version: "v1.0.3"` → `"v1.0.4"`
 
 ### 2.1.4 Prometheus monitoring
 
-- [ ] 2.1.4.1 Verify kube-state-metrics exposes lease metrics:
+- [x] 2.1.4.1 Verify kube-state-metrics exposes lease metrics:
   ```bash
   kubectl-homelab get --raw "/api/v1/namespaces/monitoring/services/prometheus-kube-state-metrics:http/proxy/metrics" | grep kube_lease
   ```
-- [ ] 2.1.4.2 Create `manifests/monitoring/kube-vip-monitoring.yaml`:
+- [x] 2.1.4.2 Create `manifests/monitoring/kube-vip-monitoring.yaml`:
   - Headless Service (clusterIP: None, no selector) in `monitoring` namespace
   - Endpoints with all 3 node IPs (10.10.30.11, .12, .13) on port 2112
   - ServiceMonitor with `release: prometheus` label, scrape interval 30s
-- [ ] 2.1.4.3 Apply and verify Prometheus target discovery
-- [ ] 2.1.4.4 Create `manifests/monitoring/kube-vip-alerts.yaml` (PrometheusRule):
+- [x] 2.1.4.3 Apply and verify Prometheus target discovery
+- [x] 2.1.4.4 Create `manifests/monitoring/kube-vip-alerts.yaml` (PrometheusRule):
   - `KubeVipInstanceDown` — one instance unreachable for 2m (warning, Discord #status)
   - `KubeVipAllDown` — all instances unreachable for 1m (critical, Discord #incidents + email)
   - `KubeVipLeaseStale` — lease renewTime not updated in 30s (critical, Discord #incidents)
   - `KubeVipHighRestarts` — frequent pod restarts detected (warning, Discord #status)
-- [ ] 2.1.4.5 Create `manifests/monitoring/kube-vip-dashboard-configmap.yaml` (Grafana dashboard):
+- [x] 2.1.4.5 Create `manifests/monitoring/kube-vip-dashboard-configmap.yaml` (Grafana dashboard):
   - Row 1: VIP status — leader identity, lease age, last transition time
   - Row 2: Instance health — up/down per node, restart count
   - Row 3: Process metrics — memory usage, CPU, goroutines per node
   - Row 4: Network — bytes sent/received per node (correlates with ARP activity)
-- [ ] 2.1.4.6 Apply all monitoring manifests and verify in Grafana
+- [x] 2.1.4.6 Apply all monitoring manifests and verify in Grafana
 
 ### 2.1.5 Documentation & Release
 
-- [ ] 2.1.5.1 Security audit (`/audit-security`)
-- [ ] 2.1.5.2 Commit infrastructure changes
-- [ ] 2.1.5.3 Update documentation:
+- [x] 2.1.5.1 Security audit (`/audit-security`)
+- [x] 2.1.5.2 Commit infrastructure changes
+- [x] 2.1.5.3 Update documentation:
   - `docs/todo/README.md` — add Phase 2.1, update version mapping
   - `README.md` — update kube-vip version
   - `VERSIONS.md` — kube-vip v1.0.3 → v1.0.4, version history entry
   - `docs/reference/CHANGELOG.md` — decision history
   - `docs/context/Cluster.md` — if any cluster-level changes
   - `docs/rebuild/v0.19.0-kube-vip-upgrade.md` — rebuild guide
-- [ ] 2.1.5.4 `/audit-docs`
-- [ ] 2.1.5.5 Commit documentation changes
-- [ ] 2.1.5.6 `/release v0.19.0 "kube-vip Upgrade + Monitoring"`
-- [ ] 2.1.5.7 Move this file to `docs/todo/completed/`
+- [x] 2.1.5.4 `/audit-docs`
+- [x] 2.1.5.5 Commit documentation changes
+- [x] 2.1.5.6 `/release v0.19.0 "kube-vip Upgrade + Monitoring"`
+- [x] 2.1.5.7 Move this file to `docs/todo/completed/`
 
 ---
 
@@ -212,10 +212,10 @@ sudo cp /etc/kubernetes/kube-vip.yaml.v1.0.3.bak /etc/kubernetes/manifests/kube-
 
 ### Rollback verification checklist
 
-- [ ] VIP responds: `curl -sk https://10.10.30.10:6443/healthz`
-- [ ] All kube-vip pods Running: `kubectl-homelab get pods -n kube-system -l component=kube-vip`
-- [ ] Lease has valid holder: `kubectl-homelab get lease plndr-cp-lock -n kube-system`
-- [ ] kubectl works normally: `kubectl-homelab get nodes`
+- [x] VIP responds: `curl -sk https://10.10.30.10:6443/healthz`
+- [x] All kube-vip pods Running: `kubectl-homelab get pods -n kube-system -l component=kube-vip`
+- [x] Lease has valid holder: `kubectl-homelab get lease plndr-cp-lock -n kube-system`
+- [x] kubectl works normally: `kubectl-homelab get nodes`
 
 ---
 
@@ -303,12 +303,12 @@ sudo cp /etc/kubernetes/kube-vip.yaml.v1.0.3.bak /etc/kubernetes/manifests/kube-
 
 ## Verification Checklist
 
-- [ ] VIP responds on all tests: `curl -sk https://10.10.30.10:6443/healthz`
-- [ ] All 3 kube-vip pods Running with v1.0.4 image
-- [ ] Zero lease errors in logs (all 3 nodes)
-- [ ] Prometheus scraping all 3 kube-vip targets
-- [ ] Grafana dashboard loads with data
-- [ ] Alerts visible in Prometheus rules (4 alerts)
-- [ ] cp3 restart count reset to 0 (fresh pod)
-- [ ] Ansible group_vars updated to v1.0.4
-- [ ] Security audit: PASS
+- [x] VIP responds on all tests: `curl -sk https://10.10.30.10:6443/healthz`
+- [x] All 3 kube-vip pods Running with v1.0.4 image
+- [x] Zero lease errors in logs (all 3 nodes)
+- [x] Prometheus scraping all 3 kube-vip targets
+- [x] Grafana dashboard loads with data
+- [x] Alerts visible in Prometheus rules (4 alerts)
+- [x] cp3 restart count reset to 0 (fresh pod)
+- [x] Ansible group_vars updated to v1.0.4
+- [x] Security audit: PASS

@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** February 9, 2026
+> **Last Updated:** February 11, 2026
 
 ---
 
@@ -26,7 +26,7 @@
 | Cilium | 1.18.6 | Installed |
 | Cilium CLI | v0.19.0 | Installed |
 | Longhorn | 1.10.1 | Installed |
-| kube-vip | v1.0.3 | Installed |
+| kube-vip | v1.0.4 | Installed |
 
 ---
 
@@ -88,7 +88,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.21 complete. Firefox browser deployed with KasmVNC.
+> **Status:** Phase 2.1 complete. kube-vip upgraded to v1.0.4 with Prometheus monitoring.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -243,6 +243,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-02-11 | **kube-vip Upgrade + Monitoring:** Upgraded v1.0.3→v1.0.4 (fixed leader election errors), added ServiceMonitor, 4 PrometheusRule alerts, Grafana dashboard (Phase 2.1) |
 | 2026-02-09 | **Firefox Browser:** Persistent Firefox via KasmVNC with AdGuard DNS routing, basic auth, Longhorn storage (Phase 4.21) |
 | 2026-02-09 | **Ghost Web Analytics:** TrafficAnalytics proxy 1.0.72 + Tinybird integration for cookie-free blog analytics (Phase 4.12.1) |
 | 2026-02-08 | **MySpeed Migration:** germannewsmaker/myspeed:1.0.9 migrated from Proxmox LXC to K8s (Phase 4.20) |

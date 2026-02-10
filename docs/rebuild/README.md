@@ -22,6 +22,11 @@
 | v0.12.0 | Phase 4.13 | Domain Migration (tiered wildcards, cert-manager) | [v0.12.0-domain-migration.md](v0.12.0-domain-migration.md) |
 | v0.13.0 | Phase 4.14 | Uptime Kuma (endpoint monitoring, public status page) | [v0.13.0-uptime-kuma.md](v0.13.0-uptime-kuma.md) |
 | v0.14.0 | Phase 4.9 | Invoicetron (Next.js + PostgreSQL, GitLab CI/CD, Cloudflare Access) | [v0.14.0-invoicetron.md](v0.14.0-invoicetron.md) |
+| v0.15.0 | Phase 4.15 | Claude Code Monitoring (OTel Collector, Grafana dashboard) | [v0.15.0-claude-monitoring.md](v0.15.0-claude-monitoring.md) |
+| v0.16.0 | Phase 4.20 | MySpeed Migration (Proxmox LXC to K8s) | [v0.16.0-myspeed.md](v0.16.0-myspeed.md) |
+| v0.17.0 | Phase 4.12.1 | Ghost Web Analytics (Tinybird, TrafficAnalytics proxy) | [v0.17.0-ghost-analytics.md](v0.17.0-ghost-analytics.md) |
+| v0.18.0 | Phase 4.21 | Firefox Browser (KasmVNC, persistent session) | [v0.18.0-firefox-browser.md](v0.18.0-firefox-browser.md) |
+| v0.19.0 | Phase 2.1 | kube-vip Upgrade + Monitoring (v1.0.3→v1.0.4, Prometheus) | [v0.19.0-kube-vip-upgrade.md](v0.19.0-kube-vip-upgrade.md) |
 
 ---
 
@@ -71,6 +76,21 @@ docs/rebuild/v0.13.0-uptime-kuma.md
 
 # 14. Invoicetron - Stateful app with PostgreSQL, GitLab CI/CD
 docs/rebuild/v0.14.0-invoicetron.md
+
+# 15. Claude Code Monitoring - OTel Collector, Grafana dashboard
+docs/rebuild/v0.15.0-claude-monitoring.md
+
+# 16. MySpeed Migration - Internet speed tracker from Proxmox LXC
+docs/rebuild/v0.16.0-myspeed.md
+
+# 17. Ghost Web Analytics - Tinybird integration, TrafficAnalytics proxy
+docs/rebuild/v0.17.0-ghost-analytics.md
+
+# 18. Firefox Browser - Persistent Firefox via KasmVNC
+docs/rebuild/v0.18.0-firefox-browser.md
+
+# 19. kube-vip Upgrade - v1.0.3→v1.0.4 + Prometheus monitoring
+docs/rebuild/v0.19.0-kube-vip-upgrade.md
 ```
 
 ---
@@ -122,7 +142,7 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | Kubernetes | v1.35.0 | v0.2.0 |
 | containerd | 1.7.x | v0.2.0 |
 | Cilium | 1.18.6 | v0.2.0 |
-| kube-vip | v1.0.3 | v0.2.0 |
+| kube-vip | v1.0.4 | v0.19.0 |
 | Longhorn | 1.10.1 | v0.3.0 |
 | Gateway API CRDs | v1.4.1 | v0.4.0 |
 | cert-manager | 1.19.2 | v0.4.0 |
@@ -144,6 +164,10 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | Uptime Kuma | v2.0.2 | v0.13.0 |
 | Invoicetron | Next.js 16.1.0 | v0.14.0 |
 | PostgreSQL (Invoicetron) | 18-alpine | v0.14.0 |
+| OTel Collector | v0.144.0 | v0.15.0 |
+| MySpeed | 1.0.9 | v0.16.0 |
+| TrafficAnalytics | 1.0.72 | v0.17.0 |
+| Firefox (KasmVNC) | latest | v0.18.0 |
 
 ---
 
@@ -222,7 +246,15 @@ homelab/
 │       ├── test-alert.yaml             # v0.5.0
 │       ├── adguard-dns-probe.yaml      # v0.9.0
 │       ├── adguard-dns-alert.yaml      # v0.9.0
-│       └── uptime-kuma-probe.yaml      # v0.13.0
+│       ├── uptime-kuma-probe.yaml      # v0.13.0
+│       ├── otel-collector-config.yaml  # v0.15.0
+│       ├── otel-collector.yaml         # v0.15.0
+│       ├── otel-collector-servicemonitor.yaml  # v0.15.0
+│       ├── claude-dashboard-configmap.yaml     # v0.15.0
+│       ├── claude-alerts.yaml          # v0.15.0
+│       ├── kube-vip-monitoring.yaml    # v0.19.0
+│       ├── kube-vip-alerts.yaml        # v0.19.0
+│       └── kube-vip-dashboard-configmap.yaml   # v0.19.0
 │
 ├── scripts/
 │   ├── upgrade-prometheus.sh           # v0.5.0

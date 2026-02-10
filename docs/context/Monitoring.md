@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-02-05
+updated: 2026-02-11
 ---
 
 # Monitoring
@@ -175,6 +175,9 @@ Events (Loki):
 | manifests/monitoring/otel-collector-servicemonitor.yaml | OTel Collector ServiceMonitor |
 | manifests/monitoring/claude-dashboard-configmap.yaml | Claude Code Grafana dashboard |
 | manifests/monitoring/claude-alerts.yaml | Claude Code cost alert rules |
+| manifests/monitoring/kube-vip-monitoring.yaml | kube-vip Headless Service + Endpoints + ServiceMonitor |
+| manifests/monitoring/kube-vip-alerts.yaml | kube-vip PrometheusRule (4 alerts) |
+| manifests/monitoring/kube-vip-dashboard-configmap.yaml | kube-vip Grafana dashboard |
 | helm/blackbox-exporter/values.yaml | Blackbox exporter config (dns_udp module) |
 
 ## Upgrade Prometheus Stack

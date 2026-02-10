@@ -4,6 +4,60 @@
 
 ---
 
+## February 11, 2026 — Phase 2.1: kube-vip Upgrade + Monitoring
+
+### Milestone: kube-vip v1.0.4 + Prometheus Monitoring
+
+Upgraded kube-vip from v1.0.3 to v1.0.4 across all 3 control plane nodes via rolling upgrade (non-leaders first, leader last). Fixed stalled leader election errors (PRs #1383, #1386) that caused cp3 to spam `Failed to update lock optimistically` every second with 19 container restarts. Added Prometheus monitoring using Headless Service + manual Endpoints + ServiceMonitor pattern (standard for static pods).
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| kube-vip | v1.0.4 | Running (all 3 nodes) |
+| ServiceMonitor | kube-vip | monitoring namespace |
+| PrometheusRule | 4 alerts | monitoring namespace |
+| Grafana Dashboard | kube-vip VIP Health | ConfigMap auto-provisioned |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Upgrade strategy | Rolling (non-leaders first, leader last) | Maintains VIP availability throughout |
+| Monitoring pattern | Headless Service + Endpoints + ServiceMonitor | Standard for static pods (no selector); Endpoints over EndpointSlice because Prometheus Operator uses Endpoints-based discovery |
+| Leader monitoring | kube-state-metrics lease metrics | kube-vip has no custom Prometheus metrics; `kube_lease_owner` and `kube_lease_renew_time` provide leader identity |
+| Alert routing | Existing convention (critical → #incidents + email, warning → #status) | Consistent with all other monitoring |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/monitoring/kube-vip-monitoring.yaml | Headless Service + Endpoints + ServiceMonitor |
+| manifests/monitoring/kube-vip-alerts.yaml | PrometheusRule with 4 alerts |
+| manifests/monitoring/kube-vip-dashboard-configmap.yaml | Grafana dashboard ConfigMap |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| ansible/group_vars/all.yml | kubevip_version: v1.0.3 → v1.0.4 |
+
+### Alerts
+
+| Alert | Severity | Condition |
+|-------|----------|-----------|
+| KubeVipInstanceDown | warning | One instance unreachable for 2m |
+| KubeVipAllDown | critical | All instances unreachable for 1m |
+| KubeVipLeaseStale | critical | Lease not renewed in 30s for 1m |
+| KubeVipHighRestarts | warning | >3 restarts in 1h for 5m |
+
+### Lessons Learned
+
+1. **kube-vip has no custom Prometheus metrics** (v1.0.3 and v1.0.4) — only Go runtime + process metrics. Monitor leader election via kube-state-metrics lease metrics instead.
+2. **Prometheus Operator uses Endpoints, not EndpointSlice** — K8s 1.33+ deprecates v1 Endpoints, but the deprecation is cosmetic. The API still works and Prometheus Operator requires it for ServiceMonitor discovery.
+3. **Optimistic lock errors don't mean VIP is down** — cp3 maintained the VIP despite constant lease update errors. The VIP worked fine; only log noise and wasted API server resources.
+4. **Pre-pull images before static pod upgrades** — minimizes VIP downtime window during kubelet pod restart.
+
+---
+
 ## February 9, 2026 — Phase 4.21: Containerized Firefox Browser
 
 ### Milestone: Persistent Browser Session via KasmVNC

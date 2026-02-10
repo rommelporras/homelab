@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, cluster, nodes]
-updated: 2026-02-09
+updated: 2026-02-11
 ---
 
 # Cluster
