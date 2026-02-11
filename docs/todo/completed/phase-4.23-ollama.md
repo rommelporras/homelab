@@ -1,6 +1,6 @@
 # Phase 4.23: Ollama Local AI
 
-> **Status:** Planned
+> **Status:** Complete
 > **Target:** v0.20.0
 > **Prerequisite:** Longhorn storage running, sufficient node resources
 > **Priority:** Medium (foundation for Karakeep AI tagging)
@@ -166,10 +166,10 @@ Use **Q4_K_M** for all models (Ollama's default). This is already what `ollama p
 
 ### 4.23.2 Create Manifests
 
-- [ ] 4.23.2.1 Create `manifests/ai/namespace.yaml`
+- [x] 4.23.2.1 Create `manifests/ai/namespace.yaml`
   - PSS labels: `enforce: baseline`, `warn: restricted`, `audit: restricted`
   - Ollama runs as root (PR #8259 not merged). `warn`/`audit` restricted logs violations for future non-root compatibility visibility
-- [ ] 4.23.2.2 Create `manifests/ai/ollama-deployment.yaml`
+- [x] 4.23.2.2 Create `manifests/ai/ollama-deployment.yaml`
   - Image: `ollama/ollama:0.15.6`
   - PVC: 10Gi Longhorn for `/root/.ollama` (model storage — qwen3:1.7b 1.4G + moondream 1.7G + gemma3:1b 0.8G = ~4G total, 60% headroom)
   - `strategy: Recreate` (RWO volume, single replica — Deployment is correct, not StatefulSet)
@@ -207,9 +207,9 @@ Use **Q4_K_M** for all models (Ollama's default). This is already what `ollama p
       timeoutSeconds: 3
       failureThreshold: 6
     ```
-- [ ] 4.23.2.3 Create `manifests/ai/ollama-service.yaml` — ClusterIP (port 11434)
+- [x] 4.23.2.3 Create `manifests/ai/ollama-service.yaml` — ClusterIP (port 11434)
   - No HTTPRoute needed — internal service only (Karakeep connects via cluster DNS)
-- [ ] 4.23.2.4 Security context:
+- [x] 4.23.2.4 Security context:
   - `runAsNonRoot: false` — official Ollama image runs as root (PR #8259 not merged as of Feb 2026)
   - `allowPrivilegeEscalation: false`
   - `capabilities.drop: [ALL]`
@@ -219,20 +219,20 @@ Use **Q4_K_M** for all models (Ollama's default). This is already what `ollama p
 
 ### 4.23.3 Deploy & Load Model
 
-- [ ] 4.23.3.1 Apply manifests and verify pod running
-- [ ] 4.23.3.2 Pull the primary text model:
+- [x] 4.23.3.1 Apply manifests and verify pod running
+- [x] 4.23.3.2 Pull the primary text model:
   ```bash
   kubectl-homelab exec -n ai deploy/ollama -- ollama pull qwen3:1.7b
   ```
-- [ ] 4.23.3.3 Pull the vision model for Karakeep image tagging:
+- [x] 4.23.3.3 Pull the vision model for Karakeep image tagging:
   ```bash
   kubectl-homelab exec -n ai deploy/ollama -- ollama pull moondream
   ```
-- [ ] 4.23.3.4 Pull the fallback text model (optional):
+- [x] 4.23.3.4 Pull the fallback text model (optional):
   ```bash
   kubectl-homelab exec -n ai deploy/ollama -- ollama pull gemma3:1b
   ```
-- [ ] 4.23.3.5 Verify models loaded:
+- [x] 4.23.3.5 Verify models loaded:
   ```bash
   kubectl-homelab exec -n ai deploy/ollama -- ollama list
   ```
@@ -240,23 +240,23 @@ Use **Q4_K_M** for all models (Ollama's default). This is already what `ollama p
 
 ### 4.23.4 Verify Inference
 
-- [ ] 4.23.4.1 Test text inference:
+- [x] 4.23.4.1 Test text inference:
   ```bash
   kubectl-homelab exec -n ai deploy/ollama -- ollama run qwen3:1.7b "Classify this text into 3 tags: Kubernetes is a container orchestration platform"
   ```
-- [ ] 4.23.4.2 Test vision inference:
+- [x] 4.23.4.2 Test vision inference:
   ```bash
   # From a pod with an image file, or via API:
   kubectl-homelab exec -n ai deploy/ollama -- ollama run moondream "Describe this image"
   ```
-- [ ] 4.23.4.3 Measure inference speed — should be 10-15 tok/s for qwen3:1.7b, 8-12 tok/s for moondream
-- [ ] 4.23.4.4 Monitor node resource usage during inference:
+- [x] 4.23.4.3 Measure inference speed — should be 10-15 tok/s for qwen3:1.7b, 8-12 tok/s for moondream
+- [x] 4.23.4.4 Monitor node resource usage during inference:
   ```bash
   kubectl-homelab top pod -n ai
   kubectl-homelab top node
   ```
-- [ ] 4.23.4.5 Verify model stays loaded in RAM for `OLLAMA_KEEP_ALIVE` duration
-- [ ] 4.23.4.6 Verify service accessible from other namespaces:
+- [x] 4.23.4.5 Verify model stays loaded in RAM for `OLLAMA_KEEP_ALIVE` duration
+- [x] 4.23.4.6 Verify service accessible from other namespaces:
   ```bash
   kubectl-homelab run curl-test --rm -it --image=curlimages/curl -- curl http://ollama.ai.svc.cluster.local:11434
   # Should return: "Ollama is running"
@@ -266,19 +266,19 @@ Use **Q4_K_M** for all models (Ollama's default). This is already what `ollama p
 
 > Second commit: documentation updates and audit.
 
-- [ ] 4.23.5.1 Security audit (`/audit-security`)
-- [ ] 4.23.5.2 `/commit` (infrastructure)
-- [ ] 4.23.5.3 Update `docs/todo/README.md` — add Phase 4.23 to phase index + namespace table
-- [ ] 4.23.5.4 Update `README.md` (root) — add Ollama to services list
-- [ ] 4.23.5.5 Update `VERSIONS.md` — add Ollama version + model versions
-- [ ] 4.23.5.6 Update `docs/reference/CHANGELOG.md` — add model selection + CPU inference + quantization decision entry
-- [ ] 4.23.5.7 Update `docs/context/Cluster.md` — add `ai` namespace
-- [ ] 4.23.5.8 Update `docs/context/Architecture.md` — document `ai` namespace + cross-namespace pattern for Ollama consumers
-- [ ] 4.23.5.9 Create `docs/rebuild/v0.20.0-ollama.md`
-- [ ] 4.23.5.10 `/audit-docs`
-- [ ] 4.23.5.11 `/commit` (documentation)
-- [ ] 4.23.5.12 `/release v0.20.0 "Ollama Local AI"`
-- [ ] 4.23.5.13 Move this file to `docs/todo/completed/`
+- [x] 4.23.5.1 Security audit (`/audit-security`)
+- [x] 4.23.5.2 `/commit` (infrastructure)
+- [x] 4.23.5.3 Update `docs/todo/README.md` — add Phase 4.23 to phase index + namespace table
+- [x] 4.23.5.4 Update `README.md` (root) — add Ollama to services list
+- [x] 4.23.5.5 Update `VERSIONS.md` — add Ollama version + model versions
+- [x] 4.23.5.6 Update `docs/reference/CHANGELOG.md` — add model selection + CPU inference + quantization decision entry
+- [x] 4.23.5.7 Update `docs/context/Cluster.md` — add `ai` namespace
+- [x] 4.23.5.8 Update `docs/context/Architecture.md` — document `ai` namespace + cross-namespace pattern for Ollama consumers
+- [x] 4.23.5.9 Create `docs/rebuild/v0.20.0-ollama.md`
+- [x] 4.23.5.10 `/audit-docs`
+- [x] 4.23.5.11 `/commit` (documentation)
+- [x] 4.23.5.12 `/release v0.20.0 "Ollama Local AI"`
+- [x] 4.23.5.13 Move this file to `docs/todo/completed/`
 
 ---
 
@@ -328,15 +328,15 @@ Use **Q4_K_M** for all models (Ollama's default). This is already what `ollama p
 
 ## Verification Checklist
 
-- [ ] Ollama pod running in `ai` namespace
-- [ ] `qwen3:1.7b` model loaded and listed
-- [ ] `moondream` model loaded and listed
-- [ ] Text inference produces reasonable output (10-15 tok/s)
-- [ ] Vision inference produces reasonable image descriptions (8-12 tok/s)
-- [ ] Node memory usage stays within safe limits during inference (<3 GB per model)
-- [ ] Model stays loaded between requests (OLLAMA_KEEP_ALIVE working)
-- [ ] Service accessible from other namespaces: `ollama.ai.svc.cluster.local:11434`
-- [ ] Health probes passing (startup, liveness, readiness)
+- [x] Ollama pod running in `ai` namespace
+- [x] `qwen3:1.7b` model loaded and listed
+- [x] `moondream` model loaded and listed
+- [x] Text inference produces reasonable output (10-15 tok/s)
+- [x] Vision inference produces reasonable image descriptions (8-12 tok/s)
+- [x] Node memory usage stays within safe limits during inference (<3 GB per model)
+- [x] Model stays loaded between requests (OLLAMA_KEEP_ALIVE working)
+- [x] Service accessible from other namespaces: `ollama.ai.svc.cluster.local:11434`
+- [x] Health probes passing (startup, liveness, readiness)
 
 ---
 

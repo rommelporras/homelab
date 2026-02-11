@@ -27,6 +27,7 @@
 | v0.17.0 | Phase 4.12.1 | Ghost Web Analytics (Tinybird, TrafficAnalytics proxy) | [v0.17.0-ghost-analytics.md](v0.17.0-ghost-analytics.md) |
 | v0.18.0 | Phase 4.21 | Firefox Browser (KasmVNC, persistent session) | [v0.18.0-firefox-browser.md](v0.18.0-firefox-browser.md) |
 | v0.19.0 | Phase 2.1 | kube-vip Upgrade + Monitoring (v1.0.3→v1.0.4, Prometheus) | [v0.19.0-kube-vip-upgrade.md](v0.19.0-kube-vip-upgrade.md) |
+| v0.20.0 | Phase 4.23 | Ollama Local AI (CPU-only LLM inference) | [v0.20.0-ollama.md](v0.20.0-ollama.md) |
 
 ---
 
@@ -91,6 +92,9 @@ docs/rebuild/v0.18.0-firefox-browser.md
 
 # 19. kube-vip Upgrade - v1.0.3→v1.0.4 + Prometheus monitoring
 docs/rebuild/v0.19.0-kube-vip-upgrade.md
+
+# 20. Ollama Local AI - CPU-only LLM inference
+docs/rebuild/v0.20.0-ollama.md
 ```
 
 ---
@@ -168,6 +172,9 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | MySpeed | 1.0.9 | v0.16.0 |
 | TrafficAnalytics | 1.0.72 | v0.17.0 |
 | Firefox (KasmVNC) | latest | v0.18.0 |
+| Ollama | 0.15.6 | v0.20.0 |
+| qwen3:1.7b | Q4_K_M | v0.20.0 |
+| moondream | Q4_K_M | v0.20.0 |
 
 ---
 
@@ -230,6 +237,11 @@ homelab/
 │   │   ├── rbac.yaml
 │   │   ├── secret.yaml
 │   │   └── backup-cronjob.yaml
+│   ├── ai/                             # v0.20.0
+│   │   ├── namespace.yaml
+│   │   ├── ollama-deployment.yaml
+│   │   ├── ollama-service.yaml
+│   │   └── networkpolicy.yaml
 │   ├── cloudflare/                     # v0.7.0
 │   │   ├── deployment.yaml
 │   │   ├── networkpolicy.yaml
@@ -254,7 +266,9 @@ homelab/
 │       ├── claude-alerts.yaml          # v0.15.0
 │       ├── kube-vip-monitoring.yaml    # v0.19.0
 │       ├── kube-vip-alerts.yaml        # v0.19.0
-│       └── kube-vip-dashboard-configmap.yaml   # v0.19.0
+│       ├── kube-vip-dashboard-configmap.yaml   # v0.19.0
+│       ├── ollama-probe.yaml          # v0.20.0
+│       └── ollama-alerts.yaml         # v0.20.0
 │
 ├── scripts/
 │   ├── upgrade-prometheus.sh           # v0.5.0

@@ -4,6 +4,43 @@
 
 ---
 
+## February 11, 2026 — Phase 4.23: Ollama Local AI
+
+### Milestone: CPU-Only LLM Inference Server
+
+Deployed Ollama 0.15.6 for local AI inference, primarily as foundation for Karakeep's AI-powered bookmark tagging (Phase 4.24). All inference runs on CPU (Intel i5-10400T, no GPU).
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| Ollama | 0.15.6 | Running (ai namespace) |
+| qwen3:1.7b | Q4_K_M | Text model (1.4 GB) |
+| moondream | Q4_K_M | Vision model (1.7 GB) |
+| gemma3:1b | Q4_K_M | Fallback text (0.8 GB) |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Text model | qwen3:1.7b over qwen2.5:3b | Same quality (official Qwen benchmark), half the size, faster |
+| Vision model | moondream (1.8B) over llava (7B) | 3x smaller — both loaded = 4.5 GB vs 8.5 GB (critical on 16GB nodes) |
+| Quantization | Q4_K_M (Ollama default) | Classification/tagging retains 96-99% accuracy at 4-bit (Red Hat 500K evaluations) |
+| Memory limit | 6Gi (not 3Gi) | Ollama mmap's models + kernel page cache fills cgroup — 3Gi caused OOM |
+| Network policy | CiliumNetworkPolicy ingress | Only monitoring + karakeep namespaces can reach Ollama |
+| Monitoring | Blackbox probe + PrometheusRule | No native /metrics endpoint; 3 alerts (Down, MemoryHigh, HighRestarts) |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/ai/namespace.yaml | ai namespace (PSS baseline enforce, restricted warn/audit) |
+| manifests/ai/ollama-deployment.yaml | Deployment + 10Gi PVC for model storage |
+| manifests/ai/ollama-service.yaml | ClusterIP on port 11434 |
+| manifests/ai/networkpolicy.yaml | CiliumNetworkPolicy (ingress from monitoring + karakeep) |
+| manifests/monitoring/ollama-probe.yaml | Blackbox HTTP probe (60s interval) |
+| manifests/monitoring/ollama-alerts.yaml | 3 PrometheusRule alerts |
+
+---
+
 ## February 11, 2026 — Phase 2.1: kube-vip Upgrade + Monitoring
 
 ### Milestone: kube-vip v1.0.4 + Prometheus Monitoring

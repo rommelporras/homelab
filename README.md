@@ -50,6 +50,7 @@
 | Ghost Web Analytics | ✅ Complete | Cookie-free Tinybird analytics for blog |
 | Firefox Browser | ✅ Complete | Persistent browser via KasmVNC (LAN-only) |
 | kube-vip Upgrade + Monitoring | ✅ Complete | v1.0.3→v1.0.4 + Prometheus monitoring + Grafana dashboard |
+| Ollama Local AI | ✅ Complete | CPU-only LLM inference (qwen3:1.7b, moondream) with Blackbox monitoring |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/context/Cluster.md](docs/context/Cluster.md) - Single source of truth
@@ -189,6 +190,7 @@ Step-by-step instructions to rebuild the cluster from scratch:
 | [v0.17.0-ghost-analytics](docs/rebuild/v0.17.0-ghost-analytics.md) | Phase 4.12.1 | Ghost web analytics with Tinybird |
 | [v0.18.0-firefox-browser](docs/rebuild/v0.18.0-firefox-browser.md) | Phase 4.21 | Containerized Firefox browser (KasmVNC) |
 | [v0.19.0-kube-vip-upgrade](docs/rebuild/v0.19.0-kube-vip-upgrade.md) | Phase 2.1 | kube-vip v1.0.3→v1.0.4 + Prometheus monitoring |
+| [v0.20.0-ollama](docs/rebuild/v0.20.0-ollama.md) | Phase 4.23 | Ollama Local AI (CPU-only LLM inference) |
 
 ### Reference
 
@@ -250,7 +252,8 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Feb 9, 2026** | **Ghost Web Analytics** — Tinybird integration with TrafficAnalytics proxy for cookie-free blog analytics (Phase 4.12.1) |
 | **Feb 9, 2026** | **Firefox Browser** — Persistent Firefox via KasmVNC with AdGuard DNS, basic auth, session persistence (Phase 4.21) |
 | **Feb 11, 2026** | **kube-vip Upgrade** — v1.0.3→v1.0.4 (fixed leader election errors) + Prometheus monitoring + Grafana dashboard (Phase 2.1) |
-| **Coming** | Ollama Local AI, Karakeep Migration, ARR Stack |
+| **Feb 11, 2026** | **Ollama Local AI** — CPU-only LLM inference with qwen3:1.7b (text), moondream (vision), Blackbox probe + PrometheusRule alerts (Phase 4.23) |
+| **Coming** | Karakeep Migration, ARR Stack, Tailscale Operator |
 
 See rebuild guides below for detailed project history.
 
@@ -258,8 +261,8 @@ See rebuild guides below for detailed project history.
 
 ## 🚀 Next Steps
 
-1. **Deploy Ollama Local AI** for CPU-based local AI inference (Phase 4.23)
-2. **Karakeep Migration** from Docker Compose to K8s (Phase 4.24)
+1. **Karakeep Migration** from Docker Compose to K8s with Ollama AI tagging (Phase 4.24)
+2. **ARR Stack Core** — Sonarr, Radarr, Prowlarr, qBittorrent, Jellyfin (Phase 4.25)
 3. **CKA Certification** - September 2026 target
 
 ---

@@ -88,7 +88,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 2.1 complete. kube-vip upgraded to v1.0.4 with Prometheus monitoring.
+> **Status:** Phase 4.23 complete. Ollama Local AI deployed with CPU-only inference.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -105,6 +105,10 @@ helm-homelab repo update
 | MySpeed | 1.0.9 | Running | Internet speed test tracker (migrated from LXC) |
 | TrafficAnalytics | 1.0.72 | Running | Ghost analytics proxy (browser → Tinybird) |
 | Firefox Browser | latest (lscr.io/linuxserver/firefox) | Running | Persistent browser via KasmVNC (LAN-only) |
+| Ollama | 0.15.6 | Running | CPU-only LLM inference server |
+| qwen3:1.7b | Q4_K_M | Running | Primary text model (1.4 GB) |
+| moondream | Q4_K_M | Running | Vision model for image tagging (1.7 GB) |
+| gemma3:1b | Q4_K_M | Running | Fallback text model (0.8 GB) |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -243,6 +247,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-02-11 | **Ollama Local AI:** Deployed ollama/ollama:0.15.6 with qwen3:1.7b (text), moondream (vision), gemma3:1b (fallback). Blackbox probe + 3 PrometheusRule alerts. CiliumNetworkPolicy restricts ingress to monitoring + karakeep (Phase 4.23) |
 | 2026-02-11 | **kube-vip Upgrade + Monitoring:** Upgraded v1.0.3→v1.0.4 (fixed leader election errors), added ServiceMonitor, 4 PrometheusRule alerts, Grafana dashboard (Phase 2.1) |
 | 2026-02-09 | **Firefox Browser:** Persistent Firefox via KasmVNC with AdGuard DNS routing, basic auth, Longhorn storage (Phase 4.21) |
 | 2026-02-09 | **Ghost Web Analytics:** TrafficAnalytics proxy 1.0.72 + Tinybird integration for cookie-free blog analytics (Phase 4.12.1) |

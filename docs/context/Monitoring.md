@@ -178,7 +178,9 @@ Events (Loki):
 | manifests/monitoring/kube-vip-monitoring.yaml | kube-vip Headless Service + Endpoints + ServiceMonitor |
 | manifests/monitoring/kube-vip-alerts.yaml | kube-vip PrometheusRule (4 alerts) |
 | manifests/monitoring/kube-vip-dashboard-configmap.yaml | kube-vip Grafana dashboard |
-| helm/blackbox-exporter/values.yaml | Blackbox exporter config (dns_udp module) |
+| helm/blackbox-exporter/values.yaml | Blackbox exporter config (dns_udp, http_2xx modules) |
+| manifests/monitoring/ollama-probe.yaml | Blackbox HTTP probe for Ollama (60s interval) |
+| manifests/monitoring/ollama-alerts.yaml | Ollama PrometheusRule (Down, MemoryHigh, HighRestarts) |
 
 ## Upgrade Prometheus Stack
 

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, architecture, decisions]
-updated: 2026-02-03
+updated: 2026-02-11
 ---
 
 # Architecture
@@ -79,6 +79,16 @@ Cilium has built-in Gateway API support. No extra ingress controller needed.
 | Alerting | Yes | Discord + Email redundancy |
 | UPS Protection | Yes | Staggered graceful shutdown |
 | NAS (media) | No | Single Dell 3090 (acceptable) |
+
+## Cross-Namespace Service Pattern (Ollama)
+
+Ollama runs in the `ai` namespace as an internal-only ClusterIP service. Consumers in other namespaces (e.g., Karakeep in `karakeep`) access it via cluster DNS:
+
+```
+http://ollama.ai.svc.cluster.local:11434
+```
+
+CiliumNetworkPolicy restricts ingress to only authorized namespaces (`monitoring`, `karakeep`). This pattern applies to any shared internal service consumed across namespaces.
 
 ## Dell 3090 Integration
 
