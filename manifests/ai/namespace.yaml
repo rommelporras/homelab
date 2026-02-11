@@ -1,0 +1,15 @@
+# AI workloads namespace — isolates LLM inference from other services
+# Phase 4.23 - Ollama Local AI
+#
+# PSS: baseline enforce (Ollama runs as root — upstream PR #8259 not merged)
+#       restricted warn/audit logs violations for future non-root migration
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai
+  labels:
+    app.kubernetes.io/part-of: ollama
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

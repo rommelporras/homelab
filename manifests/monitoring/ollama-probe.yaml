@@ -1,0 +1,29 @@
+# Blackbox HTTP probe for Ollama
+# Phase 4.23: Monitor internal Ollama API availability
+#
+# How it works:
+#   Prometheus → Blackbox Exporter → GET http://ollama.ai.svc:11434 → Ollama
+#   If health check fails → probe_success=0 → Alert fires
+#
+# Target is internal ClusterIP (no external route) — blackbox exporter
+# reaches it via cluster DNS since both are in-cluster
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: ollama
+  namespace: monitoring
+  labels:
+    app: ollama-probe
+spec:
+  jobName: ollama
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://ollama.ai.svc.cluster.local:11434
+      labels:
+        target_name: ollama

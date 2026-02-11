@@ -1,0 +1,82 @@
+# PrometheusRule for Ollama Alerts
+# Phase 4.23: Monitor availability, memory pressure, and pod stability
+#
+# Metrics used:
+#   probe_success{job="ollama"} — HTTP probe reachability (from Blackbox Exporter)
+#   container_memory_working_set_bytes — actual memory usage (from cAdvisor)
+#   kube_pod_container_status_restarts_total — restart count (from kube-state-metrics)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ollama-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: ollama
+      rules:
+        # Ollama API unreachable
+        - alert: OllamaDown
+          expr: probe_success{job="ollama"} == 0
+          for: 3m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ollama is unreachable"
+            description: "Blackbox HTTP probe to ollama.ai.svc has failed for 3+ minutes. AI tagging (Karakeep) will not function."
+            runbook: |
+              1. Check pod status:
+                 kubectl-homelab get pods -n ai -l app=ollama
+
+              2. Check pod logs:
+                 kubectl-homelab logs -n ai deploy/ollama --tail=50
+
+              3. Check if model is loading (high memory during startup):
+                 kubectl-homelab top pod -n ai
+
+              4. If pod is CrashLooping, check events:
+                 kubectl-homelab describe pod -n ai -l app=ollama
+
+        # Memory approaching limit (>85% of 6Gi = ~5.1Gi)
+        - alert: OllamaMemoryHigh
+          expr: |
+            container_memory_working_set_bytes{namespace="ai", container="ollama"}
+            / on(namespace, pod) group_left()
+            kube_pod_container_resource_limits{namespace="ai", container="ollama", resource="memory"}
+            > 0.85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ollama memory usage above 85%"
+            description: "Ollama is using {{ $value | humanizePercentage }} of its 6Gi memory limit. May OOMKill if multiple models load simultaneously."
+            runbook: |
+              1. Check which models are loaded:
+                 kubectl-homelab run check --rm -it --image=curlimages/curl --restart=Never -- \
+                   curl -s http://ollama.ai.svc.cluster.local:11434/api/ps
+
+              2. If multiple models loaded, verify OLLAMA_MAX_LOADED_MODELS=1
+
+              3. Check node memory pressure:
+                 kubectl-homelab top node
+
+        # Pod restarting frequently (crash loop)
+        - alert: OllamaHighRestarts
+          expr: increase(kube_pod_container_status_restarts_total{namespace="ai", container="ollama"}[1h]) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ollama is restarting frequently"
+            description: "Ollama has restarted {{ $value | humanize }} times in the last hour. Likely OOMKilled or failing health probes."
+            runbook: |
+              1. Check for OOMKill:
+                 kubectl-homelab get pods -n ai -l app=ollama -o jsonpath='{.items[*].status.containerStatuses[*].lastState}'
+
+              2. Check events:
+                 kubectl-homelab describe pod -n ai -l app=ollama | tail -20
+
+              3. If OOMKilled, consider increasing memory limit or reducing loaded models

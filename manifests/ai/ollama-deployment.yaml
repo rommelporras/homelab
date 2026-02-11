@@ -1,0 +1,111 @@
+# Ollama LLM inference server — CPU-only deployment
+# Models: qwen3:1.7b (text), moondream (vision), gemma3:1b (fallback)
+# Models persist on PVC — pull once via kubectl exec, survives pod restarts
+#
+# CKA topics: Deployment vs StatefulSet, Recreate strategy, resource limits, probes
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models
+  namespace: ai
+  labels:
+    app: ollama
+    app.kubernetes.io/part-of: ollama
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: ai
+  labels:
+    app: ollama
+    app.kubernetes.io/part-of: ollama
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # PVC is RWO — only one pod can mount at a time
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      securityContext:
+        fsGroup: 0  # root group — required for /root/.ollama volume access
+        seccompProfile:
+          type: RuntimeDefault
+      automountServiceAccountToken: false  # Ollama doesn't need K8s API access
+      containers:
+        - name: ollama
+          image: ollama/ollama:0.15.6
+          ports:
+            - name: http
+              containerPort: 11434
+              protocol: TCP
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0"  # default 127.0.0.1 won't work in container
+            - name: OLLAMA_KEEP_ALIVE
+              value: "5m"  # keep model loaded between requests (cold start is 5-10s)
+            - name: OLLAMA_MAX_LOADED_MODELS
+              value: "1"  # one model in RAM at a time — conserves memory on 16GB nodes
+            - name: OLLAMA_NUM_PARALLEL
+              value: "1"  # avoid memory thrashing on CPU
+            - name: OLLAMA_KV_CACHE_TYPE
+              value: "q8_0"  # saves RAM with negligible quality impact vs default f16
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "4"
+              memory: "6Gi"  # model mmap + page cache + Ollama overhead
+          securityContext:
+            runAsNonRoot: false  # Ollama requires root (PR #8259 not merged)
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: models
+              mountPath: /root/.ollama
+          # Startup probe: allows up to 310s for first boot + model loading
+          startupProbe:
+            httpGet:
+              path: /
+              port: 11434
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 30
+          # Liveness: restart if Ollama becomes unresponsive
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          # Readiness: remove from service during inference load spikes
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: ollama-models

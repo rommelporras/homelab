@@ -1,0 +1,43 @@
+# CiliumNetworkPolicy - Ingress rules for Ollama
+# Phase 4.23: Restrict which namespaces can access the Ollama API
+#
+# ALLOWED ingress:
+#   - monitoring namespace (Blackbox Exporter probe)
+#   - karakeep namespace (AI tagging — Phase 4.24)
+# BLOCKED: all other namespaces and external traffic
+#
+# CKA topic: CiliumNetworkPolicy ingress, namespace-based access control
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ollama-ingress
+  namespace: ai
+  labels:
+    app: ollama
+    app.kubernetes.io/part-of: ollama
+spec:
+  endpointSelector:
+    matchLabels:
+      app: ollama
+
+  ingress:
+    # Blackbox Exporter (monitoring namespace) — HTTP probe on port 11434
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "11434"
+              protocol: TCP
+
+    # Karakeep (Phase 4.24) — AI tagging requests on port 11434
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: karakeep
+      toPorts:
+        - ports:
+            - port: "11434"
+              protocol: TCP
+
+  # Everything else is implicitly denied

@@ -1,0 +1,21 @@
+# ClusterIP service for internal access — no HTTPRoute needed
+# Karakeep (Phase 4.24) connects via http://ollama.ai.svc.cluster.local:11434
+#
+# CKA topic: Cross-namespace service DNS (<service>.<namespace>.svc.cluster.local)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: ai
+  labels:
+    app: ollama
+    app.kubernetes.io/part-of: ollama
+spec:
+  selector:
+    app: ollama
+  ports:
+    - name: http
+      port: 11434
+      targetPort: 11434
+      protocol: TCP
