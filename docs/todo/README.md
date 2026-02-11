@@ -33,7 +33,8 @@
 | v0.22.0 | ARR Stack Core | Phase 4.25 | ⬜ Planned |
 | v0.23.0 | ARR Companions | Phase 4.26 | ⬜ Planned |
 | v0.24.0 | Tailscale Operator | Phase 4.10 | ⬜ Planned |
-| v0.25.0 | Production Hardening | Phase 5 | ⬜ Planned |
+| v0.25.0 | Version Automation & Upgrade Runbooks | Phase 4.27 | ⬜ Planned |
+| v0.26.0 | Production Hardening | Phase 5 | ⬜ Planned |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 
 ---
@@ -75,6 +76,7 @@
 | 4.25 | ARR Stack Core | [phase-4.25-arr-stack.md](phase-4.25-arr-stack.md) |
 | 4.26 | ARR Companions | [phase-4.26-arr-companions.md](phase-4.26-arr-companions.md) |
 | 4.10 | Tailscale Operator | [phase-4.10-tailscale-operator.md](phase-4.10-tailscale-operator.md) |
+| 4.27 | Version Automation & Upgrade Runbooks | [phase-4.27-version-automation.md](phase-4.27-version-automation.md) |
 | 5 | Production Hardening | [phase-5-hardening.md](phase-5-hardening.md) |
 | 6 | CKA Focused Learning | [phase-6-cka.md](phase-6-cka.md) |
 
