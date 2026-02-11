@@ -106,13 +106,23 @@ File: `renovate.json` (repo root)
   },
   "packageRules": [
     {
-      "description": "Group all K8s and Helm updates into one weekly PR",
-      "matchManagers": ["kubernetes", "helm-values", "helmv3"],
-      "groupName": "kubernetes-weekly",
+      "description": "Major bumps: separate PR, never automerge, needs manual review",
+      "matchUpdateTypes": ["major"],
+      "groupName": null,
+      "automerge": false,
+      "labels": ["breaking-change"],
+      "prBodyNotes": ["⛔ **MAJOR VERSION** — Check upgrade path in docs/context/Upgrades.md before merging. Read upstream release notes for breaking changes, database migrations, and deprecations."],
       "schedule": ["before 6am on sunday"]
     },
     {
-      "description": "Never automerge critical infrastructure",
+      "description": "Group minor/patch K8s and Helm updates into one weekly PR",
+      "matchManagers": ["kubernetes", "helm-values", "helmv3"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "kubernetes-weekly-minor-patch",
+      "schedule": ["before 6am on sunday"]
+    },
+    {
+      "description": "Never automerge critical infrastructure (any update type)",
       "matchPackagePatterns": ["longhorn", "cilium", "kube-prometheus-stack", "cert-manager"],
       "automerge": false
     }
@@ -125,7 +135,8 @@ File: `renovate.json` (repo root)
 | Behavior | Setting |
 |----------|---------|
 | PR schedule | Weekly (Sunday before 6am PHT) |
-| PR grouping | All K8s/Helm updates in one PR |
+| **Major bumps** | **Separate PR per package, `breaking-change` label, upgrade path warning** |
+| Minor/patch | Grouped into one weekly PR |
 | Manual approval | Dependency Dashboard checkbox required |
 | Concurrent PRs | Max 5 |
 | Image detection | Auto-detects `image:` fields in YAML (no annotations needed) |
@@ -238,8 +249,11 @@ Community dashboard: [Grafana #12833](https://grafana.com/grafana/dashboards/128
 ### What It Does
 - Runs weekly (Sunday 8am PHT)
 - Checks Helm chart versions, container images, kubeadm, and kube-vip
-- Sends a color-coded Discord embed with version status
-- Green = all current, Yellow = minor/patch updates, Red = major updates or security fixes
+- **Semver-aware**: classifies each update as major/minor/patch
+- Color-coded Discord embeds by severity:
+  - Green = all current
+  - Yellow = minor/patch updates available
+  - Red = **major version bump** — includes upstream changelog link and "check upgrade path" warning
 
 ### Discord Setup
 
@@ -250,34 +264,56 @@ Community dashboard: [Grafana #12833](https://grafana.com/grafana/dashboards/128
 
 ### Discord Embed Format
 
+The script sends up to 4 embeds per message, grouped by semver severity:
+
 ```json
 {
   "embeds": [
     {
-      "title": "Homelab Version Check — Weekly Digest",
-      "description": "Checked on 2026-02-11",
-      "color": 5763719,
+      "title": "⛔ MAJOR — Check upgrade path before applying",
+      "description": "These require migration steps, breaking change review, or database backups.",
+      "color": 15548997,
       "fields": [
-        { "name": "Kubernetes", "value": "v1.35.0 (current)", "inline": true },
-        { "name": "Cilium", "value": "1.18.6 (current)", "inline": true },
-        { "name": "Longhorn", "value": "1.10.1 (current)", "inline": true }
+        { "name": "Ghost", "value": "5.114.1 → **6.0.0**\n[Release notes](https://github.com/TryGhost/Ghost/releases/tag/v6.0.0)", "inline": true },
+        { "name": "Longhorn", "value": "1.10.1 → **2.0.0**\n⚠️ Cannot downgrade!", "inline": true }
       ]
     },
     {
-      "title": "Outdated Components",
+      "title": "Minor/Patch Updates Available",
+      "description": "Generally safe to apply. Review release notes.",
       "color": 16705372,
       "fields": [
-        { "name": "kube-vip", "value": "v0.8.9 → v0.9.1", "inline": true }
+        { "name": "Cilium", "value": "1.18.6 → 1.18.7 (patch)", "inline": true },
+        { "name": "kube-vip", "value": "v0.8.9 → v0.9.1 (minor)", "inline": true }
       ]
+    },
+    {
+      "title": "All Current",
+      "color": 5763719,
+      "fields": [
+        { "name": "Kubernetes", "value": "v1.35.0 ✓", "inline": true },
+        { "name": "Grafana", "value": "11.6.0 ✓", "inline": true }
+      ]
+    },
+    {
+      "title": "Homelab Version Check — Weekly Digest",
+      "description": "Checked on 2026-02-11 | 2 major, 2 minor/patch, 8 current",
+      "color": 2303786
     }
   ]
 }
 ```
 
 **Color codes (decimal):**
+- Red (major bump): `15548997` (#ED4245) — always shown first, always includes changelog link
+- Yellow (minor/patch): `16705372` (#FEE75C)
 - Green (current): `5763719` (#57F287)
-- Yellow (outdated): `16705372` (#FEE75C)
-- Red (critical): `15548997` (#ED4245)
+- Blue (summary footer): `2303786` (#2323AA)
+
+**Major version embed always includes:**
+- Upstream release notes / changelog link (GitHub releases API)
+- Warning if service has known complex upgrade path (from upgrade registry)
+- "Check docs/context/Upgrades.md" reminder
 
 ### CronJob Design
 
@@ -293,7 +329,7 @@ Community dashboard: [Grafana #12833](https://grafana.com/grafana/dashboards/128
 
 ### Version Check Script Logic
 
-The script checks these sources:
+**Data sources:**
 
 | Check | Method | Source |
 |-------|--------|--------|
@@ -301,6 +337,38 @@ The script checks these sources:
 | Container images | version-checker Prometheus metrics (curl) | Registry APIs |
 | Kubernetes | `kubectl version -o json` vs GitHub API | kubernetes/kubernetes releases |
 | kube-vip | Current static pod manifest vs GitHub API | kube-vip/kube-vip releases |
+
+**Semver classification logic:**
+
+For each component, the script:
+1. Extracts current version and latest version (strips `v` prefix)
+2. Splits into `major.minor.patch` components
+3. Classifies the bump:
+   - **Major**: `current_major != latest_major` → Red embed, changelog link
+   - **Minor**: `current_minor != latest_minor` → Yellow embed
+   - **Patch**: `current_patch != latest_patch` → Yellow embed
+   - **Current**: versions match → Green embed
+4. For major bumps, fetches changelog URL via GitHub API:
+   ```
+   https://api.github.com/repos/{owner}/{repo}/releases/latest
+   → extract html_url field for the release notes link
+   ```
+5. Checks the upgrade registry (ConfigMap) for known complex upgrades and appends warnings
+
+**Upgrade registry** (ConfigMap `version-check-upgrade-registry`):
+
+Services with known complex major upgrade paths get extra warnings in the Discord embed:
+
+| Service | Warning |
+|---------|---------|
+| Ghost | "Database migration required. Backup MySQL before upgrading. Check Ghost migration guide." |
+| Longhorn | "CANNOT DOWNGRADE. Backup all PVCs. Read Longhorn upgrade docs carefully." |
+| Kubernetes | "Must upgrade 1 minor at a time. etcd backup required. Run kubeadm upgrade plan first." |
+| Cilium | "Brief network disruption expected. Review CNI migration notes." |
+| GitLab | "Database migrations required. Backup PostgreSQL. Follow GitLab upgrade path tool." |
+| MySQL | "Check mysql_upgrade compatibility matrix. Backup all databases." |
+| Meilisearch | "Index format may change between majors. Re-index required after upgrade." |
+| PostgreSQL | "Major version = pg_upgrade or dump/restore. Cannot just bump image tag." |
 
 ### Resource Limits (CronJob)
 
@@ -506,6 +574,7 @@ helm-homelab rollback cilium <revision> -n kube-system
 | `manifests/monitoring/version-checker-alerts.yaml` | PrometheusRule | ContainerImageOutdated alert |
 | `manifests/monitoring/version-check-cronjob.yaml` | CronJob | Weekly Discord digest |
 | `manifests/monitoring/version-check-script.yaml` | ConfigMap | Version check shell script |
+| `manifests/monitoring/version-check-upgrade-registry.yaml` | ConfigMap | Known complex upgrade paths per service |
 | `docs/context/Upgrades.md` | Documentation | Upgrade/rollback runbook per component |
 
 ## Files to Modify
@@ -587,29 +656,42 @@ helm-homelab rollback cilium <revision> -n kube-system
 
 ### 4.27.4 Deploy Version Check CronJob
 
-- [ ] 4.27.4.1 Create `manifests/monitoring/version-check-script.yaml` (ConfigMap with shell script)
+- [ ] 4.27.4.1 Create `manifests/monitoring/version-check-upgrade-registry.yaml` (ConfigMap)
+  - Key-value pairs: `<service>=<warning message>` for services with known complex major upgrades
+  - Covers: Ghost, Longhorn, Kubernetes, Cilium, GitLab, MySQL, Meilisearch, PostgreSQL
+  - Easy to extend — just add a new key when adding a service with complex upgrades
+- [ ] 4.27.4.2 Create `manifests/monitoring/version-check-script.yaml` (ConfigMap with shell script)
   - Script checks: Helm releases, container images (via version-checker metrics), kubeadm, kube-vip
-  - Builds Discord embed JSON with color-coded status
+  - **Semver classification**: compares `major.minor.patch` to determine bump type
+  - **Major bumps**: fetches changelog URL from GitHub releases API, checks upgrade registry for warnings
+  - Builds Discord embed JSON with color-coded groups (red=major, yellow=minor/patch, green=current)
+  - Summary footer embed with total counts
   - Sends via `curl` to Discord webhook
-- [ ] 4.27.4.2 Create `manifests/monitoring/version-check-cronjob.yaml`
+- [ ] 4.27.4.3 Create `manifests/monitoring/version-check-cronjob.yaml`
   - Schedule: `0 0 * * 0` (Sunday 00:00 UTC = 08:00 PHT)
   - Image: `dwdraju/alpine-curl-jq:latest`
-  - Mount: ConfigMap script + Secret webhook URL
+  - Mount: ConfigMap script + upgrade registry ConfigMap + Secret webhook URL
   - ServiceAccount with Helm list + pod read permissions
   - `activeDeadlineSeconds: 300`
   - Security context: runAsNonRoot, drop ALL
-- [ ] 4.27.4.3 Apply:
+- [ ] 4.27.4.4 Apply:
   ```bash
   kubectl-homelab apply \
+    -f manifests/monitoring/version-check-upgrade-registry.yaml \
     -f manifests/monitoring/version-check-script.yaml \
     -f manifests/monitoring/version-check-cronjob.yaml
   ```
-- [ ] 4.27.4.4 Trigger manual run to test:
+- [ ] 4.27.4.5 Trigger manual run to test:
   ```bash
   kubectl-homelab -n monitoring create job --from=cronjob/version-check version-check-manual
   kubectl-homelab -n monitoring logs job/version-check-manual -f
   ```
-- [ ] 4.27.4.5 Verify Discord message received with correct formatting
+- [ ] 4.27.4.6 Verify Discord message shows correct semver classification:
+  - Test with a service that has a known major bump available
+  - Verify red embed appears with changelog link
+  - Verify upgrade registry warning appears for complex services
+  - Verify minor/patch grouped in yellow embed
+  - Verify current services in green embed
 
 ### 4.27.5 Write Upgrade Runbook
 
@@ -618,6 +700,15 @@ helm-homelab rollback cilium <revision> -n kube-system
   - Upgrade/rollback procedures for each component type (Helm, manifests, kubeadm, kube-vip, Longhorn, Cilium)
   - Risk matrix
   - Emergency rollback procedures
+  - **Service-specific major upgrade paths** — detailed procedures for complex services:
+    - Ghost: MySQL backup, theme compatibility check, migration guide link
+    - Longhorn: PVC backup, read release notes (cannot downgrade!), volume health pre-check
+    - Kubernetes: etcd snapshot, `kubeadm upgrade plan`, one minor at a time
+    - Cilium: hubble connectivity test pre/post, network policy verification
+    - GitLab: PostgreSQL backup, follow GitLab upgrade path tool, check bg_migration status
+    - MySQL: compatibility matrix check, `mysql_upgrade` for major versions
+    - PostgreSQL: `pg_upgrade` or dump/restore for major versions
+    - Meilisearch: re-index after major upgrade (index format changes)
 - [ ] 4.27.5.2 Update `docs/context/_Index.md` — add Upgrades.md to Quick Links
 
 ### 4.27.6 Install Nova CLI (Local)
@@ -666,7 +757,10 @@ helm-homelab rollback cilium <revision> -n kube-system
 - [ ] `ContainerImageOutdated` PrometheusRule created
 - [ ] Discord webhook test message received
 - [ ] Weekly CronJob runs and sends Discord digest
-- [ ] Discord embed shows color-coded version status (green/yellow/red)
+- [ ] Discord embed correctly classifies major/minor/patch bumps
+- [ ] Major bumps show red embed with upstream changelog link
+- [ ] Major bumps for complex services show upgrade registry warning
+- [ ] Minor/patch grouped in yellow embed, current in green embed
 - [ ] Nova CLI works locally (`nova find --format table`)
 - [ ] `docs/context/Upgrades.md` complete with all component types
 - [ ] Pre-upgrade checklist documented and tested
@@ -687,6 +781,7 @@ kubectl-homelab delete serviceaccount version-checker -n monitoring
 # Remove CronJob
 kubectl-homelab delete cronjob version-check -n monitoring
 kubectl-homelab delete configmap version-check-script -n monitoring
+kubectl-homelab delete configmap version-check-upgrade-registry -n monitoring
 kubectl-homelab delete secret discord-webhook -n monitoring
 
 # Renovate: disable via GitHub App settings (no cluster changes)
@@ -706,6 +801,9 @@ kubectl-homelab delete secret discord-webhook -n monitoring
 | Namespace | monitoring | Operational tooling, co-located with Prometheus/Grafana |
 | Nova as CLI only | CLI (not CronJob) | Ad-hoc checks, no need for continuous monitoring |
 | `dwdraju/alpine-curl-jq` | Lightweight image | ~15MB, has curl+jq+bash — all we need for the script |
+| Semver-aware classification | Major/minor/patch | Major bumps need research (Ghost v5→v6 = DB migrations); minor/patch generally safe |
+| Upgrade registry ConfigMap | Separate from script | Easy to extend — add new service warnings without modifying script logic |
+| Renovate major PR separation | One PR per major bump | Each major bump needs individual review, not grouped with safe patches |
 
 ---
 
