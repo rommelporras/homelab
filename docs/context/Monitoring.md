@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-02-11
+updated: 2026-02-12
 ---
 
 # Monitoring
@@ -181,6 +181,8 @@ Events (Loki):
 | helm/blackbox-exporter/values.yaml | Blackbox exporter config (dns_udp, http_2xx modules) |
 | manifests/monitoring/ollama-probe.yaml | Blackbox HTTP probe for Ollama (60s interval) |
 | manifests/monitoring/ollama-alerts.yaml | Ollama PrometheusRule (Down, MemoryHigh, HighRestarts) |
+| manifests/monitoring/karakeep-probe.yaml | Blackbox HTTP probe for Karakeep /api/health |
+| manifests/monitoring/karakeep-alerts.yaml | Karakeep PrometheusRule (Down, HighRestarts) |
 
 ## Upgrade Prometheus Stack
 

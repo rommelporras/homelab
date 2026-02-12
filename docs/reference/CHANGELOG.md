@@ -4,6 +4,75 @@
 
 ---
 
+## February 12, 2026 — Phase 4.24: Karakeep Migration
+
+### Milestone: Bookmark Manager with AI Tagging
+
+Migrated Karakeep 0.30.0 bookmark manager from Proxmox Docker to Kubernetes. Three-service deployment (Karakeep AIO + Chrome + Meilisearch) connected to Ollama in the `ai` namespace for AI-powered bookmark tagging using qwen2.5:3b (text) and moondream (vision). Migrated 119 bookmarks, 423 tags, and 17 lists from Proxmox using karakeep-cli.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| Karakeep | 0.30.0 | Running (karakeep namespace) |
+| Chrome | alpine-chrome:124 | Running (headless browser) |
+| Meilisearch | v1.13.3 | Running (search engine) |
+| qwen2.5:3b | Q4_K_M | Text tagging model (1.9 GB) |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Text model | qwen2.5:3b over qwen3:1.7b | qwen3 thinking mode breaks Ollama structured output ([#10538](https://github.com/ollama/ollama/issues/10538)) |
+| Architecture | AIO image (not split web/workers) | SQLite = single writer, no benefit to splitting |
+| Database | SQLite (embedded) | No Redis needed — liteque replaces Redis since v0.16.0 |
+| Chrome security | `--no-sandbox` + CIDR egress restriction | Standard for containerized Chromium + blocks SSRF to internal networks |
+| Crawler timeout | 120s (default 60s) | Content-type check + banner download needs headroom |
+| Ollama probes | Widened timeouts (liveness 10s, readiness 5s) | CPU inference saturates cores, HTTP may be slow during active inference |
+| Migration | karakeep-cli `migrate` subcommand | Server-to-server API migration preserves all data (bookmarks, tags, lists) |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/karakeep/namespace.yaml | karakeep namespace (PSS baseline enforce, restricted warn/audit) |
+| manifests/karakeep/karakeep-deployment.yaml | Karakeep AIO Deployment + 2Gi PVC |
+| manifests/karakeep/karakeep-service.yaml | ClusterIP on port 3000 |
+| manifests/karakeep/httproute.yaml | HTTPRoute for karakeep.k8s.rommelporras.com |
+| manifests/karakeep/chrome-deployment.yaml | Headless Chrome Deployment |
+| manifests/karakeep/chrome-service.yaml | ClusterIP on port 9222 |
+| manifests/karakeep/meilisearch-deployment.yaml | Meilisearch Deployment + 1Gi PVC |
+| manifests/karakeep/meilisearch-service.yaml | ClusterIP on port 7700 |
+| manifests/karakeep/networkpolicy.yaml | 6 CiliumNetworkPolicies (ingress/egress for all 3 services) |
+| manifests/monitoring/karakeep-probe.yaml | Blackbox HTTP probe for /api/health |
+| manifests/monitoring/karakeep-alerts.yaml | PrometheusRule (KarakeepDown, KarakeepHighRestarts) |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| manifests/ai/ollama-deployment.yaml | Widened probe timeouts for CPU inference + updated model comment |
+| manifests/home/homepage/config/services.yaml | Updated Karakeep widget URL to k8s.rommelporras.com |
+
+### Network Policies (6 CiliumNetworkPolicies)
+
+| Policy | Direction | Rules |
+|--------|-----------|-------|
+| karakeep-ingress | Ingress | Gateway (reserved:ingress) + host (probes) + monitoring |
+| karakeep-egress | Egress | Chrome (9222) + Meilisearch (7700) + Ollama (11434) + external HTTPS + DNS |
+| chrome-ingress | Ingress | Karakeep pods + host (probes) |
+| chrome-egress | Egress | External internet only (CIDR blocks private networks for SSRF protection) + DNS |
+| meilisearch-ingress | Ingress | Karakeep pods + host (probes) |
+| meilisearch-egress | Egress | DNS only (defense-in-depth) |
+
+### Lessons Learned
+
+1. **qwen3 + structured output = broken** — Ollama's structured output suppresses the `<think>` token, breaking qwen3 models. Use qwen2.5:3b for Karakeep.
+2. **Karakeep needs internet egress** — Content-type checks, banner image downloads, and favicon fetches all require outbound HTTPS from Karakeep pods (not just Chrome).
+3. **Ollama probe timeouts matter during inference** — CPU inference saturates all cores (~4000m). HTTP health probes can time out during active inference, causing false restarts. Widened liveness to 10s timeout, readiness to 5s.
+4. **karakeep-cli `migrate` needs `-it` flag** — Interactive confirmation prompt requires TTY allocation.
+5. **s6-overlay requires root init** — Karakeep AIO uses s6-overlay which needs root during init (manages /run), then drops to app user. `runAsNonRoot: false` with `fsGroup: 0`.
+
+---
+
 ## February 11, 2026 — Phase 4.23: Ollama Local AI
 
 ### Milestone: CPU-Only LLM Inference Server

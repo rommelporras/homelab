@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** February 11, 2026
+> **Last Updated:** February 12, 2026
 
 ---
 
@@ -88,7 +88,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.23 complete. Ollama Local AI deployed with CPU-only inference.
+> **Status:** Phase 4.24 complete. Karakeep bookmark manager migrated with Ollama AI tagging.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -105,8 +105,12 @@ helm-homelab repo update
 | MySpeed | 1.0.9 | Running | Internet speed test tracker (migrated from LXC) |
 | TrafficAnalytics | 1.0.72 | Running | Ghost analytics proxy (browser → Tinybird) |
 | Firefox Browser | latest (lscr.io/linuxserver/firefox) | Running | Persistent browser via KasmVNC (LAN-only) |
+| Karakeep | 0.30.0 | Running | Bookmark manager with AI tagging (SQLite + s6-overlay) |
+| Chrome (Karakeep) | alpine-chrome:124 | Running | Headless browser for page crawling |
+| Meilisearch | v1.13.3 | Running | Full-text search engine for Karakeep |
 | Ollama | 0.15.6 | Running | CPU-only LLM inference server |
-| qwen3:1.7b | Q4_K_M | Running | Primary text model (1.4 GB) |
+| qwen2.5:3b | Q4_K_M | Running | Text model for Karakeep tagging (1.9 GB) |
+| qwen3:1.7b | Q4_K_M | Running | General text model (1.4 GB) |
 | moondream | Q4_K_M | Running | Vision model for image tagging (1.7 GB) |
 | gemma3:1b | Q4_K_M | Running | Fallback text model (0.8 GB) |
 
@@ -137,6 +141,7 @@ helm-homelab repo update
 | Uptime Kuma (public) | status.rommelporras.com (Cloudflare Tunnel) | — | uptime-kuma |
 | MySpeed | myspeed.k8s.rommelporras.com | base | home |
 | Firefox Browser | browser.k8s.rommelporras.com | base | browser |
+| Karakeep | karakeep.k8s.rommelporras.com | base | karakeep |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |
@@ -247,6 +252,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-02-12 | **Karakeep Migration:** Deployed Karakeep 0.30.0 bookmark manager with Chrome (alpine-chrome:124), Meilisearch v1.13.3, connected to Ollama qwen2.5:3b for AI tagging. Migrated 119 bookmarks from Proxmox. 6 CiliumNetworkPolicies with SSRF protection. Blackbox probe + 2 alerts (Phase 4.24) |
 | 2026-02-11 | **Ollama Local AI:** Deployed ollama/ollama:0.15.6 with qwen3:1.7b (text), moondream (vision), gemma3:1b (fallback). Blackbox probe + 3 PrometheusRule alerts. CiliumNetworkPolicy restricts ingress to monitoring + karakeep (Phase 4.23) |
 | 2026-02-11 | **kube-vip Upgrade + Monitoring:** Upgraded v1.0.3→v1.0.4 (fixed leader election errors), added ServiceMonitor, 4 PrometheusRule alerts, Grafana dashboard (Phase 2.1) |
 | 2026-02-09 | **Firefox Browser:** Persistent Firefox via KasmVNC with AdGuard DNS routing, basic auth, Longhorn storage (Phase 4.21) |

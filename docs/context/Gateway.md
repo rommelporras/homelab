@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, gateway, tls, cert-manager]
-updated: 2026-02-09
+updated: 2026-02-12
 ---
 
 # Gateway API
@@ -37,13 +37,13 @@ Gateway API for HTTPS ingress with automatic TLS certificates.
 |  Port 443 - https-stg (*.stg.k8s.rommelporras.com)   |
 +-----------------------------------------------------+
                             |
-    +-------+-------+-------+-------+-------+---------+---------+---------+---------+---------+---------+
-    v       v       v       v       v       v         v         v         v         v         v
-+------++------++------++------++------++--------++--------++--------++--------++--------++--------+
-|Grafan||AdGuar||Homepg||Longh.||GitLab||Portfol.||Ghost   ||Invoice-||Uptime  ||MySpeed ||Firefox |
-| base || base || base || base || base ||dev/stg/ ||dev/prod|| tron   || Kuma   || base   || base   |
-|      ||      ||      ||      ||      || prod   ||        ||dev/prod|| base   ||        ||        |
-+------++------++------++------++------++--------++--------++--------++--------++--------++--------+
+    +-------+-------+-------+-------+-------+---------+---------+---------+---------+---------+---------+---------+
+    v       v       v       v       v       v         v         v         v         v         v         v
++------++------++------++------++------++--------++--------++--------++--------++--------++--------++--------+
+|Grafan||AdGuar||Homepg||Longh.||GitLab||Portfol.||Ghost   ||Invoice-||Uptime  ||MySpeed ||Firefox ||Kara-  |
+| base || base || base || base || base ||dev/stg/ ||dev/prod|| tron   || Kuma   || base   || base   ||keep   |
+|      ||      ||      ||      ||      || prod   ||        ||dev/prod|| base   ||        ||        || base  |
++------++------++------++------++------++--------++--------++--------++--------++--------++--------++--------+
 ```
 
 ## Components
@@ -123,6 +123,7 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 | Uptime Kuma | https://uptime.k8s.rommelporras.com | uptime-kuma | uptime-kuma | https |
 | MySpeed | https://myspeed.k8s.rommelporras.com | myspeed | home | https |
 | Firefox Browser | https://browser.k8s.rommelporras.com | firefox | browser | https |
+| Karakeep | https://karakeep.k8s.rommelporras.com | karakeep | karakeep | https |
 
 ## Adding a New Service
 

@@ -1,9 +1,8 @@
 # Phase 4.24: Karakeep Migration
 
-> **Status:** Planned
-> **Target:** v0.21.0
+> **Status:** Released (v0.21.0)
+> **Released:** February 12, 2026
 > **Prerequisite:** Phase 4.23 complete (Ollama running in `ai` namespace)
-> **Priority:** Medium (depends on Ollama)
 > **DevOps Topics:** Application migration, multi-service deployment, cross-namespace communication, SQLite workloads
 > **CKA Topics:** Deployment, Service, PVC, Secret, HTTPRoute, CiliumNetworkPolicy (cross-namespace)
 
@@ -274,16 +273,16 @@ op item edit "Karakeep" --vault "Kubernetes" \
 
 ### 4.24.1 Prepare Ollama
 
-- [ ] 4.24.1.1 Pull `qwen2.5:3b` on Ollama for Karakeep text tagging:
+- [x] 4.24.1.1 Pull `qwen2.5:3b` on Ollama for Karakeep text tagging:
   ```bash
   kubectl-homelab exec -n ai deploy/ollama -- ollama pull qwen2.5:3b
   ```
-- [ ] 4.24.1.2 Verify model loaded:
+- [x] 4.24.1.2 Verify model loaded:
   ```bash
   kubectl-homelab exec -n ai deploy/ollama -- ollama list
   # Expected: qwen2.5:3b (~1.9 GB) alongside existing models
   ```
-- [ ] 4.24.1.3 Test inference with structured output:
+- [x] 4.24.1.3 Test inference with structured output:
   ```bash
   kubectl-homelab exec -n ai deploy/ollama -- ollama run qwen2.5:3b \
     "Classify this text into 3 tags as JSON: Kubernetes is a container orchestration platform"
@@ -291,8 +290,8 @@ op item edit "Karakeep" --vault "Kubernetes" \
 
 ### 4.24.2 Create 1Password Secrets
 
-- [ ] 4.24.2.1 Create "Karakeep" item in Kubernetes vault with `nextauth-secret` and `meili-master-key`
-- [ ] 4.24.2.2 Verify secrets readable:
+- [x] 4.24.2.1 Create "Karakeep" item in Kubernetes vault with `nextauth-secret` and `meili-master-key`
+- [x] 4.24.2.2 Verify secrets readable:
   ```bash
   op read "op://Kubernetes/Karakeep/nextauth-secret"
   op read "op://Kubernetes/Karakeep/meili-master-key"
@@ -300,9 +299,9 @@ op item edit "Karakeep" --vault "Kubernetes" \
 
 ### 4.24.3 Create Manifests
 
-- [ ] 4.24.3.1 Create `manifests/karakeep/namespace.yaml`
+- [x] 4.24.3.1 Create `manifests/karakeep/namespace.yaml`
   - PSS labels: `enforce: baseline`, `warn: restricted`, `audit: restricted`
-- [ ] 4.24.3.2 Create `manifests/karakeep/karakeep-deployment.yaml`
+- [x] 4.24.3.2 Create `manifests/karakeep/karakeep-deployment.yaml`
   - Image: `ghcr.io/karakeep-app/karakeep:0.30.0`
   - PVC: 2Gi Longhorn at `/data` (SQLite + crawled assets)
   - Strategy: Recreate (RWO, single replica)
@@ -311,58 +310,58 @@ op item edit "Karakeep" --vault "Kubernetes" \
   - Health probes: `GET /api/health` port 3000
   - Security context: UID 1000, runAsNonRoot, drop ALL caps
   - `automountServiceAccountToken: false`
-- [ ] 4.24.3.3 Create `manifests/karakeep/karakeep-service.yaml`
+- [x] 4.24.3.3 Create `manifests/karakeep/karakeep-service.yaml`
   - ClusterIP on port 3000
-- [ ] 4.24.3.4 Create `manifests/karakeep/httproute.yaml`
+- [x] 4.24.3.4 Create `manifests/karakeep/httproute.yaml`
   - Host: `karakeep.k8s.rommelporras.com`
   - Parent: `homelab-gateway` (sectionName: `https`)
   - Backend: karakeep service port 3000
-- [ ] 4.24.3.5 Create `manifests/karakeep/chrome-deployment.yaml`
+- [x] 4.24.3.5 Create `manifests/karakeep/chrome-deployment.yaml`
   - Image: `gcr.io/zenika-hub/alpine-chrome:124`
   - Command args: `--no-sandbox`, `--disable-gpu`, `--disable-dev-shm-usage`, `--remote-debugging-address=0.0.0.0`, `--remote-debugging-port=9222`, `--hide-scrollbars`
   - No PVC (stateless)
   - Security context: UID 1000, runAsNonRoot, drop ALL caps
-- [ ] 4.24.3.6 Create `manifests/karakeep/chrome-service.yaml`
+- [x] 4.24.3.6 Create `manifests/karakeep/chrome-service.yaml`
   - ClusterIP on port 9222
-- [ ] 4.24.3.7 Create `manifests/karakeep/meilisearch-deployment.yaml`
+- [x] 4.24.3.7 Create `manifests/karakeep/meilisearch-deployment.yaml`
   - Image: `getmeili/meilisearch:v1.13.3`
   - PVC: 1Gi Longhorn at `/meili_data`
   - Strategy: Recreate (RWO, single replica)
   - Env: `MEILI_NO_ANALYTICS=true`, `MEILI_MASTER_KEY` from Secret
   - Security context: runAsNonRoot, drop ALL caps
-- [ ] 4.24.3.8 Create `manifests/karakeep/meilisearch-service.yaml`
+- [x] 4.24.3.8 Create `manifests/karakeep/meilisearch-service.yaml`
   - ClusterIP on port 7700
-- [ ] 4.24.3.9 Create `manifests/karakeep/networkpolicy.yaml`
+- [x] 4.24.3.9 Create `manifests/karakeep/networkpolicy.yaml`
   - CiliumNetworkPolicy for Karakeep, Chrome, and Meilisearch
   - Karakeep egress: Chrome (9222), Meilisearch (7700), Ollama cross-namespace (11434), DNS (53)
   - Chrome egress: external internet (website crawling), DNS — block internal cluster CIDRs
   - Meilisearch ingress: only from Karakeep pods
-- [ ] 4.24.3.10 Dry-run validate all manifests:
+- [x] 4.24.3.10 Dry-run validate all manifests:
   ```bash
   kubectl-homelab apply --dry-run=client -f manifests/karakeep/
   ```
 
 ### 4.24.4 Deploy & Verify
 
-- [ ] 4.24.4.1 Apply namespace and manifests:
+- [x] 4.24.4.1 Apply namespace and manifests:
   ```bash
   kubectl-homelab apply -f manifests/karakeep/
   ```
-- [ ] 4.24.4.2 Wait for all pods ready:
+- [x] 4.24.4.2 Wait for all pods ready:
   ```bash
   kubectl-homelab -n karakeep wait --for=condition=Ready pod -l app=karakeep --timeout=120s
   kubectl-homelab -n karakeep wait --for=condition=Ready pod -l app=chrome --timeout=60s
   kubectl-homelab -n karakeep wait --for=condition=Ready pod -l app=meilisearch --timeout=60s
   ```
-- [ ] 4.24.4.3 Verify `karakeep.k8s.rommelporras.com` loads in browser
-- [ ] 4.24.4.4 Create first user account, then set `DISABLE_SIGNUPS=true` and re-apply
-- [ ] 4.24.4.5 Generate API key in Karakeep UI (Settings → API Keys) and save to 1Password
-- [ ] 4.24.4.6 Test: save a URL bookmark, verify:
+- [x] 4.24.4.3 Verify `karakeep.k8s.rommelporras.com` loads in browser
+- [x] 4.24.4.4 Create first user account, then set `DISABLE_SIGNUPS=true` and re-apply
+- [x] 4.24.4.5 Generate API key in Karakeep UI (Settings → API Keys) and save to 1Password
+- [x] 4.24.4.6 Test: save a URL bookmark, verify:
   - Page content is crawled (screenshot appears) — confirms Chrome working
   - AI tags appear within 30-120 seconds — confirms Ollama connection
   - Bookmark is searchable — confirms Meilisearch working
-- [ ] 4.24.4.7 Test: save an image bookmark, verify moondream vision tags appear
-- [ ] 4.24.4.8 If tags are poor, try fallback:
+- [x] 4.24.4.7 Test: save an image bookmark, verify moondream vision tags appear
+- [x] 4.24.4.8 If tags are poor, try fallback:
   ```bash
   # Option 1: Switch to gemma3:1b with plain output
   # Set INFERENCE_TEXT_MODEL=gemma3:1b, INFERENCE_OUTPUT_SCHEMA=plain
@@ -371,13 +370,13 @@ op item edit "Karakeep" --vault "Kubernetes" \
   kubectl-homelab exec -n ai deploy/ollama -- ollama pull qwen2.5:1.5b
   # Set INFERENCE_TEXT_MODEL=qwen2.5:1.5b
   ```
-- [ ] 4.24.4.9 Monitor resource usage during tagging:
+- [x] 4.24.4.9 Monitor resource usage during tagging:
   ```bash
   kubectl-homelab top pod -n karakeep
   kubectl-homelab top pod -n ai
   kubectl-homelab top node
   ```
-- [ ] 4.24.4.10 Verify network policies:
+- [x] 4.24.4.10 Verify network policies:
   ```bash
   # Karakeep → Ollama (should work)
   kubectl-homelab exec -n karakeep deploy/karakeep -- wget -q -O- http://ollama.ai.svc.cluster.local:11434
@@ -392,9 +391,9 @@ op item edit "Karakeep" --vault "Kubernetes" \
 > **Do this LAST** — only after deploy, verify, and monitoring are all confirmed working.
 > This is a manual step performed by the user.
 
-- [ ] 4.24.5.1 Check current Proxmox instance for AI provider config (OpenAI key? Ollama? None?)
-- [ ] 4.24.5.2 Export bookmarks from Proxmox Karakeep UI → Settings → Export → Download JSON/HTML
-- [ ] 4.24.5.3 Import into K8s Karakeep UI → Settings → Import → upload file
+- [x] 4.24.5.1 Check current Proxmox instance for AI provider config (OpenAI key? Ollama? None?)
+- [x] 4.24.5.2 Export bookmarks from Proxmox Karakeep UI → Settings → Export → Download JSON/HTML
+- [x] 4.24.5.3 Import into K8s Karakeep UI → Settings → Import → upload file
   - **Fallback:** If UI export/import loses data (tags, lists, assets), use CLI migration instead:
     ```bash
     docker run --rm ghcr.io/karakeep-app/karakeep-cli:release \
@@ -402,51 +401,51 @@ op item edit "Karakeep" --vault "Kubernetes" \
       --dest-server https://karakeep.k8s.rommelporras.com --dest-api-key NEW_KEY \
       --batch-size 50
     ```
-- [ ] 4.24.5.4 Verify bookmark count matches between old and new
-- [ ] 4.24.5.5 In admin panel, click "Reindex all bookmarks" to rebuild Meilisearch index
-- [ ] 4.24.5.6 Re-tag existing bookmarks with Ollama (if previously using OpenAI or no AI):
+- [x] 4.24.5.4 Verify bookmark count matches between old and new
+- [x] 4.24.5.5 In admin panel, click "Reindex all bookmarks" to rebuild Meilisearch index
+- [x] 4.24.5.6 Re-tag existing bookmarks with Ollama (if previously using OpenAI or no AI):
   - In Karakeep UI: select all bookmarks → Actions → Re-tag with AI
   - **Warning:** This queues ALL bookmarks for CPU inference — will take hours for large collections. Do this overnight.
 
 ### 4.24.6 Monitoring
 
-- [ ] 4.24.6.1 Create `manifests/monitoring/karakeep-probe.yaml` — Blackbox HTTP probe targeting `http://karakeep.karakeep.svc.cluster.local:3000/api/health`
-- [ ] 4.24.6.2 Create `manifests/monitoring/karakeep-alerts.yaml` — PrometheusRule (KarakeepDown, KarakeepHighRestarts)
-- [ ] 4.24.6.3 Apply and verify:
+- [x] 4.24.6.1 Create `manifests/monitoring/karakeep-probe.yaml` — Blackbox HTTP probe targeting `http://karakeep.karakeep.svc.cluster.local:3000/api/health`
+- [x] 4.24.6.2 Create `manifests/monitoring/karakeep-alerts.yaml` — PrometheusRule (KarakeepDown, KarakeepHighRestarts)
+- [x] 4.24.6.3 Apply and verify:
   ```bash
   kubectl-homelab apply -f manifests/monitoring/karakeep-probe.yaml -f manifests/monitoring/karakeep-alerts.yaml
   ```
 
 ### 4.24.7 Cutover
 
-- [ ] 4.24.7.1 Update Homepage widget URL + API key (point to `karakeep.k8s.rommelporras.com`)
-- [ ] 4.24.7.2 Update Uptime Kuma to monitor new URL
-- [ ] 4.24.7.3 Update AdGuard DNS rewrite if applicable (remove old `karakeep.home.rommelporras.com` rewrite)
-- [ ] 4.24.7.4 Soak for 1 week, verify everything stable
-- [ ] 4.24.7.5 Decommission Proxmox container after soak period
+- [x] 4.24.7.1 Update Homepage widget URL + API key (point to `karakeep.k8s.rommelporras.com`)
+- [x] 4.24.7.2 Update Uptime Kuma to monitor new URL
+- [x] 4.24.7.3 ~~Update AdGuard DNS rewrite~~ N/A — `*.home.rommelporras.com` is a wildcard to Proxmox NPM, no individual rewrite to remove
+- [x] 4.24.7.4 Soak for 1 week, verify everything stable
+- [x] 4.24.7.5 Decommission Proxmox container after soak period
 
 ### 4.24.8 Security & Commit
 
-- [ ] 4.24.8.1 `/audit-security`
-- [ ] 4.24.8.2 `/commit` (infrastructure)
+- [x] 4.24.8.1 `/audit-security`
+- [x] 4.24.8.2 `/commit` (infrastructure)
 
 ### 4.24.9 Documentation & Release
 
 > Second commit: documentation updates and audit.
 
-- [ ] 4.24.9.1 Update `docs/todo/README.md` — add Phase 4.24 to phase index + namespace table
-- [ ] 4.24.9.2 Update `README.md` (root) — add Karakeep to services list
-- [ ] 4.24.9.3 Update `VERSIONS.md` — add Karakeep + Chrome + Meilisearch versions + HTTPRoute
-- [ ] 4.24.9.4 Update `docs/reference/CHANGELOG.md` — add migration + Ollama integration + model decision entry
-- [ ] 4.24.9.5 Update `docs/context/Cluster.md` — add `karakeep` namespace
-- [ ] 4.24.9.6 Update `docs/context/Gateway.md` — add HTTPRoute
-- [ ] 4.24.9.7 Update `docs/context/Secrets.md` — add Karakeep 1Password items
-- [ ] 4.24.9.8 Update `docs/context/Monitoring.md` — add karakeep-probe.yaml and karakeep-alerts.yaml
-- [ ] 4.24.9.9 Create `docs/rebuild/v0.21.0-karakeep.md`
-- [ ] 4.24.9.10 `/audit-docs`
+- [x] 4.24.9.1 Update `docs/todo/README.md` — add Phase 4.24 to phase index + namespace table
+- [x] 4.24.9.2 Update `README.md` (root) — add Karakeep to services list
+- [x] 4.24.9.3 Update `VERSIONS.md` — add Karakeep + Chrome + Meilisearch versions + HTTPRoute
+- [x] 4.24.9.4 Update `docs/reference/CHANGELOG.md` — add migration + Ollama integration + model decision entry
+- [x] 4.24.9.5 Update `docs/context/Cluster.md` — add `karakeep` namespace
+- [x] 4.24.9.6 Update `docs/context/Gateway.md` — add HTTPRoute
+- [x] 4.24.9.7 Update `docs/context/Secrets.md` — add Karakeep 1Password items
+- [x] 4.24.9.8 Update `docs/context/Monitoring.md` — add karakeep-probe.yaml and karakeep-alerts.yaml
+- [x] 4.24.9.9 Create `docs/rebuild/v0.21.0-karakeep.md`
+- [x] 4.24.9.10 `/audit-docs`
 - [ ] 4.24.9.11 `/commit` (documentation)
 - [ ] 4.24.9.12 `/release v0.21.0 "Karakeep Migration"`
-- [ ] 4.24.9.13 Move this file to `docs/todo/completed/`
+- [x] 4.24.9.13 Move this file to `docs/todo/completed/`
 
 ---
 
@@ -521,21 +520,21 @@ In Karakeep UI (Settings → Custom Prompt), add:
 
 ## Verification Checklist
 
-- [ ] All 3 pods running in `karakeep` namespace (karakeep, chrome, meilisearch)
-- [ ] `karakeep.k8s.rommelporras.com` loads and is functional
-- [ ] User account created and signups disabled
-- [ ] URL bookmark: page crawled (screenshot), AI tags appear within 30-120 seconds
-- [ ] Image bookmark: moondream vision tags appear
-- [ ] Search: bookmarks are searchable (Meilisearch working)
-- [ ] Bookmarks migrated from Proxmox (count matches)
-- [ ] Meilisearch index rebuilt after migration
-- [ ] Homepage widget functional with new URL
-- [ ] Uptime Kuma monitoring active
-- [ ] Blackbox probe shows `probe_success 1`
-- [ ] Network policy: Chrome can reach external sites, blocked from internal cluster
-- [ ] Network policy: Karakeep can reach Ollama, blocked from default namespace
-- [ ] Ollama resource usage acceptable during tagging bursts
-- [ ] Node memory stays below 70% during concurrent crawling + inference
+- [x] All 3 pods running in `karakeep` namespace (karakeep, chrome, meilisearch)
+- [x] `karakeep.k8s.rommelporras.com` loads and is functional
+- [x] User account created and signups disabled
+- [x] URL bookmark: page crawled (screenshot), AI tags appear within 30-120 seconds
+- [x] Image bookmark: moondream vision tags appear
+- [x] Search: bookmarks are searchable (Meilisearch working)
+- [x] Bookmarks migrated from Proxmox (count matches)
+- [x] Meilisearch index rebuilt after migration
+- [x] Homepage widget functional with new URL
+- [x] Uptime Kuma monitoring active
+- [x] Blackbox probe shows `probe_success 1`
+- [x] Network policy: Chrome can reach external sites, blocked from internal cluster
+- [x] Network policy: Karakeep can reach Ollama, blocked from default namespace
+- [x] Ollama resource usage acceptable during tagging bursts
+- [x] Node memory stays below 70% during concurrent crawling + inference
 
 ---
 

@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.20.0 (Ollama Local AI)
+> **Latest Release:** v0.21.0 (Karakeep Migration)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -29,7 +29,7 @@
 | v0.18.0 | Firefox Browser (KasmVNC) | Phase 4.21 | ✅ Released |
 | v0.19.0 | kube-vip Upgrade + Monitoring | Phase 2.1 | ✅ Released |
 | v0.20.0 | Ollama Local AI (CPU) | Phase 4.23 | ✅ Released |
-| v0.21.0 | Karakeep Migration | Phase 4.24 | ⬜ Planned |
+| v0.21.0 | Karakeep Migration | Phase 4.24 | ✅ Released |
 | v0.22.0 | ARR Stack Core | Phase 4.25 | ⬜ Planned |
 | v0.23.0 | ARR Companions | Phase 4.26 | ⬜ Planned |
 | v0.24.0 | Tailscale Operator | Phase 4.10 | ⬜ Planned |
@@ -67,12 +67,12 @@
 | 4.21 | Firefox Browser (KasmVNC) | [phase-4.21-firefox-browser.md](completed/phase-4.21-firefox-browser.md) |
 | 2.1 | kube-vip Upgrade + Monitoring | [phase-2.1-kube-vip-upgrade.md](completed/phase-2.1-kube-vip-upgrade.md) |
 | 4.23 | Ollama Local AI (CPU) | [phase-4.23-ollama.md](completed/phase-4.23-ollama.md) |
+| 4.24 | Karakeep Migration | [phase-4.24-karakeep.md](completed/phase-4.24-karakeep.md) |
 
 ### Planned
 
 | Phase | Description | File |
 |-------|-------------|------|
-| 4.24 | Karakeep Migration | [phase-4.24-karakeep.md](phase-4.24-karakeep.md) |
 | 4.25 | ARR Stack Core | [phase-4.25-arr-stack.md](phase-4.25-arr-stack.md) |
 | 4.26 | ARR Companions | [phase-4.26-arr-companions.md](phase-4.26-arr-companions.md) |
 | 4.10 | Tailscale Operator | [phase-4.10-tailscale-operator.md](phase-4.10-tailscale-operator.md) |
@@ -117,6 +117,7 @@
 | `invoicetron` | Invoice processing app | Own PostgreSQL |
 | `browser` | Firefox browser (KasmVNC) | None (PVC for profile) |
 | `ai` | Ollama LLM inference server | None (PVC for models) |
+| `karakeep` | Karakeep bookmark manager (web, Chrome, Meilisearch) | SQLite (PVC) |
 | `immich` | Immich server, ML, Redis | Own PostgreSQL |
 | `media` | Sonarr, Radarr, Prowlarr, qBit, Jellyfin | Own PostgreSQL |
 

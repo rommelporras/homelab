@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, cluster, nodes]
-updated: 2026-02-11
+updated: 2026-02-12
 ---
 
 # Cluster
@@ -70,6 +70,7 @@ ssh wawashi@cp3.k8s.rommelporras.com
 | uptime-kuma | Uptime Kuma endpoint monitoring |
 | browser | Containerized Firefox browser (KasmVNC) |
 | ai | Ollama LLM inference server |
+| karakeep | Karakeep bookmark manager (web, Chrome, Meilisearch) |
 
 ## System
 

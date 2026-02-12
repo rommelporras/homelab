@@ -8,7 +8,7 @@
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
 > **Owner:** Rommel Porras
-> **Last Updated:** February 11, 2026
+> **Last Updated:** February 12, 2026
 
 ---
 
@@ -51,6 +51,7 @@
 | Firefox Browser | ✅ Complete | Persistent browser via KasmVNC (LAN-only) |
 | kube-vip Upgrade + Monitoring | ✅ Complete | v1.0.3→v1.0.4 + Prometheus monitoring + Grafana dashboard |
 | Ollama Local AI | ✅ Complete | CPU-only LLM inference (qwen3:1.7b, moondream) with Blackbox monitoring |
+| Karakeep Migration | ✅ Complete | Bookmark manager with AI tagging (Ollama qwen2.5:3b) migrated from Proxmox |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/context/Cluster.md](docs/context/Cluster.md) - Single source of truth
@@ -191,6 +192,7 @@ Step-by-step instructions to rebuild the cluster from scratch:
 | [v0.18.0-firefox-browser](docs/rebuild/v0.18.0-firefox-browser.md) | Phase 4.21 | Containerized Firefox browser (KasmVNC) |
 | [v0.19.0-kube-vip-upgrade](docs/rebuild/v0.19.0-kube-vip-upgrade.md) | Phase 2.1 | kube-vip v1.0.3→v1.0.4 + Prometheus monitoring |
 | [v0.20.0-ollama](docs/rebuild/v0.20.0-ollama.md) | Phase 4.23 | Ollama Local AI (CPU-only LLM inference) |
+| [v0.21.0-karakeep](docs/rebuild/v0.21.0-karakeep.md) | Phase 4.24 | Karakeep bookmark manager with AI tagging |
 
 ### Reference
 
@@ -253,7 +255,8 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Feb 9, 2026** | **Firefox Browser** — Persistent Firefox via KasmVNC with AdGuard DNS, basic auth, session persistence (Phase 4.21) |
 | **Feb 11, 2026** | **kube-vip Upgrade** — v1.0.3→v1.0.4 (fixed leader election errors) + Prometheus monitoring + Grafana dashboard (Phase 2.1) |
 | **Feb 11, 2026** | **Ollama Local AI** — CPU-only LLM inference with qwen3:1.7b (text), moondream (vision), Blackbox probe + PrometheusRule alerts (Phase 4.23) |
-| **Coming** | Karakeep Migration, ARR Stack, Tailscale Operator |
+| **Feb 12, 2026** | **Karakeep Migration** — Bookmark manager (Karakeep 0.30.0 + Chrome + Meilisearch) with Ollama qwen2.5:3b AI tagging, migrated 119 bookmarks from Proxmox (Phase 4.24) |
+| **Coming** | ARR Stack, Tailscale Operator, Version Automation |
 
 See rebuild guides below for detailed project history.
 
@@ -261,8 +264,8 @@ See rebuild guides below for detailed project history.
 
 ## 🚀 Next Steps
 
-1. **Karakeep Migration** from Docker Compose to K8s with Ollama AI tagging (Phase 4.24)
-2. **ARR Stack Core** — Sonarr, Radarr, Prowlarr, qBittorrent, Jellyfin (Phase 4.25)
+1. **ARR Stack Core** — Sonarr, Radarr, Prowlarr, qBittorrent, Jellyfin (Phase 4.25)
+2. **Tailscale Operator** — VPN mesh network integration (Phase 4.10)
 3. **CKA Certification** - September 2026 target
 
 ---
