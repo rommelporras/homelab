@@ -159,13 +159,13 @@
 
     - Karakeep:
         icon: karakeep.png
-        href: https://karakeep.home.rommelporras.com
+        href: https://karakeep.k8s.rommelporras.com
         description: Bookmark Manager
         statusStyle: dot
-        siteMonitor: https://karakeep.home.rommelporras.com
+        siteMonitor: https://karakeep.k8s.rommelporras.com
         widget:
           type: karakeep
-          url: https://karakeep.home.rommelporras.com
+          url: https://karakeep.k8s.rommelporras.com
           key: "{{HOMEPAGE_VAR_KARAKEEP_KEY}}"
 
     - Grafana:

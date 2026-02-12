@@ -1,5 +1,5 @@
 # Ollama LLM inference server — CPU-only deployment
-# Models: qwen3:1.7b (text), moondream (vision), gemma3:1b (fallback)
+# Models: qwen2.5:3b (Karakeep text), qwen3:1.7b (general text), moondream (vision), gemma3:1b (fallback)
 # Models persist on PVC — pull once via kubectl exec, survives pod restarts
 #
 # CKA topics: Deployment vs StatefulSet, Recreate strategy, resource limits, probes
@@ -88,13 +88,14 @@ spec:
             periodSeconds: 10
             failureThreshold: 30
           # Liveness: restart if Ollama becomes unresponsive
+          # Generous timeout — CPU inference saturates all cores, HTTP may be slow
           livenessProbe:
             httpGet:
               path: /
               port: 11434
             initialDelaySeconds: 60
             periodSeconds: 10
-            timeoutSeconds: 5
+            timeoutSeconds: 10
             failureThreshold: 6
           # Readiness: remove from service during inference load spikes
           readinessProbe:
@@ -102,8 +103,8 @@ spec:
               path: /
               port: 11434
             initialDelaySeconds: 30
-            periodSeconds: 5
-            timeoutSeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 6
       volumes:
         - name: models

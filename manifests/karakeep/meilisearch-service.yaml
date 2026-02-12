@@ -1,0 +1,21 @@
+# ClusterIP service for Meilisearch
+# Accessed by Karakeep at http://meilisearch:7700 (in-namespace DNS)
+#
+# CKA topic: Service discovery within namespace
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meilisearch
+  namespace: karakeep
+  labels:
+    app: meilisearch
+    app.kubernetes.io/part-of: karakeep
+spec:
+  selector:
+    app: meilisearch
+  ports:
+    - name: http
+      port: 7700
+      targetPort: 7700
+      protocol: TCP

@@ -1,0 +1,156 @@
+# Karakeep AIO (web + workers) — Next.js 15 bookmark manager with s6-overlay
+# Phase 4.24: Connected to Ollama (ai namespace) for AI-powered tagging
+#
+# Architecture: SQLite (embedded) + liteque (no Redis) = single replica only
+# Workers: crawling, AI inference, search indexing, OCR, video, webhooks, backups
+#
+# Note: s6-overlay requires root during init (manages /run), then drops to app user.
+#       runAsNonRoot cannot be set — PSS baseline allows this.
+#
+# CKA topics: Deployment, PVC (RWO + Recreate), Secret injection, cross-namespace DNS
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: karakeep-data
+  namespace: karakeep
+  labels:
+    app: karakeep
+    app.kubernetes.io/part-of: karakeep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karakeep
+  namespace: karakeep
+  labels:
+    app: karakeep
+    app.kubernetes.io/part-of: karakeep
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # PVC is RWO + SQLite single writer — only one pod at a time
+  selector:
+    matchLabels:
+      app: karakeep
+  template:
+    metadata:
+      labels:
+        app: karakeep
+    spec:
+      securityContext:
+        fsGroup: 0  # s6-overlay runs as root during init
+        seccompProfile:
+          type: RuntimeDefault
+      automountServiceAccountToken: false
+      containers:
+        - name: karakeep
+          image: ghcr.io/karakeep-app/karakeep:0.30.0
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            # --- Authentication ---
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: karakeep-secrets
+                  key: nextauth-secret
+            - name: NEXTAUTH_URL
+              value: "https://karakeep.k8s.rommelporras.com"
+            # --- Data ---
+            - name: DATA_DIR
+              value: "/data"
+            # --- Meilisearch ---
+            - name: MEILI_ADDR
+              value: "http://meilisearch:7700"
+            - name: MEILI_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: karakeep-secrets
+                  key: meili-master-key
+            # --- Chrome ---
+            - name: BROWSER_WEB_URL
+              value: "http://chrome:9222"
+            # --- Crawler ---
+            - name: CRAWLER_JOB_TIMEOUT_SEC
+              value: "120"  # default 60s too short — metadata+banner download needs headroom
+            # --- Ollama (cross-namespace) ---
+            - name: OLLAMA_BASE_URL
+              value: "http://ollama.ai.svc.cluster.local:11434"
+            - name: INFERENCE_TEXT_MODEL
+              value: "qwen2.5:3b"
+            - name: INFERENCE_IMAGE_MODEL
+              value: "moondream"
+            - name: INFERENCE_CONTEXT_LENGTH
+              value: "2048"
+            - name: INFERENCE_MAX_OUTPUT_TOKENS
+              value: "2048"
+            - name: INFERENCE_OUTPUT_SCHEMA
+              value: "structured"
+            - name: INFERENCE_JOB_TIMEOUT_SEC
+              value: "300"
+            - name: INFERENCE_FETCH_TIMEOUT_SEC
+              value: "600"
+            - name: INFERENCE_NUM_WORKERS
+              value: "1"
+            - name: INFERENCE_LANG
+              value: "english"
+            - name: INFERENCE_ENABLE_AUTO_TAGGING
+              value: "true"
+            - name: INFERENCE_ENABLE_AUTO_SUMMARIZATION
+              value: "false"
+            # --- Security ---
+            - name: DISABLE_SIGNUPS
+              value: "true"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          securityContext:
+            runAsNonRoot: false  # s6-overlay requires root for init, drops to app user
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: karakeep-data

@@ -1,0 +1,101 @@
+# Meilisearch full-text search engine for Karakeep bookmarks
+# Phase 4.24: Persists search index on Longhorn PVC
+#
+# Karakeep writes bookmark content to Meilisearch for instant full-text search.
+# Master key must match between Karakeep and Meilisearch containers.
+#
+# CKA topics: Deployment, PVC (RWO), Secret injection, Recreate strategy
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: meilisearch-data
+  namespace: karakeep
+  labels:
+    app: meilisearch
+    app.kubernetes.io/part-of: karakeep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meilisearch
+  namespace: karakeep
+  labels:
+    app: meilisearch
+    app.kubernetes.io/part-of: karakeep
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # PVC is RWO — only one pod can mount at a time
+  selector:
+    matchLabels:
+      app: meilisearch
+  template:
+    metadata:
+      labels:
+        app: meilisearch
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      automountServiceAccountToken: false
+      containers:
+        - name: meilisearch
+          image: getmeili/meilisearch:v1.13.3
+          ports:
+            - name: http
+              containerPort: 7700
+              protocol: TCP
+          env:
+            - name: MEILI_DB_PATH
+              value: "/meili_data/data.ms"
+            - name: MEILI_NO_ANALYTICS
+              value: "true"
+            - name: MEILI_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: karakeep-secrets
+                  key: meili-master-key
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"  # indexing threads spike to ~521Mi
+          securityContext:
+            runAsNonRoot: false  # Meilisearch image runs as root
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: data
+              mountPath: /meili_data
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 7700
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 7700
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: meilisearch-data

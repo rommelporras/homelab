@@ -1,0 +1,21 @@
+# ClusterIP service for Karakeep web UI
+# Accessed internally via HTTPRoute at karakeep.k8s.rommelporras.com
+#
+# CKA topic: Service (ClusterIP), HTTPRoute backend reference
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: karakeep
+  namespace: karakeep
+  labels:
+    app: karakeep
+    app.kubernetes.io/part-of: karakeep
+spec:
+  selector:
+    app: karakeep
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP

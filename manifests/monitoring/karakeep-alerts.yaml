@@ -1,0 +1,61 @@
+# PrometheusRule for Karakeep Alerts
+# Phase 4.24: Monitor availability and pod stability
+#
+# Metrics used:
+#   probe_success{job="karakeep"} — HTTP probe reachability (from Blackbox Exporter)
+#   kube_pod_container_status_restarts_total — restart count (from kube-state-metrics)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: karakeep-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: karakeep
+      rules:
+        # Karakeep health endpoint unreachable
+        - alert: KarakeepDown
+          expr: probe_success{job="karakeep"} == 0
+          for: 3m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Karakeep is unreachable"
+            description: "Blackbox HTTP probe to karakeep.karakeep.svc /api/health has failed for 3+ minutes. Bookmark saving and AI tagging are unavailable."
+            runbook: |
+              1. Check pod status:
+                 kubectl-homelab get pods -n karakeep
+
+              2. Check Karakeep logs:
+                 kubectl-homelab logs -n karakeep deploy/karakeep --tail=50
+
+              3. Check dependent services:
+                 kubectl-homelab get pods -n karakeep -l app=meilisearch
+                 kubectl-homelab get pods -n karakeep -l app=chrome
+                 kubectl-homelab get pods -n ai -l app=ollama
+
+              4. Check events:
+                 kubectl-homelab describe pod -n karakeep -l app=karakeep
+
+        # Pod restarting frequently (crash loop)
+        - alert: KarakeepHighRestarts
+          expr: increase(kube_pod_container_status_restarts_total{namespace="karakeep", container="karakeep"}[1h]) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Karakeep is restarting frequently"
+            description: "Karakeep has restarted {{ $value | humanize }} times in the last hour. Likely OOMKilled or failing health probes."
+            runbook: |
+              1. Check for OOMKill:
+                 kubectl-homelab get pods -n karakeep -l app=karakeep -o jsonpath='{.items[*].status.containerStatuses[*].lastState}'
+
+              2. Check events:
+                 kubectl-homelab describe pod -n karakeep -l app=karakeep | tail -20
+
+              3. Check memory usage:
+                 kubectl-homelab top pod -n karakeep

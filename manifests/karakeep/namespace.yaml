@@ -1,0 +1,15 @@
+# Karakeep bookmark manager namespace
+# Phase 4.24 - Karakeep Migration
+#
+# PSS: baseline enforce (Chrome requires --no-sandbox, standard for containerized Chromium)
+#       restricted warn/audit logs violations for future tightening
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: karakeep
+  labels:
+    app.kubernetes.io/part-of: karakeep
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

@@ -1,0 +1,245 @@
+# CiliumNetworkPolicy - Karakeep namespace network rules
+# Phase 4.24: Multi-service policy covering Karakeep, Chrome, and Meilisearch
+#
+# Security model:
+#   - Karakeep: talks to Chrome, Meilisearch, Ollama (ai namespace), external HTTPS, DNS
+#   - Chrome: talks to external internet only (website crawling) + DNS
+#     BLOCKS internal cluster CIDRs to prevent SSRF via headless browser
+#   - Meilisearch: accepts connections only from Karakeep pods
+#
+# CKA topics: CiliumNetworkPolicy, cross-namespace egress, CIDR-based filtering
+---
+# Karakeep ingress: Gateway (HTTPRoute) + monitoring (probes)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: karakeep-ingress
+  namespace: karakeep
+  labels:
+    app: karakeep
+    app.kubernetes.io/part-of: karakeep
+spec:
+  endpointSelector:
+    matchLabels:
+      app: karakeep
+
+  ingress:
+    # Cilium Gateway API traffic — uses reserved:ingress identity
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+
+    # Kubelet health probes (liveness/readiness from host)
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+
+    # Blackbox Exporter probes (monitoring namespace)
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+---
+# Karakeep egress: Chrome, Meilisearch, Ollama, external HTTPS, DNS
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: karakeep-egress
+  namespace: karakeep
+  labels:
+    app: karakeep
+    app.kubernetes.io/part-of: karakeep
+spec:
+  endpointSelector:
+    matchLabels:
+      app: karakeep
+
+  egress:
+    # DNS (required for service discovery)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+
+    # Chrome (in-namespace, port 9222)
+    - toEndpoints:
+        - matchLabels:
+            app: chrome
+      toPorts:
+        - ports:
+            - port: "9222"
+              protocol: TCP
+
+    # Meilisearch (in-namespace, port 7700)
+    - toEndpoints:
+        - matchLabels:
+            app: meilisearch
+      toPorts:
+        - ports:
+            - port: "7700"
+              protocol: TCP
+
+    # Ollama (ai namespace, port 11434)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ai
+            app: ollama
+      toPorts:
+        - ports:
+            - port: "11434"
+              protocol: TCP
+
+    # External internet (banner images, favicons, content-type checks)
+    # Same CIDR exclusion as Chrome — no SSRF to internal networks
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+---
+# Chrome egress: external internet only (website crawling) + DNS
+# BLOCKS internal cluster CIDRs to prevent SSRF attacks via headless browser
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: chrome-egress
+  namespace: karakeep
+  labels:
+    app: chrome
+    app.kubernetes.io/part-of: karakeep
+spec:
+  endpointSelector:
+    matchLabels:
+      app: chrome
+
+  egress:
+    # DNS (required for resolving crawled domains)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+
+    # External internet only — block all private networks
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+---
+# Chrome ingress: only from Karakeep pods
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: chrome-ingress
+  namespace: karakeep
+  labels:
+    app: chrome
+    app.kubernetes.io/part-of: karakeep
+spec:
+  endpointSelector:
+    matchLabels:
+      app: chrome
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: karakeep
+      toPorts:
+        - ports:
+            - port: "9222"
+              protocol: TCP
+
+    # Kubelet health probes (liveness/readiness from host)
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "9222"
+              protocol: TCP
+---
+# Meilisearch egress: DNS only (passive listener — no outbound connections needed)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: meilisearch-egress
+  namespace: karakeep
+  labels:
+    app: meilisearch
+    app.kubernetes.io/part-of: karakeep
+spec:
+  endpointSelector:
+    matchLabels:
+      app: meilisearch
+
+  egress:
+    # DNS (required for internal service resolution)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+---
+# Meilisearch ingress: Karakeep pods + kubelet health probes
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: meilisearch-ingress
+  namespace: karakeep
+  labels:
+    app: meilisearch
+    app.kubernetes.io/part-of: karakeep
+spec:
+  endpointSelector:
+    matchLabels:
+      app: meilisearch
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: karakeep
+      toPorts:
+        - ports:
+            - port: "7700"
+              protocol: TCP
+
+    # Kubelet health probes (liveness/readiness from host)
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "7700"
+              protocol: TCP

@@ -1,0 +1,75 @@
+# Headless Chrome for Karakeep page crawling and screenshots
+# Phase 4.24: Stateless browser — no persistent storage needed
+#
+# Uses --no-sandbox (standard for containerized Chromium, matches official docker-compose)
+# This avoids needing SYS_ADMIN capability while staying on PSS baseline
+#
+# CKA topics: Stateless Deployment, security context, resource limits
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chrome
+  namespace: karakeep
+  labels:
+    app: chrome
+    app.kubernetes.io/part-of: karakeep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chrome
+  template:
+    metadata:
+      labels:
+        app: chrome
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      automountServiceAccountToken: false
+      containers:
+        - name: chrome
+          image: gcr.io/zenika-hub/alpine-chrome:124
+          args:
+            - --no-sandbox
+            - --disable-gpu
+            - --disable-dev-shm-usage
+            - --remote-debugging-address=0.0.0.0
+            - --remote-debugging-port=9222
+            - --hide-scrollbars
+          ports:
+            - name: debug
+              containerPort: 9222
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /json
+              port: 9222
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /json
+              port: 9222
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
