@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, networking, dns, vlan]
-updated: 2026-02-09
+updated: 2026-02-12
 ---
 
 # Networking
@@ -69,7 +69,9 @@ Network configuration for the homelab cluster.
 | Invoicetron Prod (public) | https://invoicetron.rommelporras.com | — |
 | Uptime Kuma (internal) | https://uptime.k8s.rommelporras.com | base |
 | Uptime Kuma (public) | https://status.rommelporras.com | — |
+| MySpeed | https://myspeed.k8s.rommelporras.com | base |
 | Firefox Browser | https://browser.k8s.rommelporras.com | base |
+| Karakeep | https://karakeep.k8s.rommelporras.com | base |
 
 ## VLAN Configuration
 

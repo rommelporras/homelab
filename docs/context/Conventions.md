@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-02-09
+updated: 2026-02-12
 ---
 
 # Conventions
@@ -67,6 +67,8 @@ homelab/
 │   ├── metrics-server/values.yaml
 │   └── prometheus/values.yaml
 ├── manifests/               # Raw K8s manifests
+│   ├── ai/                  # Ollama LLM inference server
+│   ├── browser/             # Firefox browser (KasmVNC)
 │   ├── cert-manager/        # ClusterIssuer
 │   ├── cilium/              # IP pool, L2 announcements
 │   ├── cloudflare/          # Cloudflare Tunnel + network policy
@@ -74,15 +76,14 @@ homelab/
 │   ├── ghost-dev/           # Ghost blog dev environment
 │   ├── ghost-prod/          # Ghost blog production environment
 │   ├── gitlab/              # GitLab SSH LoadBalancer
-│   ├── home/                # Home services (AdGuard, Homepage)
+│   ├── home/                # Home services (AdGuard, Homepage, MySpeed)
 │   ├── invoicetron/         # Invoicetron app + PostgreSQL + backup
+│   ├── karakeep/            # Karakeep bookmark manager (AIO, Chrome, Meilisearch)
 │   ├── monitoring/          # Grafana, probes, alerts, dashboards
-│   ├── myspeed/             # MySpeed internet speed tracker
 │   ├── network-policies/    # Namespace network policies
 │   ├── portfolio/           # Portfolio deployment + RBAC
 │   ├── storage/             # Longhorn HTTPRoute, NFS PVs
-│   ├── uptime-kuma/         # Uptime Kuma StatefulSet
-│   └── browser/             # Firefox browser (KasmVNC)
+│   └── uptime-kuma/         # Uptime Kuma StatefulSet
 ├── scripts/                 # Automation scripts
 │   ├── upgrade-prometheus.sh
 │   ├── sync-ghost-prod-to-dev.sh
@@ -90,7 +91,7 @@ homelab/
 │   └── test-cloudflare-networkpolicy.sh
 ├── docs/
 │   ├── context/             # This knowledge base (RAG source)
-│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.18.0)
+│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.21.0)
 │   ├── todo/                # Active and completed phase plans
 │   └── reference/           # CHANGELOG, historical docs
 └── ansible/                 # Bootstrap automation

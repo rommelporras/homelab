@@ -28,6 +28,7 @@
 | v0.18.0 | Phase 4.21 | Firefox Browser (KasmVNC, persistent session) | [v0.18.0-firefox-browser.md](v0.18.0-firefox-browser.md) |
 | v0.19.0 | Phase 2.1 | kube-vip Upgrade + Monitoring (v1.0.3→v1.0.4, Prometheus) | [v0.19.0-kube-vip-upgrade.md](v0.19.0-kube-vip-upgrade.md) |
 | v0.20.0 | Phase 4.23 | Ollama Local AI (CPU-only LLM inference) | [v0.20.0-ollama.md](v0.20.0-ollama.md) |
+| v0.21.0 | Phase 4.24 | Karakeep Migration (bookmark manager + AI tagging) | [v0.21.0-karakeep.md](v0.21.0-karakeep.md) |
 
 ---
 
@@ -95,6 +96,9 @@ docs/rebuild/v0.19.0-kube-vip-upgrade.md
 
 # 20. Ollama Local AI - CPU-only LLM inference
 docs/rebuild/v0.20.0-ollama.md
+
+# 21. Karakeep Migration - Bookmark manager with AI tagging
+docs/rebuild/v0.21.0-karakeep.md
 ```
 
 ---
@@ -175,6 +179,11 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | Ollama | 0.15.6 | v0.20.0 |
 | qwen3:1.7b | Q4_K_M | v0.20.0 |
 | moondream | Q4_K_M | v0.20.0 |
+| gemma3:1b | Q4_K_M | v0.20.0 |
+| Karakeep | 0.30.0 | v0.21.0 |
+| Chrome (Karakeep) | alpine-chrome:124 | v0.21.0 |
+| Meilisearch | v1.13.3 | v0.21.0 |
+| qwen2.5:3b | Q4_K_M | v0.21.0 |
 
 ---
 
@@ -242,10 +251,31 @@ homelab/
 │   │   ├── ollama-deployment.yaml
 │   │   ├── ollama-service.yaml
 │   │   └── networkpolicy.yaml
+│   ├── browser/                        # v0.18.0
+│   │   ├── namespace.yaml
+│   │   ├── deployment.yaml
+│   │   ├── service.yaml
+│   │   ├── pvc.yaml
+│   │   └── httproute.yaml
+│   ├── karakeep/                       # v0.21.0
+│   │   ├── namespace.yaml
+│   │   ├── secret.yaml
+│   │   ├── karakeep-deployment.yaml
+│   │   ├── karakeep-service.yaml
+│   │   ├── chrome-deployment.yaml
+│   │   ├── chrome-service.yaml
+│   │   ├── meilisearch-deployment.yaml
+│   │   ├── meilisearch-service.yaml
+│   │   ├── httproute.yaml
+│   │   └── networkpolicy.yaml
 │   ├── cloudflare/                     # v0.7.0
 │   │   ├── deployment.yaml
 │   │   ├── networkpolicy.yaml
 │   │   └── ...
+│   ├── storage/                        # v0.4.0
+│   │   ├── longhorn/httproute.yaml
+│   │   └── nfs-immich.yaml
+│   ├── network-policies/               # v0.7.0+
 │   └── monitoring/                     # v0.4.0
 │       ├── grafana-httproute.yaml
 │       ├── loki-datasource.yaml
@@ -268,12 +298,15 @@ homelab/
 │       ├── kube-vip-alerts.yaml        # v0.19.0
 │       ├── kube-vip-dashboard-configmap.yaml   # v0.19.0
 │       ├── ollama-probe.yaml          # v0.20.0
-│       └── ollama-alerts.yaml         # v0.20.0
+│       ├── ollama-alerts.yaml         # v0.20.0
+│       ├── karakeep-probe.yaml        # v0.21.0
+│       └── karakeep-alerts.yaml       # v0.21.0
 │
 ├── scripts/
 │   ├── upgrade-prometheus.sh           # v0.5.0
 │   ├── sync-ghost-prod-to-dev.sh      # v0.11.0
-│   └── sync-ghost-prod-to-local.sh    # v0.11.0
+│   ├── sync-ghost-prod-to-local.sh    # v0.11.0
+│   └── test-cloudflare-networkpolicy.sh  # v0.7.0
 ```
 
 ---
@@ -293,6 +326,7 @@ homelab/
 | Healthchecks Ping URL | Kubernetes | v0.6.0 |
 | Cloudflare Tunnel | Kubernetes | v0.7.0 |
 | GitLab | Kubernetes | v0.8.0 |
+| GitLab Runner | Kubernetes | v0.8.0 |
 | Ghost Dev MySQL | Kubernetes | v0.11.0 |
 | Ghost Prod MySQL | Kubernetes | v0.11.0 |
 | Ghost Dev Admin API | Kubernetes | v0.11.0 |
@@ -301,3 +335,6 @@ homelab/
 | Invoicetron Dev | Kubernetes | v0.14.0 |
 | Invoicetron Prod | Kubernetes | v0.14.0 |
 | Invoicetron Deploy Token | Kubernetes | v0.14.0 |
+| Ghost Tinybird | Kubernetes | v0.17.0 |
+| Firefox Browser | Kubernetes | v0.18.0 |
+| Karakeep | Kubernetes | v0.21.0 |

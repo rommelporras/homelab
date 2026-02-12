@@ -16,8 +16,11 @@ No flags. Always audit first, fix only after explicit approval.
 | File/Directory | What's Checked | Auto-fixable? |
 |----------------|----------------|---------------|
 | `docs/context/*.md` | Frontmatter dates, content accuracy | ✓ Yes |
-| `VERSIONS.md` | Last Updated date, version accuracy | ✓ Yes |
+| `VERSIONS.md` | Last Updated date, version accuracy, HTTPRoutes, container images | ✓ Yes |
 | `docs/reference/CHANGELOG.md` | Recent entries exist | ✗ No (template only) |
+| `docs/rebuild/README.md` | Release timeline, component versions, key files tree, 1Password items | ✓ Yes |
+| `docs/todo/README.md` | Release mapping table, phase index, namespace strategy | ✓ Yes |
+| `README.md` (root) | Services list matches current deployments | ✓ Yes |
 
 ## Instructions
 
@@ -36,11 +39,29 @@ kubectl-homelab get nodes --no-headers | wc -l
 # Namespaces
 kubectl-homelab get namespaces --no-headers | awk '{print $1}'
 
-# Helm releases with versions
-helm-homelab list -A --no-headers 2>/dev/null | awk '{print $1, $9, $10}'
+# Helm releases with versions (NAME, NAMESPACE, CHART)
+helm-homelab list -A --no-headers 2>/dev/null | awk '{print $1, $2, $9}'
 
 # HTTPRoutes
 kubectl-homelab get httproute -A --no-headers 2>/dev/null
+
+# Non-Helm container images (all pods)
+kubectl-homelab get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{range .spec.containers[*]}{.image}{","}{end}{"\n"}{end}' 2>/dev/null
+
+# Static pods (kube-vip, etc.)
+kubectl-homelab get pods -n kube-system -o jsonpath='{range .items[?(@.metadata.ownerReferences[0].kind=="Node")]}{.metadata.name}{"\t"}{range .spec.containers[*]}{.image}{end}{"\n"}{end}' 2>/dev/null
+
+# Manifest directories (for cross-referencing Conventions.md)
+ls -d manifests/*/
+
+# Ollama models (if ollama is deployed)
+kubectl-homelab exec -n ai deploy/ollama -- ollama list 2>/dev/null
+
+# Rebuild guide files
+ls docs/rebuild/
+
+# Completed phase files
+ls docs/todo/completed/
 ```
 
 ### 2. Audit Files
@@ -59,9 +80,29 @@ kubectl-homelab get httproute -A --no-headers 2>/dev/null
 |------|---------------|
 | `_Index.md` | Current phase, K8s version |
 | `Cluster.md` | Node count, namespaces |
+| `Conventions.md` | `manifests/` directory tree matches actual `ls -d manifests/*/`; rebuild guide range matches actual files in `docs/rebuild/` |
 | `Gateway.md` | HTTPRoutes, exposed services |
 | `Networking.md` | VIPs, DNS IPs |
 | Others | Relevant cluster state |
+
+**docs/rebuild/README.md:**
+- Release timeline table matches actual files in `docs/rebuild/` (every `v*.md` file should appear)
+- Component versions table matches cluster images (from pod image jsonpath)
+- Key files tree matches actual manifest directories (from `ls -d manifests/*/`)
+- 1Password items table has entries for all secrets referenced in manifests
+
+**docs/todo/README.md:**
+- Release mapping shows correct latest release and status
+- Phase index lists all completed phases (cross-check against `docs/todo/completed/`)
+- Namespace strategy table matches current namespaces (from `kubectl-homelab get namespaces`)
+
+**README.md (root):**
+- Services list matches current deployments (cross-check against Helm releases and non-Helm manifests)
+
+**VERSIONS.md (deeper checks):**
+- Compare Home Services / non-Helm component versions against actual running container images (not just Helm chart versions)
+- HTTPRoutes table matches `kubectl-homelab get httproute -A`
+- Ollama models list matches `ollama list` output (if Ollama section exists)
 
 **docs/reference/CHANGELOG.md:**
 - Check if significant recent commits have entries
@@ -82,20 +123,39 @@ Date: YYYY-MM-DD
 Last Updated: 2026-01-22  ✓ Current
 Kubernetes: v1.35.0  ✓ Matches
 Helm versions: ✓ All match
+Container images: ✓ All match
+HTTPRoutes: ✓ All match
+Ollama models: ✓ All match
 
 === docs/context/ ===
 Dates: ✓ All current
 Content:
   Gateway.md: ⚠ URL mismatch (homepage.k8s → portal.k8s)
   Cluster.md: ⚠ Missing namespace "home"
+  Conventions.md: ⚠ manifests/ tree missing "karakeep/"
+
+=== docs/rebuild/README.md ===
+Release timeline: ✓ All files present
+Component versions: ✓ Match cluster
+Key files tree: ⚠ Missing manifests/karakeep/
+1Password items: ✓ Complete
+
+=== docs/todo/README.md ===
+Release mapping: ✓ Current
+Phase index: ✓ All completed phases listed
+Namespace strategy: ✓ Matches cluster
+
+=== README.md (root) ===
+Services list: ✓ Matches deployments
 
 === CHANGELOG.md ===
 ✓ Current
 
 === Summary ===
-Issues found: 2
+Issues found: 3
   1. [Gateway.md] Fix URL: homepage.k8s → portal.k8s
   2. [Cluster.md] Add namespace: home
+  3. [Conventions.md] Add karakeep/ to manifests/ tree
 
 Say "fix it" or "apply" to fix these issues.
 ```
@@ -108,10 +168,19 @@ Documentation Audit Report
 Date: YYYY-MM-DD
 
 === VERSIONS.md ===
-✓ Up to date
+✓ Up to date (versions, HTTPRoutes, container images all match)
 
 === docs/context/ ===
-✓ All 10 files current and accurate
+✓ All files current and accurate
+
+=== docs/rebuild/README.md ===
+✓ Timeline, versions, tree, and 1Password items all current
+
+=== docs/todo/README.md ===
+✓ Release mapping, phase index, and namespaces all current
+
+=== README.md (root) ===
+✓ Services list matches cluster
 
 === CHANGELOG.md ===
 ✓ Current
@@ -145,7 +214,7 @@ When user approves:
 
 **After fixing:**
 ```bash
-git diff docs/context/ VERSIONS.md docs/reference/CHANGELOG.md
+git diff docs/context/ VERSIONS.md docs/reference/CHANGELOG.md docs/rebuild/README.md docs/todo/README.md README.md
 ```
 
 Report what was fixed and what needs manual attention.

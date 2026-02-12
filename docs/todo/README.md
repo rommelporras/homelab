@@ -115,6 +115,7 @@
 | `ghost-dev` | Ghost Blog (dev), MySQL | MySQL 8.4.8 |
 | `portfolio` | rommelporras.com (static Next.js) | None (static nginx) |
 | `invoicetron` | Invoice processing app | Own PostgreSQL |
+| `uptime-kuma` | Uptime Kuma endpoint monitoring | SQLite (PVC) |
 | `browser` | Firefox browser (KasmVNC) | None (PVC for profile) |
 | `ai` | Ollama LLM inference server | None (PVC for models) |
 | `karakeep` | Karakeep bookmark manager (web, Chrome, Meilisearch) | SQLite (PVC) |

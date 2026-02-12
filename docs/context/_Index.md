@@ -32,7 +32,7 @@ updated: 2026-02-12
 | Nodes | 3 control planes (k8s-cp1, cp2, cp3) |
 | CNI | Cilium 1.18.6 |
 | Storage | Longhorn 1.10.1 |
-| Status | Karakeep Migration (Phase 4.24) |
+| Status | Phase 4.24 complete (v0.21.0 released) |
 
 ## Source
 

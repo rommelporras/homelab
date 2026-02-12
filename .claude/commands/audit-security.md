@@ -5,7 +5,7 @@ Scan manifests, Helm values, and docs for security issues. No cluster access nee
 ## Usage
 
 ```
-/audit-security          → Full scan of manifests, helm, and docs
+/audit-security          → Scope-aware scan (auto-detects docs-only vs full)
 ```
 
 Run before committing. Fast, offline, catches issues before they reach git.
@@ -13,6 +13,30 @@ Run before committing. Fast, offline, catches issues before they reach git.
 **Note:** `/commit` already does a secrets scan on staged changes. This command is broader — it scans the entire repo and checks manifest security posture, not just secrets.
 
 ## Instructions
+
+### 0. Determine Scope
+
+Check which files have changed (staged + unstaged):
+
+```bash
+git diff --cached --name-only
+git diff --name-only
+```
+
+**Mode selection:**
+- If **only** `docs/` and/or `.claude/` files changed → **docs-only mode** (run Steps 1, 2.5, 6 only — skip manifest/helm/networkpolicy/PSS checks)
+- If `manifests/` or `helm/` or other infra files changed → **full mode** (all steps)
+- If no changes detected (fresh audit) → **full mode**
+
+State the mode in the report header:
+
+```
+Mode: docs-only (only docs/ and .claude/ files changed)
+```
+or
+```
+Mode: full (infrastructure files changed)
+```
 
 ### 1. Secrets Scan
 
@@ -33,6 +57,10 @@ Scan the entire repo for leaked credentials. Use the Grep tool (not bash grep) t
 - `<your-password>` / `<your-token>` — doc placeholders
 - Comments describing fields (e.g., `# Fields: username, password`)
 - Lines with `op item create` or `op read` (1Password CLI usage)
+
+**Also check for .env files in the repo:**
+- Use Glob to search for `.env`, `.env.*`, `*.env` in repo root and subdirectories
+- If any exist and are not in `.gitignore` → ⚠️ WARNING (should be gitignored)
 
 **Classification:**
 - ⛔ CRITICAL — Looks like a real credential (actual value, not a reference or field name)
@@ -62,6 +90,24 @@ Read each workload manifest in `manifests/` (files containing Deployment, Statef
 **Also check for hardcoded secrets in manifests:**
 - `stringData:` blocks with actual values (not `op://` references) → ⛔ CRITICAL
 - `data:` blocks with base64-encoded values → ⚠️ WARNING (review manually)
+
+### 2.5. Committed Secret Files
+
+Check for secret manifest files and .env files committed to the repo:
+
+**Search using Glob for:**
+- `**/secret.yaml`, `**/secret*.yaml` (e.g., `secret-db.yaml`)
+- `**/.env`, `**/.env.*`
+
+**For each found file:**
+1. Read the file contents
+2. Verify it only contains safe patterns:
+   - Empty `stringData: {}` or `data: {}`
+   - Values using `op://` references
+   - Comments explaining imperative creation (e.g., `# Created via: kubectl create secret ...`)
+   - Placeholder values (`<your-password>`, `CHANGE_ME`, etc.)
+3. If real credential values are found → ⛔ CRITICAL
+4. If file exists but only contains safe patterns → SAFE (note it in report)
 
 ### 3. Network Policy Coverage
 
@@ -104,11 +150,14 @@ If found → ⛔ CRITICAL
 
 **Format:**
 
+**Full mode:**
 ```
 Security Audit (Pre-Commit)
 ===========================
+Mode: full (infrastructure files changed)
 
 Secrets Scan .............. ✅ PASS (0 findings)
+Committed Secret Files .... ✅ PASS (0 secret files with real values)
 Manifest Security ......... ⚠️  2 warnings
 Network Policies .......... ✅ All namespaces covered
 PSS Labels ................ ✅ All namespaces labeled
@@ -121,6 +170,21 @@ Findings:
   ℹ️  manifests/foo/statefulset.yaml:42 — readOnlyRootFilesystem not set
 
 Result: PASS (0 critical, 2 warnings, 1 info)
+```
+
+**Docs-only mode:**
+```
+Security Audit (Pre-Commit)
+===========================
+Mode: docs-only (only docs/ and .claude/ files changed)
+
+Secrets Scan .............. ✅ PASS (0 findings)
+Committed Secret Files .... ✅ PASS
+Docs Secrets .............. ✅ PASS
+
+⏭️  Skipped: Manifest Security, Network Policies, PSS Labels, Helm Values (no infra changes)
+
+Result: PASS (0 critical, 0 warnings)
 ```
 
 **If critical issues found:**
