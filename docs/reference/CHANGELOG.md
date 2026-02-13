@@ -35,6 +35,7 @@ Deployed Tailscale Kubernetes Operator v1.94.1 with a Connector CRD that adverti
 | manifests/tailscale/connector.yaml | Connector CRD (subnet router, 10.10.30.0/24) |
 | manifests/tailscale/networkpolicy.yaml | CiliumNetworkPolicy (operator ingress/egress only) |
 | manifests/monitoring/tailscale-alerts.yaml | PrometheusRule (TailscaleConnectorDown, TailscaleOperatorDown) |
+| manifests/monitoring/tailscale-dashboard-configmap.yaml | Grafana dashboard (pod status, VPN/pod traffic split by interface, resource usage with request/limit lines) |
 | helm/tailscale-operator/values.yaml | Helm values (resources, tags, API proxy disabled) |
 
 ### Files Modified
@@ -52,6 +53,7 @@ Deployed Tailscale Kubernetes Operator v1.94.1 with a Connector CRD that adverti
 4. **`proxyConfig.defaultTags` must be string** — YAML array causes `cannot unmarshal array into Go struct field EnvVar`
 5. **immich VM routing conflict** — VM's Tailscale saw K8s subnet route and intercepted LAN traffic (TTL 64→61)
 6. **OAuth clients renamed** — Now under `Settings → Trust credentials` in Tailscale admin console
+7. **Connector is a StatefulSet, not Deployment** — Alerts/dashboard queries must use `kube_statefulset_status_replicas_ready`, not `kube_deployment_status_replicas_available`
 
 ---
 

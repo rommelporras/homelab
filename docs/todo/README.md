@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.21.0 (Karakeep Migration)
+> **Latest Release:** v0.24.0 (Tailscale Operator)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---

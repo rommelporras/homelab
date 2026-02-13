@@ -312,7 +312,8 @@ homelab/
 │       ├── ollama-alerts.yaml         # v0.20.0
 │       ├── karakeep-probe.yaml        # v0.21.0
 │       ├── karakeep-alerts.yaml       # v0.21.0
-│       └── tailscale-alerts.yaml     # v0.24.0
+│       ├── tailscale-alerts.yaml     # v0.24.0
+│       └── tailscale-dashboard-configmap.yaml  # v0.24.0
 │
 ├── scripts/
 │   ├── upgrade-prometheus.sh           # v0.5.0

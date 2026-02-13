@@ -256,7 +256,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
-| 2026-02-13 | **Tailscale Operator:** Deployed tailscale-operator v1.94.1 with Connector CRD (subnet router advertising 10.10.30.0/24). Cilium socketLB fix, operator-only CiliumNetworkPolicies, PrometheusRule alerts, Homepage widget. AdGuard global nameserver for ad-blocking on tailnet (Phase 4.10) |
+| 2026-02-13 | **Tailscale Operator:** Deployed tailscale-operator v1.94.1 with Connector CRD (subnet router advertising 10.10.30.0/24). Cilium socketLB fix, operator-only CiliumNetworkPolicies, PrometheusRule alerts, Grafana dashboard (VPN/pod traffic split by interface, request/limit lines), Homepage widget. AdGuard global nameserver for ad-blocking on tailnet (Phase 4.10) |
 | 2026-02-12 | **Karakeep Migration:** Deployed Karakeep 0.30.0 bookmark manager with Chrome (alpine-chrome:124), Meilisearch v1.13.3, connected to Ollama qwen2.5:3b for AI tagging. Migrated 119 bookmarks from Proxmox. 6 CiliumNetworkPolicies with SSRF protection. Blackbox probe + 2 alerts (Phase 4.24) |
 | 2026-02-11 | **Ollama Local AI:** Deployed ollama/ollama:0.15.6 with qwen3:1.7b (text), moondream (vision), gemma3:1b (fallback). Blackbox probe + 3 PrometheusRule alerts. CiliumNetworkPolicy restricts ingress to monitoring + karakeep (Phase 4.23) |
 | 2026-02-11 | **kube-vip Upgrade + Monitoring:** Upgraded v1.0.3→v1.0.4 (fixed leader election errors), added ServiceMonitor, 4 PrometheusRule alerts, Grafana dashboard (Phase 2.1) |

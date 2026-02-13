@@ -77,7 +77,7 @@ Backend Service (Homepage, Grafana, Longhorn, Ghost, etc.)
 
 - [x] Removed dead devices: `tailscale-adguardhome`, `tailscale-nginxproxymanager`
 - [x] Re-authorized: iphone-14-pro-max, samsung-sm-s938b already active
-- [ ] Deferred: samsung-sm-s931b (db.france26@gmail.com) — re-auth next time
+- [ ] Deferred: samsung-sm-s931b — re-auth next time
 - [x] Replaced dead global nameserver `100.123.128.54` → `10.10.30.53`
 - [x] Verified `immich` VM still works (100.74.244.90) — later disabled Tailscale on VM to prevent subnet route conflict
 
@@ -224,10 +224,17 @@ op read "op://Kubernetes/Tailscale K8s Operator/api-token" >/dev/null && echo "T
 ### 4.10.8 Monitoring
 
 - [x] 4.10.8.1 Create `manifests/monitoring/tailscale-alerts.yaml` — PrometheusRule:
-  - `TailscaleConnectorDown`: connector deployment replicas < 1 for 5m (severity: warning)
+  - `TailscaleConnectorDown`: connector StatefulSet replicas ready < 1 for 5m (severity: warning)
   - `TailscaleOperatorDown`: operator deployment replicas < 1 for 5m (severity: warning)
+  **Fix:** Original query used `kube_deployment_status_replicas_available` for connector — wrong because connector is a StatefulSet. Fixed to `kube_statefulset_status_replicas_ready`.
 - [x] 4.10.8.2 Apply alert rules
 - [x] 4.10.8.3 Verify alerts registered in monitoring namespace
+- [x] 4.10.8.4 Create `manifests/monitoring/tailscale-dashboard-configmap.yaml` — Grafana dashboard:
+  - Pod Status: Connector/Operator UP/DOWN, uptime, container restarts
+  - VPN Tunnel Traffic (tailscale0): throughput + packet rate (WireGuard tunnel interface)
+  - Pod Network Traffic (eth0): throughput + packet rate (cluster network interface)
+  - Resource Usage: CPU + memory with dashed request/limit lines
+  - All panels and rows have description tooltips (info icon on hover)
 
 ### 4.10.8.5 Homepage Widget
 
@@ -355,6 +362,7 @@ op read "op://Kubernetes/Tailscale K8s Operator/api-token" >/dev/null && echo "T
 - [x] Ad-blocking works through Tailscale (AdGuard global nameserver)
 - [x] PrometheusRule `tailscale-alerts` registered in monitoring namespace
 - [x] Homepage Tailscale widget showing device status
+- [x] Grafana dashboard showing Connector/Operator UP, VPN tunnel traffic, resource usage
 
 ---
 
@@ -455,6 +463,7 @@ tailscale ping 10.10.30.11
 | `manifests/tailscale/connector.yaml` | Connector CRD | Subnet router advertising 10.10.30.0/24 |
 | `manifests/tailscale/networkpolicy.yaml` | CiliumNetworkPolicy | Operator + connector proxy network rules |
 | `manifests/monitoring/tailscale-alerts.yaml` | PrometheusRule | TailscaleConnectorDown + TailscaleOperatorDown alerts |
+| `manifests/monitoring/tailscale-dashboard-configmap.yaml` | ConfigMap | Grafana dashboard (pod status, VPN/pod traffic, resources) |
 | `helm/tailscale-operator/values.yaml` | Helm values | Operator configuration (resources, tags, API proxy) |
 
 ## Files to Modify
