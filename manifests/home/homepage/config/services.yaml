@@ -95,9 +95,13 @@
     - Tailscale:
         icon: tailscale.png
         href: https://login.tailscale.com/admin/machines
-        description: VPN Mesh Network (widget pending K8s operator)
+        description: Subnet Router (homelab-subnet)
         statusStyle: dot
         siteMonitor: https://login.tailscale.com
+        widget:
+          type: tailscale
+          deviceid: "{{HOMEPAGE_VAR_TAILSCALE_DEVICE}}"
+          key: "{{HOMEPAGE_VAR_TAILSCALE_KEY}}"
 
     - OpenWRT:
         icon: openwrt.png

@@ -1,0 +1,78 @@
+# CiliumNetworkPolicy - Tailscale namespace network rules
+# Phase 4.10: Operator pod policies only
+#
+# Security model:
+#   - Operator: talks to K8s API, Tailscale coordination servers, DNS
+#     Also receives webhook callbacks from API server (validating/mutating admission)
+#   - Connector proxy: NO network policy applied
+#     The connector is a subnet router — it forwards WireGuard-tunneled packets
+#     via IP forwarding (not pod-originated traffic). CiliumNetworkPolicy filters
+#     forwarded packets, which breaks subnet routing. The proxy pod is already
+#     isolated by Tailscale ACLs (only autogroup:member can access the tailnet).
+#
+# CKA topics: CiliumNetworkPolicy, eBPF, WireGuard tunneling, subnet routing
+---
+# Operator ingress: K8s API server webhook callbacks
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: operator-ingress
+  namespace: tailscale
+  labels:
+    app: operator
+    app.kubernetes.io/part-of: tailscale
+spec:
+  endpointSelector:
+    matchLabels:
+      app: operator
+
+  ingress:
+    # K8s API server webhook callbacks (validating/mutating admission)
+    - fromEntities:
+        - kube-apiserver
+
+    # Kubelet health probes (liveness/readiness from host)
+    - fromEntities:
+        - host
+---
+# Operator egress: K8s API, Tailscale coordination servers, DNS
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: operator-egress
+  namespace: tailscale
+  labels:
+    app: operator
+    app.kubernetes.io/part-of: tailscale
+spec:
+  endpointSelector:
+    matchLabels:
+      app: operator
+
+  egress:
+    # DNS (required for service discovery + Tailscale coordination)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+
+    # K8s API server (manages CRDs, creates proxy pods)
+    # Includes in-cluster Service IP (10.96.0.1) and node IPs
+    - toEntities:
+        - kube-apiserver
+
+    # Tailscale coordination servers (HTTPS)
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

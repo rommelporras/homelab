@@ -1,0 +1,64 @@
+# PrometheusRule for Tailscale Alerts
+# Phase 4.10: Monitor operator and connector availability
+#
+# Metrics used:
+#   kube_pod_status_ready — pod readiness (from kube-state-metrics)
+#   kube_pod_container_status_restarts_total — restart count (from kube-state-metrics)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tailscale-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: tailscale
+      rules:
+        # Connector proxy pod down — breaks ALL tailnet DNS + remote access
+        - alert: TailscaleConnectorDown
+          expr: |
+            kube_deployment_status_replicas_available{namespace="tailscale", deployment=~".*connector.*"} < 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Tailscale Connector is down"
+            description: "Tailscale Connector proxy pod has been unavailable for 5+ minutes. Tailnet DNS (global nameserver 10.10.30.53) is unreachable from remote devices. All remote access to homelab is broken."
+            runbook: |
+              1. Check pod status:
+                 kubectl-homelab get pods -n tailscale
+
+              2. Check connector logs:
+                 kubectl-homelab logs -n tailscale -l tailscale.com/parent-resource-type=connector --tail=50
+
+              3. Check Connector CRD:
+                 kubectl-homelab get connector homelab-network -o yaml
+
+              4. Check events:
+                 kubectl-homelab get events -n tailscale --sort-by=.lastTimestamp
+
+        # Operator pod down — can't manage connector lifecycle
+        - alert: TailscaleOperatorDown
+          expr: |
+            kube_deployment_status_replicas_available{namespace="tailscale", deployment="operator"} < 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Tailscale Operator is down"
+            description: "Tailscale Operator pod has been unavailable for 5+ minutes. Cannot manage connector or proxy pod lifecycle. Existing connections may still work but recovery from failures is impaired."
+            runbook: |
+              1. Check pod status:
+                 kubectl-homelab get pods -n tailscale -l app=operator
+
+              2. Check operator logs:
+                 kubectl-homelab logs -n tailscale -l app=operator --tail=50
+
+              3. Check OAuth secret:
+                 kubectl-homelab get secret -n tailscale operator-oauth
+
+              4. Verify Helm release:
+                 helm-homelab -n tailscale list

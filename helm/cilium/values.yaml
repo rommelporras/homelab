@@ -53,3 +53,13 @@ externalIPs:
 # Devices for L2 announcements - REQUIRED for L2 to work
 # Must specify the physical NIC that connects to your LAN
 devices: "eno1"
+
+# =============================================================================
+# Socket LB Scope
+# =============================================================================
+# Restrict eBPF socket-level LB to host namespace only.
+# Required for Tailscale proxy pods — without this, Cilium intercepts traffic
+# inside pod network namespaces, breaking WireGuard tunnel routing.
+# Docs: https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#socket-lb
+socketLB:
+  hostNamespaceOnly: true

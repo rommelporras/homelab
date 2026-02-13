@@ -1,0 +1,20 @@
+# Tailscale Kubernetes Operator Helm values
+# Phase 4.10 - Tailscale Operator (Subnet Router)
+# Docs: https://tailscale.com/kb/1236/kubernetes-operator
+
+operatorConfig:
+  hostname: "tailscale-operator"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+proxyConfig:
+  # String, not array. Multiple tags: "tag:k8s,tag:other"
+  defaultTags: "tag:k8s"
+
+apiServerProxyConfig:
+  mode: "false"  # Enable in 4.10.9 if desired

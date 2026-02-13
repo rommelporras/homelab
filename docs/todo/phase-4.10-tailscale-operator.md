@@ -1,6 +1,6 @@
 # Phase 4.10: Tailscale Operator (Subnet Router)
 
-> **Status:** Planned
+> **Status:** Complete
 > **Target:** v0.24.0
 > **Prerequisite:** Phase 4.24 complete (Karakeep running), AdGuard DNS operational (10.10.30.53)
 > **Priority:** Medium (quality of life — mobile access to all services)
@@ -67,17 +67,19 @@ Backend Service (Homepage, Grafana, Longhorn, Ghost, etc.)
 | Tailnet | `capybara-interval.ts.net` |
 | MagicDNS | Enabled |
 | HTTPS certs | Not enabled (not needed — using existing Let's Encrypt certs via Cilium Gateway) |
-| Global nameserver | `100.123.128.54` (**dead** — old Proxmox AdGuard, offline since Aug 2025) |
-| Active device | `immich` VM on Proxmox (100.74.244.90, v1.94.1) |
-| Dead devices | `tailscale-adguardhome`, `tailscale-nginxproxymanager` |
-| Expired phones | 2 Samsung, 1 iPhone |
+| Global nameserver | `10.10.30.53` (K8s AdGuard — replaced dead `100.123.128.54` on 2026-02-13) |
+| Active devices | `tailscale-operator` (100.69.243.39), `homelab-subnet` (100.109.196.53) |
+| Disabled devices | `immich` VM (100.74.244.90) — Tailscale disabled to prevent subnet route conflict with K8s Connector |
+| Dead devices | Removed: `tailscale-adguardhome`, `tailscale-nginxproxymanager` |
+| Phones | samsung-sm-s938b (connected), iphone-14-pro-max (re-authorized), samsung-sm-s931b (expired, deferred) |
 
-### Cleanup Required Before Install
+### Cleanup Completed (2026-02-13)
 
-- Remove dead devices: `tailscale-adguardhome`, `tailscale-nginxproxymanager`
-- Re-authorize expired phones
-- Replace dead global nameserver `100.123.128.54` → `10.10.30.53` (K8s AdGuard via subnet route)
-- Verify `immich` VM still works after changes (no conflicts — different subnet)
+- [x] Removed dead devices: `tailscale-adguardhome`, `tailscale-nginxproxymanager`
+- [x] Re-authorized: iphone-14-pro-max, samsung-sm-s938b already active
+- [ ] Deferred: samsung-sm-s931b (db.france26@gmail.com) — re-auth next time
+- [x] Replaced dead global nameserver `100.123.128.54` → `10.10.30.53`
+- [x] Verified `immich` VM still works (100.74.244.90) — later disabled Tailscale on VM to prevent subnet route conflict
 
 ---
 
@@ -115,26 +117,27 @@ pod-security.kubernetes.io/warn: privileged
 
 | Component | Direction | Rules |
 |-----------|-----------|-------|
-| Operator | Egress | K8s API (6443), Tailscale coordination servers (HTTPS/443), DNS |
-| Connector proxy | Egress | Cluster network (10.10.30.0/24), Tailscale coordination (HTTPS/443), DNS |
-| Connector proxy | Ingress | WireGuard from tailnet devices (UDP/41641) |
+| Operator | Ingress | kube-apiserver (webhook callbacks), host (kubelet probes) |
+| Operator | Egress | kube-apiserver (entity), Tailscale coordination servers (HTTPS/443), DNS |
+| Connector proxy | — | **No CiliumNetworkPolicy** — see note below |
+
+**Why no connector proxy policy:** The connector is a subnet router that forwards WireGuard-tunneled packets via IP forwarding (`ip_forward=1`). CiliumNetworkPolicy filters forwarded/routed packets (not just pod-originated traffic), which breaks subnet routing entirely. The proxy is already isolated by Tailscale ACLs (`autogroup:member` only).
 
 ### 1Password Item
 
-Create before deployment:
+| Field | Reference | Notes |
+|-------|-----------|-------|
+| client-id | `op://Kubernetes/Tailscale K8s Operator/client-id` | OAuth client ID |
+| client-secret | `op://Kubernetes/Tailscale K8s Operator/client-secret` | OAuth client secret |
+| api-token | `op://Kubernetes/Tailscale K8s Operator/api-token` | API access token for Homepage widget |
+
+Item has built-in expiry set to **2026-05-14** (90-day API token), with 1Password alert on **2026-04-30** (2 weeks before).
 
 ```bash
-# Create 1Password item (store OAuth client credentials from Tailscale admin console)
-# Item Name: Tailscale K8s Operator
-# Vault: Kubernetes
-# Type: API Credential
-# Fields:
-#   - client-id: <from OAuth client generation>
-#   - client-secret: <from OAuth client generation>
-
 # Verify:
 op read "op://Kubernetes/Tailscale K8s Operator/client-id" >/dev/null && echo "ID OK"
 op read "op://Kubernetes/Tailscale K8s Operator/client-secret" >/dev/null && echo "Secret OK"
+op read "op://Kubernetes/Tailscale K8s Operator/api-token" >/dev/null && echo "Token OK"
 ```
 
 ---
@@ -143,373 +146,96 @@ op read "op://Kubernetes/Tailscale K8s Operator/client-secret" >/dev/null && ech
 
 ### 4.10.0 Prerequisites
 
-- [ ] 4.10.0.1 Verify Tailscale account active and MagicDNS enabled:
-  ```
-  Admin Console → DNS → MagicDNS: Enabled
-  ```
-- [ ] 4.10.0.2 Clean up dead Proxmox devices from tailnet:
-  ```
-  Admin Console → Machines → Remove:
-    - tailscale-adguardhome (offline since Aug 2025)
-    - tailscale-nginxproxymanager (offline since Aug 2025)
-  ```
-- [ ] 4.10.0.3 Re-authorize expired phones:
-  ```
-  Admin Console → Machines → Re-authorize:
-    - Samsung phones (2)
-    - iPhone (1)
-  ```
-- [ ] 4.10.0.4 Verify `immich` VM still active (100.74.244.90) — should not be affected by K8s changes
+- [x] 4.10.0.1 Verify Tailscale account active and MagicDNS enabled
+- [x] 4.10.0.2 Clean up dead Proxmox devices from tailnet (removed tailscale-adguardhome + tailscale-nginxproxymanager)
+- [x] 4.10.0.3 Re-authorize expired phones (iphone-14-pro-max done, samsung-sm-s931b deferred)
+- [x] 4.10.0.4 Verify `immich` VM still active (100.74.244.90, expiry disabled, connected)
 
 ### 4.10.1 Tailscale Admin Console Setup
 
-- [ ] 4.10.1.1 Configure ACL tags and auto-approvers:
-  ```
-  Admin Console → Access Controls → Edit policy
-  ```
-  ```json
-  {
-    "tagOwners": {
-      "tag:k8s-operator": [],
-      "tag:k8s": ["tag:k8s-operator"]
-    },
-    "autoApprovers": {
-      "routes": {
-        "10.10.30.0/24": ["tag:k8s"]
-      }
-    },
-    "acls": [
-      {
-        "action": "accept",
-        "src": ["autogroup:member"],
-        "dst": ["*:*"]
-      }
-    ]
-  }
-  ```
-  **Why `autoApprovers`:** Without this, the Connector advertises the subnet route but traffic won't flow until manually approved in the admin console. Auto-approval eliminates this manual step.
-
-- [ ] 4.10.1.2 Create OAuth client:
-  ```
-  Admin Console → Settings → OAuth clients → Generate OAuth client
-    Name: "K8s Operator"
-    Scopes:
-      - Devices: Core (Read & Write)
-      - Auth Keys (Read & Write)
-      - Services (Write)  -- not strictly required for Connector, but needed if adding Ingress later
-    Tag: tag:k8s-operator
-  ```
-  **Copy Client ID and Client Secret immediately — shown only once.**
-
-- [ ] 4.10.1.3 Store credentials in 1Password:
-  ```bash
-  # Create item manually in 1Password:
-  #   Vault: Kubernetes
-  #   Title: Tailscale K8s Operator
-  #   Type: API Credential
-  #   Fields: client-id, client-secret
-
-  # Verify:
-  eval $(op signin)
-  op read "op://Kubernetes/Tailscale K8s Operator/client-id" >/dev/null && echo "ID OK"
-  op read "op://Kubernetes/Tailscale K8s Operator/client-secret" >/dev/null && echo "Secret OK"
-  ```
+- [x] 4.10.1.1 Configure ACL tags and auto-approvers (via JSON editor, added `tagOwners` + `autoApprovers` to existing HuJSON policy with `grants` + `ssh` sections)
+- [x] 4.10.1.2 Create OAuth client:
+  **Note:** OAuth clients are under `Settings → Trust credentials` (not "OAuth clients" — renamed in Tailscale UI).
+  Scopes: Devices Core (R&W), Auth Keys (R&W), Services (Write). Tag: `tag:k8s-operator`.
+- [x] 4.10.1.3 Store credentials in 1Password (verified with `op read`)
 
 ### 4.10.2 Cilium Compatibility Fix
 
 > **BLOCKER:** Must be done BEFORE installing Tailscale operator. Without this fix, Cilium's eBPF socket-level load balancing intercepts traffic inside proxy pod network namespaces, breaking WireGuard routing. Symptoms: proxy pod starts but no traffic flows through subnet route.
 
-- [ ] 4.10.2.1 Add `socketLB.hostNamespaceOnly: true` to `helm/cilium/values.yaml`:
-  ```yaml
-  # =============================================================================
-  # Socket LB Scope
-  # =============================================================================
-  # Restrict eBPF socket-level LB to host namespace only.
-  # Required for Tailscale proxy pods — without this, Cilium intercepts traffic
-  # inside pod network namespaces, breaking WireGuard tunnel routing.
-  # Docs: https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#socket-lb
-  socketLB:
-    hostNamespaceOnly: true
-  ```
-
-- [ ] 4.10.2.2 Apply Cilium upgrade:
-  ```bash
-  helm-homelab upgrade cilium cilium/cilium \
-    --namespace kube-system \
-    --version 1.18.6 \
-    -f helm/cilium/values.yaml
-  ```
-
-- [ ] 4.10.2.3 Verify Cilium rollout:
-  ```bash
-  kubectl-homelab -n kube-system rollout status daemonset/cilium --timeout=120s
-  kubectl-homelab -n kube-system get pods -l k8s-app=cilium
-  # All 3 cilium pods should be Running (1/1)
-  ```
-
-- [ ] 4.10.2.4 Verify existing services still work after Cilium change:
-  ```bash
-  # Quick smoke test — Homepage should still load
-  curl -sk https://portal.k8s.rommelporras.com | head -5
-  ```
+- [x] 4.10.2.1 Add `socketLB.hostNamespaceOnly: true` to `helm/cilium/values.yaml`
+- [x] 4.10.2.2 Apply Cilium upgrade (revision 6, version 1.18.6)
+- [x] 4.10.2.3 Verify Cilium rollout (all 3 pods Running 1/1)
+- [x] 4.10.2.4 Verify existing services still work (Homepage smoke test passed)
 
 ### 4.10.3 Create Namespace & Manifests
 
-- [ ] 4.10.3.1 Create `manifests/tailscale/namespace.yaml`:
-  ```yaml
-  # Tailscale operator namespace
-  # Phase 4.10 - Tailscale Operator (Subnet Router)
-  #
-  # PSS: privileged enforce (proxy pods require NET_ADMIN + NET_RAW for WireGuard tunnel)
-  ---
-  apiVersion: v1
-  kind: Namespace
-  metadata:
-    name: tailscale
-    labels:
-      app.kubernetes.io/part-of: tailscale
-      pod-security.kubernetes.io/enforce: privileged
-      pod-security.kubernetes.io/audit: privileged
-      pod-security.kubernetes.io/warn: privileged
-  ```
-
-- [ ] 4.10.3.2 Document OAuth secret (Helm-managed — no file committed):
-  ```
-  The Tailscale OAuth secret is created by Helm during install (step 4.10.4.5)
-  using --set-string flags with 1Password CLI values. No secret.yaml is committed.
-
-  Secret name: operator-oauth (namespace: tailscale)
-  Fields:
-    - client_id:     op://Kubernetes/Tailscale K8s Operator/client-id
-    - client_secret: op://Kubernetes/Tailscale K8s Operator/client-secret
-
-  To recreate manually if Helm secret is lost:
-    kubectl-homelab create secret generic operator-oauth -n tailscale \
-      --from-literal=client_id="$(op read 'op://Kubernetes/Tailscale K8s Operator/client-id')" \
-      --from-literal=client_secret="$(op read 'op://Kubernetes/Tailscale K8s Operator/client-secret')"
-  ```
-
-- [ ] 4.10.3.3 Create `manifests/tailscale/connector.yaml`:
-  ```yaml
-  # Tailscale Connector — subnet router for homelab network
-  # Phase 4.10 - Tailscale Operator
-  #
-  # Advertises 10.10.30.0/24 to the tailnet, making all K8s services
-  # reachable from Tailscale-connected devices via existing HTTPRoutes.
-  # Routes are auto-approved via ACL autoApprovers (no manual approval needed).
-  ---
-  apiVersion: tailscale.com/v1alpha1
-  kind: Connector
-  metadata:
-    name: homelab-network
-  spec:
-    subnetRouter:
-      advertiseRoutes:
-        - "10.10.30.0/24"
-    tags:
-      - "tag:k8s"
-    hostname: "homelab-subnet"
-  ```
-
-- [ ] 4.10.3.4 Create `manifests/tailscale/networkpolicy.yaml`:
-  - CiliumNetworkPolicy for operator and connector proxy pods
-  - Operator egress: K8s API, Tailscale coordination servers (HTTPS), DNS
-  - Connector proxy egress: cluster network (10.10.30.0/24), Tailscale coordination (HTTPS), DNS
-  - Connector proxy ingress: WireGuard (UDP/41641) from any source (tailnet devices)
-
-- [ ] 4.10.3.5 Dry-run validate all manifests:
-  ```bash
-  kubectl-homelab apply --dry-run=client -f manifests/tailscale/namespace.yaml
-  # Note: connector.yaml requires CRDs from operator — dry-run after Helm install
-  ```
+- [x] 4.10.3.1 Create `manifests/tailscale/namespace.yaml`
+- [x] 4.10.3.2 Document OAuth secret (Helm-managed — no file committed)
+- [x] 4.10.3.3 Create `manifests/tailscale/connector.yaml`
+- [x] 4.10.3.4 Create `manifests/tailscale/networkpolicy.yaml`:
+  **Final state:** Operator-only policies (ingress + egress). All connector proxy policies removed.
+  **Fixes during implementation:**
+  - Added `operator-ingress` policy (kube-apiserver webhook callbacks + kubelet probes) — without this, operator couldn't receive API server webhooks
+  - Changed operator egress K8s API rule from `toCIDR` (node IPs only) to `toEntities: kube-apiserver` — operator uses in-cluster Service IP (10.96.0.1), not node IPs
+  - Removed ALL connector proxy policies — CiliumNetworkPolicy filters forwarded/routed packets, breaking subnet routing entirely
+- [x] 4.10.3.5 Dry-run validated all manifests
 
 ### 4.10.4 Helm Values & Install
 
-- [ ] 4.10.4.1 Create `helm/tailscale-operator/values.yaml`:
-  ```yaml
-  # Tailscale Kubernetes Operator Helm values
-  # Phase 4.10 - Tailscale Operator (Subnet Router)
-  # Docs: https://tailscale.com/kb/1236/kubernetes-operator
-
-  operatorConfig:
-    hostname: "tailscale-operator"
-    resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 200m
-        memory: 128Mi
-
-  proxyConfig:
-    defaultTags:
-      - "tag:k8s"
-    defaultResources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 200m
-        memory: 128Mi
-
-  apiServerProxyConfig:
-    mode: "false"  # Enable in 4.10.9 if desired
-  ```
-
-- [ ] 4.10.4.2 Add Tailscale Helm repo:
-  ```bash
-  helm-homelab repo add tailscale https://pkgs.tailscale.com/helmcharts --force-update
-  helm-homelab repo update
-  ```
-
-- [ ] 4.10.4.3 Check latest chart version:
-  ```bash
-  helm-homelab search repo tailscale/tailscale-operator --versions | head -5
-  # Note the latest chart version for use in the install command below
-  ```
-
-- [ ] 4.10.4.4 Apply namespace and network policy:
-  ```bash
-  kubectl-homelab apply -f manifests/tailscale/namespace.yaml
-  kubectl-homelab apply -f manifests/tailscale/networkpolicy.yaml
-  ```
-
-- [ ] 4.10.4.5 Install operator with OAuth credentials from 1Password:
-  ```bash
-  eval $(op signin)
-
-  helm-homelab upgrade --install tailscale-operator tailscale/tailscale-operator \
-    --namespace tailscale \
-    --version <CHART_VERSION_FROM_4.10.4.3> \
-    -f helm/tailscale-operator/values.yaml \
-    --set-string oauth.clientId="$(op read 'op://Kubernetes/Tailscale K8s Operator/client-id')" \
-    --set-string oauth.clientSecret="$(op read 'op://Kubernetes/Tailscale K8s Operator/client-secret')" \
-    --wait
-  ```
-
-- [ ] 4.10.4.6 Verify operator running:
-  ```bash
-  kubectl-homelab -n tailscale get pods
-  # Should show operator pod in Running state
-
-  kubectl-homelab get ingressclass
-  # Should show 'tailscale' IngressClass (created automatically)
-  ```
-
-- [ ] 4.10.4.7 Verify operator device in Tailscale admin console:
-  ```
-  Admin Console → Machines
-  Should see: "tailscale-operator" device with tag:k8s-operator
-  ```
+- [x] 4.10.4.1 Create `helm/tailscale-operator/values.yaml`:
+  **Fixes during implementation:**
+  - `proxyConfig.defaultTags` must be a **string** (`"tag:k8s"`), not a YAML array — chart passes it as env var
+  - `proxyConfig.defaultResources` does not exist in this chart — proxy resources managed via ProxyClass CRD
+- [x] 4.10.4.2 Add Tailscale Helm repo
+- [x] 4.10.4.3 Check latest chart version → **1.94.1**
+- [x] 4.10.4.4 Apply namespace and network policy
+- [x] 4.10.4.5 Install operator with OAuth credentials (chart version 1.94.1, revision 2)
+- [x] 4.10.4.6 Verify operator running (1/1 Running, `AuthLoop: state is Running; done`)
+- [x] 4.10.4.7 Verify operator device in Tailscale admin console (tailscale-operator, tag:k8s-operator, 100.69.243.39)
 
 ### 4.10.5 Deploy Connector (Subnet Router)
 
-- [ ] 4.10.5.1 Apply Connector CRD:
-  ```bash
-  kubectl-homelab apply -f manifests/tailscale/connector.yaml
-  ```
-
-- [ ] 4.10.5.2 Verify connector proxy pod created:
-  ```bash
-  kubectl-homelab -n tailscale get pods
-  # Should show: operator pod + connector proxy pod (ts-homelab-network-*)
-  ```
-
-- [ ] 4.10.5.3 Verify in Tailscale admin console:
-  ```
-  Admin Console → Machines
-  Should see: "homelab-subnet" device with tag:k8s
-
-  Click on "homelab-subnet" → Subnets
-  Should show: 10.10.30.0/24 (auto-approved via ACL)
-  ```
-
-- [ ] 4.10.5.4 Verify route is approved (not just advertised):
-  ```bash
-  # From any tailnet device, verify the route exists
-  tailscale status
-  # Should show homelab-subnet with subnet route 10.10.30.0/24
-  ```
+- [x] 4.10.5.1 Apply Connector CRD
+- [x] 4.10.5.2 Verify connector proxy pod created (ts-homelab-network-6556h-0, 1/1 Running)
+- [x] 4.10.5.3 Verify in Tailscale admin console (homelab-subnet, tag:k8s, 100.109.196.53, DERP-20 hkg ~31ms)
+- [x] 4.10.5.4 Verify subnet route 10.10.30.0/24 approved (auto-approved via ACL autoApprovers)
 
 ### 4.10.6 Tailscale DNS Configuration
 
 > **Critical:** The current global nameserver `100.123.128.54` is dead (old Proxmox AdGuard). This step replaces it with the K8s AdGuard instance reachable via the subnet route.
 
-- [ ] 4.10.6.1 Remove dead global nameserver:
-  ```
-  Admin Console → DNS → Global Nameservers
-  Remove: 100.123.128.54
-  ```
-
-- [ ] 4.10.6.2 Add K8s AdGuard as global nameserver:
-  ```
-  Admin Console → DNS → Global Nameservers
-  Add: 10.10.30.53 (reachable via subnet route)
-  Toggle: "Override local DNS" → ON
-  ```
-  **Why global nameserver (not Split DNS):** Global nameserver routes ALL tailnet DNS through AdGuard — same pattern as the old Proxmox setup. This gives ad-blocking + custom rewrites on all tailnet devices, not just `*.k8s.rommelporras.com` queries.
-
-- [ ] 4.10.6.3 Verify DNS resolution from tailnet device:
-  ```bash
-  # From phone or laptop connected to Tailscale
-  nslookup portal.k8s.rommelporras.com
-  # Expected: 10.10.30.20 (Cilium Gateway VIP)
-
-  nslookup grafana.k8s.rommelporras.com
-  # Expected: 10.10.30.20
-  ```
+- [x] 4.10.6.1 Remove dead global nameserver (removed 100.123.128.54)
+- [x] 4.10.6.2 Add K8s AdGuard as global nameserver (10.10.30.53, "Override DNS servers" ON)
+  **Note:** UI label is "Override DNS servers", not "Override local DNS" (renamed in Tailscale UI).
+- [x] 4.10.6.3 Verify DNS resolution from tailnet device (confirmed during mobile testing — `*.k8s.rommelporras.com` resolves correctly)
 
 ### 4.10.7 Test Mobile Access
 
-- [ ] 4.10.7.1 Connect phone to Tailscale:
-  ```
-  Open Tailscale app → Ensure connected to capybara-interval.ts.net
-  Settings → Use Tailscale DNS → ON
-  ```
-
-- [ ] 4.10.7.2 Test Homepage:
-  ```
-  Browser → https://portal.k8s.rommelporras.com
-  Should load Homepage dashboard
-  Traffic path: Phone → WireGuard → Connector → AdGuard → Gateway → Homepage
-  ```
-
-- [ ] 4.10.7.3 Test additional services (all should work without any new manifests):
-  ```
-  https://grafana.k8s.rommelporras.com    → Grafana dashboard
-  https://longhorn.k8s.rommelporras.com   → Longhorn UI
-  https://adguard.k8s.rommelporras.com    → AdGuard admin
-  https://blog.k8s.rommelporras.com       → Ghost blog
-  https://karakeep.k8s.rommelporras.com   → Karakeep bookmark manager
-  ```
-
-- [ ] 4.10.7.4 Verify `immich` VM still accessible on tailnet (no conflicts):
-  ```
-  # immich should still be reachable at 100.74.244.90
-  # It's on a different subnet — no conflict with 10.10.30.0/24
-  ```
-
-- [ ] 4.10.7.5 Test with WiFi disabled (cellular only) to confirm true remote access:
-  ```
-  Disconnect from home WiFi → Use cellular data
-  Enable Tailscale → Try https://portal.k8s.rommelporras.com
-  Should work (traffic goes through WireGuard tunnel over cellular)
-  ```
+- [x] 4.10.7.1 Connect phone to Tailscale (samsung-sm-s938b connected to capybara-interval.ts.net)
+- [x] 4.10.7.2 Test Homepage (portal.k8s.rommelporras.com loads correctly)
+  **Fix during implementation:** Initial test failed — CiliumNetworkPolicy on connector proxy blocked forwarded packets. Removed all connector proxy policies (see Gotchas table).
+- [x] 4.10.7.3 Test additional services (all work without new manifests)
+- [x] 4.10.7.4 Verify `immich` VM:
+  **Issue discovered:** Tailscale on immich VM intercepted LAN traffic due to K8s subnet route (10.10.30.0/24). NPM couldn't reach immich (TTL dropped from 64→61 indicating packets routed through connector). Fixed: `sudo tailscale down` then `sudo systemctl disable --now tailscaled` on immich VM.
+- [x] 4.10.7.5 Test with different WiFi (upstream of OPNsense) — confirmed true remote access works
+- [x] 4.10.7.6 Verified ad-blocking works through Tailscale (ads blocked on test sites)
 
 ### 4.10.8 Monitoring
 
-- [ ] 4.10.8.1 Create `manifests/monitoring/tailscale-alerts.yaml` — PrometheusRule:
-  - `TailscaleConnectorDown`: connector pod count < 1 for 5m (severity: warning)
-    **Why:** If the Connector pod dies, tailnet DNS (global nameserver 10.10.30.53) becomes unreachable, breaking ALL tailnet DNS — not just K8s access. This alert fires before users notice.
-  - `TailscaleOperatorDown`: operator pod count < 1 for 5m (severity: warning)
-- [ ] 4.10.8.2 Apply alert rules:
-  ```bash
-  kubectl-homelab apply -f manifests/monitoring/tailscale-alerts.yaml
-  ```
-- [ ] 4.10.8.3 Verify alerts registered:
-  ```bash
-  kubectl-homelab -n monitoring get prometheusrule tailscale-alerts
-  ```
+- [x] 4.10.8.1 Create `manifests/monitoring/tailscale-alerts.yaml` — PrometheusRule:
+  - `TailscaleConnectorDown`: connector deployment replicas < 1 for 5m (severity: warning)
+  - `TailscaleOperatorDown`: operator deployment replicas < 1 for 5m (severity: warning)
+- [x] 4.10.8.2 Apply alert rules
+- [x] 4.10.8.3 Verify alerts registered in monitoring namespace
+
+### 4.10.8.5 Homepage Widget
+
+- [x] 4.10.8.5.1 Update `manifests/home/homepage/config/services.yaml` — added Tailscale widget (type: tailscale, deviceid + key from secret)
+- [x] 4.10.8.5.2 Generate Tailscale API access token (90-day expiry, expires 2026-05-14)
+- [x] 4.10.8.5.3 Store api-token in 1Password with built-in expiry alert (2026-04-30)
+- [x] 4.10.8.5.4 Patch Homepage secret with `HOMEPAGE_VAR_TAILSCALE_DEVICE` and `HOMEPAGE_VAR_TAILSCALE_KEY`
+- [x] 4.10.8.5.5 Apply kustomize and restart Homepage
 
 ### 4.10.9 Optional: API Server Proxy
 
@@ -597,28 +323,38 @@ op read "op://Kubernetes/Tailscale K8s Operator/client-secret" >/dev/null && ech
 | `immich` VM on same tailnet | Could conflict with subnet routes | No conflict — immich is on Proxmox (different subnet), K8s Connector advertises 10.10.30.0/24 only |
 | Global nameserver depends on subnet route | If Connector pod dies, ALL tailnet DNS fails (not just K8s) | PrometheusRule alert `TailscaleConnectorDown` fires within 5m; restart pod or rollback DNS to public resolver |
 | First connection may be slow | WireGuard handshake + DERP relay before direct connection established | Normal — subsequent connections are fast (direct WireGuard) |
+| `proxyConfig.defaultTags` is a string | Helm chart passes it as env var — YAML array causes `cannot unmarshal array into Go struct field EnvVar` | Use `"tag:k8s"` string, not `- "tag:k8s"` array |
+| `proxyConfig.defaultResources` doesn't exist | Chart doesn't support resource limits via values — use ProxyClass CRD instead | Removed from values.yaml |
+| Operator needs ingress from kube-apiserver | CiliumNetworkPolicy with endpointSelector creates implicit default-deny for ingress | Added `operator-ingress` policy allowing kube-apiserver + host entities |
+| Operator uses in-cluster Service IP (10.96.0.1) | Egress policy with `toCIDR` for node IPs (10.10.30.x) doesn't cover ClusterIP | Use `toEntities: kube-apiserver` instead of CIDR-based rules |
+| Connector proxy needs API access | Proxy reads config secrets from K8s API — blocked by network policy | Added `toEntities: kube-apiserver` to connector proxy egress |
+| OAuth clients under "Trust credentials" | Tailscale UI renamed "OAuth clients" to "Trust credentials" in Settings | Navigate to `Settings → Trust credentials` |
+| CiliumNetworkPolicy blocks subnet routing | Connector forwards packets via IP forwarding — CNP filters forwarded packets, breaking all routed traffic | No CNP on connector proxy — rely on Tailscale ACLs for access control |
+| Existing Tailscale VM conflicts with K8s subnet route | `immich` VM had Tailscale running — saw new 10.10.30.0/24 route and intercepted LAN traffic (TTL 64→61), breaking NPM→immich path | Disable Tailscale on VM: `sudo systemctl disable --now tailscaled` |
+| Homepage Tailscale API token expires in 90 days | Widget stops showing device status after expiry | Set 1Password item expiry to token date (2026-05-14) with alert 2 weeks before |
 
 ---
 
 ## Verification Checklist
 
-- [ ] Cilium upgraded with `socketLB.hostNamespaceOnly: true`
-- [ ] Existing services still work after Cilium upgrade (no regressions)
-- [ ] Operator pod Running in `tailscale` namespace
-- [ ] `tailscale` IngressClass created (`kubectl-homelab get ingressclass`)
-- [ ] Operator device visible in Tailscale admin console
-- [ ] Connector proxy pod Running in `tailscale` namespace
-- [ ] Connector device (`homelab-subnet`) visible in Tailscale admin console
-- [ ] Subnet route `10.10.30.0/24` approved (not just advertised)
-- [ ] Dead global nameserver removed (`100.123.128.54`)
-- [ ] New global nameserver set (`10.10.30.53`)
-- [ ] DNS resolves `*.k8s.rommelporras.com` → `10.10.30.20` from tailnet device
-- [ ] Homepage accessible from phone via Tailscale
-- [ ] Grafana accessible from phone via Tailscale
-- [ ] All existing services work from phone (no per-service manifests needed)
-- [ ] `immich` VM still accessible on tailnet (no conflicts)
-- [ ] Works from cellular (not home WiFi) — confirms true remote access
-- [ ] PrometheusRule `tailscale-alerts` registered in monitoring namespace
+- [x] Cilium upgraded with `socketLB.hostNamespaceOnly: true`
+- [x] Existing services still work after Cilium upgrade (no regressions)
+- [x] Operator pod Running in `tailscale` namespace
+- [x] `tailscale` IngressClass created
+- [x] Operator device visible in Tailscale admin console (100.69.243.39)
+- [x] Connector proxy pod Running in `tailscale` namespace
+- [x] Connector device (`homelab-subnet`) visible in Tailscale admin console (100.109.196.53)
+- [x] Subnet route `10.10.30.0/24` approved (auto-approved via ACL)
+- [x] Dead global nameserver removed (`100.123.128.54`)
+- [x] New global nameserver set (`10.10.30.53`)
+- [x] DNS resolves `*.k8s.rommelporras.com` → `10.10.30.20` from tailnet device
+- [x] Homepage accessible from phone via Tailscale
+- [x] All existing services work from phone (no per-service manifests needed)
+- [x] `immich` VM conflict resolved (Tailscale disabled on VM — `systemctl disable --now tailscaled`)
+- [x] Works from different WiFi (upstream of OPNsense) — confirms remote access
+- [x] Ad-blocking works through Tailscale (AdGuard global nameserver)
+- [x] PrometheusRule `tailscale-alerts` registered in monitoring namespace
+- [x] Homepage Tailscale widget showing device status
 
 ---
 
@@ -726,6 +462,7 @@ tailscale ping 10.10.30.11
 | File | Change |
 |------|--------|
 | `helm/cilium/values.yaml` | Add `socketLB.hostNamespaceOnly: true` (Tailscale compatibility) |
+| `manifests/home/homepage/config/services.yaml` | Added Tailscale widget (type: tailscale, deviceid + key vars) |
 
 ---
 
