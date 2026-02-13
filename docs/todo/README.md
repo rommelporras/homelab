@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.24.0 (Tailscale Operator)
+> **Latest Release:** v0.22.0 (Tailscale Operator)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -30,9 +30,9 @@
 | v0.19.0 | kube-vip Upgrade + Monitoring | Phase 2.1 | ✅ Released |
 | v0.20.0 | Ollama Local AI (CPU) | Phase 4.23 | ✅ Released |
 | v0.21.0 | Karakeep Migration | Phase 4.24 | ✅ Released |
-| v0.22.0 | ARR Stack Core | Phase 4.25 | ⬜ Planned |
-| v0.23.0 | ARR Companions | Phase 4.26 | ⬜ Planned |
-| v0.24.0 | Tailscale Operator | Phase 4.10 | ✅ Released |
+| v0.22.0 | Tailscale Operator | Phase 4.10 | ✅ Released |
+| v0.23.0 | ARR Stack Core | Phase 4.25 | ⬜ Planned |
+| v0.24.0 | ARR Companions | Phase 4.26 | ⬜ Planned |
 | v0.25.0 | Version Automation & Upgrade Runbooks | Phase 4.27 | ⬜ Planned |
 | v0.26.0 | Production Hardening | Phase 5 | ⬜ Planned |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |

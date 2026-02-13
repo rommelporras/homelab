@@ -93,7 +93,7 @@ homelab/
 │   └── test-cloudflare-networkpolicy.sh
 ├── docs/
 │   ├── context/             # This knowledge base (RAG source)
-│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.24.0)
+│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.22.0)
 │   ├── todo/                # Active and completed phase plans
 │   └── reference/           # CHANGELOG, historical docs
 └── ansible/                 # Bootstrap automation

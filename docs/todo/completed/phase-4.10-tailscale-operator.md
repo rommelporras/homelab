@@ -1,7 +1,7 @@
 # Phase 4.10: Tailscale Operator (Subnet Router)
 
 > **Status:** Complete
-> **Target:** v0.24.0
+> **Target:** v0.22.0
 > **Prerequisite:** Phase 4.24 complete (Karakeep running), AdGuard DNS operational (10.10.30.53)
 > **Priority:** Medium (quality of life — mobile access to all services)
 > **DevOps Topics:** Mesh VPN, zero-trust networking, subnet routing, WireGuard, CRDs
@@ -302,7 +302,7 @@ op read "op://Kubernetes/Tailscale K8s Operator/api-token" >/dev/null && echo "T
 - [ ] 4.10.10.5 Update `docs/context/Networking.md` — add Tailscale VIP/DNS info
 - [ ] 4.10.10.6 Update `docs/context/Secrets.md` — add Tailscale K8s Operator 1Password item
 - [ ] 4.10.10.7 Update `docs/context/Conventions.md` — add `manifests/tailscale/` to tree
-- [ ] 4.10.10.8 Create `docs/rebuild/v0.24.0-tailscale-operator.md` — rebuild guide
+- [ ] 4.10.10.8 Create `docs/rebuild/v0.22.0-tailscale-operator.md` — rebuild guide
 - [ ] 4.10.10.9 `/audit-docs`
 - [ ] 4.10.10.10 `/commit` (documentation)
 
@@ -311,7 +311,7 @@ op read "op://Kubernetes/Tailscale K8s Operator/api-token" >/dev/null && echo "T
 - [ ] 4.10.11.1 `/audit-security`
 - [ ] 4.10.11.2 `/commit` (infrastructure: Cilium fix + namespace + connector + network policy + alerts + Helm values)
 - [ ] 4.10.11.3 Documentation updates (4.10.10)
-- [ ] 4.10.11.4 `/release v0.24.0 "Tailscale Operator"`
+- [ ] 4.10.11.4 `/release v0.22.0 "Tailscale Operator"`
 - [ ] 4.10.11.5 Move this file to `docs/todo/completed/`
 
 ---

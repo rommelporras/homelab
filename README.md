@@ -194,7 +194,7 @@ Step-by-step instructions to rebuild the cluster from scratch:
 | [v0.19.0-kube-vip-upgrade](docs/rebuild/v0.19.0-kube-vip-upgrade.md) | Phase 2.1 | kube-vip v1.0.3→v1.0.4 + Prometheus monitoring |
 | [v0.20.0-ollama](docs/rebuild/v0.20.0-ollama.md) | Phase 4.23 | Ollama Local AI (CPU-only LLM inference) |
 | [v0.21.0-karakeep](docs/rebuild/v0.21.0-karakeep.md) | Phase 4.24 | Karakeep bookmark manager with AI tagging |
-| [v0.24.0-tailscale-operator](docs/rebuild/v0.24.0-tailscale-operator.md) | Phase 4.10 | Tailscale Operator (subnet router for remote access) |
+| [v0.22.0-tailscale-operator](docs/rebuild/v0.22.0-tailscale-operator.md) | Phase 4.10 | Tailscale Operator (subnet router for remote access) |
 
 ### Reference
 
