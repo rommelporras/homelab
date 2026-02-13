@@ -1,0 +1,533 @@
+# Grafana Dashboard - Tailscale Operator Monitoring
+# Phase 4.10: Connector tunnel traffic, pod health, resource usage
+# Auto-provisioned via grafana_dashboard label
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tailscale-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus-stack
+data:
+  tailscale.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "title": "Pod Status",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+          "id": 2,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          },
+          "description": "Tailscale Connector subnet router pod (StatefulSet). Routes traffic from the tailnet to the cluster network (10.10.30.0/24).",
+          "title": "Connector (homelab-subnet)",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "kube_statefulset_status_replicas_ready{namespace=\"tailscale\", statefulset=~\"ts-homelab-network.*\"}",
+              "legendFormat": "Available"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+          "id": 3,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          },
+          "description": "Tailscale Operator (Deployment). Manages the Connector CRD and proxy pod lifecycle.",
+          "title": "Operator",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "kube_deployment_status_replicas_available{namespace=\"tailscale\", deployment=\"operator\"}",
+              "legendFormat": "Available"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "orange", "value": 3600 },
+                  { "color": "green", "value": 86400 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+          "id": 4,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          },
+          "description": "How long the Connector proxy pod has been running. Red < 1 hour, orange < 1 day, green > 1 day.",
+          "title": "Connector Uptime",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "time() - kube_pod_start_time{namespace=\"tailscale\", pod=~\"ts-homelab-network.*\"}",
+              "legendFormat": "Uptime"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 3 },
+                  { "color": "red", "value": 5 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+          "id": 5,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          },
+          "description": "Total container restarts across all Tailscale pods. Green = 0-2, orange = 3-4, red = 5+. Frequent restarts may indicate OOM kills or crashloops.",
+          "title": "Container Restarts",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"tailscale\"})",
+              "legendFormat": "Total"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "id": 10,
+          "title": "VPN Tunnel Traffic (tailscale0)",
+          "type": "row",
+          "description": "Traffic on the WireGuard tunnel interface (tailscale0). This is encrypted VPN traffic flowing between your remote devices (phone/laptop on the tailnet) and the Connector pod. Spikes here mean someone is actively accessing homelab services remotely via Tailscale."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "Bps"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Transmit" },
+                "properties": [
+                  { "id": "custom.transform", "value": "negative-Y" }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "id": 11,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "WireGuard tunnel (tailscale0) throughput in bytes/sec. Bidirectional chart: above zero = Receive (data IN from remote devices), below zero = Transmit (data OUT to remote devices).",
+          "title": "VPN Throughput",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"tailscale\", pod=~\"ts-homelab-network.*\", interface=\"tailscale0\"}[5m]))",
+              "legendFormat": "Receive"
+            },
+            {
+              "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"tailscale\", pod=~\"ts-homelab-network.*\", interface=\"tailscale0\"}[5m]))",
+              "legendFormat": "Transmit"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "pps"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Transmit" },
+                "properties": [
+                  { "id": "custom.transform", "value": "negative-Y" }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "id": 12,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "WireGuard tunnel (tailscale0) packet rate. Bidirectional chart: above zero = Receive (packets IN), below zero = Transmit (packets OUT).",
+          "title": "VPN Packet Rate",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(container_network_receive_packets_total{namespace=\"tailscale\", pod=~\"ts-homelab-network.*\", interface=\"tailscale0\"}[5m]))",
+              "legendFormat": "Receive"
+            },
+            {
+              "expr": "sum(rate(container_network_transmit_packets_total{namespace=\"tailscale\", pod=~\"ts-homelab-network.*\", interface=\"tailscale0\"}[5m]))",
+              "legendFormat": "Transmit"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+          "id": 13,
+          "title": "Pod Network Traffic (eth0)",
+          "type": "row",
+          "description": "Traffic on the cluster network interface (eth0). This is internal traffic between the Connector pod and other cluster services like AdGuard DNS (10.10.30.53) and Cilium Gateway (10.10.30.20). When a remote device requests a page, the VPN traffic arrives on tailscale0, then gets forwarded out on eth0 to reach the actual service."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "Bps"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Transmit" },
+                "properties": [
+                  { "id": "custom.transform", "value": "negative-Y" }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+          "id": 14,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Cluster network (eth0) throughput in bytes/sec. This is traffic between the Connector pod and cluster services (AdGuard, Cilium Gateway, etc). Bidirectional: above zero = Receive, below zero = Transmit.",
+          "title": "Pod Throughput",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"tailscale\", pod=~\"ts-homelab-network.*\", interface=\"eth0\"}[5m]))",
+              "legendFormat": "Receive"
+            },
+            {
+              "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"tailscale\", pod=~\"ts-homelab-network.*\", interface=\"eth0\"}[5m]))",
+              "legendFormat": "Transmit"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "pps"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Transmit" },
+                "properties": [
+                  { "id": "custom.transform", "value": "negative-Y" }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+          "id": 15,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Cluster network (eth0) packet rate. Traffic between the Connector pod and cluster services. Bidirectional: above zero = Receive, below zero = Transmit.",
+          "title": "Pod Packet Rate",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(container_network_receive_packets_total{namespace=\"tailscale\", pod=~\"ts-homelab-network.*\", interface=\"eth0\"}[5m]))",
+              "legendFormat": "Receive"
+            },
+            {
+              "expr": "sum(rate(container_network_transmit_packets_total{namespace=\"tailscale\", pod=~\"ts-homelab-network.*\", interface=\"eth0\"}[5m]))",
+              "legendFormat": "Transmit"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+          "id": 20,
+          "title": "Resource Usage",
+          "type": "row",
+          "description": "CPU and memory consumption of Tailscale components. The Connector handles WireGuard encryption/decryption and packet routing. The Operator watches Kubernetes CRDs and manages proxy pod lifecycle. Both are lightweight under normal usage."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+          "id": 21,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "CPU cores used by each Tailscale component. Dashed lines show resource requests (guaranteed) and limits (throttle ceiling). Connector has no limit — it can use as much CPU as the node allows.",
+          "title": "CPU Usage (cores)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"tailscale\", pod=~\"ts-homelab-network.*\", container!=\"\"}[5m]))",
+              "legendFormat": "Connector"
+            },
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"tailscale\", pod=~\"operator.*\", container!=\"\"}[5m]))",
+              "legendFormat": "Operator"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_requests{namespace=\"tailscale\", pod=~\"operator.*\", resource=\"cpu\"})",
+              "legendFormat": "Operator Request"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_limits{namespace=\"tailscale\", pod=~\"operator.*\", resource=\"cpu\"})",
+              "legendFormat": "Operator Limit"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_requests{namespace=\"tailscale\", pod=~\"ts-homelab-network.*\", resource=\"cpu\"})",
+              "legendFormat": "Connector Request"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Operator Request" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Operator Limit" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [4, 4] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Connector Request" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+          "id": 22,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Memory (working set) used by each Tailscale component. Dashed lines show resource requests (guaranteed) and limits (OOM kill ceiling). Connector has no limit — watch for unbounded growth.",
+          "title": "Memory Usage",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"tailscale\", pod=~\"ts-homelab-network.*\", container!=\"\"})",
+              "legendFormat": "Connector"
+            },
+            {
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"tailscale\", pod=~\"operator.*\", container!=\"\"})",
+              "legendFormat": "Operator"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_requests{namespace=\"tailscale\", pod=~\"operator.*\", resource=\"memory\"})",
+              "legendFormat": "Operator Request"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_limits{namespace=\"tailscale\", pod=~\"operator.*\", resource=\"memory\"})",
+              "legendFormat": "Operator Limit"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_requests{namespace=\"tailscale\", pod=~\"ts-homelab-network.*\", resource=\"memory\"})",
+              "legendFormat": "Connector Request"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "bytes"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Operator Request" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Operator Limit" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [4, 4] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Connector Request" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["tailscale", "vpn", "homelab"],
+      "templating": { "list": [] },
+      "time": { "from": "now-24h", "to": "now" },
+      "timepicker": {},
+      "timezone": "Asia/Manila",
+      "title": "Tailscale Operator",
+      "uid": "tailscale-operator",
+      "version": 1
+    }

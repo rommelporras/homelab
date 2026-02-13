@@ -20,7 +20,7 @@ spec:
         # Connector proxy pod down — breaks ALL tailnet DNS + remote access
         - alert: TailscaleConnectorDown
           expr: |
-            kube_deployment_status_replicas_available{namespace="tailscale", deployment=~".*connector.*"} < 1
+            kube_statefulset_status_replicas_ready{namespace="tailscale", statefulset=~"ts-homelab-network.*"} < 1
           for: 5m
           labels:
             severity: warning

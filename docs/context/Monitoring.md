@@ -160,6 +160,30 @@ Events (Loki):
 {service_name="claude-code"} | event_name="api_request"
 ```
 
+## Grafana Dashboard Convention
+
+Every new service should include a Grafana dashboard ConfigMap (`manifests/monitoring/<service>-dashboard-configmap.yaml`).
+
+**Required label:** `grafana_dashboard: "1"` (auto-provisioned by Grafana sidecar).
+
+**Standard sections:**
+
+| Row | Panels | Description |
+|-----|--------|-------------|
+| Pod Status | UP/DOWN stat per workload, uptime, restarts | Use `kube_deployment_*` for Deployments, `kube_statefulset_*` for StatefulSets |
+| Network Traffic | Throughput + packet rate | Split by interface if multiple exist (e.g., VPN vs pod network) |
+| Resource Usage | CPU + Memory timeseries | Include dashed request/limit lines for right-sizing |
+
+**Panel conventions:**
+- Every panel must have a `description` field (renders as info icon tooltip on hover)
+- Every row header must have a `description` explaining what the section shows
+- Network panels use bidirectional charts: positive = Receive, negative = Transmit
+- Resource panels show dashed lines: yellow = request (guaranteed), red = limit (throttle/OOM ceiling)
+- Timezone: `Asia/Manila`
+- Tags: `["<service>", "homelab"]`
+
+**Example files:** `tailscale-dashboard-configmap.yaml`, `claude-dashboard-configmap.yaml`, `kube-vip-dashboard-configmap.yaml`
+
 ## Configuration Files
 
 | File | Purpose |
@@ -183,6 +207,8 @@ Events (Loki):
 | manifests/monitoring/ollama-alerts.yaml | Ollama PrometheusRule (Down, MemoryHigh, HighRestarts) |
 | manifests/monitoring/karakeep-probe.yaml | Blackbox HTTP probe for Karakeep /api/health |
 | manifests/monitoring/karakeep-alerts.yaml | Karakeep PrometheusRule (Down, HighRestarts) |
+| manifests/monitoring/tailscale-alerts.yaml | Tailscale PrometheusRule (ConnectorDown, OperatorDown) |
+| manifests/monitoring/tailscale-dashboard-configmap.yaml | Tailscale Grafana dashboard (pod status, VPN/pod traffic, resources) |
 
 ## Upgrade Prometheus Stack
 
