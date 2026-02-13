@@ -21,6 +21,9 @@ No flags. Always audit first, fix only after explicit approval.
 | `docs/rebuild/README.md` | Release timeline, component versions, key files tree, 1Password items | ✓ Yes |
 | `docs/todo/README.md` | Release mapping table, phase index, namespace strategy | ✓ Yes |
 | `README.md` (root) | Services list matches current deployments | ✓ Yes |
+| `CLAUDE.md` | Repo structure tree, documentation guide table | ✓ Yes |
+| `ansible/README.md` | Related documentation links | ✓ Yes |
+| All `.md` files | Broken internal links (references to deleted/moved files) | ✓ Yes |
 
 ## Instructions
 
@@ -62,6 +65,12 @@ ls docs/rebuild/
 
 # Completed phase files
 ls docs/todo/completed/
+
+# Broken internal links — find all markdown link targets and check they exist
+# Extract relative links from all .md files and verify targets
+grep -rhoP '\]\((?!https?://|#|mailto:)([^)]+)\)' docs/ CLAUDE.md README.md ansible/README.md 2>/dev/null \
+  | sed 's/\](//' | sed 's/)//' | sort -u
+# Manually verify each target file exists (resolve relative to the source file's directory)
 ```
 
 ### 2. Audit Files
@@ -103,6 +112,20 @@ ls docs/todo/completed/
 - Compare Home Services / non-Helm component versions against actual running container images (not just Helm chart versions)
 - HTTPRoutes table matches `kubectl-homelab get httproute -A`
 - Ollama models list matches `ollama list` output (if Ollama section exists)
+
+**CLAUDE.md:**
+- Repository structure tree matches actual directories/files (cross-check `ls` against the tree)
+- Documentation guide table links point to files that exist
+- Common commands section is accurate
+
+**ansible/README.md:**
+- Related documentation links point to files that exist
+
+**Broken internal links (all `.md` files):**
+- Extract all relative markdown links `](path)` from docs/, CLAUDE.md, README.md, ansible/README.md
+- Resolve each link relative to the source file's directory
+- Flag any links where the target file does not exist
+- Ignore external URLs (`https://`), anchors (`#`), and `mailto:` links
 
 **docs/reference/CHANGELOG.md:**
 - Check if significant recent commits have entries
@@ -148,6 +171,16 @@ Namespace strategy: ✓ Matches cluster
 === README.md (root) ===
 Services list: ✓ Matches deployments
 
+=== CLAUDE.md ===
+Repo structure tree: ✓ Matches
+Documentation guide links: ✓ All exist
+
+=== ansible/README.md ===
+Related documentation links: ✓ All exist
+
+=== Broken Internal Links ===
+✓ No broken links found (or list broken ones)
+
 === CHANGELOG.md ===
 ✓ Current
 
@@ -182,6 +215,15 @@ Date: YYYY-MM-DD
 === README.md (root) ===
 ✓ Services list matches cluster
 
+=== CLAUDE.md ===
+✓ Repo structure and documentation links all current
+
+=== ansible/README.md ===
+✓ Related documentation links all exist
+
+=== Broken Internal Links ===
+✓ No broken links found
+
 === CHANGELOG.md ===
 ✓ Current
 
@@ -214,7 +256,7 @@ When user approves:
 
 **After fixing:**
 ```bash
-git diff docs/context/ VERSIONS.md docs/reference/CHANGELOG.md docs/rebuild/README.md docs/todo/README.md README.md
+git diff docs/context/ VERSIONS.md docs/reference/CHANGELOG.md docs/rebuild/README.md docs/todo/README.md README.md CLAUDE.md ansible/README.md
 ```
 
 Report what was fixed and what needs manual attention.

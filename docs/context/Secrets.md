@@ -7,6 +7,29 @@ updated: 2026-02-13
 
 All secrets are stored in 1Password. Never hardcode credentials.
 
+## Security Boundary
+
+**1Password is never accessed by automation.** All `op read` commands are run manually from a separate trusted terminal — never from Claude Code, CI/CD pipelines, or any automated process.
+
+**Why:** The 1Password personal account has access to all vaults (Kubernetes, Private, etc.). There is no way to scope CLI access to a single vault on an Individual plan. Running `op` from automation risks exposing personal credentials.
+
+**Workflow:**
+1. Run `eval $(op signin)` in a separate terminal
+2. Copy-paste the `kubectl-homelab create secret` commands from the secret.yaml documentation files
+3. The commands use `$(op read 'op://...')` to inject values at runtime
+4. Secrets are created directly in the cluster — never written to disk or git
+
+**GitOps exception:** Secrets are the one intentional imperative step. All other resources (Deployments, Services, ConfigMaps, etc.) are declarative and managed via git.
+
+## Secret File Convention
+
+All `manifests/**/secret.yaml` files are **documentation placeholders** committed to git. They contain:
+- Commented `kubectl create secret` commands with `op://` references
+- Empty Secret manifests with `managed-by: "imperative-kubectl"` annotation
+- No real credential values
+
+These files serve as the "recipe" for recreating secrets during a cluster rebuild.
+
 ## 1Password Vault
 
 **Vault:** `Kubernetes`

@@ -10,15 +10,15 @@ This documents the existing Proxmox-based homelab that predates the Kubernetes c
 ## Architecture Overview
 
 ```
-Internet (Dual WAN) → OPNsense Firewall → VLAN Segmentation
-                                              │
-                      ┌───────────────────────┼───────────────────────┐
-                      │                       │                       │
-               ┌──────┴──────┐         ┌──────┴──────┐         ┌──────┴──────┐
-               │  Firewall   │         │  PVE Node   │         │  OpenWRT    │
-               │    Node     │         │   (Dell)    │         │     AP      │
-               │  (Topton)   │         │             │         │             │
-               └─────────────┘         └─────────────┘         └─────────────┘
+Internet (Dual WAN) ─→ OPNsense Firewall ─→ VLAN Segmentation
+                                                     │
+                       ┌─────────────────────────────┼─────────────────────────────┐
+                       │                             │                             │
+                ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐
+                │  Firewall   │               │  PVE Node   │               │  OpenWRT    │
+                │    Node     │               │   (Dell)    │               │     AP      │
+                │  (Topton)   │               │             │               │             │
+                └─────────────┘               └─────────────┘               └─────────────┘
 ```
 
 ---

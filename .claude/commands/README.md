@@ -37,34 +37,6 @@ Creates version tags with changelog and pushes to GitHub.
 
 ---
 
-### `/cluster-status` - Kubernetes Health Check
-Quick overview of cluster health and status. Requires cluster access.
-
-**Usage:** `/cluster-status`
-
-**What it does:**
-- Shows node status and versions
-- Lists problematic pods
-- Displays recent events
-- Reports control plane health
-- Provides resource usage (if metrics available)
-
----
-
-### `/validate` - Configuration Validation
-Validate Kubernetes manifests and YAML files.
-
-**Usage:** `/validate`
-
-**What it does:**
-- Validates YAML syntax
-- Runs kubectl dry-run validation
-- Checks for security issues
-- Reports missing required fields
-- Identifies best practice violations
-
----
-
 ### `/audit-docs` - Documentation Audit
 Audit docs/context/ files against current cluster state. Requires cluster access.
 
@@ -138,9 +110,8 @@ PATCH: Bug fixes, documentation updates
 ### Making Changes
 ```
 # 1. Make infrastructure changes
-# 2. /validate          — Check YAML syntax and K8s schemas
-# 3. /audit-security    — Full repo security scan
-# 4. /commit            — Stage and commit (includes secrets scan on diff)
+# 2. /audit-security    — Full repo security scan
+# 3. /commit            — Stage and commit (includes secrets scan on diff)
 ```
 
 ### Creating a Release
@@ -160,13 +131,6 @@ PATCH: Bug fixes, documentation updates
 /audit-cluster
 ```
 
-### Checking Cluster Health
-```
-/cluster-status
-```
-
----
-
 ## Which audit command when?
 
 | Situation | Command | Needs cluster? |
@@ -174,7 +138,6 @@ PATCH: Bug fixes, documentation updates
 | Before committing manifests | `/audit-security` | No |
 | Before a release | `/audit-docs` | Yes |
 | Periodic security review | `/audit-cluster` | Yes |
-| Quick health check | `/cluster-status` | Yes |
 
 ---
 
@@ -183,8 +146,6 @@ PATCH: Bug fixes, documentation updates
 All commands are in `.claude/commands/`:
 - `commit.md` - Commit message generation
 - `release.md` - Release automation
-- `cluster-status.md` - Cluster health
-- `validate.md` - Config validation
 - `audit-docs.md` - Documentation audit
 - `audit-security.md` - Pre-commit security scan
 - `audit-cluster.md` - Live cluster security audit

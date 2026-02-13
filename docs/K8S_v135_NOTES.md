@@ -1,36 +1,37 @@
 # Kubernetes v1.35 Features & Breaking Changes
 
-> **Last Updated:** January 11, 2026
+> **Last Updated:** February 14, 2026
 > **Release Name:** "Timbernetes" (December 17, 2025)
 > **Source:** Extracted from official v1.35 release documentation
 
-This document covers v1.35-specific features and breaking changes relevant to your homelab cluster.
+Features and breaking changes relevant to this homelab cluster (3-node, Cilium CNI, containerd 1.7).
 
 ---
 
 ## Breaking Changes (Action Required)
 
-| Change | Impact | Action |
-|--------|--------|--------|
-| **cgroup v1 removal (Beta)** | Nodes using cgroup v1 will fail | Verify: `stat -fc %T /sys/fs/cgroup/` should show `cgroup2fs` |
-| **containerd 1.x EOL** | v1.35 is LAST release supporting containerd 1.7 | Upgrade to containerd 2.0+ before v1.36 |
-| **IPVS mode deprecated** | kube-proxy IPVS mode is deprecated | Use `nftables` mode instead |
-| **WebSocket exec requires CREATE** | `kubectl exec/attach/port-forward` requires CREATE permission | Update RBAC: add `create` verb on `pods/exec`, `pods/attach` |
+| Change | Impact | Action | Cluster Status |
+|--------|--------|--------|----------------|
+| **cgroup v1 removal (Beta)** | Nodes using cgroup v1 will fail | Verify: `stat -fc %T /sys/fs/cgroup/` = `cgroup2fs` | Already cgroup v2 (ansible preflight checks this) |
+| **containerd 1.x EOL** | v1.35 is LAST release supporting containerd 1.7 | Upgrade to containerd 2.0+ before v1.36 | Running 1.7.x — **upgrade needed before v1.36** |
+| **WebSocket exec requires CREATE** | `kubectl exec/attach/port-forward` requires CREATE permission | Update RBAC: add `create` verb on `pods/exec`, `pods/attach` | Review custom RBAC roles |
 
-### Verify Your Nodes
+> **Note:** IPVS mode deprecation is not applicable — this cluster uses Cilium eBPF as kube-proxy replacement.
+
+### Verify Nodes
 
 ```bash
 # Check cgroup version (MUST be cgroup2fs)
-stat -fc %T /sys/fs/cgroup/
-# Expected: cgroup2fs
+for node in cp1 cp2 cp3; do
+    echo "=== $node ==="
+    ssh wawashi@$node.k8s.rommelporras.com "stat -fc %T /sys/fs/cgroup/"
+done
 
-# Check containerd version
-containerd --version
-# v1.35 supports 1.7, upgrade to 2.0+ recommended
-
-# If using IPVS, check kube-proxy mode
-kubectl get configmap kube-proxy -n kube-system -o yaml | grep mode
-# Consider: mode: nftables
+# Check containerd version (must upgrade to 2.0+ before v1.36)
+for node in cp1 cp2 cp3; do
+    echo "=== $node ==="
+    ssh wawashi@$node.k8s.rommelporras.com "containerd --version"
+done
 ```
 
 ---
@@ -41,10 +42,9 @@ kubectl get configmap kube-proxy -n kube-system -o yaml | grep mode
 
 Adjust CPU and memory resources on running pods **without restarting containers**.
 
-**Why it matters for your homelab:**
+**Useful for this cluster:**
 - Scale Prometheus/Loki during high-load periods without downtime
 - Give pods extra CPU at startup, then shrink after initialization
-- Dynamically adjust resources based on actual usage
 
 ```yaml
 # Pod with resize policy
@@ -74,7 +74,7 @@ spec:
 
 ```bash
 # Patch resources on running pod (no restart!)
-kubectl patch pod resizable-app --subresource=resize --patch '{
+kubectl-homelab patch pod resizable-app --subresource=resize --patch '{
   "spec": {
     "containers": [{
       "name": "app",
@@ -87,14 +87,14 @@ kubectl patch pod resizable-app --subresource=resize --patch '{
 }'
 
 # Check resize status
-kubectl get pod resizable-app -o jsonpath='{.status.resize}'
+kubectl-homelab get pod resizable-app -o jsonpath='{.status.resize}'
 # Values: Proposed, InProgress, Deferred, Infeasible, (empty = completed)
 
 # View allocated vs requested resources
-kubectl get pod resizable-app -o jsonpath='{.status.containerStatuses[0].allocatedResources}'
+kubectl-homelab get pod resizable-app -o jsonpath='{.status.containerStatuses[0].allocatedResources}'
 ```
 
-**v1.35 Improvements:**
+**v1.35 improvements:**
 - Memory limit **decreases** now allowed (was prohibited before)
 - Better handling of deferred resizes when node resources are constrained
 - New events emitted for resize status changes
@@ -105,13 +105,11 @@ kubectl get pod resizable-app -o jsonpath='{.status.containerStatuses[0].allocat
 
 Route Service traffic to pods on the same node first, reducing latency.
 
-**Why it matters for your homelab:**
-- Reduce network hops for Longhorn storage access
-- Improve latency for database connections
-- Keep related workloads communicating efficiently
+**Useful for this cluster:**
+- Longhorn volume access (reduce cross-node traffic)
+- Application → Database connections (PostgreSQL, MySQL)
 
 ```yaml
-# Service with same-node preference
 apiVersion: v1
 kind: Service
 metadata:
@@ -121,135 +119,20 @@ spec:
     app: postgres
   ports:
   - port: 5432
-  trafficDistribution: PreferSameNode  # NEW in v1.35 GA
----
-# Cache service benefiting from local traffic
-apiVersion: v1
-kind: Service
-metadata:
-  name: redis-cache
-spec:
-  selector:
-    app: redis
-  ports:
-  - port: 6379
-  trafficDistribution: PreferSameNode  # Latency-sensitive!
-```
-
-**Use cases for your cluster:**
-- Longhorn volume access (reduce cross-node traffic)
-- Application -> Database connections
-- Prometheus -> Node Exporter scraping
-
----
-
-### 3. Image Volumes (Stable)
-
-Mount OCI images directly as read-only volumes without init containers.
-
-```yaml
-# Mount ML model from OCI registry
-apiVersion: v1
-kind: Pod
-metadata:
-  name: ml-inference
-spec:
-  containers:
-  - name: inference
-    image: my-inference-app:latest
-    volumeMounts:
-    - name: model
-      mountPath: /models
-  volumes:
-  - name: model
-    image:
-      reference: registry.example.com/models/llama:v2
-      pullPolicy: IfNotPresent
-```
-
-**Requirement:** containerd 2.1+ (not 2.0)
-
----
-
-## Beta Features
-
-### Pod Certificates (KEP-4317)
-
-Native certificate issuance for pods without external tools like cert-manager.
-
-```yaml
-volumes:
-- name: pod-cert
-  projected:
-    sources:
-    - podCertificate:
-        signerName: example.com/my-signer
-        expirationSeconds: 3600
+  trafficDistribution: PreferSameNode  # Prefer local pod first
 ```
 
 ---
 
-## Alpha Features
-
-### Gang Scheduling (KEP-5565)
-
-Schedule groups of pods together (all-or-nothing) - useful for distributed AI/ML training.
-
-```yaml
-# Requires feature gate
-apiVersion: scheduling/v1alpha1
-kind: Workload
-metadata:
-  name: distributed-training
-spec:
-  podGroups:
-  - name: "workers"
-    policy:
-      gang:
-        minCount: 8  # All 8 pods must be schedulable, or none
-```
-
----
-
-## Upgrade Checklist (v1.34 to v1.35)
+## Quick Reference
 
 ```bash
-# 1. Verify cgroup v2 on ALL nodes
-for node in cp1 cp2 cp3; do
-    ssh wawashi@$node.k8s.rommelporras.com "stat -fc %T /sys/fs/cgroup/"
-done
-
-# 2. Check containerd version
-for node in cp1 cp2 cp3; do
-    ssh wawashi@$node.k8s.rommelporras.com "containerd --version"
-done
-
-# 3. Update RBAC if using kubectl exec/attach automation
-# Add 'create' verb to pods/exec, pods/attach subresources
-
-# 4. If using IPVS, plan migration to nftables
-kubectl get configmap kube-proxy -n kube-system -o yaml | grep -A2 "mode:"
-```
-
----
-
-## Quick Reference Commands
-
-```bash
-# Verify cgroup v2 (REQUIRED)
-stat -fc %T /sys/fs/cgroup/
-# Expected: cgroup2fs
-
 # In-Place Pod Resize
-kubectl patch pod <name> --subresource=resize --patch '{...}'
-kubectl get pod <name> -o jsonpath='{.status.resize}'
-kubectl get pod <name> -o jsonpath='{.status.containerStatuses[0].allocatedResources}'
-
-# Check kube-proxy mode
-kubectl get configmap kube-proxy -n kube-system -o yaml | grep -A2 "mode:"
+kubectl-homelab patch pod <name> --subresource=resize --patch '{...}'
+kubectl-homelab get pod <name> -o jsonpath='{.status.resize}'
 
 # Monitor containerd deprecation warnings
-kubectl get --raw /metrics | grep kubelet_cri_losing_support
+kubectl-homelab get --raw /metrics | grep kubelet_cri_losing_support
 ```
 
 ---

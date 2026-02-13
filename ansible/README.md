@@ -109,5 +109,5 @@ ansible-playbook playbooks/01-prerequisites.yml
 
 ## Related Documentation
 
-- [KUBEADM_BOOTSTRAP.md](../docs/KUBEADM_BOOTSTRAP.md) - Manual bootstrap guide
-- [CLUSTER_STATUS.md](../docs/CLUSTER_STATUS.md) - Current cluster state
+- [v0.2.0-bootstrap.md](../docs/rebuild/v0.2.0-bootstrap.md) - Cluster bootstrap guide
+- [Cluster.md](../docs/context/Cluster.md) - Current cluster state

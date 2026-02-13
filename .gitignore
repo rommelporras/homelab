@@ -3,12 +3,15 @@
 ansible/*.log
 ansible/inventory/*.bak
 
-# Secrets (never commit)
+# Secrets (never commit real credentials)
 **/secrets/
 *.pem
 *.key
 *secret*
 *password*
+
+# Allow secret documentation placeholders (op:// refs only, no real values)
+!manifests/**/secret.yaml
 
 # IDE
 .vscode/

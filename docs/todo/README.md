@@ -84,7 +84,7 @@
 
 | Description | File |
 |-------------|------|
-| Stateful Workloads (Immich, ARR), Firmware | [deferred.md](deferred.md) |
+| Immich, Firmware, Control Plane Metrics, NVMe S.M.A.R.T. | [deferred.md](deferred.md) |
 
 ---
 
@@ -121,7 +121,7 @@
 | `karakeep` | Karakeep bookmark manager (web, Chrome, Meilisearch) | SQLite (PVC) |
 | `tailscale` | Tailscale Operator + Connector (subnet router) | None (stateless) |
 | `immich` | Immich server, ML, Redis | Own PostgreSQL |
-| `media` | Sonarr, Radarr, Prowlarr, qBit, Jellyfin | Own PostgreSQL |
+| `media` | Sonarr, Radarr, Prowlarr, qBit, Jellyfin | SQLite (config on Longhorn) |
 
 ### Why This Pattern
 - **Matches Docker Compose** — each project = one namespace
@@ -171,4 +171,4 @@ After each phase, you should be able to:
 | 4 | Deploy Deployments, configure Services, manage ConfigMaps, create Ingress |
 | 5 | Write NetworkPolicies, configure RBAC, enforce Pod Security |
 | 6 | Pass CKA with confidence |
-| Deferred | Deploy StatefulSets, manage Secrets, handle stateful workloads |
+| Deferred | Configure Immich (PostgreSQL + Redis + ML), expose control plane metrics |

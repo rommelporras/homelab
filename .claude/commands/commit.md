@@ -144,8 +144,7 @@ Documentation:
 - Storage setup with Longhorn
 
 Claude Code configuration:
-- Custom commands (commit, release, validate)
-- kubernetes-expert agent and kubeadm-patterns skill
+- Custom commands (commit, release, audit-security, audit-docs, audit-cluster)
 - Security hooks for sensitive file protection
 ```
 

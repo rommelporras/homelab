@@ -226,8 +226,7 @@ the foundation for CKA certification prep and production homelab workloads.
 - Changelog with node preparation progress
 
 ### Claude Code Configuration
-- Custom commands (commit, release, validate, cluster-status)
-- kubernetes-expert agent and kubeadm-patterns skill
+- Custom commands (commit, release, audit-security, audit-docs, audit-cluster)
 - Security hooks for sensitive file protection
 
 ### Project Setup

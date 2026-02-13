@@ -27,37 +27,51 @@ homelab/
 │   └── playbooks/                 # Bootstrap playbooks (00-07)
 │
 ├── helm/                          # Helm values files (one dir per chart)
-│   ├── prometheus/                # kube-prometheus-stack
+│   ├── alloy/                     # Grafana Alloy (log collector)
+│   ├── blackbox-exporter/         # Blackbox exporter (probes)
+│   ├── cilium/                    # Cilium CNI
 │   ├── gitlab/                    # GitLab CE
 │   ├── gitlab-runner/             # GitLab Runner
-│   └── ...                        # longhorn, cilium, loki, alloy, etc.
+│   ├── loki/                      # Loki (log storage)
+│   ├── longhorn/                  # Longhorn storage
+│   ├── metrics-server/            # Metrics Server
+│   ├── prometheus/                # kube-prometheus-stack
+│   └── tailscale-operator/        # Tailscale Operator
 │
 ├── manifests/                     # Raw K8s manifests (non-Helm resources)
-│   ├── gateway/                   # Gateway + HTTPRoutes
-│   ├── home/                      # AdGuard, Homepage
-│   ├── monitoring/                # Grafana HTTPRoute, probes, alerts
+│   ├── ai/                        # Ollama LLM inference server
+│   ├── browser/                   # Firefox browser (KasmVNC)
+│   ├── cert-manager/              # ClusterIssuer
+│   ├── cilium/                    # IP pool, L2 announcements
 │   ├── cloudflare/                # Cloudflare Tunnel + network policies
+│   ├── gateway/                   # Gateway + HTTPRoutes (routes/ subdir)
 │   ├── ghost-dev/                 # Ghost blog dev environment
 │   ├── ghost-prod/                # Ghost blog prod environment
-│   ├── portfolio/                 # Portfolio deployment
-│   ├── uptime-kuma/               # Uptime Kuma monitoring
-│   └── storage/                   # Longhorn HTTPRoute, NFS PVs
+│   ├── gitlab/                    # GitLab SSH LoadBalancer
+│   ├── home/                      # AdGuard, Homepage, MySpeed
+│   ├── invoicetron/               # Invoicetron app + PostgreSQL + backup
+│   ├── karakeep/                  # Karakeep bookmark manager
+│   ├── monitoring/                # Grafana, probes, alerts, dashboards
+│   ├── network-policies/          # Namespace network policies
+│   ├── portfolio/                 # Portfolio deployment + RBAC
+│   ├── storage/                   # Longhorn HTTPRoute, NFS PVs
+│   ├── tailscale/                 # Tailscale Operator + Connector
+│   └── uptime-kuma/               # Uptime Kuma StatefulSet
 │
 ├── scripts/                       # Operational scripts
 │
 └── docs/
-    ├── context/                   # Knowledge base (10 topic files)
+    ├── context/                   # Knowledge base (11 topic files)
     │   ├── Cluster.md             # Source of truth (nodes, IPs, hardware)
     │   ├── Gateway.md             # HTTPRoutes, TLS, cert-manager
     │   ├── Networking.md          # VIPs, DNS, VLANs
     │   └── ...                    # Architecture, Monitoring, Storage, etc.
-    ├── rebuild/                   # Step-by-step rebuild guides (v0.1.0–v0.12.0)
+    ├── rebuild/                   # Step-by-step rebuild guides (v0.1.0–v0.22.0)
     ├── todo/                      # Active and completed phase plans
-    ├── KUBEADM_BOOTSTRAP.md       # Cluster bootstrap commands
-    ├── K8S_LEARNING_GUIDE.md      # CKA study material
+    ├── K8S_v135_NOTES.md          # Kubernetes v1.35 release notes
     └── reference/                 # Historical reference docs
         ├── CHANGELOG.md           # Decision history
-        └── PRE_INSTALLATION_CHECKLIST.md
+        └── PROXMOX_OPNSENSE_GUIDE.md
 ```
 
 ## Cluster Quick Reference
@@ -86,15 +100,26 @@ homelab/
 | Current values (IPs, MACs) | docs/context/Cluster.md |
 | Component versions | VERSIONS.md |
 | Why a decision was made | docs/context/Architecture.md |
-| How to bootstrap cluster | docs/KUBEADM_BOOTSTRAP.md |
+| How to bootstrap cluster | docs/rebuild/v0.2.0-bootstrap.md |
 | Network/switch setup | docs/context/Networking.md |
 | Storage setup | docs/context/Storage.md |
 | Gateway, HTTPRoutes, TLS | docs/context/Gateway.md |
 | GA4, GTM, Cloudflare, SMTP | docs/context/ExternalServices.md |
+| 1Password items | docs/context/Secrets.md |
+| Phase plans | docs/todo/ (active) or docs/todo/completed/ (done) |
+| Decision history | docs/reference/CHANGELOG.md |
+| Rebuild from scratch | docs/rebuild/ (one guide per release) |
+
+## Project Conventions
+
+- **Phase files:** 1 service = 1 phase file in `docs/todo/`. Completed phases move to `docs/todo/completed/`.
+- **Infra + docs = 2 commits:** Infrastructure commit first (`/audit-security` → `/commit`), then documentation commit (`/audit-docs` → `/commit`).
+- **Observability for every new service:** PrometheusRule alerts, Grafana dashboard ConfigMap, optional Blackbox probe. Files go in `manifests/monitoring/`.
+- **Timezone:** `Asia/Manila` — never use America/Chicago or UTC for user-facing configs.
 
 ## Common Commands
 
-**IMPORTANT:** Use `kubectl-homelab` and `helm-homelab` for this cluster. Plain `kubectl`/`helm` use work AWS EKS config.
+**IMPORTANT:** Use `kubectl-homelab` and `helm-homelab` for this cluster. Plain `kubectl`/`helm` use your work AWS EKS config.
 
 ```bash
 # SSH to nodes
@@ -147,9 +172,7 @@ kubectl-homelab create secret generic my-secret \
 
 ### Existing Credentials
 
-| Item | Vault | Used By |
-|------|-------|---------|
-| `Grafana` | Kubernetes | Phase 3.5 monitoring |
+See **docs/context/Secrets.md** for the complete 1Password item inventory (20+ items).
 
 ### Rules
 

@@ -1,6 +1,6 @@
 ---
-tags: [homelab, kubernetes, external-services, cloudflare, analytics, tinybird, smtp]
-updated: 2026-02-09
+tags: [homelab, kubernetes, external-services, cloudflare, analytics, tinybird, smtp, tailscale]
+updated: 2026-02-13
 ---
 
 # External Services
@@ -172,6 +172,55 @@ Cookie-free, privacy-preserving web analytics for the Ghost blog. Ghost's native
 - Ghost admin dashboard reads stats from Tinybird's stats endpoint
 
 **Note:** No Asia-Pacific Tinybird regions available. US-East is closest to Philippines. Server pushes to Tinybird (not the client browser), so region only affects server-side latency.
+
+## Tailscale
+
+Remote access via WireGuard mesh VPN. Admin console manages ACLs, devices, and DNS.
+
+| Setting | Value |
+|---------|-------|
+| Tailnet | `capybara-interval.ts.net` |
+| Console | [login.tailscale.com](https://login.tailscale.com) |
+| Plan | Free (personal) |
+| Secret | `op://Kubernetes/Tailscale K8s Operator/{client-id,client-secret,api-token}` |
+
+**ACL Policy (JSON editor):**
+
+| Tag | Applied To | Purpose |
+|-----|-----------|---------|
+| `tag:k8s-operator` | Operator pod | Manages proxy pods and CRDs |
+| `tag:k8s` | Connector + proxy pods | Subnet routing, default proxy tag |
+
+**autoApprovers** in ACL policy auto-approve `10.10.30.0/24` routes for `tag:k8s` devices (no manual approval in admin console).
+
+**OAuth Client (Trust Credentials):**
+
+| Setting | Value |
+|---------|-------|
+| Location | Settings → Trust credentials |
+| Scopes | Devices Core (R&W), Auth Keys (R&W), Services (Write) |
+| Tag | `tag:k8s-operator` |
+
+**DNS Configuration:**
+
+| Setting | Value |
+|---------|-------|
+| MagicDNS | Enabled |
+| Global Nameserver | `10.10.30.53` (K8s AdGuard, reachable via subnet route) |
+| Override DNS | ON |
+
+All tailnet devices use K8s AdGuard for DNS. AdGuard resolves `*.k8s.rommelporras.com` → `10.10.30.20` (Cilium Gateway), so all existing HTTPRoutes work from any Tailscale device with zero per-service configuration.
+
+**Devices:**
+
+| Device | Tailscale IP | Type |
+|--------|-------------|------|
+| `tailscale-operator` | 100.69.243.39 | Operator (tag:k8s-operator) |
+| `homelab-subnet` | 100.109.196.53 | Connector / subnet router (tag:k8s) |
+
+**Note:** API token (for Homepage widget) expires 2026-05-14. Renewal alert set for 2026-04-30.
+
+For in-cluster technical details (connector spec, traffic flow, DERP relay), see [[Networking]].
 
 ## Domain
 
