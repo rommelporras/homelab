@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, networking, dns, vlan]
-updated: 2026-02-12
+updated: 2026-02-13
 ---
 
 # Networking
@@ -72,6 +72,27 @@ Network configuration for the homelab cluster.
 | MySpeed | https://myspeed.k8s.rommelporras.com | base |
 | Firefox Browser | https://browser.k8s.rommelporras.com | base |
 | Karakeep | https://karakeep.k8s.rommelporras.com | base |
+
+## Tailscale (Remote Access)
+
+| Setting | Value |
+|---------|-------|
+| Tailnet | `capybara-interval.ts.net` |
+| MagicDNS | Enabled |
+| Global Nameserver | `10.10.30.53` (K8s AdGuard via subnet route) |
+| Override DNS | ON |
+| Connector | `homelab-subnet` (100.109.196.53) |
+| Subnet Route | `10.10.30.0/24` (auto-approved via ACL) |
+| Operator | `tailscale-operator` (100.69.243.39) |
+| DERP Relay | DERP-20 hkg (~31ms from Philippines) |
+
+**Traffic flow (remote device):**
+```
+Phone → WireGuard tunnel → Connector Pod → AdGuard DNS (10.10.30.53)
+  → Cilium Gateway (10.10.30.20) → Backend Service
+```
+
+**Key:** No per-service manifests needed. All existing HTTPRoutes work through the subnet route.
 
 ## VLAN Configuration
 

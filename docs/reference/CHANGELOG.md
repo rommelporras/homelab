@@ -4,6 +4,57 @@
 
 ---
 
+## February 13, 2026 — Phase 4.10: Tailscale Operator (Subnet Router)
+
+### Milestone: Secure Remote Access via WireGuard Mesh VPN
+
+Deployed Tailscale Kubernetes Operator v1.94.1 with a Connector CRD that advertises the entire 10.10.30.0/24 subnet to the tailnet. All existing K8s services are now accessible from any Tailscale-connected device (phone, laptop) via WireGuard tunnel — zero per-service manifests needed. AdGuard DNS set as global nameserver for ad-blocking on all tailnet devices.
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| Tailscale Operator | v1.94.1 | Running (tailscale namespace) |
+| Tailscale Proxy (Connector) | v1.94.1 | Running (homelab-subnet, 100.109.196.53) |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Architecture | Connector (subnet router) over per-service Ingress | 1 pod for all services, zero per-service manifests, mirrors old Proxmox Tailscale pattern |
+| DNS strategy | Global nameserver (not Split DNS) | All tailnet DNS through AdGuard for ad-blocking + custom rewrites on every device |
+| PSS | Privileged enforce | Proxy pods require NET_ADMIN + NET_RAW for WireGuard tunnel (hard requirement) |
+| Cilium fix | `socketLB.hostNamespaceOnly: true` | Cilium eBPF socket LB intercepts traffic in proxy pod netns, breaking WireGuard routing |
+| Network policy | Operator-only (no connector proxy policy) | CiliumNetworkPolicy filters forwarded/routed packets, breaking subnet routing entirely |
+| HTTPS certs | Existing Let's Encrypt (via Cilium Gateway) | Traffic enters through Gateway after subnet route — no Tailscale HTTPS certs needed |
+| immich VM | Disabled Tailscale on VM | K8s subnet route (10.10.30.0/24) caused immich VM's Tailscale to intercept LAN traffic |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/tailscale/namespace.yaml | tailscale namespace (PSS privileged) |
+| manifests/tailscale/connector.yaml | Connector CRD (subnet router, 10.10.30.0/24) |
+| manifests/tailscale/networkpolicy.yaml | CiliumNetworkPolicy (operator ingress/egress only) |
+| manifests/monitoring/tailscale-alerts.yaml | PrometheusRule (TailscaleConnectorDown, TailscaleOperatorDown) |
+| helm/tailscale-operator/values.yaml | Helm values (resources, tags, API proxy disabled) |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| helm/cilium/values.yaml | Added `socketLB.hostNamespaceOnly: true` (Tailscale compatibility) |
+| manifests/home/homepage/config/services.yaml | Added Tailscale widget with device status monitoring |
+
+### Critical Gotchas Discovered
+
+1. **Cilium socketLB breaks WireGuard** — Must add `socketLB.hostNamespaceOnly: true` BEFORE installing operator
+2. **CiliumNetworkPolicy blocks subnet routing** — Connector forwards packets via IP forwarding; CNP filters forwarded packets, not just pod-originated traffic
+3. **Operator uses ClusterIP (10.96.0.1)** — Egress policy needs `toEntities: kube-apiserver`, not CIDR-based node IP rules
+4. **`proxyConfig.defaultTags` must be string** — YAML array causes `cannot unmarshal array into Go struct field EnvVar`
+5. **immich VM routing conflict** — VM's Tailscale saw K8s subnet route and intercepted LAN traffic (TTL 64→61)
+6. **OAuth clients renamed** — Now under `Settings → Trust credentials` in Tailscale admin console
+
+---
+
 ## February 12, 2026 — Phase 4.24: Karakeep Migration
 
 ### Milestone: Bookmark Manager with AI Tagging

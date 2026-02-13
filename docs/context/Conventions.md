@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-02-12
+updated: 2026-02-13
 ---
 
 # Conventions
@@ -65,7 +65,8 @@ homelab/
 │   ├── loki/values.yaml
 │   ├── longhorn/values.yaml
 │   ├── metrics-server/values.yaml
-│   └── prometheus/values.yaml
+│   ├── prometheus/values.yaml
+│   └── tailscale-operator/values.yaml
 ├── manifests/               # Raw K8s manifests
 │   ├── ai/                  # Ollama LLM inference server
 │   ├── browser/             # Firefox browser (KasmVNC)
@@ -83,6 +84,7 @@ homelab/
 │   ├── network-policies/    # Namespace network policies
 │   ├── portfolio/           # Portfolio deployment + RBAC
 │   ├── storage/             # Longhorn HTTPRoute, NFS PVs
+│   ├── tailscale/           # Tailscale Operator + Connector (subnet router)
 │   └── uptime-kuma/         # Uptime Kuma StatefulSet
 ├── scripts/                 # Automation scripts
 │   ├── upgrade-prometheus.sh

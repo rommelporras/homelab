@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** February 12, 2026
+> **Last Updated:** February 13, 2026
 
 ---
 
@@ -47,6 +47,7 @@
 | gitlab/gitlab | 9.8.2 | v18.8.2 | Installed | gitlab |
 | gitlab/gitlab-runner | 0.85.0 | v18.8.0 | Installed | gitlab-runner |
 | prometheus-community/prometheus-blackbox-exporter | 11.7.0 | v0.28.0 | Installed | monitoring |
+| tailscale/tailscale-operator | 1.94.1 | v1.94.1 | Installed | tailscale |
 
 > **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
 > Use `grafana/loki` + `grafana/alloy` instead.
@@ -64,6 +65,7 @@ helm-homelab repo add grafana https://grafana.github.io/helm-charts
 helm-homelab repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
 helm-homelab repo add gitlab https://charts.gitlab.io
 helm-homelab repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm-homelab repo add tailscale https://pkgs.tailscale.com/helmcharts
 helm-homelab repo update
 # Note: cert-manager and kube-prometheus-stack use OCI - no repo add needed
 ```
@@ -88,7 +90,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.24 complete. Karakeep bookmark manager migrated with Ollama AI tagging.
+> **Status:** Phase 4.10 complete. Tailscale Operator subnet router for remote access.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -113,6 +115,8 @@ helm-homelab repo update
 | qwen3:1.7b | Q4_K_M | Running | General text model (1.4 GB) |
 | moondream | Q4_K_M | Running | Vision model for image tagging (1.7 GB) |
 | gemma3:1b | Q4_K_M | Running | Fallback text model (0.8 GB) |
+| Tailscale Operator | v1.94.1 | Running | Watches CRDs, manages proxy pods |
+| Tailscale Proxy (Connector) | v1.94.1 | Running | WireGuard subnet router (homelab-subnet) |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -252,6 +256,7 @@ See `docs/todo/deferred.md` for future fix.
 
 | Date | Change |
 |------|--------|
+| 2026-02-13 | **Tailscale Operator:** Deployed tailscale-operator v1.94.1 with Connector CRD (subnet router advertising 10.10.30.0/24). Cilium socketLB fix, operator-only CiliumNetworkPolicies, PrometheusRule alerts, Homepage widget. AdGuard global nameserver for ad-blocking on tailnet (Phase 4.10) |
 | 2026-02-12 | **Karakeep Migration:** Deployed Karakeep 0.30.0 bookmark manager with Chrome (alpine-chrome:124), Meilisearch v1.13.3, connected to Ollama qwen2.5:3b for AI tagging. Migrated 119 bookmarks from Proxmox. 6 CiliumNetworkPolicies with SSRF protection. Blackbox probe + 2 alerts (Phase 4.24) |
 | 2026-02-11 | **Ollama Local AI:** Deployed ollama/ollama:0.15.6 with qwen3:1.7b (text), moondream (vision), gemma3:1b (fallback). Blackbox probe + 3 PrometheusRule alerts. CiliumNetworkPolicy restricts ingress to monitoring + karakeep (Phase 4.23) |
 | 2026-02-11 | **kube-vip Upgrade + Monitoring:** Upgraded v1.0.3→v1.0.4 (fixed leader election errors), added ServiceMonitor, 4 PrometheusRule alerts, Grafana dashboard (Phase 2.1) |

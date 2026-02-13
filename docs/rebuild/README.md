@@ -29,6 +29,7 @@
 | v0.19.0 | Phase 2.1 | kube-vip Upgrade + Monitoring (v1.0.3→v1.0.4, Prometheus) | [v0.19.0-kube-vip-upgrade.md](v0.19.0-kube-vip-upgrade.md) |
 | v0.20.0 | Phase 4.23 | Ollama Local AI (CPU-only LLM inference) | [v0.20.0-ollama.md](v0.20.0-ollama.md) |
 | v0.21.0 | Phase 4.24 | Karakeep Migration (bookmark manager + AI tagging) | [v0.21.0-karakeep.md](v0.21.0-karakeep.md) |
+| v0.24.0 | Phase 4.10 | Tailscale Operator (subnet router for remote access) | [v0.24.0-tailscale-operator.md](v0.24.0-tailscale-operator.md) |
 
 ---
 
@@ -99,6 +100,9 @@ docs/rebuild/v0.20.0-ollama.md
 
 # 21. Karakeep Migration - Bookmark manager with AI tagging
 docs/rebuild/v0.21.0-karakeep.md
+
+# 22. Tailscale Operator - Subnet router for remote access
+docs/rebuild/v0.24.0-tailscale-operator.md
 ```
 
 ---
@@ -184,6 +188,8 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | Chrome (Karakeep) | alpine-chrome:124 | v0.21.0 |
 | Meilisearch | v1.13.3 | v0.21.0 |
 | qwen2.5:3b | Q4_K_M | v0.21.0 |
+| Tailscale Operator | v1.94.1 | v0.24.0 |
+| Tailscale Proxy (Connector) | v1.94.1 | v0.24.0 |
 
 ---
 
@@ -199,7 +205,8 @@ homelab/
 │   ├── alloy/values.yaml               # v0.4.0
 │   ├── gitlab/values.yaml              # v0.8.0
 │   ├── gitlab-runner/values.yaml       # v0.8.0
-│   └── blackbox-exporter/values.yaml   # v0.9.0
+│   ├── blackbox-exporter/values.yaml   # v0.9.0
+│   └── tailscale-operator/values.yaml # v0.24.0
 │
 ├── manifests/
 │   ├── cert-manager/                   # v0.4.0
@@ -268,6 +275,10 @@ homelab/
 │   │   ├── meilisearch-service.yaml
 │   │   ├── httproute.yaml
 │   │   └── networkpolicy.yaml
+│   ├── tailscale/                      # v0.24.0
+│   │   ├── namespace.yaml
+│   │   ├── connector.yaml
+│   │   └── networkpolicy.yaml
 │   ├── cloudflare/                     # v0.7.0
 │   │   ├── deployment.yaml
 │   │   ├── networkpolicy.yaml
@@ -300,7 +311,8 @@ homelab/
 │       ├── ollama-probe.yaml          # v0.20.0
 │       ├── ollama-alerts.yaml         # v0.20.0
 │       ├── karakeep-probe.yaml        # v0.21.0
-│       └── karakeep-alerts.yaml       # v0.21.0
+│       ├── karakeep-alerts.yaml       # v0.21.0
+│       └── tailscale-alerts.yaml     # v0.24.0
 │
 ├── scripts/
 │   ├── upgrade-prometheus.sh           # v0.5.0
@@ -338,3 +350,4 @@ homelab/
 | Ghost Tinybird | Kubernetes | v0.17.0 |
 | Firefox Browser | Kubernetes | v0.18.0 |
 | Karakeep | Kubernetes | v0.21.0 |
+| Tailscale K8s Operator | Kubernetes | v0.24.0 |

@@ -8,7 +8,7 @@
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
 > **Owner:** Rommel Porras
-> **Last Updated:** February 12, 2026
+> **Last Updated:** February 13, 2026
 
 ---
 
@@ -52,6 +52,7 @@
 | kube-vip Upgrade + Monitoring | ✅ Complete | v1.0.3→v1.0.4 + Prometheus monitoring + Grafana dashboard |
 | Ollama Local AI | ✅ Complete | CPU-only LLM inference (qwen3:1.7b, moondream) with Blackbox monitoring |
 | Karakeep Migration | ✅ Complete | Bookmark manager with AI tagging (Ollama qwen2.5:3b) migrated from Proxmox |
+| Tailscale Operator | ✅ Complete | Subnet router for secure remote access via WireGuard mesh VPN |
 | CKA Prep | 📚 In Progress | 36-week roadmap |
 
 **Current State:** [docs/context/Cluster.md](docs/context/Cluster.md) - Single source of truth
@@ -193,6 +194,7 @@ Step-by-step instructions to rebuild the cluster from scratch:
 | [v0.19.0-kube-vip-upgrade](docs/rebuild/v0.19.0-kube-vip-upgrade.md) | Phase 2.1 | kube-vip v1.0.3→v1.0.4 + Prometheus monitoring |
 | [v0.20.0-ollama](docs/rebuild/v0.20.0-ollama.md) | Phase 4.23 | Ollama Local AI (CPU-only LLM inference) |
 | [v0.21.0-karakeep](docs/rebuild/v0.21.0-karakeep.md) | Phase 4.24 | Karakeep bookmark manager with AI tagging |
+| [v0.24.0-tailscale-operator](docs/rebuild/v0.24.0-tailscale-operator.md) | Phase 4.10 | Tailscale Operator (subnet router for remote access) |
 
 ### Reference
 
@@ -256,7 +258,8 @@ cd ansible && ansible-playbook -i inventory.yml playbooks/00-preflight.yml
 | **Feb 11, 2026** | **kube-vip Upgrade** — v1.0.3→v1.0.4 (fixed leader election errors) + Prometheus monitoring + Grafana dashboard (Phase 2.1) |
 | **Feb 11, 2026** | **Ollama Local AI** — CPU-only LLM inference with qwen3:1.7b (text), moondream (vision), Blackbox probe + PrometheusRule alerts (Phase 4.23) |
 | **Feb 12, 2026** | **Karakeep Migration** — Bookmark manager (Karakeep 0.30.0 + Chrome + Meilisearch) with Ollama qwen2.5:3b AI tagging, migrated 119 bookmarks from Proxmox (Phase 4.24) |
-| **Coming** | ARR Stack, Tailscale Operator, Version Automation |
+| **Feb 13, 2026** | **Tailscale Operator** — Subnet router (Connector CRD) for secure remote access to all K8s services via WireGuard mesh VPN, Cilium socketLB fix, AdGuard global nameserver for ad-blocking on tailnet (Phase 4.10) |
+| **Coming** | ARR Stack, Version Automation |
 
 See rebuild guides below for detailed project history.
 
@@ -265,7 +268,7 @@ See rebuild guides below for detailed project history.
 ## 🚀 Next Steps
 
 1. **ARR Stack Core** — Sonarr, Radarr, Prowlarr, qBittorrent, Jellyfin (Phase 4.25)
-2. **Tailscale Operator** — VPN mesh network integration (Phase 4.10)
+2. **Version Automation** — Upgrade runbooks and automation (Phase 4.27)
 3. **CKA Certification** - September 2026 target
 
 ---
@@ -281,4 +284,5 @@ See rebuild guides below for detailed project history.
 | Alerting | ✅ Running | Discord + Email + synthetic DNS probing |
 | UPS Protection | ✅ Running | NUT + staggered graceful shutdown |
 | External Access | ✅ Running | Cloudflare Tunnel (2 replicas, anti-affinity) |
+| Remote Access | ✅ Running | Tailscale subnet router (WireGuard mesh VPN) |
 | NAS (media) | ⚠️ No HA | Single Dell 3090 (acceptable for media) |

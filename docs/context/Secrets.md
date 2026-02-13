@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password]
-updated: 2026-02-12
+updated: 2026-02-13
 ---
 
 # Secrets
@@ -39,6 +39,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Ghost Tinybird | `workspace-id`, `admin-token`, `tracker-token`, `api-url` | Ghost web analytics (TrafficAnalytics proxy) |
 | Firefox Browser | `username`, `password` | Firefox KasmVNC basic auth (browser namespace) |
 | Karakeep | `nextauth-secret`, `meili-master-key`, `api-key` | Karakeep auth + Meilisearch + Homepage widget |
+| Tailscale K8s Operator | `client-id`, `client-secret`, `api-token` | Tailscale OAuth + Homepage widget (api-token expires 2026-05-14) |
 | iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
 
 ## 1Password Paths
@@ -121,6 +122,11 @@ op://Kubernetes/Firefox Browser/password
 op://Kubernetes/Karakeep/nextauth-secret
 op://Kubernetes/Karakeep/meili-master-key
 op://Kubernetes/Karakeep/api-key
+
+# Tailscale K8s Operator (OAuth + Homepage widget)
+op://Kubernetes/Tailscale K8s Operator/client-id
+op://Kubernetes/Tailscale K8s Operator/client-secret
+op://Kubernetes/Tailscale K8s Operator/api-token
 
 # Homepage (widget credentials)
 op://Kubernetes/Homepage/proxmox-pve-user
