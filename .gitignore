@@ -16,6 +16,7 @@ ansible/inventory/*.bak
 # IDE
 .vscode/
 .idea/
+.playwright-mcp/
 *.swp
 *.swo
 *~

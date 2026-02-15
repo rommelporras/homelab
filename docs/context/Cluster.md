@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, cluster, nodes]
-updated: 2026-02-12
+updated: 2026-02-14
 ---
 
 # Cluster
@@ -71,6 +71,53 @@ ssh wawashi@cp3.k8s.rommelporras.com
 | browser | Containerized Firefox browser (KasmVNC) |
 | ai | Ollama LLM inference server |
 | karakeep | Karakeep bookmark manager (web, Chrome, Meilisearch) |
+| tailscale | Tailscale Operator (subnet router, DNS) |
+
+## Hardware Inventory & Cost
+
+All prices in Philippine Pesos (₱) with USD approximate at ₱58 ≈ $1 (Feb 2026).
+
+### Kubernetes Nodes
+
+| Item | Qty | ₱ Each | ₱ Total | $ Total |
+|------|-----|--------|---------|---------|
+| Lenovo M80q (i5-10400T, 16GB, 512GB NVMe) | 3 | 6,000 | 18,000 | ~$310 |
+
+All nodes are stock — no upgrades.
+
+### Supporting Infrastructure
+
+| Item | Specs | ₱ | $ |
+|------|-------|---|---|
+| Dell OptiPlex 3090 (base) | i5-10500T, 16GB stock | 6,000 | ~$103 |
+| + 16GB DDR4 RAM stick | Total 32GB | 1,500 | ~$26 |
+| + 1TB Enterprise SSD | Boot drive | 2,000 | ~$34 |
+| + WD_BLACK SN850x 2TB NVMe | NAS storage | 7,000 | ~$121 |
+| + 2.5GbE NIC | Network upgrade | 1,000 | ~$17 |
+| **Dell 3090 subtotal** | | **17,500** | **~$302** |
+| Topton N100 | 16GB RAM, Proxmox + OPNsense | 9,500 | ~$164 |
+| CyberPower UPS | CP1600EPFCLCD, 1600VA/1000W | 8,669 | ~$149 |
+| LIANGUO LG-SG5T1 switch | 5x 2.5GbE + 10G SFP+ | 1,369 | ~$24 |
+| TP-Link Archer A6 | OpenWRT, VLAN WiFi (purchased ~2017) | 2,000 | ~$34 |
+| TP-Link Archer AX1500 | Backup WiFi (purchased ~2020) | 2,590 | ~$45 |
+
+### Total Investment
+
+| | ₱ | $ |
+|---|---|---|
+| **Total Hardware** | **₱59,628** | **~$1,028** |
+
+### Monthly Operating Cost
+
+| Item | ₱/mo | $/mo |
+|------|------|------|
+| Electricity (~100W avg, all devices) | ~₱1,000 | ~$17 |
+| Cloudflare (free tier) | ₱0 | $0 |
+| Tailscale (free personal plan) | ₱0 | $0 |
+| Domain (rommelporras.com) | ~₱58 | ~$1 |
+| **Total** | **~₱1,058** | **~$18** |
+
+The ~100W electricity covers all devices: 3 K8s nodes, Dell 3090, Topton firewall, UPS, managed switch, 2 WiFi APs, and 2 ISP modems.
 
 ## System
 

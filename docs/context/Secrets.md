@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password]
-updated: 2026-02-13
+updated: 2026-02-16
 ---
 
 # Secrets
@@ -63,6 +63,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Firefox Browser | `username`, `password` | Firefox KasmVNC basic auth (browser namespace) |
 | Karakeep | `nextauth-secret`, `meili-master-key`, `api-key` | Karakeep auth + Meilisearch + Homepage widget |
 | Tailscale K8s Operator | `client-id`, `client-secret`, `api-token` | Tailscale OAuth + Homepage widget (api-token expires 2026-05-14) |
+| Portfolio | `kube-api-url`, `kube-token-development`, `kube-token-staging`, `kube-token-production` | GitLab CI/CD (portfolio deploy to K8s) |
 | iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
 
 ## 1Password Paths
@@ -150,6 +151,12 @@ op://Kubernetes/Karakeep/api-key
 op://Kubernetes/Tailscale K8s Operator/client-id
 op://Kubernetes/Tailscale K8s Operator/client-secret
 op://Kubernetes/Tailscale K8s Operator/api-token
+
+# Portfolio (GitLab CI/CD deploy tokens)
+op://Kubernetes/Portfolio/kube-api-url
+op://Kubernetes/Portfolio/kube-token-development
+op://Kubernetes/Portfolio/kube-token-staging
+op://Kubernetes/Portfolio/kube-token-production
 
 # Homepage (widget credentials)
 op://Kubernetes/Homepage/proxmox-pve-user
