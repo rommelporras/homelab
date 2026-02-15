@@ -134,6 +134,10 @@ kubectl-homelab get componentstatuses
 helm-homelab list -A
 helm-homelab -n longhorn-system get values longhorn
 
+# Homelab GitLab (self-hosted, glab v1.85.2)
+glab api projects/0xwsh%2Fportfolio --hostname gitlab.k8s.rommelporras.com
+glab auth status
+
 # Run Ansible playbooks
 cd ansible && ansible-playbook -i inventory/homelab.yml playbooks/00-preflight.yml
 ```
@@ -174,7 +178,7 @@ kubectl-homelab create secret generic my-secret \
 
 See **docs/context/Secrets.md** for the complete 1Password item inventory (20+ items).
 
-### Rules
+### Security Rules
 
 - **Never hardcode passwords** in values.yaml or manifests
 - **Never commit secrets** to git (use `op read` at runtime)
