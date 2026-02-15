@@ -1,7 +1,7 @@
 # Phase 4.25: ARR Media Stack
 
 > **Status:** Planned
-> **Target:** v0.22.0
+> **Target:** v0.23.0
 > **Prerequisite:** Longhorn + Gateway API + NFS storage on OMV NAS running
 > **Priority:** Medium (media automation platform)
 > **DevOps Topics:** NFS storage, multi-app deployment, cross-app API integration, hardlinks
@@ -92,11 +92,11 @@ All *ARR apps and qBittorrent mount the **same NFS export** at `/data`. This ena
 
 | App | Port | URL | Config PVC | Image |
 |-----|------|-----|------------|-------|
-| Prowlarr | 9696 | `prowlarr.k8s.rommelporras.com` | 2Gi Longhorn | `lscr.io/linuxserver/prowlarr` (pin at deploy) |
-| Sonarr | 8989 | `sonarr.k8s.rommelporras.com` | 2Gi Longhorn | `lscr.io/linuxserver/sonarr` (pin at deploy) |
-| Radarr | 7878 | `radarr.k8s.rommelporras.com` | 2Gi Longhorn | `lscr.io/linuxserver/radarr` (pin at deploy) |
-| qBittorrent | 8080 | `qbit.k8s.rommelporras.com` | 2Gi Longhorn | `lscr.io/linuxserver/qbittorrent` (pin at deploy) |
-| Jellyfin | 8096 | `jellyfin.k8s.rommelporras.com` | 5Gi Longhorn | `jellyfin/jellyfin` (pin at deploy) |
+| Prowlarr | 9696 | `prowlarr.k8s.rommelporras.com` | 2Gi Longhorn | `lscr.io/linuxserver/prowlarr:2.3.0` |
+| Sonarr | 8989 | `sonarr.k8s.rommelporras.com` | 2Gi Longhorn | `lscr.io/linuxserver/sonarr:4.0.16.2944` |
+| Radarr | 7878 | `radarr.k8s.rommelporras.com` | 2Gi Longhorn | `lscr.io/linuxserver/radarr:6.0.4.10291` |
+| qBittorrent | 8080 | `qbit.k8s.rommelporras.com` | 2Gi Longhorn | `lscr.io/linuxserver/qbittorrent:5.1.4` |
+| Jellyfin | 8096 | `jellyfin.k8s.rommelporras.com` | 5Gi Longhorn | `jellyfin/jellyfin:10.11.6` |
 
 | Shared Volume | Type | Mount | Access |
 |---------------|------|-------|--------|
@@ -194,84 +194,191 @@ All *ARR apps and qBittorrent mount the **same NFS export** at `/data`. This ena
 
 ### 4.25.3 Deploy Prowlarr (First — Indexer Hub)
 
-- [ ] 4.25.3.1 Pin image — check latest stable at https://github.com/Prowlarr/Prowlarr/releases
+- [ ] 4.25.3.1 Image: `lscr.io/linuxserver/prowlarr:2.3.0` (latest stable as of Feb 2026)
 - [ ] 4.25.3.2 Create `manifests/media/prowlarr/deployment.yaml`
   - Longhorn PVC 2Gi for `/config`
   - `strategy: Recreate` (RWO config PVC)
   - Env: `PUID=1000`, `PGID=1000`, `TZ=Asia/Manila`
   - Resource limits: `cpu: 50m/250m`, `memory: 128Mi/256Mi`
-- [ ] 4.25.3.3 Security context:
-  - `allowPrivilegeEscalation: false`
-  - `seccompProfile.type: RuntimeDefault`
-  - `capabilities.drop: [ALL]` then add back `SETUID` + `SETGID` — LinuxServer images use `s6-overlay` init which calls `usermod`/`groupmod` to set PUID/PGID. Dropping ALL capabilities breaks container startup. Test at deploy time; if `s6-init` fails with permission errors, add `CHOWN` as well.
+- [ ] 4.25.3.3 Security context (LinuxServer s6-overlay pattern — same for all LSIO apps in this phase):
+  - Pod-level: `fsGroup: 1000`, `seccompProfile.type: RuntimeDefault`
+  - Container-level: `allowPrivilegeEscalation: false`
+  - `capabilities.drop: [ALL]` then `add: [CHOWN, SETUID, SETGID]` — s6-overlay needs CHOWN for `/var/run/s6` ownership, SETUID/SETGID for user switching. Matches existing Firefox deployment pattern.
   - PSS: `baseline` (not `restricted`) — LinuxServer images require these capabilities
-- [ ] 4.25.3.4 Create `manifests/media/prowlarr/service.yaml` — ClusterIP (port 9696)
-- [ ] 4.25.3.5 Create `manifests/media/prowlarr/httproute.yaml` — `prowlarr.k8s.rommelporras.com`
-- [ ] 4.25.3.6 Apply and verify, configure indexers in UI
+  - Note: DAC_OVERRIDE and FOWNER are NOT needed for ARR apps (only Firefox needed those for nginx). If s6-init fails with permission errors, add them back.
+- [ ] 4.25.3.4 Health probes (same pattern for Prowlarr/Radarr — `/ping` is unauthenticated):
+  ```yaml
+  startupProbe:
+    httpGet:
+      path: /ping
+      port: 9696
+    periodSeconds: 10
+    failureThreshold: 30    # 5 min for first boot + DB init
+  livenessProbe:
+    httpGet:
+      path: /ping
+      port: 9696
+    periodSeconds: 30
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /ping
+      port: 9696
+    periodSeconds: 10
+    failureThreshold: 2
+  ```
+- [ ] 4.25.3.5 Create `manifests/media/prowlarr/service.yaml` — ClusterIP (port 9696)
+- [ ] 4.25.3.6 Create `manifests/media/prowlarr/httproute.yaml` — `prowlarr.k8s.rommelporras.com`
+- [ ] 4.25.3.7 Apply and verify: `kubectl-homelab apply -f manifests/media/prowlarr/`
+- [ ] 4.25.3.8 Configure indexers in UI:
+  - **1337x** — general (movies, TV, games)
+  - **TheRARBG** — curated movies/TV (community successor to RARBG)
+  - **EZTV** — TV-focused
+  - **YTS** — compact movie encodes
+  - **Nyaa.si** — anime
+  - All public, no account needed. Prowlarr auto-syncs to Sonarr/Radarr via Settings > Apps.
 
 ### 4.25.4 Deploy qBittorrent (Download Client)
 
-- [ ] 4.25.4.1 Pin image — check latest stable at https://github.com/linuxserver/docker-qbittorrent/releases
+- [ ] 4.25.4.1 Image: `lscr.io/linuxserver/qbittorrent:5.1.4` (latest stable as of Feb 2026)
 - [ ] 4.25.4.2 Create `manifests/media/qbittorrent/deployment.yaml`
   - Longhorn PVC 2Gi for `/config`
   - NFS PVC mounted at `/data` (shared `arr-data` PVC)
   - `strategy: Recreate`
   - Env: `PUID=1000`, `PGID=1000`, `TZ=Asia/Manila`, `WEBUI_PORT=8080`
   - Resource limits: `cpu: 250m/1`, `memory: 256Mi/1Gi`
-  - Note: Set download paths in qBittorrent UI to `/data/torrents/movies/`, `/data/torrents/tv/`
-- [ ] 4.25.4.3 Security context (same pattern as Prowlarr)
-- [ ] 4.25.4.4 Create `manifests/media/qbittorrent/service.yaml` — ClusterIP (port 8080)
-- [ ] 4.25.4.5 Create `manifests/media/qbittorrent/httproute.yaml` — `qbit.k8s.rommelporras.com`
-- [ ] 4.25.4.6 Apply and verify, configure download paths in UI
-- [ ] 4.25.4.7 qBittorrent NFS tuning (if seeding issues):
-  - Set Disk I/O type to "Simple pread/pwrite" in advanced settings
+- [ ] 4.25.4.3 Security context (same LSIO s6-overlay pattern as Prowlarr)
+- [ ] 4.25.4.4 Health probes:
+  ```yaml
+  startupProbe:
+    httpGet:
+      path: /api/v2/app/version
+      port: 8080
+    periodSeconds: 10
+    failureThreshold: 30
+  livenessProbe:
+    httpGet:
+      path: /api/v2/app/version
+      port: 8080
+    periodSeconds: 30
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /api/v2/app/version
+      port: 8080
+    periodSeconds: 10
+    failureThreshold: 2
+  ```
+- [ ] 4.25.4.5 Create `manifests/media/qbittorrent/service.yaml` — ClusterIP (port 8080)
+- [ ] 4.25.4.6 Create `manifests/media/qbittorrent/httproute.yaml` — `qbit.k8s.rommelporras.com`
+- [ ] 4.25.4.7 Apply and verify: `kubectl-homelab apply -f manifests/media/qbittorrent/`
+- [ ] 4.25.4.8 Configure qBittorrent UI (TRaSH Guides best practices):
+  - **Default Torrent Management Mode:** `Automatic` (critical — downloads won't use category folders otherwise)
+  - **Default Save Path:** `/data/torrents`
+  - **Create categories:** `movies`, `tv` (Save Path = just the subfolder name, e.g., `movies` — qBit appends it to the default save path automatically)
+  - **Disable "Keep incomplete torrents in" folder** — avoids unnecessary NFS-to-NFS moves
+  - **Disable UPnP/NAT-PMP** for security
+- [ ] 4.25.4.9 qBittorrent NFS tuning (apply these in Advanced settings):
+  - Set Disk I/O type to "Simple pread/pwrite"
   - Increase async I/O threads from 10 to 64
+  - Set Disk cache to 64 MiB (buffers writes before flushing to NFS)
 
 ### 4.25.5 Deploy Sonarr (TV)
 
-- [ ] 4.25.5.1 Pin image — check latest stable at https://github.com/Sonarr/Sonarr/releases
+- [ ] 4.25.5.1 Image: `lscr.io/linuxserver/sonarr:4.0.16.2944` (latest stable as of Feb 2026)
 - [ ] 4.25.5.2 Create `manifests/media/sonarr/deployment.yaml`
   - Longhorn PVC 2Gi for `/config`
   - NFS PVC mounted at `/data` (shared `arr-data` PVC)
   - `strategy: Recreate`
   - Env: `PUID=1000`, `PGID=1000`, `TZ=Asia/Manila`
   - Resource limits: `cpu: 100m/500m`, `memory: 256Mi/512Mi`
-- [ ] 4.25.5.3 Security context (same pattern)
-- [ ] 4.25.5.4 Create `manifests/media/sonarr/service.yaml` — ClusterIP (port 8989)
-- [ ] 4.25.5.5 Create `manifests/media/sonarr/httproute.yaml` — `sonarr.k8s.rommelporras.com`
-- [ ] 4.25.5.6 Apply and verify
-- [ ] 4.25.5.7 Configure: connect Prowlarr (indexers auto-sync), connect qBittorrent, set root folder to `/data/media/tv/`
+  - Note: 512Mi is tight for large libraries — monitor for OOM and bump to 768Mi-1Gi if needed
+- [ ] 4.25.5.3 Security context (same LSIO s6-overlay pattern as Prowlarr)
+- [ ] 4.25.5.4 Health probes:
+  ```yaml
+  # Sonarr v4 /ping may require auth (GitHub issue #5396) — test at deploy.
+  # If /ping returns 401, fall back to tcpSocket probe on port 8989.
+  startupProbe:
+    httpGet:
+      path: /ping
+      port: 8989
+    periodSeconds: 10
+    failureThreshold: 30
+  livenessProbe:
+    httpGet:
+      path: /ping
+      port: 8989
+    periodSeconds: 30
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /ping
+      port: 8989
+    periodSeconds: 10
+    failureThreshold: 2
+  ```
+- [ ] 4.25.5.5 Create `manifests/media/sonarr/service.yaml` — ClusterIP (port 8989)
+- [ ] 4.25.5.6 Create `manifests/media/sonarr/httproute.yaml` — `sonarr.k8s.rommelporras.com`
+- [ ] 4.25.5.7 Apply and verify: `kubectl-homelab apply -f manifests/media/sonarr/`
+- [ ] 4.25.5.8 Configure: connect Prowlarr (indexers auto-sync), connect qBittorrent, set root folder to `/data/media/tv/`
 
 ### 4.25.6 Deploy Radarr (Movies)
 
-- [ ] 4.25.6.1 Pin image — check latest stable at https://github.com/Radarr/Radarr/releases
+- [ ] 4.25.6.1 Image: `lscr.io/linuxserver/radarr:6.0.4.10291` (latest stable as of Feb 2026)
 - [ ] 4.25.6.2 Create `manifests/media/radarr/deployment.yaml`
   - Longhorn PVC 2Gi for `/config`
   - NFS PVC mounted at `/data` (shared `arr-data` PVC)
   - `strategy: Recreate`
   - Env: `PUID=1000`, `PGID=1000`, `TZ=Asia/Manila`
   - Resource limits: `cpu: 100m/1`, `memory: 256Mi/1Gi` (Radarr is memory-hungry with large libraries)
-- [ ] 4.25.6.3 Security context (same pattern)
-- [ ] 4.25.6.4 Create `manifests/media/radarr/service.yaml` — ClusterIP (port 7878)
-- [ ] 4.25.6.5 Create `manifests/media/radarr/httproute.yaml` — `radarr.k8s.rommelporras.com`
-- [ ] 4.25.6.6 Apply and verify
-- [ ] 4.25.6.7 Configure: connect Prowlarr, connect qBittorrent, set root folder to `/data/media/movies/`
+- [ ] 4.25.6.3 Security context (same LSIO s6-overlay pattern as Prowlarr)
+- [ ] 4.25.6.4 Health probes (Radarr `/ping` is unauthenticated — same as Prowlarr, port 7878)
+- [ ] 4.25.6.5 Create `manifests/media/radarr/service.yaml` — ClusterIP (port 7878)
+- [ ] 4.25.6.6 Create `manifests/media/radarr/httproute.yaml` — `radarr.k8s.rommelporras.com`
+- [ ] 4.25.6.7 Apply and verify: `kubectl-homelab apply -f manifests/media/radarr/`
+- [ ] 4.25.6.8 Configure: connect Prowlarr, connect qBittorrent, set root folder to `/data/media/movies/`
 
 ### 4.25.7 Deploy Jellyfin (Media Server)
 
-- [ ] 4.25.7.1 Pin image — check latest stable at https://github.com/jellyfin/jellyfin/releases
+- [ ] 4.25.7.1 Image: `jellyfin/jellyfin:10.11.6` (official image, NOT LinuxServer — bundles jellyfin-ffmpeg with iHD driver for Phase 4.25b QSV)
 - [ ] 4.25.7.2 Create `manifests/media/jellyfin/deployment.yaml`
   - Longhorn PVC 5Gi for `/config` (metadata, thumbnails, transcoding cache)
   - NFS PVC mounted at `/data` (same shared `arr-data` PVC — Jellyfin reads from `/data/media/`)
   - Note: Mount the full PVC at `/data`, NOT a subPath. Jellyfin library paths point to `/data/media/movies/` and `/data/media/tv/`
   - `strategy: Recreate`
   - Resource limits: `cpu: 500m/4`, `memory: 512Mi/2Gi`
-  - Note: No GPU passthrough — CPU transcoding only (or direct play preferred)
-- [ ] 4.25.7.3 Security context (same pattern)
-- [ ] 4.25.7.4 Create `manifests/media/jellyfin/service.yaml` — ClusterIP (port 8096)
-- [ ] 4.25.7.5 Create `manifests/media/jellyfin/httproute.yaml` — `jellyfin.k8s.rommelporras.com`
-- [ ] 4.25.7.6 Apply and verify
-- [ ] 4.25.7.7 Configure: add media libraries pointing to `/data/media/movies/` and `/data/media/tv/`
+  - Note: CPU transcoding only in this phase — Intel QSV hardware transcoding added in Phase 4.25b
+- [ ] 4.25.7.3 Security context (**different from LSIO apps** — official Jellyfin image has no s6-overlay):
+  - Pod-level: `runAsUser: 1000`, `runAsGroup: 1000`, `fsGroup: 1000`, `seccompProfile.type: RuntimeDefault`
+  - Container-level: `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`
+  - No PUID/PGID env vars — use K8s `runAsUser`/`runAsGroup` instead (official image respects standard Linux UID)
+  - No CHOWN/SETUID/SETGID needed — no s6-overlay init
+  - Meets PSS `restricted` profile (stricter than the LSIO apps)
+- [ ] 4.25.7.4 Health probes:
+  ```yaml
+  startupProbe:
+    httpGet:
+      path: /health
+      port: 8096
+    periodSeconds: 10
+    failureThreshold: 30    # 5 min — first boot scans media libraries
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8096
+    periodSeconds: 30
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8096
+    periodSeconds: 10
+    failureThreshold: 2
+  ```
+- [ ] 4.25.7.5 Create `manifests/media/jellyfin/service.yaml` — ClusterIP (port 8096)
+- [ ] 4.25.7.6 Create `manifests/media/jellyfin/httproute.yaml` — `jellyfin.k8s.rommelporras.com`
+- [ ] 4.25.7.7 Apply and verify: `kubectl-homelab apply -f manifests/media/jellyfin/`
+- [ ] 4.25.7.8 Configure: add media libraries pointing to `/data/media/movies/` and `/data/media/tv/`
 
 ### 4.25.8 Verify Hardlink Workflow
 
@@ -287,7 +394,10 @@ All *ARR apps and qBittorrent mount the **same NFS export** at `/data`. This ena
 
 ### 4.25.9 Integration
 
-- [ ] 4.25.9.1 Add all apps to Homepage dashboard
+- [ ] 4.25.9.1 Add all apps to Homepage dashboard (new "Media" group under Apps tab):
+  - Add entries for Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin with widgets
+  - Update Homepage deployment env vars with `HOMEPAGE_VAR_PROWLARR_API_KEY`, etc. (injected from 1Password at deploy time)
+  - Jellyfin widget does not require an API key
 - [ ] 4.25.9.2 Add all URLs to Uptime Kuma monitoring
 - [ ] 4.25.9.3 Verify DNS resolution via existing `*.k8s.rommelporras.com` wildcard rewrite in AdGuard
 - [ ] 4.25.9.4 Store API keys in 1Password: `op://Kubernetes/Prowlarr/api-key`, `op://Kubernetes/Sonarr/api-key`, `op://Kubernetes/Radarr/api-key`
@@ -322,10 +432,10 @@ All *ARR apps and qBittorrent mount the **same NFS export** at `/data`. This ena
 - [ ] 4.25.11.7 Update `docs/context/Storage.md` — add NFS PV/PVC for media
 - [ ] 4.25.11.8 Update `docs/context/Secrets.md` — add *ARR API keys + shared `arr-api-keys` secret
 - [ ] 4.25.11.9 Update `docs/context/Networking.md` — add CiliumNetworkPolicy for `media` namespace
-- [ ] 4.25.11.10 Create `docs/rebuild/v0.22.0-arr-stack.md`
+- [ ] 4.25.11.10 Create `docs/rebuild/v0.23.0-arr-stack.md`
 - [ ] 4.25.11.11 `/audit-docs`
 - [ ] 4.25.11.12 `/commit`
-- [ ] 4.25.11.13 `/release v0.22.0 "ARR Media Stack"`
+- [ ] 4.25.11.13 `/release v0.23.0 "ARR Media Stack"`
 - [ ] 4.25.11.14 Move this file to `docs/todo/completed/`
 
 ---
@@ -412,4 +522,5 @@ kubectl-homelab delete namespace media
 | Download storage | NFS (not Longhorn) | Hardlinks require same filesystem for downloads + media |
 | Config storage | Longhorn | Fast SQLite writes, 2x replicated, keeps I/O off NAS single drive |
 | NFS location | `/export/Kubernetes/Media` subdirectory | Reuses existing NFS export, K8s PV/PVC provides isolation from Immich |
-| Container images | LinuxServer.io | Consistent PUID/PGID, active maintenance, community standard |
+| Container images (ARR) | LinuxServer.io | Consistent PUID/PGID, active maintenance, community standard |
+| Container image (Jellyfin) | `jellyfin/jellyfin` (official) | Bundles jellyfin-ffmpeg with Intel iHD driver for QSV — LinuxServer image needs Docker Mod for QSV |
