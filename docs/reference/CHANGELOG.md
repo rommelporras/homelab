@@ -27,12 +27,12 @@ Deployed 6-app ARR media automation stack to `arr-stack` namespace: Prowlarr (in
 | Media storage | NFS on OMV NAS | Hardlinks require single filesystem; NAS has 2TB NVMe |
 | Config storage | Longhorn PVCs | Fast SQLite I/O, 2x replicated, off the single-drive NAS |
 | NFS mount | Single PV/PVC at `/data` for all pods | Required for hardlinks between torrents/ and media/ |
-| Jellyfin image | Official (not LSIO) | Meets PSS restricted, no root required |
+| Jellyfin image | Official (not LSIO) | Bundles jellyfin-ffmpeg with Intel iHD driver for QSV (Phase 4.25b). Also meets PSS restricted (no root) |
 | LSIO apps | s6-overlay v3 with PUID/PGID | Requires CHOWN+SETUID+SETGID capabilities, runs as root |
 | Sonarr/Radarr/Bazarr tags | `:latest` with `imagePullPolicy: Always` | Rapid release cycle, LSIO rebuilds frequently |
 | Seeding | Disabled (ratio 0, Stop torrent) | NAS has single NVMe — preserve TBW |
 | Subtitle provider | OpenSubtitles.com + Podnapisi | Free accounts, public providers |
-| Prowlarr indexers | 1337x, TheRARBG, EZTV, YTS, Nyaa.si | All public, no account required |
+| Prowlarr indexers | EZTV, YTS, Nyaa.si | All public, no account. Skipped: 1337x (Cloudflare blocks), TheRARBG (removed from Prowlarr) |
 | Jellyfin Connect | Radarr + Sonarr → Jellyfin | Auto library scan on import (instead of 12h schedule) |
 
 ### Files Added

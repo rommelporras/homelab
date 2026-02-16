@@ -17,33 +17,33 @@
 
 ```
                                     Internet
-                                       │
+                                       |
                                   (Dual WAN)
-                                       │
-                      ┌────────────────┴────────────────┐
-                      │   Firewall Node (Topton N100)   │
-                      │   OPNsense VM · AdGuard LXC     │
-                      └────────────────┬────────────────┘
-                                       │
+                                       |
+                      +----------------+----------------+
+                      |   Firewall Node (Topton N100)   |
+                      |   OPNsense VM · AdGuard LXC     |
+                      +----------------+----------------+
+                                       |
                               VLAN 30 · 2.5GbE
-     ┌──────────────────┬──────────────┴──────┬──────────────────┐
-     │                  │                     │                  │
-┌────┴─────┐       ┌────┴─────┐         ┌────┴─────┐     ┌──────┴──────┐
-│  k8s-cp1 │       │  k8s-cp2 │         │  k8s-cp3 │     │  Dell 3090  │
-│   M80q   │       │   M80q   │         │   M80q   │     │  (Proxmox)  │
-│i5-10400T │       │i5-10400T │         │i5-10400T │     ├─────────────┤
-├──────────┤       ├──────────┤         ├──────────┤     │ OMV NAS     │
-│ Control  │       │ Control  │         │ Control  │     │ Immich VM   │
-│ + etcd   │       │ + etcd   │         │ + etcd   │     │ NPM LXC    │
-│ + Work   │       │ + Work   │         │ + Work   │     │ Test VMs    │
-├──────────┤       ├──────────┤         ├──────────┤     └──────┬──────┘
-│ Longhorn │       │ Longhorn │         │ Longhorn │            │
-│ (NVMe)   │       │ (NVMe)   │         │ (NVMe)   │            │
-└────┬─────┘       └────┬─────┘         └────┬─────┘            │
-     │                  │                    │                   │
-     └──── Sync (2x replication) ───────────┘                   │
-                        │                                        │
-                        └─────────────── NFS ───────────────────┘
+     +------------------+--------------+------+------------------+
+     |                  |                     |                  |
++----+-----+       +----+-----+         +----+-----+     +------+------+
+|  k8s-cp1 |       |  k8s-cp2 |         |  k8s-cp3 |     |  Dell 3090  |
+|   M80q   |       |   M80q   |         |   M80q   |     |  (Proxmox)  |
+|i5-10400T |       |i5-10400T |         |i5-10400T |     +-------------+
++----------+       +----------+         +----------+     | OMV NAS     |
+| Control  |       | Control  |         | Control  |     | Immich VM   |
+| + etcd   |       | + etcd   |         | + etcd   |     | NPM LXC    |
+| + Work   |       | + Work   |         | + Work   |     | Test VMs    |
++----------+       +----------+         +----------+     +------+------+
+| Longhorn |       | Longhorn |         | Longhorn |            |
+| (NVMe)   |       | (NVMe)   |         | (NVMe)   |            |
++----+-----+       +----+-----+         +----+-----+            |
+     |                  |                    |                   |
+     +---- Sync (2x replication) -----------+                   |
+                        |                                        |
+                        +--------------- NFS -------------------+
 ```
 
 | Device | Role | Spec |
@@ -55,9 +55,9 @@
 ### Traffic Flow
 
 ```
-Public        ─→  Cloudflare Tunnel (HA)  ─→  Gateway API  ─→  Services
-Remote        ─→  Tailscale VPN (WireGuard)  ─→  Subnet Route  ─→  Services
-LAN / VLANs   ─→  AdGuard DNS  ─→  Cilium L2 VIP  ─→  Gateway API  ─→  Services
+Public       -->  Cloudflare Tunnel (HA)  -->  Gateway API  -->  Services
+Remote       -->  Tailscale VPN (WireGuard)  -->  Subnet Route  -->  Services
+LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Services
 ```
 
 ---

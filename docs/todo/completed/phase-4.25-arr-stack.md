@@ -1,6 +1,6 @@
 # Phase 4.25: ARR Media Stack
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Target:** v0.23.0
 > **Prerequisite:** Longhorn + Gateway API + NFS storage on OMV NAS running
 > **Priority:** Medium (media automation platform)
@@ -622,20 +622,20 @@ All *ARR apps and qBittorrent mount the **same NFS export** at `/data`. This ena
 
 > Second commit: documentation updates and audit.
 
-- [ ] 4.25.13.1 Update `docs/todo/README.md` — add Phase 4.25 to phase index + namespace table
-- [ ] 4.25.13.2 Update `README.md` (root) — add ARR stack to services list
-- [ ] 4.25.13.3 Update `VERSIONS.md` — add all app versions + HTTPRoutes
-- [ ] 4.25.13.4 Update `docs/reference/CHANGELOG.md` — add architecture decisions (NFS hardlinks, storage split, app selection)
-- [ ] 4.25.13.5 Update `docs/context/Cluster.md` — add `arr-stack` namespace
-- [ ] 4.25.13.6 Update `docs/context/Gateway.md` — add 6 HTTPRoutes (Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin, Bazarr)
-- [ ] 4.25.13.7 Update `docs/context/Storage.md` — add NFS PV/PVC for media
-- [ ] 4.25.13.8 Update `docs/context/Secrets.md` — add 1Password items (`ARR Stack` with 7 fields, `Opensubtitles` with credentials)
-- [ ] 4.25.13.9 Update `docs/context/Networking.md` — add CiliumNetworkPolicy for `arr-stack` namespace
-- [ ] 4.25.13.10 Create `docs/rebuild/v0.23.0-arr-stack.md`
-- [ ] 4.25.13.11 `/audit-docs`
-- [ ] 4.25.13.12 `/commit`
-- [ ] 4.25.13.13 `/release v0.23.0 "ARR Media Stack"`
-- [ ] 4.25.13.14 Move this file to `docs/todo/completed/`
+- [x] 4.25.13.1 Update `docs/todo/README.md` — add Phase 4.25 to phase index + namespace table
+- [x] 4.25.13.2 Update `README.md` (root) — add ARR stack to services list
+- [x] 4.25.13.3 Update `VERSIONS.md` — add all app versions + HTTPRoutes
+- [x] 4.25.13.4 Update `docs/reference/CHANGELOG.md` — add architecture decisions (NFS hardlinks, storage split, app selection)
+- [x] 4.25.13.5 Update `docs/context/Cluster.md` — add `arr-stack` namespace
+- [x] 4.25.13.6 Update `docs/context/Gateway.md` — add 6 HTTPRoutes (Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin, Bazarr)
+- [x] 4.25.13.7 Update `docs/context/Storage.md` — add NFS PV/PVC for media
+- [x] 4.25.13.8 Update `docs/context/Secrets.md` — add 1Password items (`ARR Stack` with 7 fields, `Opensubtitles` with credentials)
+- [x] 4.25.13.9 Update `docs/context/Networking.md` — add CiliumNetworkPolicy for `arr-stack` namespace
+- [x] 4.25.13.10 Create `docs/rebuild/v0.23.0-arr-stack.md`
+- [x] 4.25.13.11 `/audit-docs`
+- [x] 4.25.13.12 `/commit`
+- [x] 4.25.13.13 `/release v0.23.0 "ARR Media Stack"`
+- [x] 4.25.13.14 Move this file to `docs/todo/completed/`
 
 ---
 
