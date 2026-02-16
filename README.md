@@ -34,15 +34,15 @@
 |i5-10400T |       |i5-10400T |         |i5-10400T |     +-------------+
 +----------+       +----------+         +----------+     | OMV NAS     |
 | Control  |       | Control  |         | Control  |     | Immich VM   |
-| + etcd   |       | + etcd   |         | + etcd   |     | NPM LXC    |
+| + etcd   |       | + etcd   |         | + etcd   |     | NPM LXC     |
 | + Work   |       | + Work   |         | + Work   |     | Test VMs    |
 +----------+       +----------+         +----------+     +------+------+
 | Longhorn |       | Longhorn |         | Longhorn |            |
 | (NVMe)   |       | (NVMe)   |         | (NVMe)   |            |
 +----+-----+       +----+-----+         +----+-----+            |
-     |                  |                    |                   |
+     |                  |                    |                  |
      +---- Sync (2x replication) -----------+                   |
-                        |                                        |
+                        |                                       |
                         +--------------- NFS -------------------+
 ```
 

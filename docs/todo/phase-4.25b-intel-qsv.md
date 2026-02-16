@@ -18,30 +18,30 @@
 ```
 ┌─────────────────────────────────────────────────────┐
 │  Each K8s Node (k8s-cp1, cp2, cp3)                  │
-│                                                      │
-│  Intel i5-10400T                                     │
+│                                                     │
+│  Intel i5-10400T                                    │
 │  └── UHD Graphics 630 (iGPU)                        │
-│      └── /dev/dri/renderD128                         │
-│                                                      │
-│  Kernel: i915 driver + HuC firmware (enable_guc=2)   │
-│  Packages: intel-media-va-driver-non-free, vainfo    │
+│      └── /dev/dri/renderD128                        │
+│                                                     │
+│  Kernel: i915 driver + HuC firmware (enable_guc=2)  │
+│  Packages: intel-media-va-driver-non-free, vainfo   │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────┐
-│  Kubernetes                                          │
-│                                                      │
-│  Node Feature Discovery (DaemonSet)                  │
-│  └── Labels: intel.feature.node.kubernetes.io/gpu    │
-│                                                      │
-│  Intel Device Plugins Operator                       │
-│  └── Intel GPU Plugin (DaemonSet)                    │
-│      └── Advertises: gpu.intel.com/i915              │
+│  Kubernetes                                         │
+│                                                     │
+│  Node Feature Discovery (DaemonSet)                 │
+│  └── Labels: intel.feature.node.kubernetes.io/gpu   │
+│                                                     │
+│  Intel Device Plugins Operator                      │
+│  └── Intel GPU Plugin (DaemonSet)                   │
+│      └── Advertises: gpu.intel.com/i915             │
 │      └── sharedDevNum: 3 (3 pods can share 1 iGPU)  │
-│                                                      │
-│  Jellyfin Pod (arr-stack namespace)                      │
-│  └── resources.limits: gpu.intel.com/i915: "1"       │
-│  └── supplementalGroups: [video_gid, render_gid]     │
-│  └── Device plugin auto-mounts /dev/dri              │
+│                                                     │
+│  Jellyfin Pod (arr-stack namespace)                 │
+│  └── resources.limits: gpu.intel.com/i915: "1"      │
+│  └── supplementalGroups: [video_gid, render_gid]    │
+│  └── Device plugin auto-mounts /dev/dri             │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -50,6 +50,7 @@
 | Codec | HW Decode | HW Encode | Notes |
 |-------|-----------|-----------|-------|
 | H.264 (AVC) 8-bit | Yes | Yes | Most common format |
+| H.264 (AVC) 10-bit | No | No | Not supported by ANY GPU (Intel/NVIDIA/AMD) — software decode only |
 | HEVC (H.265) 8-bit | Yes | Yes | Low-power encode path, requires HuC firmware |
 | HEVC (H.265) 10-bit | Yes | Yes | Low-power encode path, requires HuC firmware |
 | VP9 8-bit/10-bit | Yes | No | Decode only on Comet Lake |
@@ -84,6 +85,9 @@
       state: present
 
   # Enable HuC firmware for HEVC low-power encode
+  # enable_guc=2 = HuC load only (correct for Comet Lake)
+  # NEVER use enable_guc=1 or 3 on Gen 9/10 — GuC submission is unsupported and causes crashes
+  # Note: enable_guc=2 taints the kernel (cosmetic, no functional impact)
   - name: Configure i915 HuC firmware loading
     copy:
       dest: /etc/modprobe.d/i915.conf
@@ -111,6 +115,10 @@
   # HuC firmware loaded
   sudo dmesg | grep -i huc
   # Expect: "HuC authenticated"
+  # If "HuC: load failed" — firmware binary missing from /lib/firmware/i915/
+  # Fix: apt install linux-firmware && update-initramfs -u && reboot
+  # If still missing, Ubuntu's initramfs may not include i915 firmware by default
+  # Create /etc/initramfs-tools/hooks/i915_add_firmware to force inclusion
 
   # Note GIDs for Jellyfin pod config
   getent group render video
@@ -159,6 +167,7 @@
     -n intel-device-plugins intel-device-plugins-operator \
     intel/intel-device-plugins-operator --version 0.34.1
   ```
+  > **Note:** The operator runs privileged (needs `/var/lib/kubelet/device-plugins`). The operator automatically sets the `intel-device-plugins` namespace to PSS `privileged` since v0.34.0. This is expected — device plugins inherently require host-level access.
 - [ ] 4.25b.3.3 Install Intel GPU Plugin (v0.34.1):
   ```bash
   helm-homelab upgrade -i \
@@ -194,7 +203,7 @@
         - 44    # video (verify: getent group video)
         - 104   # render (verify: getent group render)
     ```
-  - Add emptyDir for transcode cache:
+  - Add disk-backed emptyDir for transcode cache (NOT tmpfs — see Known Issues):
     ```yaml
     volumes:
       - name: transcode
@@ -203,7 +212,7 @@
       - name: transcode
         mountPath: /config/transcodes
     ```
-  - Increase memory limit to 4Gi (transcoding is memory-hungry)
+  - Increase memory limit to 4Gi (transcoding is memory-hungry, ~300-500Mi idle + ~200-500Mi per stream)
   - Note: Do NOT set `privileged: true` — device plugin handles /dev/dri access
   - Note: Stays PSS baseline compatible
 - [ ] 4.25b.4.2 Apply updated deployment and verify pod starts with GPU:
@@ -226,20 +235,27 @@
   - [x] VP9
   - [ ] AV1 (leave unchecked — not supported on Comet Lake)
 - [ ] 4.25b.5.6 Enable tone mapping (for HDR content)
-- [ ] 4.25b.5.7 Enable VPP tone mapping
+- [ ] 4.25b.5.7 Enable VPP tone mapping (preferred over OpenCL — uses fixed-function hardware, more reliable on Linux)
 - [ ] 4.25b.5.8 Allow encoding in HEVC format
+
+> **Tone Mapping Warning:** Jellyfin 10.11.x has a known bug (Issue [#15576](https://github.com/jellyfin/jellyfin/issues/15576)) where OpenCL-based tone mapping produces blocky/pixelated output with QSV. VPP tone mapping is unaffected and takes priority when both are enabled. If HDR content looks bad, verify VPP is being used (check pod logs for `tonemap_vaapi` vs `tonemap_opencl`).
 
 ### 4.25b.6 Verify Transcoding
 
 - [ ] 4.25b.6.1 Play a video in browser that forces transcode (HEVC file in a browser that doesn't support HEVC, or set bitrate limit low)
 - [ ] 4.25b.6.2 Verify Jellyfin dashboard shows **(HW)** next to codec in playback info
-- [ ] 4.25b.6.3 Verify on the node — GPU is active during transcode:
+- [ ] 4.25b.6.3 Verify pod logs confirm QSV codec selection:
+  ```bash
+  kubectl-homelab -n arr-stack logs deploy/jellyfin | grep -i "codec"
+  # Look for: -codec:v:0 h264_qsv (confirms QSV, not CPU or VA-API fallback)
+  ```
+- [ ] 4.25b.6.4 Verify on the node — GPU is active during transcode:
   ```bash
   ssh wawashi@cp1.k8s.rommelporras.com
   sudo intel_gpu_top
   # Video engine should show activity
   ```
-- [ ] 4.25b.6.4 Test from phone on mobile data — confirm smooth playback at reduced bitrate
+- [ ] 4.25b.6.5 Test from phone on mobile data — confirm smooth playback at reduced bitrate
 
 ### 4.25b.7 Documentation & Release
 
@@ -263,7 +279,7 @@
 | NFD | node-feature-discovery | ~50m | ~200m | ~64Mi | ~256Mi |
 | Intel Operator | intel-device-plugins | ~50m | ~200m | ~64Mi | ~256Mi |
 | GPU Plugin (per node) | intel-device-plugins | ~10m | ~50m | ~32Mi | ~64Mi |
-| Jellyfin delta | media | +0 | +0 | +0 | +2Gi (4Gi total) |
+| Jellyfin delta | arr-stack | +0 | +0 | +0 | +2Gi (4Gi total) |
 
 Minimal footprint. The GPU plugin DaemonSet is very lightweight.
 
@@ -301,7 +317,9 @@ Minimal footprint. The GPU plugin DaemonSet is very lightweight.
 - [ ] `gpu.intel.com/i915: 3` in node allocatable resources
 - [ ] Jellyfin pod shows `gpu.intel.com/i915: 1` in describe output
 - [ ] Transcode shows **(HW)** in Jellyfin playback dashboard
+- [ ] Pod logs show `h264_qsv` or `hevc_qsv` codec selection (not CPU fallback)
 - [ ] `intel_gpu_top` shows Video engine activity during transcode
+- [ ] VPP tone mapping works on HDR content (no blocky/pixelated output)
 - [ ] Mobile phone playback smooth on low bandwidth
 
 ---
@@ -326,6 +344,35 @@ kubectl-homelab delete namespace node-feature-discovery
 
 ---
 
+## Known Issues & Risks
+
+### Jellyfin 10.11.x QSV Tone Mapping Bug
+
+Jellyfin 10.11.x changed the HDR tone mapping pipeline from `tonemap_vaapi` (working) to `tonemap_opencl` (broken on many Intel GPUs). Issue [#15576](https://github.com/jellyfin/jellyfin/issues/15576), closed as "Not Planned". **Mitigation:** Enable VPP tone mapping in Jellyfin settings — it uses Intel's fixed-function hardware path (not OpenCL) and takes priority when both options are enabled.
+
+### Intel MediaSDK Deprecation (Long-term Risk)
+
+Intel is deprecating MediaSDK for Gen 10 and older GPUs in favor of OneVPL (Gen 11+). Current `jellyfin-ffmpeg` bundles both runtimes, so QSV works today on our Comet Lake UHD 630. Future Jellyfin versions may drop MediaSDK support, requiring a switch to VA-API acceleration mode. **Not a blocker now, but worth tracking.**
+
+### Transcode Cache: Why Disk-Backed emptyDir (Not tmpfs)
+
+Memory-backed tmpfs emptyDir has serious risks in Kubernetes:
+- OOM kills if cache grows beyond pod memory limit ([K8s Issue #128339](https://github.com/kubernetes/kubernetes/issues/128339))
+- Stale tmpfs pages not released after OOMKill, causing permanent restart loops
+- Can crash entire nodes if filled too fast ([K8s Issue #119611](https://github.com/kubernetes/kubernetes/issues/119611))
+
+Disk-backed emptyDir is nearly as fast due to Linux page cache and has no OOM risk. Our 512GB NVMe drives have abundant ephemeral storage. Jellyfin auto-cleans the transcode directory via a scheduled task.
+
+### enable_guc=2 Kernel Taint
+
+Setting `enable_guc=2` on Comet Lake taints the kernel (cosmetic, visible in `dmesg`). This has no functional impact. If `dmesg` shows "Incompatible option enable_guc=2 — HuC is not supported!", the firmware binary may be missing from the initramfs. See step 4.25b.1.3 for troubleshooting.
+
+### DRA (Dynamic Resource Allocation) — Future Alternative
+
+Intel has `intel-resource-drivers-for-kubernetes` using DRA (Kubernetes 1.32+, enabled by default in 1.34+). This is the next-gen replacement for device plugins with better GPU sharing. Still too new for a homelab — stick with the device plugin approach for now.
+
+---
+
 ## Technology Decisions
 
 | Decision | Choice | Why |
@@ -336,3 +383,5 @@ kubectl-homelab delete namespace node-feature-discovery
 | Shared GPU count | sharedDevNum: 3 | Allows Jellyfin + future apps to share iGPU without contention |
 | Jellyfin image | `jellyfin/jellyfin` (official) | Bundles `jellyfin-ffmpeg` with iHD driver built-in |
 | HuC firmware | enable_guc=2 | Required for HEVC low-power encode path on Comet Lake |
+| Transcode cache | Disk-backed emptyDir (not tmpfs) | Avoids OOM/node crash risk, nearly as fast due to page cache |
+| Tone mapping | VPP (not OpenCL) | OpenCL broken in Jellyfin 10.11.x, VPP uses fixed-function HW |
