@@ -4,6 +4,80 @@
 
 ---
 
+## February 16, 2026 — Phase 4.25: ARR Media Stack
+
+### Milestone: Self-Hosted Media Automation Platform
+
+Deployed 6-app ARR media automation stack to `arr-stack` namespace: Prowlarr (indexer manager), Sonarr (TV), Radarr (movies), qBittorrent (download client), Jellyfin (media server), and Bazarr (subtitles). All apps share a single NFS PV mounted at `/data` for hardlink support between downloads and media library. App config stored on Longhorn PVCs (2-5Gi each) for fast I/O and HA.
+
+| Component | Version | Image | Status |
+|-----------|---------|-------|--------|
+| Prowlarr | 2.3.0 | lscr.io/linuxserver/prowlarr:2.3.0 | Running |
+| Sonarr | latest | lscr.io/linuxserver/sonarr:latest | Running |
+| Radarr | latest | lscr.io/linuxserver/radarr:latest | Running |
+| qBittorrent | 5.1.4 | lscr.io/linuxserver/qbittorrent:5.1.4 | Running |
+| Jellyfin | 10.11.6 | jellyfin/jellyfin:10.11.6 | Running |
+| Bazarr | latest | lscr.io/linuxserver/bazarr:latest | Running |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Namespace | `arr-stack` (not `media`) | `media` too generic — Immich is also media |
+| Media storage | NFS on OMV NAS | Hardlinks require single filesystem; NAS has 2TB NVMe |
+| Config storage | Longhorn PVCs | Fast SQLite I/O, 2x replicated, off the single-drive NAS |
+| NFS mount | Single PV/PVC at `/data` for all pods | Required for hardlinks between torrents/ and media/ |
+| Jellyfin image | Official (not LSIO) | Meets PSS restricted, no root required |
+| LSIO apps | s6-overlay v3 with PUID/PGID | Requires CHOWN+SETUID+SETGID capabilities, runs as root |
+| Sonarr/Radarr/Bazarr tags | `:latest` with `imagePullPolicy: Always` | Rapid release cycle, LSIO rebuilds frequently |
+| Seeding | Disabled (ratio 0, Stop torrent) | NAS has single NVMe — preserve TBW |
+| Subtitle provider | OpenSubtitles.com + Podnapisi | Free accounts, public providers |
+| Prowlarr indexers | 1337x, TheRARBG, EZTV, YTS, Nyaa.si | All public, no account required |
+| Jellyfin Connect | Radarr + Sonarr → Jellyfin | Auto library scan on import (instead of 12h schedule) |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/arr-stack/namespace.yaml | Namespace (PSS baseline enforce, restricted audit/warn) |
+| manifests/arr-stack/nfs-pv-pvc.yaml | NFS PV/PVC for shared media storage |
+| manifests/arr-stack/networkpolicy.yaml | CiliumNetworkPolicy (intra-namespace, gateway, monitoring, NFS) |
+| manifests/arr-stack/arr-api-keys-secret.yaml | Shared API keys placeholder for Phase 4.26 companions |
+| manifests/arr-stack/prowlarr/ | Deployment, Service, HTTPRoute |
+| manifests/arr-stack/sonarr/ | Deployment, Service, HTTPRoute |
+| manifests/arr-stack/radarr/ | Deployment, Service, HTTPRoute |
+| manifests/arr-stack/qbittorrent/ | Deployment, Service, HTTPRoute |
+| manifests/arr-stack/jellyfin/ | Deployment, Service, HTTPRoute |
+| manifests/arr-stack/bazarr/ | Deployment, Service, HTTPRoute |
+| scripts/apply-arr-secrets.sh | 1Password → K8s Secret injection script |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| manifests/home/homepage/config/services.yaml | Added Media section with 6 ARR widgets |
+| .gitignore | Un-ignored apply-arr-secrets.sh and arr-api-keys-secret.yaml |
+| CLAUDE.md | Added 1Password CLI limitation note |
+
+### Critical Gotchas Discovered
+
+1. **qBittorrent Torrent Management Mode** — Must be set to `Automatic` (not `Manual`) for category-based save paths to work. Default `Manual` saves to `/downloads` which doesn't exist in the container.
+2. **qBittorrent CSRF on HTTP API** — Health endpoint returns 403 due to CSRF protection. Use `tcpSocket` probes on port 8080, not `httpGet`.
+3. **Seeding disabled = no hardlinks** — With ratio 0 + "Remove Completed Downloads" in Radarr, source is deleted after import. File has link count 1 (effectively a move, not a hardlink). Expected behavior when seeding is disabled.
+4. **Jellyfin no auto-scan on NFS** — NFS doesn't support inotify. Must add Jellyfin Connect integration in Radarr/Sonarr (Settings → Connect → Emby/Jellyfin) for automatic library refresh on import.
+5. **NetworkPolicy blocks Uptime Kuma** — Internal K8s service URLs timeout from uptime-kuma namespace. Use HTTPS URLs with 403 accepted status codes for monitoring.
+6. **`kubectl-homelab` alias unavailable in bash scripts** — Alias is zsh-only. Scripts must use `kubectl --kubeconfig ${HOME}/.kube/homelab.yaml`.
+7. **1GbE NIC bottleneck** — K8s nodes have 1GbE NICs, NAS has 2.5GbE. Download speeds may be limited by node NIC (investigation deferred to Phase 4.26).
+
+### 1Password Items
+
+| Item | Vault | Fields |
+|------|-------|--------|
+| ARR Stack | Kubernetes | username, password, prowlarr-api-key, sonarr-api-key, radarr-api-key, bazarr-api-key, jellyfin-api-key |
+| Opensubtitles | Kubernetes | username, user[password_confirmation] |
+
+---
+
 ## February 13, 2026 — Phase 4.10: Tailscale Operator (Subnet Router)
 
 ### Milestone: Secure Remote Access via WireGuard Mesh VPN

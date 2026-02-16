@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.22.0 (Tailscale Operator)
+> **Latest Release:** v0.23.0 (ARR Media Stack)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -31,10 +31,11 @@
 | v0.20.0 | Ollama Local AI (CPU) | Phase 4.23 | ✅ Released |
 | v0.21.0 | Karakeep Migration | Phase 4.24 | ✅ Released |
 | v0.22.0 | Tailscale Operator | Phase 4.10 | ✅ Released |
-| v0.23.0 | ARR Stack Core | Phase 4.25 | ⬜ Planned |
-| v0.24.0 | ARR Companions | Phase 4.26 | ⬜ Planned |
-| v0.25.0 | Version Automation & Upgrade Runbooks | Phase 4.27 | ⬜ Planned |
-| v0.26.0 | Production Hardening | Phase 5 | ⬜ Planned |
+| v0.23.0 | ARR Media Stack | Phase 4.25 | ✅ Released |
+| v0.24.0 | Intel QSV Hardware Transcoding | Phase 4.25b | ⬜ Planned |
+| v0.25.0 | ARR Companions | Phase 4.26 | ⬜ Planned |
+| v0.26.0 | Version Automation & Upgrade Runbooks | Phase 4.27 | ⬜ Planned |
+| v0.27.0 | Production Hardening | Phase 5 | ⬜ Planned |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 
 ---
@@ -69,12 +70,13 @@
 | 4.23 | Ollama Local AI (CPU) | [phase-4.23-ollama.md](completed/phase-4.23-ollama.md) |
 | 4.24 | Karakeep Migration | [phase-4.24-karakeep.md](completed/phase-4.24-karakeep.md) |
 | 4.10 | Tailscale Operator | [phase-4.10-tailscale-operator.md](completed/phase-4.10-tailscale-operator.md) |
+| 4.25 | ARR Media Stack | [phase-4.25-arr-stack.md](completed/phase-4.25-arr-stack.md) |
 
 ### Planned
 
 | Phase | Description | File |
 |-------|-------------|------|
-| 4.25 | ARR Stack Core | [phase-4.25-arr-stack.md](phase-4.25-arr-stack.md) |
+| 4.25b | Intel QSV Hardware Transcoding | [phase-4.25b-intel-qsv.md](phase-4.25b-intel-qsv.md) |
 | 4.26 | ARR Companions | [phase-4.26-arr-companions.md](phase-4.26-arr-companions.md) |
 | 4.27 | Version Automation & Upgrade Runbooks | [phase-4.27-version-automation.md](phase-4.27-version-automation.md) |
 | 5 | Production Hardening | [phase-5-hardening.md](phase-5-hardening.md) |
@@ -121,7 +123,7 @@
 | `karakeep` | Karakeep bookmark manager (web, Chrome, Meilisearch) | SQLite (PVC) |
 | `tailscale` | Tailscale Operator + Connector (subnet router) | None (stateless) |
 | `immich` | Immich server, ML, Redis | Own PostgreSQL |
-| `media` | Sonarr, Radarr, Prowlarr, qBit, Jellyfin | SQLite (config on Longhorn) |
+| `arr-stack` | Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin, Bazarr | SQLite (config on Longhorn, media on NFS) |
 
 ### Why This Pattern
 - **Matches Docker Compose** — each project = one namespace

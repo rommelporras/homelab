@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, networking, dns, vlan]
-updated: 2026-02-13
+updated: 2026-02-16
 ---
 
 # Networking
@@ -72,6 +72,12 @@ Network configuration for the homelab cluster.
 | MySpeed | https://myspeed.k8s.rommelporras.com | base |
 | Firefox Browser | https://browser.k8s.rommelporras.com | base |
 | Karakeep | https://karakeep.k8s.rommelporras.com | base |
+| Prowlarr | https://prowlarr.k8s.rommelporras.com | base |
+| Sonarr | https://sonarr.k8s.rommelporras.com | base |
+| Radarr | https://radarr.k8s.rommelporras.com | base |
+| qBittorrent | https://qbit.k8s.rommelporras.com | base |
+| Jellyfin | https://jellyfin.k8s.rommelporras.com | base |
+| Bazarr | https://bazarr.k8s.rommelporras.com | base |
 
 ## Tailscale (Remote Access)
 

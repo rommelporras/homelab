@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
-3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 22 releases, each with a [complete rebuild guide](docs/rebuild/README.md).
+3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 23 releases, each with a [complete rebuild guide](docs/rebuild/README.md).
 
 > **Owner:** Rommel Porras  |  **CKA Target:** September 2026
 
@@ -86,6 +86,7 @@ LAN / VLANs   ─→  AdGuard DNS  ─→  Cilium L2 VIP  ─→  Gateway API  �
 **Applications**
 - GitLab CE (Runner, Container Registry, SSH) with CI/CD pipelines
 - Ghost Blog (dev/prod, MySQL, Tinybird analytics, Cloudflare Tunnel)
+- ARR Media Stack (Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin, Bazarr)
 - Ollama (CPU-only LLM: qwen3, moondream, gemma3)
 - Karakeep (bookmark manager with Ollama AI tagging + Meilisearch)
 - Portfolio (Next.js, 3-env GitLab CI/CD: dev/staging/prod)
@@ -118,7 +119,7 @@ Things that bit us and might save you time:
 
 - **Cloudflare free SSL wildcard depth** — Free plans only cover `*.rommelporras.com`, NOT `*.blog.rommelporras.com`. We use single-level subdomains like `blog-api.rommelporras.com` for analytics endpoints to stay on the free tier.
 
-- **Rebuild guides as a pattern** — Every release (v0.1.0 through v0.22.0) has a [complete rebuild guide](docs/rebuild/README.md). If the cluster dies, we can rebuild everything from scratch by following the guides in order. This also serves as living documentation that never goes stale.
+- **Rebuild guides as a pattern** — Every release (v0.1.0 through v0.23.0) has a [complete rebuild guide](docs/rebuild/README.md). If the cluster dies, we can rebuild everything from scratch by following the guides in order. This also serves as living documentation that never goes stale.
 
 - **CiliumNetworkPolicy vs forwarded traffic** — CiliumNetworkPolicy filters forwarded/routed packets, not just local pod traffic. This means a network policy on a Tailscale Connector pod will break subnet routing entirely. Only apply policies to the operator, not the proxy.
 
@@ -129,7 +130,7 @@ Things that bit us and might save you time:
 | Document | Purpose |
 |----------|---------|
 | [docs/context/Cluster.md](docs/context/Cluster.md) | **Source of truth** — nodes, IPs, hardware |
-| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (22 releases, v0.1.0 to v0.22.0) |
+| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (23 releases, v0.1.0 to v0.23.0) |
 | [docs/context/](docs/context/) | Knowledge base (11 topic files: Architecture, Gateway, Networking, etc.) |
 | [docs/todo/](docs/todo/README.md) | Phase plans (active + [completed](docs/todo/completed/)) |
 | [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md) | Decision history and project timeline |
@@ -139,6 +140,6 @@ Things that bit us and might save you time:
 
 ## Next Steps
 
-1. **ARR Stack Core** — Sonarr, Radarr, Prowlarr, qBittorrent, Jellyfin (Phase 4.25)
-2. **Version Automation** — Upgrade runbooks and automation (Phase 4.27)
+1. **Intel QSV Hardware Transcoding** — Jellyfin GPU passthrough for H.264/HEVC (Phase 4.25b)
+2. **ARR Companions** — Configarr, Unpackerr, Scraparr (Phase 4.26)
 3. **CKA Certification** — September 2026 target

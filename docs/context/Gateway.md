@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, gateway, tls, cert-manager]
-updated: 2026-02-12
+updated: 2026-02-16
 ---
 
 # Gateway API
@@ -40,10 +40,10 @@ Gateway API for HTTPS ingress with automatic TLS certificates.
     +-------+-------+-------+-------+-------+---------+---------+---------+---------+---------+---------+---------+
     v       v       v       v       v       v         v         v         v         v         v         v
 +------++------++------++------++------++--------++--------++--------++--------++--------++--------++--------+
-|Grafan||AdGuar||Homepg||Longh.||GitLab||Portfol.||Ghost   ||Invoice-||Uptime  ||MySpeed ||Firefox ||Kara-  |
-| base || base || base || base || base ||dev/stg/ ||dev/prod|| tron   || Kuma   || base   || base   ||keep   |
-|      ||      ||      ||      ||      || prod   ||        ||dev/prod|| base   ||        ||        || base  |
-+------++------++------++------++------++--------++--------++--------++--------++--------++--------++--------+
+|Grafan||AdGuar||Homepg||Longh.||GitLab||Portfol.||Ghost   ||Invoice-||Uptime  ||MySpeed ||Firefox ||Kara-  ||ARR    |
+| base || base || base || base || base ||dev/stg/ ||dev/prod|| tron   || Kuma   || base   || base   ||keep   ||Stack  |
+|      ||      ||      ||      ||      || prod   ||        ||dev/prod|| base   ||        ||        || base  || base  |
++------++------++------++------++------++--------++--------++--------++--------++--------++--------++--------++-------+
 ```
 
 ## Components
@@ -124,6 +124,12 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 | MySpeed | https://myspeed.k8s.rommelporras.com | myspeed | home | https |
 | Firefox Browser | https://browser.k8s.rommelporras.com | firefox | browser | https |
 | Karakeep | https://karakeep.k8s.rommelporras.com | karakeep | karakeep | https |
+| Prowlarr | https://prowlarr.k8s.rommelporras.com | prowlarr | arr-stack | https |
+| Sonarr | https://sonarr.k8s.rommelporras.com | sonarr | arr-stack | https |
+| Radarr | https://radarr.k8s.rommelporras.com | radarr | arr-stack | https |
+| qBittorrent | https://qbit.k8s.rommelporras.com | qbittorrent | arr-stack | https |
+| Jellyfin | https://jellyfin.k8s.rommelporras.com | jellyfin | arr-stack | https |
+| Bazarr | https://bazarr.k8s.rommelporras.com | bazarr | arr-stack | https |
 
 ## Adding a New Service
 

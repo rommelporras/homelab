@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, storage, longhorn, nfs]
-updated: 2026-02-03
+updated: 2026-02-16
 ---
 
 # Storage
@@ -72,7 +72,7 @@ All K8s NFS storage uses a **single export** (`/export/Kubernetes`) with **one s
 | Subdirectory | NFSv4 Mount Path | K8s PV | Namespace | Status |
 |-------------|-----------------|--------|-----------|--------|
 | `Immich/` | `/Kubernetes/Immich` | `immich-nfs` | `immich` | Deployed |
-| `Media/` | `/Kubernetes/Media` | `arr-data-nfs` | `media` | Planned (Phase 4.25) |
+| `Media/` | `/Kubernetes/Media` | `arr-data-nfs` | `arr-stack` | Deployed |
 | `Documents/` | `/Kubernetes/Documents` | TBD | TBD | Future (Nextcloud/Paperless-ngx) |
 
 **NFSv4 path note:** OMV has `/export` with `fsid=0` as the pseudo-root. Filesystem path `/export/Kubernetes/Media` becomes NFSv4 mount path `/Kubernetes/Media`.

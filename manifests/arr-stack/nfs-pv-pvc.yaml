@@ -5,11 +5,11 @@
 #   /data/
 #   ├── torrents/         (qBittorrent downloads here)
 #   │   ├── movies/
-#   │   ├── tv/
+#   │   ├── series/
 #   │   └── music/
 #   └── media/            (Sonarr/Radarr hardlink here, Jellyfin reads from here)
 #       ├── movies/
-#       ├── tv/
+#       ├── series/
 #       └── music/
 #
 # CRITICAL: All apps mount the SAME PVC at /data so hardlinks work

@@ -64,6 +64,8 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Karakeep | `nextauth-secret`, `meili-master-key`, `api-key` | Karakeep auth + Meilisearch + Homepage widget |
 | Tailscale K8s Operator | `client-id`, `client-secret`, `api-token` | Tailscale OAuth + Homepage widget (api-token expires 2026-05-14) |
 | Portfolio | `kube-api-url`, `kube-token-development`, `kube-token-staging`, `kube-token-production` | GitLab CI/CD (portfolio deploy to K8s) |
+| ARR Stack | `username`, `password`, `prowlarr-api-key`, `sonarr-api-key`, `radarr-api-key`, `bazarr-api-key`, `jellyfin-api-key` | All ARR apps (shared login), Homepage widgets, arr-api-keys Secret |
+| Opensubtitles | `username`, `user[password_confirmation]` | Bazarr subtitle provider (OpenSubtitles.com) |
 | iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
 
 ## 1Password Paths
@@ -157,6 +159,19 @@ op://Kubernetes/Portfolio/kube-api-url
 op://Kubernetes/Portfolio/kube-token-development
 op://Kubernetes/Portfolio/kube-token-staging
 op://Kubernetes/Portfolio/kube-token-production
+
+# ARR Stack (shared credentials for all ARR apps)
+op://Kubernetes/ARR Stack/username
+op://Kubernetes/ARR Stack/password
+op://Kubernetes/ARR Stack/prowlarr-api-key
+op://Kubernetes/ARR Stack/sonarr-api-key
+op://Kubernetes/ARR Stack/radarr-api-key
+op://Kubernetes/ARR Stack/bazarr-api-key
+op://Kubernetes/ARR Stack/jellyfin-api-key
+
+# Opensubtitles (Bazarr subtitle provider)
+op://Kubernetes/Opensubtitles/username
+op://Kubernetes/Opensubtitles/user[password_confirmation]
 
 # Homepage (widget credentials)
 op://Kubernetes/Homepage/proxmox-pve-user

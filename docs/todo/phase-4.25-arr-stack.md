@@ -7,7 +7,7 @@
 > **DevOps Topics:** NFS storage, multi-app deployment, cross-app API integration, hardlinks
 > **CKA Topics:** Deployment, Service, PVC, PV, HTTPRoute, Secret, NetworkPolicy, NFS volumes
 
-> **Purpose:** Deploy the core *ARR media automation stack on Kubernetes — Prowlarr, Sonarr, Radarr, qBittorrent, and Jellyfin — with a shared NFS volume from the OMV NAS for media storage and Longhorn for app config.
+> **Purpose:** Deploy the core *ARR media automation stack on Kubernetes — Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin, and Bazarr — with a shared NFS volume from the OMV NAS for media storage and Longhorn for app config.
 >
 > **Why:** Self-hosted media automation with full control. No cloud dependencies, no subscriptions. Centralized on K8s with monitoring, automatic restarts, and Longhorn-replicated config databases.
 
@@ -38,14 +38,16 @@
 │                   └────────────┬────────────┘                 │
 │                                │                               │
 │                   ┌────────────▼────────────┐                 │
-│                   │  Jellyfin               │                 │
-│                   │  :8096                   │                 │
+│                   │  Jellyfin :8096          │                 │
 │                   │  (media server)          │                 │
+│                   │                          │                 │
+│                   │  Bazarr :6767            │                 │
+│                   │  (subtitles)             │                 │
 │                   └─────────────────────────┘                 │
 │                                                                 │
-│  Config PVCs (Longhorn 2Gi each):                              │
+│  Config PVCs (Longhorn 2Gi each, 5Gi Jellyfin):               │
 │  prowlarr-config, sonarr-config, radarr-config,               │
-│  qbittorrent-config, jellyfin-config                           │
+│  qbittorrent-config, jellyfin-config, bazarr-config            │
 └─────────────────────────────────────────────────────────────────┘
                           │
                      OMV NAS (10.10.30.4)
@@ -584,11 +586,13 @@ All *ARR apps and qBittorrent mount the **same NFS export** at `/data`. This ena
     PROWLARR_API_KEY: SET_VIA_SCRIPT
     SONARR_API_KEY: SET_VIA_SCRIPT
     RADARR_API_KEY: SET_VIA_SCRIPT
+    BAZARR_API_KEY: SET_VIA_SCRIPT
   ```
   Apply script (`scripts/apply-arr-secrets.sh`):
   ```bash
   #!/bin/bash
-  kubectl-homelab apply -f - <<EOF
+  KUBECTL="kubectl --kubeconfig ${HOME}/.kube/homelab.yaml"
+  $KUBECTL apply -f - <<EOF
   apiVersion: v1
   kind: Secret
   metadata:
@@ -599,6 +603,7 @@ All *ARR apps and qBittorrent mount the **same NFS export** at `/data`. This ena
     PROWLARR_API_KEY: "$(op read 'op://Kubernetes/ARR Stack/prowlarr-api-key')"
     SONARR_API_KEY: "$(op read 'op://Kubernetes/ARR Stack/sonarr-api-key')"
     RADARR_API_KEY: "$(op read 'op://Kubernetes/ARR Stack/radarr-api-key')"
+    BAZARR_API_KEY: "$(op read 'op://Kubernetes/ARR Stack/bazarr-api-key')"
   EOF
   ```
 
@@ -693,7 +698,7 @@ Fits comfortably on your 3-node cluster (~6% of total memory).
 - [x] Sonarr root folder set to `/data/media/series/`, connected to Prowlarr + qBittorrent
 - [x] Radarr root folder set to `/data/media/movies/`, connected to Prowlarr + qBittorrent
 - [x] Import workflow verified (download → import → cleanup, hardlinks N/A with seeding disabled)
-- [ ] Jellyfin library scan finds media
+- [x] Jellyfin library scan finds media
 - [x] All HTTPRoutes accessible
 - [x] Homepage entries functional (widgets showing data)
 - [x] Uptime Kuma monitoring all endpoints (Media group, 403 accepted)
@@ -785,6 +790,8 @@ All apps communicate via K8s service DNS within the `arr-stack` namespace:
 | Radarr | qBittorrent | `http://qbittorrent.arr-stack.svc.cluster.local:8080` |
 | Bazarr | Sonarr | `http://sonarr.arr-stack.svc.cluster.local:8989` |
 | Bazarr | Radarr | `http://radarr.arr-stack.svc.cluster.local:7878` |
+| Sonarr | Jellyfin | `http://jellyfin.arr-stack.svc.cluster.local:8096` |
+| Radarr | Jellyfin | `http://jellyfin.arr-stack.svc.cluster.local:8096` |
 
 ---
 

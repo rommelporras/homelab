@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** February 13, 2026
+> **Last Updated:** February 16, 2026
 
 ---
 
@@ -90,7 +90,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.10 complete. Tailscale Operator subnet router for remote access.
+> **Status:** Phase 4.25 complete. ARR Media Stack deployed.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -117,6 +117,12 @@ helm-homelab repo update
 | gemma3:1b | Q4_K_M | Running | Fallback text model (0.8 GB) |
 | Tailscale Operator | v1.94.1 | Running | Watches CRDs, manages proxy pods |
 | Tailscale Proxy (Connector) | v1.94.1 | Running | WireGuard subnet router (homelab-subnet) |
+| Prowlarr | 2.3.0 (LSIO) | Running | Indexer manager (arr-stack namespace) |
+| Sonarr | latest (LSIO) | Running | TV show management (imagePullPolicy: Always) |
+| Radarr | latest (LSIO) | Running | Movie management (imagePullPolicy: Always) |
+| qBittorrent | 5.1.4 (LSIO) | Running | Download client (arr-stack namespace) |
+| Jellyfin | 10.11.6 (official) | Running | Media server (CPU transcoding) |
+| Bazarr | latest (LSIO) | Running | Subtitle management (imagePullPolicy: Always) |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -146,6 +152,12 @@ helm-homelab repo update
 | MySpeed | myspeed.k8s.rommelporras.com | base | home |
 | Firefox Browser | browser.k8s.rommelporras.com | base | browser |
 | Karakeep | karakeep.k8s.rommelporras.com | base | karakeep |
+| Prowlarr | prowlarr.k8s.rommelporras.com | base | arr-stack |
+| Sonarr | sonarr.k8s.rommelporras.com | base | arr-stack |
+| Radarr | radarr.k8s.rommelporras.com | base | arr-stack |
+| qBittorrent | qbit.k8s.rommelporras.com | base | arr-stack |
+| Jellyfin | jellyfin.k8s.rommelporras.com | base | arr-stack |
+| Bazarr | bazarr.k8s.rommelporras.com | base | arr-stack |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |

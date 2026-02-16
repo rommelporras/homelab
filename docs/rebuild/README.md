@@ -30,6 +30,7 @@
 | v0.20.0 | Phase 4.23 | Ollama Local AI (CPU-only LLM inference) | [v0.20.0-ollama.md](v0.20.0-ollama.md) |
 | v0.21.0 | Phase 4.24 | Karakeep Migration (bookmark manager + AI tagging) | [v0.21.0-karakeep.md](v0.21.0-karakeep.md) |
 | v0.22.0 | Phase 4.10 | Tailscale Operator (subnet router for remote access) | [v0.22.0-tailscale-operator.md](v0.22.0-tailscale-operator.md) |
+| v0.23.0 | Phase 4.25 | ARR Media Stack (Prowlarr, Sonarr, Radarr, qBit, Jellyfin, Bazarr) | [v0.23.0-arr-stack.md](v0.23.0-arr-stack.md) |
 
 ---
 
@@ -103,6 +104,9 @@ docs/rebuild/v0.21.0-karakeep.md
 
 # 22. Tailscale Operator - Subnet router for remote access
 docs/rebuild/v0.22.0-tailscale-operator.md
+
+# 23. ARR Media Stack - Prowlarr, Sonarr, Radarr, qBit, Jellyfin, Bazarr
+docs/rebuild/v0.23.0-arr-stack.md
 ```
 
 ---
@@ -190,6 +194,12 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | qwen2.5:3b | Q4_K_M | v0.21.0 |
 | Tailscale Operator | v1.94.1 | v0.22.0 |
 | Tailscale Proxy (Connector) | v1.94.1 | v0.22.0 |
+| Prowlarr | 2.3.0 (LSIO) | v0.23.0 |
+| Sonarr | latest (LSIO) | v0.23.0 |
+| Radarr | latest (LSIO) | v0.23.0 |
+| qBittorrent | 5.1.4 (LSIO) | v0.23.0 |
+| Jellyfin | 10.11.6 (official) | v0.23.0 |
+| Bazarr | latest (LSIO) | v0.23.0 |
 
 ---
 
@@ -279,6 +289,17 @@ homelab/
 │   │   ├── namespace.yaml
 │   │   ├── connector.yaml
 │   │   └── networkpolicy.yaml
+│   ├── arr-stack/                      # v0.23.0
+│   │   ├── namespace.yaml
+│   │   ├── nfs-pv-pvc.yaml
+│   │   ├── networkpolicy.yaml
+│   │   ├── arr-api-keys-secret.yaml
+│   │   ├── prowlarr/{deployment,service,httproute}.yaml
+│   │   ├── sonarr/{deployment,service,httproute}.yaml
+│   │   ├── radarr/{deployment,service,httproute}.yaml
+│   │   ├── qbittorrent/{deployment,service,httproute}.yaml
+│   │   ├── jellyfin/{deployment,service,httproute}.yaml
+│   │   └── bazarr/{deployment,service,httproute}.yaml
 │   ├── cloudflare/                     # v0.7.0
 │   │   ├── deployment.yaml
 │   │   ├── networkpolicy.yaml
@@ -319,7 +340,8 @@ homelab/
 │   ├── upgrade-prometheus.sh           # v0.5.0
 │   ├── sync-ghost-prod-to-dev.sh      # v0.11.0
 │   ├── sync-ghost-prod-to-local.sh    # v0.11.0
-│   └── test-cloudflare-networkpolicy.sh  # v0.7.0
+│   ├── test-cloudflare-networkpolicy.sh  # v0.7.0
+│   └── apply-arr-secrets.sh           # v0.23.0
 ```
 
 ---
@@ -352,3 +374,5 @@ homelab/
 | Firefox Browser | Kubernetes | v0.18.0 |
 | Karakeep | Kubernetes | v0.21.0 |
 | Tailscale K8s Operator | Kubernetes | v0.22.0 |
+| ARR Stack | Kubernetes | v0.23.0 |
+| Opensubtitles | Kubernetes | v0.23.0 |
