@@ -1,6 +1,6 @@
 # Phase 4.25b: Intel QSV Hardware Transcoding
 
-> **Status:** Planned
+> **Status:** In Progress
 > **Target:** v0.24.0
 > **Prerequisite:** Phase 4.25 (Jellyfin deployed and working with CPU transcoding)
 > **Priority:** Medium (enables mobile streaming on weak connections)
@@ -61,10 +61,10 @@
 
 ## Prerequisites
 
-- [ ] Phase 4.25 complete — Jellyfin running with CPU transcoding
-- [ ] Verify `/dev/dri/renderD128` exists on all nodes: `ls -la /dev/dri/`
-- [ ] Verify `render` and `video` group GIDs on nodes: `getent group render video`
-- [ ] cert-manager running (required by Intel Device Plugins Operator webhooks)
+- [x] Phase 4.25 complete — Jellyfin running with CPU transcoding
+- [x] Verify `/dev/dri/renderD128` exists on all nodes: `ls -la /dev/dri/`
+- [x] Verify `render` and `video` group GIDs on nodes: `getent group render video` — **render:993, video:44**
+- [x] cert-manager running (required by Intel Device Plugins Operator webhooks)
 
 ---
 
@@ -72,7 +72,7 @@
 
 ### 4.25b.1 Node Preparation (Ansible — All 3 Nodes)
 
-- [ ] 4.25b.1.1 Create Ansible playbook `ansible/playbooks/08-intel-gpu.yml`:
+- [x] 4.25b.1.1 Create Ansible playbook `ansible/playbooks/08-intel-gpu.yml`:
   ```yaml
   # Install Intel media driver and verification tools
   - name: Install Intel GPU packages
@@ -122,7 +122,7 @@
 
   # Note GIDs for Jellyfin pod config
   getent group render video
-  # Expect: render:x:104, video:x:44 (verify exact GIDs)
+  # Confirmed: render:x:993, video:x:44
   ```
 
 ### 4.25b.2 Deploy Node Feature Discovery
@@ -146,12 +146,11 @@
 
 ### 4.25b.3 Deploy Intel Device Plugins Operator + GPU Plugin
 
-- [ ] 4.25b.3.1 Create `helm/intel-gpu-plugin/values.yaml`:
+- [x] 4.25b.3.1 Create `helm/intel-gpu-plugin/values.yaml`:
   ```yaml
   name: gpudeviceplugin
   sharedDevNum: 3          # Allow 3 pods to share each iGPU
   logLevel: 2
-  resourceManager: false
   enableMonitoring: true
   allocationPolicy: "none"
   nodeFeatureRule: true
@@ -183,7 +182,7 @@
 
 ### 4.25b.4 Update Jellyfin Deployment for QSV
 
-- [ ] 4.25b.4.1 Update `manifests/arr-stack/jellyfin/deployment.yaml`:
+- [x] 4.25b.4.1 Update `manifests/arr-stack/jellyfin/deployment.yaml`:
   - Add GPU resource request/limit:
     ```yaml
     resources:
@@ -196,12 +195,12 @@
         memory: "4Gi"
         gpu.intel.com/i915: "1"
     ```
-  - Add supplemental groups to pod security context (verify actual GIDs from step 4.25b.1.3):
+  - Add supplemental groups to pod security context (verified GIDs from all 3 nodes):
     ```yaml
     securityContext:
       supplementalGroups:
-        - 44    # video (verify: getent group video)
-        - 104   # render (verify: getent group render)
+        - 44    # video
+        - 993   # render
     ```
   - Add disk-backed emptyDir for transcode cache (NOT tmpfs — see Known Issues):
     ```yaml
@@ -221,6 +220,21 @@
   kubectl-homelab -n arr-stack describe pod -l app=jellyfin | grep gpu.intel.com
   # Expect: gpu.intel.com/i915: 1
   ```
+
+### 4.25b.4b Grafana Dashboard for Jellyfin & GPU
+
+- [x] 4.25b.4b.1 Create `manifests/monitoring/jellyfin-dashboard-configmap.yaml`:
+  - **Pod Status row:** UP/DOWN stat panel for Jellyfin deployment
+  - **GPU Allocation row:** `gpu.intel.com/i915` allocated vs available per node (from kube-state-metrics: `kube_pod_container_resource_requests`, `kube_node_status_allocatable`)
+  - **Resource Usage row:** CPU + Memory with dashed request/limit lines, highlight memory during transcoding (idle ~300-500Mi, per stream +200-500Mi)
+  - **Transcode Cache row:** Ephemeral storage usage for `/config/transcodes` emptyDir (from `container_fs_usage_bytes`)
+- [ ] 4.25b.4b.2 Apply dashboard ConfigMap:
+  ```bash
+  kubectl-homelab apply -f manifests/monitoring/jellyfin-dashboard-configmap.yaml
+  ```
+- [ ] 4.25b.4b.3 Verify dashboard loads in Grafana
+
+> **Note:** Actual GPU engine utilization (Video/Render/Blitter %) requires `intel-gpu-exporter` or similar. Out of scope for this phase — use `sudo intel_gpu_top` on nodes for manual checks. Can be added in Phase 4.28 (Observability Improvements).
 
 ### 4.25b.5 Configure Jellyfin QSV in UI
 
@@ -291,6 +305,7 @@ Minimal footprint. The GPU plugin DaemonSet is very lightweight.
 |------|------|---------|
 | `ansible/playbooks/08-intel-gpu.yml` | Ansible Playbook | Install Intel GPU drivers + HuC firmware on all nodes |
 | `helm/intel-gpu-plugin/values.yaml` | Helm Values | Intel GPU Plugin configuration (v0.34.1) |
+| `manifests/monitoring/jellyfin-dashboard-configmap.yaml` | ConfigMap | Grafana dashboard for Jellyfin + GPU allocation |
 
 ### Pinned Versions
 
@@ -321,6 +336,7 @@ Minimal footprint. The GPU plugin DaemonSet is very lightweight.
 - [ ] `intel_gpu_top` shows Video engine activity during transcode
 - [ ] VPP tone mapping works on HDR content (no blocky/pixelated output)
 - [ ] Mobile phone playback smooth on low bandwidth
+- [ ] Grafana dashboard loads and shows GPU allocation + Jellyfin resource usage
 
 ---
 

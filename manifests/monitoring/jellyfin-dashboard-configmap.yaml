@@ -1,0 +1,527 @@
+# Grafana Dashboard - Jellyfin Media Server + Intel QSV GPU
+# Phase 4.25b: Pod health, GPU allocation, streaming traffic, resource usage
+# Auto-provisioned via grafana_dashboard label
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jellyfin-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus-stack
+data:
+  jellyfin.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "title": "Pod Status",
+          "type": "row",
+          "description": "Jellyfin media server pod health. Runs as a single-replica Deployment in the arr-stack namespace with Recreate strategy."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+          "id": 2,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          },
+          "description": "Jellyfin Deployment available replicas. Green = running, Red = down. Single replica with Recreate strategy — brief downtime during updates.",
+          "title": "Jellyfin",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "kube_deployment_status_replicas_available{namespace=\"arr-stack\", deployment=\"jellyfin\"}",
+              "legendFormat": "Available"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "orange", "value": 3600 },
+                  { "color": "green", "value": 86400 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+          "id": 3,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          },
+          "description": "How long the Jellyfin pod has been running. Red < 1 hour, orange < 1 day, green > 1 day.",
+          "title": "Uptime",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "time() - kube_pod_start_time{namespace=\"arr-stack\", pod=~\"jellyfin.*\"}",
+              "legendFormat": "Uptime"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 3 },
+                  { "color": "red", "value": 5 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+          "id": 4,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          },
+          "description": "Total container restarts for Jellyfin. Frequent restarts during transcoding may indicate OOM kills (check memory usage).",
+          "title": "Container Restarts",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"arr-stack\", pod=~\"jellyfin.*\"})",
+              "legendFormat": "Total"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "text", "value": null }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+          "id": 5,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^node$/" },
+            "textMode": "value"
+          },
+          "description": "Which cluster node is currently running the Jellyfin pod. Relevant for GPU device access — each node has its own UHD 630 iGPU.",
+          "title": "Running on Node",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "kube_pod_info{namespace=\"arr-stack\", pod=~\"jellyfin.*\"}",
+              "legendFormat": "{{ node }}"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "id": 10,
+          "title": "GPU Allocation",
+          "type": "row",
+          "description": "Intel GPU (gpu.intel.com/i915) resource allocation across the cluster. Each node has 1 UHD 630 iGPU shared as 3 virtual slots (sharedDevNum=3). Jellyfin requests 1 slot."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "short",
+              "decimals": 0,
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byRegexp", "options": "/Allocatable/" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "id": 11,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "GPU slots requested by pods vs total allocatable per node. Each node has sharedDevNum=3 (3 virtual slots per iGPU). Dashed lines = allocatable capacity, solid lines = requested by pods. If requested equals allocatable, no more GPU pods can schedule on that node.",
+          "title": "GPU Slots: Requested vs Allocatable (per node)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "kube_node_status_allocatable{resource=\"gpu_intel_com_i915\"}",
+              "legendFormat": "{{ node }} Allocatable"
+            },
+            {
+              "expr": "sum by (node) (kube_pod_container_resource_requests{resource=\"gpu_intel_com_i915\"} * on(pod, namespace) group_left(node) kube_pod_info)",
+              "legendFormat": "{{ node }} Requested"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 6, "x": 12, "y": 6 },
+          "id": 12,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto",
+            "orientation": "vertical"
+          },
+          "description": "Total GPU slots available for scheduling across all nodes. Sum of (allocatable - requested) for gpu.intel.com/i915. When this reaches 0, no more GPU workloads can be scheduled.",
+          "title": "Available GPU Slots (cluster)",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "sum(kube_node_status_allocatable{resource=\"gpu_intel_com_i915\"}) - sum(kube_pod_container_resource_requests{resource=\"gpu_intel_com_i915\"})",
+              "legendFormat": "Available"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 6, "x": 18, "y": 6 },
+          "id": 13,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto",
+            "orientation": "vertical"
+          },
+          "description": "Total GPU slots allocated to pods across all nodes. Currently only Jellyfin uses GPU (1 slot). Phase 4.26+ may add more GPU consumers.",
+          "title": "GPU Slots In Use (cluster)",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "sum(kube_pod_container_resource_requests{resource=\"gpu_intel_com_i915\"}) or vector(0)",
+              "legendFormat": "In Use"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+          "id": 20,
+          "title": "Network Traffic",
+          "type": "row",
+          "description": "Jellyfin pod network traffic. High transmit rates indicate active streaming sessions. Spikes during media scans or metadata downloads are normal."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "Bps"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Transmit" },
+                "properties": [
+                  { "id": "custom.transform", "value": "negative-Y" }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+          "id": 21,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Jellyfin network throughput in bytes/sec. Transmit (below zero) = data sent to clients (streaming). Receive (above zero) = data from NFS/metadata. During transcoding, transmit shows the output bitrate being sent to clients.",
+          "title": "Streaming Throughput",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"arr-stack\", pod=~\"jellyfin.*\"}[5m]))",
+              "legendFormat": "Receive"
+            },
+            {
+              "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"arr-stack\", pod=~\"jellyfin.*\"}[5m]))",
+              "legendFormat": "Transmit"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "pps"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Transmit" },
+                "properties": [
+                  { "id": "custom.transform", "value": "negative-Y" }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+          "id": 22,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Jellyfin packet rate. High packet rates with low throughput may indicate many small requests (API calls, metadata fetches). High throughput with moderate packets = active streaming.",
+          "title": "Packet Rate",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(container_network_receive_packets_total{namespace=\"arr-stack\", pod=~\"jellyfin.*\"}[5m]))",
+              "legendFormat": "Receive"
+            },
+            {
+              "expr": "sum(rate(container_network_transmit_packets_total{namespace=\"arr-stack\", pod=~\"jellyfin.*\"}[5m]))",
+              "legendFormat": "Transmit"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+          "id": 30,
+          "title": "Resource Usage",
+          "type": "row",
+          "description": "CPU and memory consumption of the Jellyfin pod. Memory is the key metric during transcoding — each active transcode stream adds ~200-500Mi. Memory limit is 4Gi to accommodate 2-3 concurrent transcodes."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+          "id": 31,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "CPU cores used by Jellyfin. With QSV hardware transcoding, CPU usage should stay low even during transcoding (iGPU handles the heavy lifting). High CPU during transcode may indicate QSV fallback to software encoding — check pod logs for h264_qsv vs libx264.",
+          "title": "CPU Usage (cores)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"arr-stack\", pod=~\"jellyfin.*\", container=\"jellyfin\"}[5m]))",
+              "legendFormat": "Usage"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_requests{namespace=\"arr-stack\", pod=~\"jellyfin.*\", container=\"jellyfin\", resource=\"cpu\"})",
+              "legendFormat": "Request (500m)"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_limits{namespace=\"arr-stack\", pod=~\"jellyfin.*\", container=\"jellyfin\", resource=\"cpu\"})",
+              "legendFormat": "Limit (4)"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Request (500m)" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Limit (4)" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [4, 4] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+          "id": 32,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Memory (working set) used by Jellyfin. Idle: ~300-500Mi. Per transcode stream: +200-500Mi. Limit is 4Gi to support 2-3 concurrent transcodes. If memory approaches the limit during transcoding, consider increasing the limit or reducing max concurrent streams.",
+          "title": "Memory Usage",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"arr-stack\", pod=~\"jellyfin.*\", container=\"jellyfin\"})",
+              "legendFormat": "Usage"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_requests{namespace=\"arr-stack\", pod=~\"jellyfin.*\", container=\"jellyfin\", resource=\"memory\"})",
+              "legendFormat": "Request (512Mi)"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_limits{namespace=\"arr-stack\", pod=~\"jellyfin.*\", container=\"jellyfin\", resource=\"memory\"})",
+              "legendFormat": "Limit (4Gi)"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "bytes"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Request (512Mi)" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Limit (4Gi)" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [4, 4] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["jellyfin", "gpu", "media", "arr-stack", "homelab"],
+      "templating": { "list": [] },
+      "time": { "from": "now-24h", "to": "now" },
+      "timepicker": {},
+      "timezone": "Asia/Manila",
+      "title": "Jellyfin Media Server",
+      "uid": "jellyfin-media",
+      "version": 1
+    }

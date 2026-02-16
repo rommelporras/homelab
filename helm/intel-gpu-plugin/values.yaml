@@ -1,0 +1,38 @@
+# Intel GPU Device Plugin — Helm values for intel-device-plugins-gpu v0.34.1
+# Chart: intel/intel-device-plugins-gpu
+# Installed via: helm-homelab upgrade -i -n intel-device-plugins intel-device-plugins-gpu intel/intel-device-plugins-gpu --version 0.34.1 -f helm/intel-gpu-plugin/values.yaml
+#
+# Purpose: Advertise Intel iGPU (UHD 630) as schedulable Kubernetes resources
+#   - Each node gets gpu.intel.com/i915 resources (sharedDevNum per GPU)
+#   - Pods request gpu.intel.com/i915: "1" to get /dev/dri auto-mounted
+#   - No privileged containers needed — device plugin handles device access
+#
+# Requires: Intel Device Plugins Operator installed in same namespace
+# Requires: Node Feature Discovery (NFD) installed for auto GPU labeling
+
+# Name of the GpuDevicePlugin CR
+name: gpudeviceplugin
+
+# Allow 3 pods to share each iGPU
+# UHD 630 can handle multiple concurrent transcodes
+# This means each node advertises gpu.intel.com/i915: 3
+sharedDevNum: 3
+
+# Log verbosity (2 = default, increase for debugging)
+logLevel: 2
+
+# Expose GPU metrics for Prometheus scraping
+enableMonitoring: true
+
+# No special allocation policy needed for single integrated GPU
+allocationPolicy: "none"
+
+# Deploy NodeFeatureRule CR for auto GPU labeling via NFD
+# NFD must be installed first — this creates a rule that labels
+# nodes with intel.feature.node.kubernetes.io/gpu: 'true'
+nodeFeatureRule: true
+
+# Only schedule GPU plugin DaemonSet on nodes with Intel GPU
+# This label is auto-applied by NFD via the nodeFeatureRule above
+nodeSelector:
+  intel.feature.node.kubernetes.io/gpu: 'true'

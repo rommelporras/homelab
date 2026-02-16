@@ -1,0 +1,238 @@
+---
+# Phase 4.25b: Intel GPU drivers for QSV hardware transcoding
+# Run: ansible-playbook -i inventory/homelab.yml playbooks/08-intel-gpu.yml
+#
+# WHAT THIS PLAYBOOK DOES:
+#   1. Installs Intel VA-API media driver (iHD) for hardware video decode/encode
+#   2. Installs verification tools (vainfo, intel_gpu_top)
+#   3. Configures i915 HuC firmware loading for HEVC low-power encode
+#   4. Updates initramfs and reboots nodes ONE AT A TIME (rolling)
+#   5. Verifies GPU, VA-API, HuC, and kubelet on each node BEFORE moving to the next
+#
+# WHY THESE ARE NEEDED:
+#   - Jellyfin uses Intel QSV for real-time video transcoding (mobile streaming)
+#   - iHD VA-API driver enables H.264/HEVC/VP9 hardware decode and H.264/HEVC encode
+#   - HuC firmware enables low-power HEVC encode path on Comet Lake (UHD 630)
+#   - Without HuC, HEVC encoding falls back to higher-power EU encode (still HW, just less efficient)
+#
+# PREREQUISITES:
+#   - i915 driver loaded (Ubuntu 24.04 loads it by default for UHD 630)
+#   - /dev/dri/renderD128 exists on all nodes
+#
+# CKA RELEVANCE:
+#   - Node preparation for device plugins
+#   - Understanding supplementalGroups and device access in pod security contexts
+#   - Rolling update strategy (serial: 1) for zero-downtime node maintenance
+#
+# ROLLING REBOOT: serial: 1 ensures only one node reboots at a time.
+#   If verification fails on any node, Ansible stops — remaining nodes are untouched.
+#
+# REQUIRES REBOOT: Yes — HuC firmware loading needs initramfs rebuild + reboot
+# Idempotent - safe to run multiple times
+
+- name: Intel GPU drivers for QSV hardware transcoding
+  hosts: control_plane
+  serial: 1
+  gather_facts: true
+
+  tasks:
+    # =========================================
+    # 8.1 Verify i915 and DRI Prerequisites
+    # =========================================
+    # These should already be present on Ubuntu 24.04 with Intel iGPU
+    # Fail early if not — means hardware isn't recognized
+
+    - name: Verify i915 module is loaded
+      ansible.builtin.shell:
+        cmd: lsmod | grep -q i915
+      changed_when: false
+      failed_when: false
+      register: i915_check
+
+    - name: Fail if i915 not loaded
+      ansible.builtin.fail:
+        msg: "i915 kernel module not loaded on {{ inventory_hostname }}. Check BIOS iGPU settings and run 'modprobe i915'."
+      when: i915_check.rc != 0
+
+    - name: Verify /dev/dri/renderD128 exists
+      ansible.builtin.stat:
+        path: /dev/dri/renderD128
+      register: render_device
+
+    - name: Fail if render device missing
+      ansible.builtin.fail:
+        msg: "/dev/dri/renderD128 not found on {{ inventory_hostname }}. i915 driver may not be initializing the GPU."
+      when: not render_device.stat.exists
+
+    # =========================================
+    # 8.2 Install Intel GPU Packages
+    # =========================================
+    # intel-media-va-driver-non-free: iHD VA-API driver (from Ubuntu multiverse)
+    #   - "non-free" refers to codec licensing, not software license
+    #   - Supports H.264/HEVC/VP9 decode, H.264/HEVC encode on Gen 9-12
+    # vainfo: VA-API verification tool (shows supported codecs)
+    # intel-gpu-tools: Monitoring (intel_gpu_top shows real-time GPU engine usage)
+
+    - name: Install Intel GPU packages
+      ansible.builtin.apt:
+        name:
+          - intel-media-va-driver-non-free
+          - vainfo
+          - intel-gpu-tools
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    # =========================================
+    # 8.3 Configure HuC Firmware Loading
+    # =========================================
+    # enable_guc=2 = Load HuC firmware only (correct for Comet Lake / Gen 9-10)
+    #
+    # CRITICAL: NEVER use enable_guc=1 or 3 on Gen 9/10 (Comet Lake)
+    #   - enable_guc=1 (GuC submission) is unsupported on these generations
+    #   - enable_guc=3 (GuC + HuC) will attempt GuC submission and cause GPU hangs/crashes
+    #   - Only enable_guc=2 (HuC only) is safe
+    #
+    # What HuC does:
+    #   - Enables low-power HEVC encode path (uses fixed-function hardware)
+    #   - Without HuC: HEVC encode uses EU (shader) path — still hardware, but less efficient
+    #   - With HuC: HEVC encode uses dedicated low-power hardware — better perf/watt
+    #
+    # Side effect: Kernel taint (cosmetic, visible in dmesg, no functional impact)
+
+    - name: Configure i915 HuC firmware loading
+      ansible.builtin.copy:
+        dest: /etc/modprobe.d/i915.conf
+        content: |
+          # Intel QSV: Enable HuC firmware for HEVC low-power encode
+          # enable_guc=2 = HuC only (safe for Comet Lake / UHD 630)
+          # NEVER use enable_guc=1 or 3 on Gen 9/10 — causes GPU hangs
+          options i915 enable_guc=2
+        mode: '0644'
+        owner: root
+        group: root
+      register: i915_conf
+
+    # =========================================
+    # 8.4 Update initramfs (if config changed)
+    # =========================================
+    # initramfs must include the new i915 module options
+    # Only runs when i915.conf was created/changed
+
+    - name: Update initramfs
+      ansible.builtin.command:
+        cmd: update-initramfs -u
+      when: i915_conf.changed
+
+    # =========================================
+    # 8.5 Verify VA-API (pre-reboot check)
+    # =========================================
+    # vainfo should work immediately after driver install
+    # HuC-dependent features won't show until after reboot
+
+    - name: Verify VA-API driver (pre-reboot)
+      ansible.builtin.shell:
+        cmd: vainfo --display drm --device /dev/dri/renderD128 2>&1
+      register: vainfo_pre
+      changed_when: false
+      failed_when: "'iHD' not in vainfo_pre.stdout"
+
+    - name: "GATE: VA-API driver verified on {{ inventory_hostname }}"
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }}: iHD VA-API driver installed and working"
+
+    # =========================================
+    # 8.6 Reboot (if config changed)
+    # =========================================
+    # Required for HuC firmware to load via updated initramfs
+    # Only reboots when i915.conf was created/changed
+    # serial: 1 ensures only one node reboots at a time
+
+    - name: "Reboot {{ inventory_hostname }} for HuC firmware loading"
+      ansible.builtin.reboot:
+        msg: "Rebooting {{ inventory_hostname }} for Intel HuC firmware (enable_guc=2)"
+        reboot_timeout: 300
+      when: i915_conf.changed
+
+    - name: Wait for SSH to come back
+      ansible.builtin.wait_for_connection:
+        timeout: 120
+      when: i915_conf.changed
+
+    # =========================================
+    # 8.7 Post-Reboot Verification Gates
+    # =========================================
+    # All checks are HARD FAILURES — if any fail on this node,
+    # Ansible stops and does NOT proceed to the next node.
+
+    - name: "GATE: Verify /dev/dri/renderD128 after reboot"
+      ansible.builtin.stat:
+        path: /dev/dri/renderD128
+      register: render_post
+      failed_when: not render_post.stat.exists
+
+    - name: "GATE: Verify VA-API driver after reboot"
+      ansible.builtin.shell:
+        cmd: vainfo --display drm --device /dev/dri/renderD128 2>&1
+      register: vainfo_post
+      changed_when: false
+      failed_when: "'iHD' not in vainfo_post.stdout"
+
+    - name: Check HuC firmware status
+      ansible.builtin.shell:
+        cmd: dmesg | grep -i huc
+      register: huc_status
+      changed_when: false
+      failed_when: false
+
+    - name: "GATE: Verify HuC firmware authenticated"
+      ansible.builtin.assert:
+        that:
+          - "'authenticated' in huc_status.stdout or 'uc fw is' in huc_status.stdout"
+        fail_msg: |
+          HuC firmware NOT authenticated on {{ inventory_hostname }}.
+          dmesg output: {{ huc_status.stdout }}
+          Possible fixes:
+            1. apt install linux-firmware && update-initramfs -u && reboot
+            2. If still missing, create /etc/initramfs-tools/hooks/i915_add_firmware
+          Stopping playbook — remaining nodes will NOT be processed.
+        success_msg: "HuC firmware authenticated on {{ inventory_hostname }}"
+
+    - name: "GATE: Verify kubelet is running"
+      ansible.builtin.shell:
+        cmd: systemctl is-active kubelet
+      register: kubelet_status
+      changed_when: false
+      failed_when: kubelet_status.stdout != 'active'
+
+    # =========================================
+    # 8.8 Record Group GIDs
+    # =========================================
+    # These GIDs are needed for Jellyfin pod supplementalGroups
+    # The device plugin handles /dev/dri mounting, but the pod still
+    # needs group membership to access the device files
+
+    - name: Get render and video group GIDs
+      ansible.builtin.shell:
+        cmd: |
+          echo "render:$(getent group render | cut -d: -f3)"
+          echo "video:$(getent group video | cut -d: -f3)"
+      register: group_gids
+      changed_when: false
+
+    # =========================================
+    # Summary (per node, printed before moving to next)
+    # =========================================
+    - name: "{{ inventory_hostname }} — Intel GPU setup complete"
+      ansible.builtin.debug:
+        msg: |
+          ✓ {{ inventory_hostname }} Intel GPU setup PASSED all gates:
+          ├── i915 module: loaded
+          ├── /dev/dri/renderD128: present
+          ├── VA-API driver: iHD verified
+          ├── HuC firmware: {{ huc_status.stdout_lines | first | default('see dmesg') }}
+          ├── kubelet: {{ kubelet_status.stdout }}
+          ├── Group GIDs: {{ group_gids.stdout_lines | join(', ') }}
+          └── Packages: intel-media-va-driver-non-free, vainfo, intel-gpu-tools
+
+          Proceeding to next node...

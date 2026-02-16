@@ -2,22 +2,24 @@
 # Media server — streams movies/TV to browsers, apps, and mobile devices
 #
 # Image: Official jellyfin/jellyfin (NOT LinuxServer)
-#   - Bundles jellyfin-ffmpeg with Intel iHD driver for QSV (Phase 4.25b)
+#   - Bundles jellyfin-ffmpeg with Intel iHD driver for QSV hardware transcoding
 #   - No s6-overlay — uses standard Linux UID/GID via runAsUser/runAsGroup
 #
 # Config: Longhorn 5Gi PVC (metadata, thumbnails, plugins)
-# Data: Shared NFS PVC at /data (reads from /data/media/movies/ and /data/media/tv/)
+# Data: Shared NFS PVC at /data (reads from /data/media/movies/ and /data/media/series/)
 #
-# Security: Meets PSS restricted profile (stricter than LSIO apps)
+# QSV Hardware Transcoding (Phase 4.25b):
+#   - gpu.intel.com/i915: "1" — Intel GPU device plugin auto-mounts /dev/dri
+#   - supplementalGroups: 44 (video), 993 (render) — device file access
+#   - emptyDir at /config/transcodes — disk-backed transcode cache (NOT tmpfs)
+#   - Memory limit 4Gi — transcoding uses ~300-500Mi idle + ~200-500Mi per stream
+#
+# Security: PSS baseline compatible (NOT restricted — supplementalGroups changes profile)
+#   - No privileged: true — device plugin handles /dev/dri access
 #   - No capabilities added
 #   - runAsNonRoot: true
 #
-# Phase 4.25b will add:
-#   - gpu.intel.com/i915 resource request for QSV hardware transcoding
-#   - supplementalGroups for video/render device access
-#   - emptyDir for transcode cache
-#
-# CKA topics: Deployment, PVC, runAsUser, runAsNonRoot, restricted PSS
+# CKA topics: Deployment, PVC, Device Plugin resources, supplementalGroups, emptyDir
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -59,6 +61,11 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+        # Device file access for Intel QSV — video and render groups
+        # Verified on all 3 nodes: getent group video → 44, render → 993
+        supplementalGroups:
+          - 44    # video
+          - 993   # render
       containers:
         - name: jellyfin
           image: jellyfin/jellyfin:10.11.6
@@ -73,9 +80,11 @@ spec:
             requests:
               cpu: "500m"
               memory: "512Mi"
+              gpu.intel.com/i915: "1"
             limits:
               cpu: "4"
-              memory: "2Gi"
+              memory: "4Gi"
+              gpu.intel.com/i915: "1"
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
@@ -87,6 +96,8 @@ spec:
               mountPath: /config
             - name: data
               mountPath: /data
+            - name: transcode
+              mountPath: /config/transcodes
           startupProbe:
             httpGet:
               path: /health
@@ -112,3 +123,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: arr-data
+        # Disk-backed transcode cache (NOT tmpfs)
+        # tmpfs has OOM/node-crash risks in K8s (Issues #128339, #119611)
+        # Disk-backed is nearly as fast due to Linux page cache
+        # Jellyfin auto-cleans via scheduled task
+        - name: transcode
+          emptyDir: {}
