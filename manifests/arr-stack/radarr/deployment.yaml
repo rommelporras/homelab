@@ -1,0 +1,111 @@
+# Radarr Deployment + Config PVC
+# Movie management — monitors, grabs, and organizes movies
+#
+# Image: LinuxServer.io (s6-overlay v3)
+# Config: Longhorn 2Gi PVC (SQLite DB, settings)
+# Data: Shared NFS PVC at /data (reads torrents/, hardlinks to media/movies/)
+#
+# Note: Radarr is memory-hungry with large libraries — 1Gi limit should suffice
+#   for moderate collections. Monitor and bump if needed.
+#
+# CKA topics: Deployment, PVC, multi-volume mounts, resource limits
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: radarr-config
+  namespace: arr-stack
+  labels:
+    app: radarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radarr
+  namespace: arr-stack
+  labels:
+    app: radarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: radarr
+  template:
+    metadata:
+      labels:
+        app: radarr
+    spec:
+      securityContext:
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: radarr
+          image: lscr.io/linuxserver/radarr:latest
+          imagePullPolicy: Always  # latest tag — always pull for updates
+          ports:
+            - name: http
+              containerPort: 7878
+              protocol: TCP
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "Asia/Manila"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - SETUID
+                - SETGID
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 2
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: radarr-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: arr-data

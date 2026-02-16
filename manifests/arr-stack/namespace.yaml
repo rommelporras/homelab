@@ -1,0 +1,14 @@
+# ARR Stack namespace for Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin
+# Phase 4.25 - Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin
+#
+# PSS: enforce baseline (LSIO images need CHOWN/SETUID/SETGID capabilities)
+#      audit + warn restricted (guidance for future hardening)
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arr-stack
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

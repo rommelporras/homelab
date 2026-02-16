@@ -1,0 +1,18 @@
+# Radarr Service
+# ClusterIP — accessed via Gateway API HTTPRoute
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: radarr
+  namespace: arr-stack
+  labels:
+    app: radarr
+spec:
+  type: ClusterIP
+  selector:
+    app: radarr
+  ports:
+    - name: http
+      port: 7878
+      targetPort: http

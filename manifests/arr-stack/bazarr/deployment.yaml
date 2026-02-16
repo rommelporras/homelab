@@ -1,0 +1,111 @@
+# Bazarr Deployment + Config PVC
+# Automated subtitle downloads for Sonarr and Radarr
+#
+# Image: LinuxServer.io (s6-overlay v3)
+# Config: Longhorn 2Gi PVC (SQLite DB, settings)
+# Data: Shared NFS PVC at /data (reads media paths from Sonarr/Radarr, downloads subs alongside media)
+#
+# Bazarr does NOT scan disk — it reads series/movies from Sonarr/Radarr APIs
+# then downloads subtitles to the same media directories
+#
+# CKA topics: Deployment, PVC, multi-volume mounts, resource limits
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bazarr-config
+  namespace: arr-stack
+  labels:
+    app: bazarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bazarr
+  namespace: arr-stack
+  labels:
+    app: bazarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: bazarr
+  template:
+    metadata:
+      labels:
+        app: bazarr
+    spec:
+      securityContext:
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bazarr
+          image: lscr.io/linuxserver/bazarr:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 6767
+              protocol: TCP
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "Asia/Manila"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - SETUID
+                - SETGID
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+          startupProbe:
+            httpGet:
+              path: /api/system/ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /api/system/ping
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/system/ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 2
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: bazarr-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: arr-data

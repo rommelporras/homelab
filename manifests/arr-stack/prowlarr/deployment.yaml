@@ -1,0 +1,102 @@
+# Prowlarr Deployment + Config PVC
+# Indexer manager — hub for all torrent indexers, auto-syncs to Sonarr/Radarr
+#
+# Image: LinuxServer.io (s6-overlay v3)
+# Config: Longhorn 2Gi PVC (SQLite DB, settings)
+# No NFS mount — Prowlarr only manages indexers, doesn't handle media files
+#
+# CKA topics: Deployment, PVC, securityContext, capabilities, probes
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prowlarr-config
+  namespace: arr-stack
+  labels:
+    app: prowlarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prowlarr
+  namespace: arr-stack
+  labels:
+    app: prowlarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # RWO config PVC — only one pod can mount at a time
+  selector:
+    matchLabels:
+      app: prowlarr
+  template:
+    metadata:
+      labels:
+        app: prowlarr
+    spec:
+      securityContext:
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: prowlarr
+          image: lscr.io/linuxserver/prowlarr:2.3.0
+          ports:
+            - name: http
+              containerPort: 9696
+              protocol: TCP
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "Asia/Manila"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN    # s6-overlay needs to chown /config, /var/run/s6
+                - SETUID   # s6 needs to switch to PUID user
+                - SETGID   # s6 needs to set supplementary groups
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30    # 5 min for first boot + DB init
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 2
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: prowlarr-config

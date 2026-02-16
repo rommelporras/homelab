@@ -1,0 +1,84 @@
+# CiliumNetworkPolicy for arr-stack namespace
+# Phase 4.25 - ARR Media Stack
+#
+# Security model:
+#   - All *ARR apps talk to each other freely (Prowlarr syncs to Sonarr/Radarr,
+#     Sonarr/Radarr send downloads to qBittorrent, Jellyfin reads media)
+#   - Gateway namespace can reach all apps (HTTPRoute ingress)
+#   - Monitoring namespace can scrape metrics (Phase 4.26 Scraparr)
+#   - All apps need internet egress (indexers, metadata, downloads)
+#   - Deny all other ingress by default
+#
+# CKA topics: CiliumNetworkPolicy, endpointSelector, ingress/egress rules
+---
+# Default deny ingress for all pods in arr-stack namespace
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: arr-stack
+  labels:
+    app.kubernetes.io/part-of: arr-stack
+spec:
+  endpointSelector: {}
+  ingress:
+    # Allow intra-namespace traffic (all ARR apps talk to each other)
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: arr-stack
+
+    # Allow ingress from Cilium Gateway (HTTPRoute traffic)
+    - fromEntities:
+        - ingress
+
+    # Allow ingress from monitoring namespace (Prometheus scraping)
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+
+    # Kubelet health probes (liveness/readiness/startup from host)
+    - fromEntities:
+        - host
+---
+# Egress policy — allow DNS + internet for all arr-stack pods
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-egress
+  namespace: arr-stack
+  labels:
+    app.kubernetes.io/part-of: arr-stack
+spec:
+  endpointSelector: {}
+  egress:
+    # DNS resolution (kube-dns)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+
+    # Intra-namespace (ARR apps communicating with each other)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: arr-stack
+
+    # Internet egress (indexers, metadata APIs, torrent peers)
+    # Exclude private networks for safety
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+
+    # NFS access to OMV NAS (10.10.30.4)
+    - toCIDRSet:
+        - cidr: 10.10.30.4/32
+      toPorts:
+        - ports:
+            - port: "2049"
+              protocol: TCP

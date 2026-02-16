@@ -1,0 +1,114 @@
+# Jellyfin Deployment + Config PVC
+# Media server — streams movies/TV to browsers, apps, and mobile devices
+#
+# Image: Official jellyfin/jellyfin (NOT LinuxServer)
+#   - Bundles jellyfin-ffmpeg with Intel iHD driver for QSV (Phase 4.25b)
+#   - No s6-overlay — uses standard Linux UID/GID via runAsUser/runAsGroup
+#
+# Config: Longhorn 5Gi PVC (metadata, thumbnails, plugins)
+# Data: Shared NFS PVC at /data (reads from /data/media/movies/ and /data/media/tv/)
+#
+# Security: Meets PSS restricted profile (stricter than LSIO apps)
+#   - No capabilities added
+#   - runAsNonRoot: true
+#
+# Phase 4.25b will add:
+#   - gpu.intel.com/i915 resource request for QSV hardware transcoding
+#   - supplementalGroups for video/render device access
+#   - emptyDir for transcode cache
+#
+# CKA topics: Deployment, PVC, runAsUser, runAsNonRoot, restricted PSS
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jellyfin-config
+  namespace: arr-stack
+  labels:
+    app: jellyfin
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jellyfin
+  namespace: arr-stack
+  labels:
+    app: jellyfin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: jellyfin
+  template:
+    metadata:
+      labels:
+        app: jellyfin
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: jellyfin
+          image: jellyfin/jellyfin:10.11.6
+          ports:
+            - name: http
+              containerPort: 8096
+              protocol: TCP
+          env:
+            - name: TZ
+              value: "Asia/Manila"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "4"
+              memory: "2Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30    # 5 min — first boot scans media libraries
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 2
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: jellyfin-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: arr-data

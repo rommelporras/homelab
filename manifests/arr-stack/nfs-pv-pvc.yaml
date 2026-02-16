@@ -1,0 +1,67 @@
+# NFS PersistentVolume + PVC for ARR Media Stack
+# Shared volume for all *ARR apps — enables hardlinks between torrents/ and media/
+#
+# Mount layout inside pods:
+#   /data/
+#   ├── torrents/         (qBittorrent downloads here)
+#   │   ├── movies/
+#   │   ├── tv/
+#   │   └── music/
+#   └── media/            (Sonarr/Radarr hardlink here, Jellyfin reads from here)
+#       ├── movies/
+#       ├── tv/
+#       └── music/
+#
+# CRITICAL: All apps mount the SAME PVC at /data so hardlinks work
+#   (hardlinks require same filesystem — one PV, one PVC, mounted by all pods)
+#
+# NFS server: OMV NAS at 10.10.30.4
+# Filesystem path: /export/Kubernetes/Media
+# NFSv4 path: /Kubernetes/Media (OMV has /export with fsid=0)
+#
+# CKA topics: PV, PVC, NFS, accessModes, reclaimPolicy, storageClassName
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: arr-data-nfs
+  labels:
+    type: nfs
+    app: arr
+spec:
+  capacity:
+    storage: 2Ti
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+    - rsize=65536
+    - wsize=65536
+    - timeo=600
+  nfs:
+    server: 10.10.30.4
+    # NFSv4 pseudo-root: OMV has /export with fsid=0
+    # Filesystem path: /export/Kubernetes/Media -> NFSv4 mount path: /Kubernetes/Media
+    # Reuses existing /export/Kubernetes share (same export as Immich PV)
+    path: /Kubernetes/Media
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: arr-data
+  namespace: arr-stack
+  labels:
+    app: arr
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: nfs
+  resources:
+    requests:
+      storage: 2Ti
+  selector:
+    matchLabels:
+      app: arr

@@ -184,6 +184,7 @@ See **docs/context/Secrets.md** for the complete 1Password item inventory (20+ i
 - **Never commit secrets** to git (use `op read` at runtime)
 - **Kubernetes vault only** - don't modify Proxmox vault items
 - **Sign in first** - run `eval $(op signin)` if session expired
+- **Claude Code cannot run `op` commands** - The 1Password CLI requires interactive authentication that Claude Code cannot provide. Generate the commands and ask the user to run them in their own terminal.
 
 ## Rules
 

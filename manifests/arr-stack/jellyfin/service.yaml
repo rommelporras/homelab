@@ -1,0 +1,18 @@
+# Jellyfin Service
+# ClusterIP — accessed via Gateway API HTTPRoute
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jellyfin
+  namespace: arr-stack
+  labels:
+    app: jellyfin
+spec:
+  type: ClusterIP
+  selector:
+    app: jellyfin
+  ports:
+    - name: http
+      port: 8096
+      targetPort: http

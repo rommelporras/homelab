@@ -205,6 +205,76 @@
         statusStyle: dot
         siteMonitor: https://browser.k8s.rommelporras.com
 
+- Media:
+    - Jellyfin:
+        icon: jellyfin.png
+        href: https://jellyfin.k8s.rommelporras.com
+        description: Media Server
+        statusStyle: dot
+        siteMonitor: https://jellyfin.k8s.rommelporras.com
+        widget:
+          type: jellyfin
+          url: https://jellyfin.k8s.rommelporras.com
+          key: "{{HOMEPAGE_VAR_JELLYFIN_KEY}}"
+          enableBlocks: true
+          enableNowPlaying: true
+
+    - Sonarr:
+        icon: sonarr.png
+        href: https://sonarr.k8s.rommelporras.com
+        description: TV Show Management
+        statusStyle: dot
+        siteMonitor: https://sonarr.k8s.rommelporras.com
+        widget:
+          type: sonarr
+          url: https://sonarr.k8s.rommelporras.com
+          key: "{{HOMEPAGE_VAR_SONARR_API_KEY}}"
+
+    - Radarr:
+        icon: radarr.png
+        href: https://radarr.k8s.rommelporras.com
+        description: Movie Management
+        statusStyle: dot
+        siteMonitor: https://radarr.k8s.rommelporras.com
+        widget:
+          type: radarr
+          url: https://radarr.k8s.rommelporras.com
+          key: "{{HOMEPAGE_VAR_RADARR_API_KEY}}"
+
+    - qBittorrent:
+        icon: qbittorrent.png
+        href: https://qbit.k8s.rommelporras.com
+        description: Download Client
+        statusStyle: dot
+        siteMonitor: https://qbit.k8s.rommelporras.com
+        widget:
+          type: qbittorrent
+          url: https://qbit.k8s.rommelporras.com
+          username: "{{HOMEPAGE_VAR_QBIT_USER}}"
+          password: "{{HOMEPAGE_VAR_QBIT_PASS}}"
+
+    - Bazarr:
+        icon: bazarr.png
+        href: https://bazarr.k8s.rommelporras.com
+        description: Subtitle Management
+        statusStyle: dot
+        siteMonitor: https://bazarr.k8s.rommelporras.com
+        widget:
+          type: bazarr
+          url: https://bazarr.k8s.rommelporras.com
+          key: "{{HOMEPAGE_VAR_BAZARR_API_KEY}}"
+
+    - Prowlarr:
+        icon: prowlarr.png
+        href: https://prowlarr.k8s.rommelporras.com
+        description: Indexer Manager
+        statusStyle: dot
+        siteMonitor: https://prowlarr.k8s.rommelporras.com
+        widget:
+          type: prowlarr
+          url: https://prowlarr.k8s.rommelporras.com
+          key: "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}"
+
 - Health:
     - Uptime Kuma:
         icon: uptime-kuma.png

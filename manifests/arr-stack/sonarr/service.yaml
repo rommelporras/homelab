@@ -1,0 +1,18 @@
+# Sonarr Service
+# ClusterIP — accessed via Gateway API HTTPRoute
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarr
+  namespace: arr-stack
+  labels:
+    app: sonarr
+spec:
+  type: ClusterIP
+  selector:
+    app: sonarr
+  ports:
+    - name: http
+      port: 8989
+      targetPort: http

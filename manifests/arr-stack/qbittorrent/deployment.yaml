@@ -1,0 +1,112 @@
+# qBittorrent Deployment + Config PVC
+# Download client — downloads torrents from indexers, seeds after completion
+#
+# Image: LinuxServer.io (s6-overlay v3)
+# Config: Longhorn 2Gi PVC (settings, torrent state)
+# Data: Shared NFS PVC at /data (torrents/ + media/ for hardlinks)
+#
+# TRaSH Guides best practices (configure in UI after deploy):
+#   - Automatic torrent management mode (critical for category folders)
+#   - Default save path: /data/torrents
+#   - Categories: movies, tv (subfolder names only)
+#   - Disk I/O: Simple pread/pwrite, async I/O threads 64, disk cache 64 MiB
+#
+# CKA topics: Deployment, PVC, multi-volume mounts, NFS + Longhorn
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qbittorrent-config
+  namespace: arr-stack
+  labels:
+    app: qbittorrent
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent
+  namespace: arr-stack
+  labels:
+    app: qbittorrent
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: qbittorrent
+  template:
+    metadata:
+      labels:
+        app: qbittorrent
+    spec:
+      securityContext:
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: qbittorrent
+          image: lscr.io/linuxserver/qbittorrent:5.1.4
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "Asia/Manila"
+            - name: WEBUI_PORT
+              value: "8080"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - SETUID
+                - SETGID
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+          startupProbe:
+            tcpSocket:  # HTTP API returns 403 (CSRF protection) — use TCP instead
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 2
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: qbittorrent-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: arr-data

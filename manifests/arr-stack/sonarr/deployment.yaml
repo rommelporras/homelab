@@ -1,0 +1,114 @@
+# Sonarr Deployment + Config PVC
+# TV show management — monitors, grabs, and organizes TV series
+#
+# Image: LinuxServer.io (s6-overlay v3)
+# Config: Longhorn 2Gi PVC (SQLite DB, settings)
+# Data: Shared NFS PVC at /data (reads torrents/, hardlinks to media/tv/)
+#
+# Note: 512Mi memory limit is tight for large libraries.
+#   Monitor for OOMKilled and bump to 768Mi-1Gi if needed.
+#
+# Note: Sonarr v4 /ping may require auth (GitHub issue #5396).
+#   If probes fail with 401, fall back to tcpSocket on port 8989.
+#
+# CKA topics: Deployment, PVC, multi-volume mounts, resource limits
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarr-config
+  namespace: arr-stack
+  labels:
+    app: sonarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarr
+  namespace: arr-stack
+  labels:
+    app: sonarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: sonarr
+  template:
+    metadata:
+      labels:
+        app: sonarr
+    spec:
+      securityContext:
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sonarr
+          image: lscr.io/linuxserver/sonarr:latest
+          imagePullPolicy: Always  # latest tag — always pull for updates
+          ports:
+            - name: http
+              containerPort: 8989
+              protocol: TCP
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "Asia/Manila"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - SETUID
+                - SETGID
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 2
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: sonarr-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: arr-data

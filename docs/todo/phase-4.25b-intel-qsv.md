@@ -38,7 +38,7 @@
 │      └── Advertises: gpu.intel.com/i915              │
 │      └── sharedDevNum: 3 (3 pods can share 1 iGPU)  │
 │                                                      │
-│  Jellyfin Pod (media namespace)                      │
+│  Jellyfin Pod (arr-stack namespace)                      │
 │  └── resources.limits: gpu.intel.com/i915: "1"       │
 │  └── supplementalGroups: [video_gid, render_gid]     │
 │  └── Device plugin auto-mounts /dev/dri              │
@@ -174,7 +174,7 @@
 
 ### 4.25b.4 Update Jellyfin Deployment for QSV
 
-- [ ] 4.25b.4.1 Update `manifests/media/jellyfin/deployment.yaml`:
+- [ ] 4.25b.4.1 Update `manifests/arr-stack/jellyfin/deployment.yaml`:
   - Add GPU resource request/limit:
     ```yaml
     resources:
@@ -208,8 +208,8 @@
   - Note: Stays PSS baseline compatible
 - [ ] 4.25b.4.2 Apply updated deployment and verify pod starts with GPU:
   ```bash
-  kubectl-homelab apply -f manifests/media/jellyfin/deployment.yaml
-  kubectl-homelab -n media describe pod -l app=jellyfin | grep gpu.intel.com
+  kubectl-homelab apply -f manifests/arr-stack/jellyfin/deployment.yaml
+  kubectl-homelab -n arr-stack describe pod -l app=jellyfin | grep gpu.intel.com
   # Expect: gpu.intel.com/i915: 1
   ```
 
@@ -289,7 +289,7 @@ Minimal footprint. The GPU plugin DaemonSet is very lightweight.
 
 | File | Change |
 |------|--------|
-| `manifests/media/jellyfin/deployment.yaml` | Add GPU resource, supplementalGroups, transcode emptyDir, bump memory limit |
+| `manifests/arr-stack/jellyfin/deployment.yaml` | Add GPU resource, supplementalGroups, transcode emptyDir, bump memory limit |
 
 ---
 
@@ -310,7 +310,7 @@ Minimal footprint. The GPU plugin DaemonSet is very lightweight.
 
 ```bash
 # Remove GPU from Jellyfin (revert deployment to CPU-only)
-kubectl-homelab apply -f manifests/media/jellyfin/deployment.yaml  # (reverted version)
+kubectl-homelab apply -f manifests/arr-stack/jellyfin/deployment.yaml  # (reverted version)
 
 # Remove GPU plugin + operator
 helm-homelab uninstall -n intel-device-plugins intel-device-plugins-gpu

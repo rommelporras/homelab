@@ -12,6 +12,9 @@ ansible/inventory/*.bak
 
 # Allow secret documentation placeholders (op:// refs only, no real values)
 !manifests/**/secret.yaml
+!manifests/**/arr-api-keys-secret.yaml
+# Allow secret-related scripts (contain op:// refs, not actual values)
+!scripts/apply-arr-secrets.sh
 
 # IDE
 .vscode/

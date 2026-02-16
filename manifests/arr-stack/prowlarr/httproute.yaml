@@ -1,0 +1,23 @@
+# Prowlarr HTTPRoute
+# Routes: prowlarr.k8s.rommelporras.com -> prowlarr:9696
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: prowlarr
+  namespace: arr-stack
+spec:
+  parentRefs:
+    - name: homelab-gateway
+      namespace: default
+      sectionName: https
+  hostnames:
+    - "prowlarr.k8s.rommelporras.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: prowlarr
+          port: 9696

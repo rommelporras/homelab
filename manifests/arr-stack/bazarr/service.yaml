@@ -1,0 +1,18 @@
+# Bazarr Service
+# ClusterIP — accessed via Gateway API HTTPRoute
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bazarr
+  namespace: arr-stack
+  labels:
+    app: bazarr
+spec:
+  type: ClusterIP
+  selector:
+    app: bazarr
+  ports:
+    - name: http
+      port: 6767
+      targetPort: http

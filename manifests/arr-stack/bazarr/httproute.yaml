@@ -1,0 +1,23 @@
+# Bazarr HTTPRoute
+# Routes: bazarr.k8s.rommelporras.com -> bazarr:6767
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: bazarr
+  namespace: arr-stack
+spec:
+  parentRefs:
+    - name: homelab-gateway
+      namespace: default
+      sectionName: https
+  hostnames:
+    - "bazarr.k8s.rommelporras.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: bazarr
+          port: 6767

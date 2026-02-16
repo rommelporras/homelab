@@ -1,0 +1,18 @@
+# Prowlarr Service
+# ClusterIP — accessed via Gateway API HTTPRoute
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prowlarr
+  namespace: arr-stack
+  labels:
+    app: prowlarr
+spec:
+  type: ClusterIP
+  selector:
+    app: prowlarr
+  ports:
+    - name: http
+      port: 9696
+      targetPort: http
