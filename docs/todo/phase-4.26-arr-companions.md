@@ -137,7 +137,7 @@
 ### 4.26.5 Deploy Tdarr (Library Transcoding)
 
 - [ ] 4.26.5.1 Verify image version — `ghcr.io/haveagitgat/tdarr:2.58.02` (server with internal node)
-- [ ] 4.26.5.2 Create 1Password item `Tdarr` in `Kubernetes` vault with `seeded-api-key` field
+- [ ] 4.26.5.2 Add `tdarr-api-key` field to existing `ARR Stack` item in `Kubernetes` 1Password vault
 - [ ] 4.26.5.3 Create `manifests/arr-stack/tdarr/deployment.yaml`
   - Image: `ghcr.io/haveagitgat/tdarr:2.58.02`
   - Replicas: 1
@@ -151,7 +151,7 @@
   - Security: PUID/PGID env vars (Pattern A style), `fsGroup: 1000`
   - Resources: `cpu: 500m/2000m`, `memory: 512Mi/2Gi`
   - Health: `httpGet /api/v2/status` port 8266
-  - Key env: `internalNode=true`, `inContainer=true`, `ffmpegVersion=7`, `auth=true`, `seededApiKey` from 1Password
+  - Key env: `internalNode=true`, `inContainer=true`, `ffmpegVersion=7`, `auth=true`, `seededApiKey` from 1Password (`op://Kubernetes/ARR Stack/tdarr-api-key`)
   - Anti-affinity: soft anti-affinity against Jellyfin to reduce GPU contention
 - [ ] 4.26.5.4 Create `manifests/arr-stack/tdarr/service.yaml` — ClusterIP (ports 8265, 8266)
 - [ ] 4.26.5.5 Create `manifests/arr-stack/tdarr/httproute.yaml` — `tdarr.k8s.rommelporras.com`
@@ -317,7 +317,7 @@
 - [ ] 4.26.13.4 Update `docs/reference/CHANGELOG.md` — add companion selection decisions (Scraparr over Exportarr, Configarr over Recyclarr/Notifiarr, Seerr over Overseerr/Jellyseerr, Tdarr now viable with QSV)
 - [ ] 4.26.13.5 Update `docs/context/Monitoring.md` — add Scraparr exporter + network dashboard
 - [ ] 4.26.13.6 Update `docs/context/Gateway.md` — add Seerr, Tdarr, Recommendarr HTTPRoutes
-- [ ] 4.26.13.7 Update `docs/context/Secrets.md` — document Tdarr 1Password item + shared `arr-api-keys` secret usage by companion apps
+- [ ] 4.26.13.7 Update `docs/context/Secrets.md` — document Tdarr API key field in `ARR Stack` 1Password item + shared `arr-api-keys` secret usage by companion apps
 - [ ] 4.26.13.8 Create `docs/rebuild/v0.25.0-arr-companions.md`
 - [ ] 4.26.13.9 `/audit-docs`
 - [ ] 4.26.13.10 `/commit`
