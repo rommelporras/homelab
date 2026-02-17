@@ -32,7 +32,7 @@ updated: 2026-02-13
 | Nodes | 3 control planes (k8s-cp1, cp2, cp3) |
 | CNI | Cilium 1.18.6 |
 | Storage | Longhorn 1.10.1 |
-| Status | Phase 4.10 complete (v0.22.0 released) |
+| Status | Phase 4.25 complete (v0.23.0 released) |
 
 ## Source
 

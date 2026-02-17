@@ -124,6 +124,8 @@
 | `tailscale` | Tailscale Operator + Connector (subnet router) | None (stateless) |
 | `immich` | Immich server, ML, Redis | Own PostgreSQL |
 | `arr-stack` | Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin, Bazarr | SQLite (config on Longhorn, media on NFS) |
+| `node-feature-discovery` | NFD (auto-labels GPU nodes) | None (stateless) |
+| `intel-device-plugins` | Intel GPU Plugin Operator + GPU Plugin DaemonSet | None (stateless) |
 
 ### Why This Pattern
 - **Matches Docker Compose** — each project = one namespace

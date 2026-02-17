@@ -24,7 +24,7 @@ homelab/
 ├── ansible/                       # Cluster automation
 │   ├── inventory/homelab.yml      # Node inventory
 │   ├── group_vars/all.yml         # Shared variables
-│   └── playbooks/                 # Bootstrap playbooks (00-07)
+│   └── playbooks/                 # Bootstrap playbooks (00-08)
 │
 ├── helm/                          # Helm values files (one dir per chart)
 │   ├── alloy/                     # Grafana Alloy (log collector)
@@ -32,6 +32,7 @@ homelab/
 │   ├── cilium/                    # Cilium CNI
 │   ├── gitlab/                    # GitLab CE
 │   ├── gitlab-runner/             # GitLab Runner
+│   ├── intel-gpu-plugin/          # Intel GPU Plugin (QSV)
 │   ├── loki/                      # Loki (log storage)
 │   ├── longhorn/                  # Longhorn storage
 │   ├── metrics-server/            # Metrics Server
@@ -67,7 +68,7 @@ homelab/
     │   ├── Gateway.md             # HTTPRoutes, TLS, cert-manager
     │   ├── Networking.md          # VIPs, DNS, VLANs
     │   └── ...                    # Architecture, Monitoring, Storage, etc.
-    ├── rebuild/                   # Step-by-step rebuild guides (v0.1.0–v0.23.0)
+    ├── rebuild/                   # Step-by-step rebuild guides (v0.1.0–v0.24.0)
     ├── todo/                      # Active and completed phase plans
     ├── K8S_v135_NOTES.md          # Kubernetes v1.35 release notes
     └── reference/                 # Historical reference docs

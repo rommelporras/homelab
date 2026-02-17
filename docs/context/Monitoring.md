@@ -209,6 +209,8 @@ Every new service should include a Grafana dashboard ConfigMap (`manifests/monit
 | manifests/monitoring/karakeep-alerts.yaml | Karakeep PrometheusRule (Down, HighRestarts) |
 | manifests/monitoring/tailscale-alerts.yaml | Tailscale PrometheusRule (ConnectorDown, OperatorDown) |
 | manifests/monitoring/tailscale-dashboard-configmap.yaml | Tailscale Grafana dashboard (pod status, VPN/pod traffic, resources) |
+| manifests/monitoring/jellyfin-dashboard-configmap.yaml | Jellyfin Media Server dashboard (pod status, GPU allocation, streaming traffic, resources) |
+| manifests/monitoring/arr-stack-dashboard-configmap.yaml | ARR Media Stack overview dashboard (6 services: pod status, network, resources) |
 
 ## Upgrade Prometheus Stack
 

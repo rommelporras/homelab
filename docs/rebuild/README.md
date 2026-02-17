@@ -31,6 +31,7 @@
 | v0.21.0 | Phase 4.24 | Karakeep Migration (bookmark manager + AI tagging) | [v0.21.0-karakeep.md](v0.21.0-karakeep.md) |
 | v0.22.0 | Phase 4.10 | Tailscale Operator (subnet router for remote access) | [v0.22.0-tailscale-operator.md](v0.22.0-tailscale-operator.md) |
 | v0.23.0 | Phase 4.25 | ARR Media Stack (Prowlarr, Sonarr, Radarr, qBit, Jellyfin, Bazarr) | [v0.23.0-arr-stack.md](v0.23.0-arr-stack.md) |
+| v0.24.0 | Phase 4.25b | Intel QSV Hardware Transcoding (NFD, GPU Plugin, Jellyfin QSV) | [v0.24.0-intel-qsv.md](v0.24.0-intel-qsv.md) |
 
 ---
 
@@ -107,6 +108,9 @@ docs/rebuild/v0.22.0-tailscale-operator.md
 
 # 23. ARR Media Stack - Prowlarr, Sonarr, Radarr, qBit, Jellyfin, Bazarr
 docs/rebuild/v0.23.0-arr-stack.md
+
+# 24. Intel QSV Hardware Transcoding - NFD, GPU Plugin, Jellyfin QSV
+docs/rebuild/v0.24.0-intel-qsv.md
 ```
 
 ---
@@ -200,6 +204,9 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | qBittorrent | 5.1.4 (LSIO) | v0.23.0 |
 | Jellyfin | 10.11.6 (official) | v0.23.0 |
 | Bazarr | latest (LSIO) | v0.23.0 |
+| Node Feature Discovery | v0.18.3 | v0.24.0 |
+| Intel Device Plugins Operator | v0.34.1 | v0.24.0 |
+| Intel GPU Plugin | v0.34.1 | v0.24.0 |
 
 ---
 
@@ -216,7 +223,8 @@ homelab/
 │   ├── gitlab/values.yaml              # v0.8.0
 │   ├── gitlab-runner/values.yaml       # v0.8.0
 │   ├── blackbox-exporter/values.yaml   # v0.9.0
-│   └── tailscale-operator/values.yaml # v0.22.0
+│   ├── tailscale-operator/values.yaml # v0.22.0
+│   └── intel-gpu-plugin/values.yaml  # v0.24.0
 │
 ├── manifests/
 │   ├── cert-manager/                   # v0.4.0
@@ -334,7 +342,9 @@ homelab/
 │       ├── karakeep-probe.yaml        # v0.21.0
 │       ├── karakeep-alerts.yaml       # v0.21.0
 │       ├── tailscale-alerts.yaml     # v0.22.0
-│       └── tailscale-dashboard-configmap.yaml  # v0.22.0
+│       ├── tailscale-dashboard-configmap.yaml  # v0.22.0
+│       ├── jellyfin-dashboard-configmap.yaml   # v0.24.0
+│       └── arr-stack-dashboard-configmap.yaml  # v0.24.0
 │
 ├── scripts/
 │   ├── upgrade-prometheus.sh           # v0.5.0

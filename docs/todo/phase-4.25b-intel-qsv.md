@@ -81,7 +81,6 @@
         - intel-media-va-driver-non-free   # iHD VA-API driver
         - vainfo                            # VA-API verification tool
         - intel-gpu-tools                   # intel_gpu_top monitoring
-        - linux-firmware                    # i915 firmware (usually present)
       state: present
 
   # Enable HuC firmware for HEVC low-power encode
@@ -232,19 +231,22 @@
 - [x] 4.25b.6.4 Test from phone (Jellyfin Android 2.6.3) — Direct Play at native quality, smooth playback
 - [ ] 4.25b.6.5 Verify on the node — GPU is active during transcode (manual):
   ```bash
-  ssh wawashi@cp3.k8s.rommelporras.com  # Jellyfin currently on cp3
+  # Find which node Jellyfin is running on
+  kubectl-homelab -n arr-stack get pod -l app=jellyfin -o jsonpath='{.items[0].spec.nodeName}'
+  # Then SSH to that node
+  ssh wawashi@<node>.k8s.rommelporras.com
   sudo intel_gpu_top
   # Video engine should show activity
   ```
 
 ### 4.25b.7 Documentation & Release
 
-- [ ] 4.25b.7.1 Update `VERSIONS.md` — add NFD, Intel GPU Plugin versions
-- [ ] 4.25b.7.2 Update `docs/reference/CHANGELOG.md` — add QSV decision, codec support matrix
-- [ ] 4.25b.7.3 Update `docs/context/Cluster.md` — add Intel GPU info per node
-- [ ] 4.25b.7.4 Update `docs/context/Architecture.md` — add device plugin stack
-- [ ] 4.25b.7.5 Create `docs/rebuild/v0.24.0-intel-qsv.md`
-- [ ] 4.25b.7.6 Update `docs/todo/README.md` — add Phase 4.25b
+- [x] 4.25b.7.1 Update `VERSIONS.md` — add NFD, Intel GPU Plugin versions
+- [x] 4.25b.7.2 Update `docs/reference/CHANGELOG.md` — add QSV decision, codec support matrix
+- [x] 4.25b.7.3 Update `docs/context/Cluster.md` — add Intel GPU info per node
+- [x] 4.25b.7.4 Update `docs/context/Architecture.md` — add device plugin stack
+- [x] 4.25b.7.5 Create `docs/rebuild/v0.24.0-intel-qsv.md`
+- [x] 4.25b.7.6 Update `docs/todo/README.md` and `docs/rebuild/README.md`
 - [ ] 4.25b.7.7 `/audit-docs`
 - [ ] 4.25b.7.8 `/commit`
 - [ ] 4.25b.7.9 `/release v0.24.0 "Intel QSV Hardware Transcoding"`
@@ -305,7 +307,7 @@ Minimal footprint. The GPU plugin DaemonSet is very lightweight.
 - [ ] Verify `intel_gpu_top` shows Video engine activity during transcode (manual)
 - [ ] VPP tone mapping works on HDR content (no blocky/pixelated output)
 - [x] Mobile phone playback smooth on low bandwidth — Jellyfin Android 2.6.3 Direct Play + 720kbps QSV transcode verified
-- [x] Grafana dashboards load and show GPU allocation + Jellyfin resource usage — confirmed via Grafana API
+
 
 ---
 
@@ -323,6 +325,9 @@ kubectl-homelab delete namespace intel-device-plugins
 # Remove NFD
 helm-homelab uninstall -n node-feature-discovery node-feature-discovery
 kubectl-homelab delete namespace node-feature-discovery
+
+# Remove dashboards
+kubectl-homelab -n monitoring delete configmap jellyfin-dashboard arr-stack-dashboard
 
 # Node packages and i915.conf can stay — they don't affect anything without the K8s components
 ```

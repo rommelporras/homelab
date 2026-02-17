@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** February 16, 2026
+> **Last Updated:** February 17, 2026
 
 ---
 
@@ -48,6 +48,9 @@
 | gitlab/gitlab-runner | 0.85.0 | v18.8.0 | Installed | gitlab-runner |
 | prometheus-community/prometheus-blackbox-exporter | 11.7.0 | v0.28.0 | Installed | monitoring |
 | tailscale/tailscale-operator | 1.94.1 | v1.94.1 | Installed | tailscale |
+| oci://registry.k8s.io/nfd/charts/node-feature-discovery | 0.18.3 | v0.18.3 | Installed | node-feature-discovery |
+| intel/intel-device-plugins-operator | 0.34.1 | v0.34.1 | Installed | intel-device-plugins |
+| intel/intel-device-plugins-gpu | 0.34.1 | v0.34.1 | Installed | intel-device-plugins |
 
 > **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
 > Use `grafana/loki` + `grafana/alloy` instead.
@@ -66,8 +69,9 @@ helm-homelab repo add metrics-server https://kubernetes-sigs.github.io/metrics-s
 helm-homelab repo add gitlab https://charts.gitlab.io
 helm-homelab repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm-homelab repo add tailscale https://pkgs.tailscale.com/helmcharts
+helm-homelab repo add intel https://intel.github.io/helm-charts/
 helm-homelab repo update
-# Note: cert-manager and kube-prometheus-stack use OCI - no repo add needed
+# Note: cert-manager, kube-prometheus-stack, and NFD use OCI - no repo add needed
 ```
 
 ---
@@ -90,7 +94,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.25 complete. ARR Media Stack deployed.
+> **Status:** Phase 4.25b complete. Intel QSV hardware transcoding enabled.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -121,7 +125,10 @@ helm-homelab repo update
 | Sonarr | latest (LSIO) | Running | TV show management (imagePullPolicy: Always) |
 | Radarr | latest (LSIO) | Running | Movie management (imagePullPolicy: Always) |
 | qBittorrent | 5.1.4 (LSIO) | Running | Download client (arr-stack namespace) |
-| Jellyfin | 10.11.6 (official) | Running | Media server (CPU transcoding) |
+| Jellyfin | 10.11.6 (official) | Running | Media server (Intel QSV hardware transcoding) |
+| Node Feature Discovery | v0.18.3 | Running | Auto-labels GPU nodes (OCI Helm chart) |
+| Intel Device Plugins Operator | v0.34.1 | Running | Manages GPU plugin lifecycle |
+| Intel GPU Plugin | v0.34.1 | Running | Advertises gpu.intel.com/i915 (sharedDevNum=3) |
 | Bazarr | latest (LSIO) | Running | Subtitle management (imagePullPolicy: Always) |
 
 **DNS Configuration:**

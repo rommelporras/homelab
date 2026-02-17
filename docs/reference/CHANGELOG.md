@@ -4,6 +4,75 @@
 
 ---
 
+## February 17, 2026 — Phase 4.25b: Intel QSV Hardware Transcoding
+
+### Milestone: GPU-Accelerated Media Streaming
+
+Enabled Intel Quick Sync Video (QSV) hardware transcoding on all 3 cluster nodes for Jellyfin. Mobile streaming now transcodes via the UHD 630 iGPU with near-zero CPU impact. Deployed Node Feature Discovery, Intel Device Plugins Operator, and GPU Plugin to manage GPU resources through the Kubernetes device plugin API.
+
+| Component | Version | Namespace | Status |
+|-----------|---------|-----------|--------|
+| Node Feature Discovery | 0.18.3 | node-feature-discovery | Running |
+| Intel Device Plugins Operator | 0.34.1 | intel-device-plugins | Running |
+| Intel GPU Plugin | 0.34.1 | intel-device-plugins | Running (DaemonSet) |
+| intel-media-va-driver-non-free | 24.1.0 | (node packages) | Installed |
+
+### Codec Support (UHD 630 / Comet Lake)
+
+| Codec | HW Decode | HW Encode | Notes |
+|-------|-----------|-----------|-------|
+| H.264 8-bit | Yes | Yes | Most common format |
+| HEVC 8/10-bit | Yes | Yes | Low-power encode via HuC firmware |
+| VP9 8/10-bit | Yes | No | Decode only on Comet Lake |
+| MPEG-2 | Yes | Yes | Legacy format |
+| AV1 | No | No | Requires 11th gen+ |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| HW transcoding | Intel QSV (VA-API) | Built into existing CPUs, best quality-per-watt |
+| Device access | Intel Device Plugin | PSS compatible, no privileged containers, proper scheduling |
+| Node labeling | Node Feature Discovery | Auto-detects GPU, standard K8s ecosystem tool |
+| GPU sharing | sharedDevNum: 3 | Allow 3 pods per node to share iGPU |
+| HuC firmware | enable_guc=2 | Required for HEVC low-power encode on Comet Lake |
+| Transcode cache | Disk-backed emptyDir | Avoids OOM/node crash risk vs tmpfs |
+| Tone mapping | VPP (not OpenCL) | OpenCL broken in Jellyfin 10.11.x (#15576) |
+| Ansible rolling reboot | serial: 1 | One node at a time, verify all gates before proceeding |
+
+### Grafana Dashboards
+
+| Dashboard | Panels | Highlights |
+|-----------|--------|------------|
+| Jellyfin Media Server | 11 | GPU allocation, Transcode I/O, Tailscale tunnel traffic |
+| ARR Media Stack | 11 | All 6 services overview, merged Pod Status + node placement |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| ansible/playbooks/08-intel-gpu.yml | Intel GPU drivers + HuC firmware (rolling reboot) |
+| helm/intel-gpu-plugin/values.yaml | Intel GPU Plugin configuration |
+| manifests/monitoring/jellyfin-dashboard-configmap.yaml | Jellyfin + GPU Grafana dashboard |
+| manifests/monitoring/arr-stack-dashboard-configmap.yaml | ARR Stack overview Grafana dashboard |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| manifests/arr-stack/jellyfin/deployment.yaml | GPU resource, supplementalGroups, transcode emptyDir, 4Gi memory |
+
+### Issues Discovered
+
+| Issue | Impact | Fix |
+|-------|--------|-----|
+| Intel GPU Plugin inotify exhaustion (#2075) | Pod CrashLoopBackOff | `fs.inotify.max_user_instances=512` on all nodes |
+| OPNsense stale firewall states after reboot | Cross-VLAN SSH blocked | Manual state clearing (documented for Phase 5 hardening) |
+| Ansible `serial` resolves task names at parse time | Misleading task output | Use static task names, Ansible already prefixes with host |
+| M80q BIOS POST takes 5-7 min | Ansible reboot timeout too short | Increased `reboot_timeout` to 600s |
+
+---
+
 ## February 16, 2026 — Phase 4.25: ARR Media Stack
 
 ### Milestone: Self-Hosted Media Automation Platform

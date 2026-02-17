@@ -20,7 +20,8 @@ ansible/
 │   ├── 04-cilium.yml            # CNI installation
 │   ├── 05-join-cluster.yml      # Join additional nodes
 │   ├── 06-storage-prereqs.yml   # Storage prerequisites (Longhorn, NFS)
-│   └── 07-remove-taints.yml     # Remove control-plane taints (homelab)
+│   ├── 07-remove-taints.yml     # Remove control-plane taints (homelab)
+│   └── 08-intel-gpu.yml         # Intel GPU drivers + HuC firmware (QSV)
 └── README.md                    # This file
 ```
 
@@ -69,6 +70,9 @@ ansible-playbook -i inventory/homelab.yml playbooks/05-join-cluster.yml
 # Phase 3: Storage
 ansible-playbook -i inventory/homelab.yml playbooks/06-storage-prereqs.yml
 ansible-playbook -i inventory/homelab.yml playbooks/07-remove-taints.yml
+
+# Phase 4.25b: Intel GPU (QSV hardware transcoding)
+ansible-playbook -i inventory/homelab.yml playbooks/08-intel-gpu.yml
 ```
 
 ### Limit to specific hosts

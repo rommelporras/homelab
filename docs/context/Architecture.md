@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, architecture, decisions]
-updated: 2026-02-11
+updated: 2026-02-17
 ---
 
 # Architecture
@@ -79,6 +79,19 @@ Cilium has built-in Gateway API support. No extra ingress controller needed.
 | Alerting | Yes | Discord + Email redundancy |
 | UPS Protection | Yes | Staggered graceful shutdown |
 | NAS (media) | No | Single Dell 3090 (acceptable) |
+| GPU transcoding | Yes | All 3 nodes have UHD 630 iGPU |
+
+## Why Intel Device Plugin (Not hostPath)
+
+| Approach | Problem |
+|----------|---------|
+| hostPath /dev/dri | Requires privileged, bypasses PSS, no resource scheduling |
+| Manual device mounts | Pod YAML complexity, no GPU slot tracking |
+| **Intel Device Plugin** | **PSS compatible, proper `gpu.intel.com/i915` scheduling** |
+
+Device plugin auto-mounts `/dev/dri` into pods that request `gpu.intel.com/i915`. `sharedDevNum: 3` allows 3 pods per node to share one iGPU. Kubernetes scheduler tracks GPU slots like CPU/memory.
+
+Node Feature Discovery auto-labels nodes with `intel.feature.node.kubernetes.io/gpu: true`, so the GPU plugin DaemonSet only runs on GPU-equipped nodes.
 
 ## Cross-Namespace Service Pattern (Ollama)
 

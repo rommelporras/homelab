@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
-3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 23 releases, each with a [complete rebuild guide](docs/rebuild/README.md).
+3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 24 releases, each with a [complete rebuild guide](docs/rebuild/README.md).
 
 > **Owner:** Rommel Porras  |  **CKA Target:** September 2026
 
@@ -69,7 +69,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Longhorn distributed storage (2x replication across NVMe)
 - kube-vip HA VIP (ARP mode, Prometheus monitoring)
 - Gateway API + cert-manager (Let's Encrypt wildcard TLS)
-- Ansible-automated bootstrap ([6 playbooks](ansible/playbooks/))
+- Ansible-automated bootstrap ([8 playbooks](ansible/playbooks/))
 
 **Observability**
 - Prometheus + Grafana + Loki + Alloy (full metrics, logs, dashboards)
@@ -130,7 +130,7 @@ Things that bit us and might save you time:
 | Document | Purpose |
 |----------|---------|
 | [docs/context/Cluster.md](docs/context/Cluster.md) | **Source of truth** — nodes, IPs, hardware |
-| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (23 releases, v0.1.0 to v0.23.0) |
+| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (24 releases, v0.1.0 to v0.24.0) |
 | [docs/context/](docs/context/) | Knowledge base (11 topic files: Architecture, Gateway, Networking, etc.) |
 | [docs/todo/](docs/todo/README.md) | Phase plans (active + [completed](docs/todo/completed/)) |
 | [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md) | Decision history and project timeline |
@@ -140,6 +140,6 @@ Things that bit us and might save you time:
 
 ## Next Steps
 
-1. **Intel QSV Hardware Transcoding** — Jellyfin GPU passthrough for H.264/HEVC (Phase 4.25b)
-2. **ARR Companions** — Configarr, Unpackerr, Scraparr (Phase 4.26)
+1. **ARR Companions** — Configarr, Unpackerr, Scraparr (Phase 4.26)
+2. **Version Automation** — Upgrade runbooks and automated version tracking (Phase 4.27)
 3. **CKA Certification** — September 2026 target

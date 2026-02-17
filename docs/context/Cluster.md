@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, cluster, nodes]
-updated: 2026-02-16
+updated: 2026-02-17
 ---
 
 # Cluster
@@ -24,6 +24,10 @@ Current state of the 3-node HA Kubernetes cluster.
 | RAM | 16GB DDR4 |
 | Storage | 512GB NVMe |
 | NIC | Intel I219-LM (1GbE) |
+| iGPU | Intel UHD Graphics 630 (Comet Lake) |
+| GPU Driver | intel-media-va-driver-non-free (iHD 24.1.0) |
+| GPU Device | /dev/dri/renderD128 |
+| HuC Firmware | enable_guc=2 (kbl_huc_4.0.0.bin) |
 | Interface | eno1 |
 
 ## DNS Names
@@ -73,6 +77,8 @@ ssh wawashi@cp3.k8s.rommelporras.com
 | karakeep | Karakeep bookmark manager (web, Chrome, Meilisearch) |
 | tailscale | Tailscale Operator (subnet router, DNS) |
 | arr-stack | ARR media stack (Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin, Bazarr) |
+| node-feature-discovery | NFD (auto-labels GPU nodes) |
+| intel-device-plugins | Intel GPU Plugin Operator + GPU Plugin DaemonSet |
 
 ## Hardware Inventory & Cost
 
