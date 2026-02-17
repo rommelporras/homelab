@@ -1,0 +1,391 @@
+# Grafana Dashboard - ARR Media Stack Overview
+# All 6 services: Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin, Bazarr
+# Auto-provisioned via grafana_dashboard label
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: arr-stack-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus-stack
+data:
+  arr-stack.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "title": "Pod Status",
+          "type": "row",
+          "description": "Health and node placement for all 6 ARR services. Shows UP/DOWN status with the node name below. All run as single-replica Deployments with Recreate strategy (RWO PVCs)."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "DOWN",
+              "mappings": [
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+          "id": 2,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value_and_name" },
+          "description": "Prowlarr indexer manager. Provides search results to Sonarr and Radarr.",
+          "title": "Prowlarr",
+          "type": "stat",
+          "targets": [{ "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"prowlarr.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")", "legendFormat": "{{ short_node }}" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "DOWN",
+              "mappings": [
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+          "id": 3,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value_and_name" },
+          "description": "Sonarr TV show manager. Monitors RSS feeds and sends downloads to qBittorrent.",
+          "title": "Sonarr",
+          "type": "stat",
+          "targets": [{ "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"sonarr.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")", "legendFormat": "{{ short_node }}" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "DOWN",
+              "mappings": [
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+          "id": 4,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value_and_name" },
+          "description": "Radarr movie manager. Monitors RSS feeds and sends downloads to qBittorrent.",
+          "title": "Radarr",
+          "type": "stat",
+          "targets": [{ "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"radarr.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")", "legendFormat": "{{ short_node }}" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "DOWN",
+              "mappings": [
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+          "id": 5,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value_and_name" },
+          "description": "qBittorrent download client. Handles all torrent downloads for Sonarr/Radarr.",
+          "title": "qBittorrent",
+          "type": "stat",
+          "targets": [{ "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"qbittorrent.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")", "legendFormat": "{{ short_node }}" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "DOWN",
+              "mappings": [
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+          "id": 6,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value_and_name" },
+          "description": "Jellyfin media server with Intel QSV hardware transcoding. See dedicated Jellyfin dashboard for GPU details.",
+          "title": "Jellyfin",
+          "type": "stat",
+          "targets": [{ "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"jellyfin.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")", "legendFormat": "{{ short_node }}" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "DOWN",
+              "mappings": [
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+          "id": 7,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value_and_name" },
+          "description": "Bazarr subtitle manager. Automatically downloads subtitles for media managed by Sonarr and Radarr.",
+          "title": "Bazarr",
+          "type": "stat",
+          "targets": [{ "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"bazarr.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")", "legendFormat": "{{ short_node }}" }]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "id": 20,
+          "title": "Network Traffic",
+          "type": "row",
+          "description": "Network throughput per service. qBittorrent shows torrent traffic (high receive = downloading). Jellyfin shows streaming traffic (high transmit = active streams). Sonarr/Radarr/Prowlarr show API traffic (low bandwidth)."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "Bps"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "id": 21,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Bytes received per second by each service. qBittorrent dominates during active downloads (torrent traffic). Jellyfin receives NFS reads when streaming. Sonarr/Radarr receive metadata from indexers.",
+          "title": "Receive Throughput (per service)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (pod) (rate(container_network_receive_bytes_total{namespace=\"arr-stack\"}[5m])) > 0",
+              "legendFormat": "{{ pod }}"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "Bps"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "id": 22,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Bytes transmitted per second by each service. Jellyfin dominates during active streaming (sending video to clients). qBittorrent transmits during seeding. Other services have minimal transmit.",
+          "title": "Transmit Throughput (per service)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (pod) (rate(container_network_transmit_bytes_total{namespace=\"arr-stack\"}[5m])) > 0",
+              "legendFormat": "{{ pod }}"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+          "id": 30,
+          "title": "Resource Usage",
+          "type": "row",
+          "description": "CPU and memory consumption for all ARR services. Jellyfin has the largest allocation (4Gi memory, 4 CPU limit) for QSV transcoding. qBittorrent is next (1Gi, 1 CPU). Others are lightweight (256-512Mi)."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+          "id": 31,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "CPU cores used by each ARR service. With QSV, Jellyfin CPU stays low even during transcoding (GPU handles video). High CPU on Sonarr/Radarr = metadata import or large library scans.",
+          "title": "CPU Usage (per service)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"arr-stack\", container=~\"prowlarr|sonarr|radarr|qbittorrent|jellyfin|bazarr\"}[5m]))",
+              "legendFormat": "{{ container }}"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+          "id": 32,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Memory working set per service. Jellyfin uses most (300-500Mi idle, +200-500Mi per transcode). Bazarr/Prowlarr are lightest (~128Mi). Approaching the limit triggers OOM kill — check if limits need increasing.",
+          "title": "Memory Usage (per service)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"arr-stack\", container=~\"prowlarr|sonarr|radarr|qbittorrent|jellyfin|bazarr\"})",
+              "legendFormat": "{{ container }}"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+          "id": 10,
+          "title": "Container Restarts",
+          "type": "row",
+          "description": "Container restart history for all ARR services. Frequent restarts may indicate OOM kills, probe failures, or configuration issues. qBittorrent uses tcpSocket probes (CSRF blocks HTTP)."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "short",
+              "decimals": 0,
+              "min": 0
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+          "id": 11,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Cumulative container restarts over time per service. A rising line indicates repeated crashes. Flat line = stable. Check pod logs for the crashing service. Common causes: OOM (check memory), failed probes, NFS mount issues.",
+          "title": "Container Restarts (all services)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (container) (kube_pod_container_status_restarts_total{namespace=\"arr-stack\", container=~\"prowlarr|sonarr|radarr|qbittorrent|jellyfin|bazarr\"})",
+              "legendFormat": "{{ container }}"
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["arr-stack", "media", "homelab"],
+      "templating": { "list": [] },
+      "refresh": "10s",
+      "time": { "from": "now-12h", "to": "now" },
+      "timepicker": {},
+      "timezone": "Asia/Manila",
+      "title": "ARR Media Stack",
+      "uid": "arr-stack-overview",
+      "version": 1
+    }

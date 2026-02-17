@@ -84,6 +84,21 @@
         cache_valid_time: 3600
 
     # =========================================
+    # 8.2b Increase inotify instances for Intel GPU Plugin
+    # =========================================
+    # Default max_user_instances=128 causes "too many open files" in
+    # Intel GPU Plugin v0.34.1 (Issue #2075). Increase to 512.
+    # Persists across reboots via /etc/sysctl.d/
+
+    - name: Increase inotify max_user_instances for GPU plugin
+      ansible.posix.sysctl:
+        name: fs.inotify.max_user_instances
+        value: '512'
+        sysctl_file: /etc/sysctl.d/99-inotify.conf
+        reload: true
+        state: present
+
+    # =========================================
     # 8.3 Configure HuC Firmware Loading
     # =========================================
     # enable_guc=2 = Load HuC firmware only (correct for Comet Lake / Gen 9-10)
@@ -137,7 +152,7 @@
       changed_when: false
       failed_when: "'iHD' not in vainfo_pre.stdout"
 
-    - name: "GATE: VA-API driver verified on {{ inventory_hostname }}"
+    - name: "GATE: VA-API driver verified (pre-reboot)"
       ansible.builtin.debug:
         msg: "{{ inventory_hostname }}: iHD VA-API driver installed and working"
 
@@ -148,13 +163,13 @@
     # Only reboots when i915.conf was created/changed
     # serial: 1 ensures only one node reboots at a time
 
-    - name: "Reboot {{ inventory_hostname }} for HuC firmware loading"
+    - name: "REBOOTING — waiting up to 10 min for boot + SSH (M80q BIOS is slow)"
       ansible.builtin.reboot:
         msg: "Rebooting {{ inventory_hostname }} for Intel HuC firmware (enable_guc=2)"
-        reboot_timeout: 300
+        reboot_timeout: 600
       when: i915_conf.changed
 
-    - name: Wait for SSH to come back
+    - name: "Node is back — verifying SSH connection"
       ansible.builtin.wait_for_connection:
         timeout: 120
       when: i915_conf.changed
@@ -223,7 +238,7 @@
     # =========================================
     # Summary (per node, printed before moving to next)
     # =========================================
-    - name: "{{ inventory_hostname }} — Intel GPU setup complete"
+    - name: "Intel GPU setup complete — all gates passed"
       ansible.builtin.debug:
         msg: |
           ✓ {{ inventory_hostname }} Intel GPU setup PASSED all gates:

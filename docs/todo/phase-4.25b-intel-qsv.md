@@ -98,8 +98,8 @@
     command: update-initramfs -u
     notify: reboot
   ```
-- [ ] 4.25b.1.2 Run playbook on all 3 nodes (requires reboot)
-- [ ] 4.25b.1.3 Verify on each node after reboot:
+- [x] 4.25b.1.2 Run playbook on all 3 nodes (requires reboot) — rolling reboot with `serial: 1`, all 3 passed
+- [x] 4.25b.1.3 Verify on each node after reboot — all gates passed (iHD 24.1.0, HuC authenticated, kubelet active):
   ```bash
   # i915 driver loaded
   lsmod | grep i915
@@ -127,18 +127,9 @@
 
 ### 4.25b.2 Deploy Node Feature Discovery
 
-- [ ] 4.25b.2.1 Install NFD Helm chart (v0.18.3 — use OCI registry, legacy Helm repo is deprecated):
-  ```bash
-  helm-homelab upgrade -i --create-namespace \
-    -n node-feature-discovery node-feature-discovery \
-    oci://registry.k8s.io/nfd/charts/node-feature-discovery \
-    --version 0.18.3
-  ```
-- [ ] 4.25b.2.2 Apply Intel NFD feature rules (pin to release version, not `main`):
-  ```bash
-  kubectl-homelab apply -f https://raw.githubusercontent.com/intel/intel-device-plugins-for-kubernetes/v0.34.1/deployments/nfd/overlays/node-feature-rules/node-feature-rules.yaml
-  ```
-- [ ] 4.25b.2.3 Verify GPU labels on all nodes:
+- [x] 4.25b.2.1 Install NFD Helm chart (v0.18.3 — use OCI registry, legacy Helm repo is deprecated)
+- [x] 4.25b.2.2 Apply Intel NFD feature rules (pinned to v0.34.1)
+- [x] 4.25b.2.3 Verify GPU labels on all nodes — all 3 labeled `intel.feature.node.kubernetes.io/gpu: true`
   ```bash
   kubectl-homelab get nodes -o json | jq '.items[].metadata.labels | with_entries(select(.key | startswith("intel.feature")))'
   # Expect: "intel.feature.node.kubernetes.io/gpu": "true"
@@ -158,23 +149,10 @@
   nodeSelector:
     intel.feature.node.kubernetes.io/gpu: 'true'
   ```
-- [ ] 4.25b.3.2 Install Intel Device Plugins Operator (v0.34.1 — requires cert-manager):
-  ```bash
-  helm-homelab repo add intel https://intel.github.io/helm-charts/
-  helm-homelab repo update
-  helm-homelab upgrade -i --create-namespace \
-    -n intel-device-plugins intel-device-plugins-operator \
-    intel/intel-device-plugins-operator --version 0.34.1
-  ```
-  > **Note:** The operator runs privileged (needs `/var/lib/kubelet/device-plugins`). The operator automatically sets the `intel-device-plugins` namespace to PSS `privileged` since v0.34.0. This is expected — device plugins inherently require host-level access.
-- [ ] 4.25b.3.3 Install Intel GPU Plugin (v0.34.1):
-  ```bash
-  helm-homelab upgrade -i \
-    -n intel-device-plugins intel-device-plugins-gpu \
-    -f helm/intel-gpu-plugin/values.yaml \
-    intel/intel-device-plugins-gpu --version 0.34.1
-  ```
-- [ ] 4.25b.3.4 Verify GPU resources advertised:
+- [x] 4.25b.3.2 Install Intel Device Plugins Operator (v0.34.1 — requires cert-manager)
+  > **Note:** Required `fs.inotify.max_user_instances=512` on all nodes ([Issue #2075](https://github.com/intel/intel-device-plugins-for-kubernetes/issues/2075)). Applied via `/etc/sysctl.d/99-inotify.conf`.
+- [x] 4.25b.3.3 Install Intel GPU Plugin (v0.34.1)
+- [x] 4.25b.3.4 Verify GPU resources advertised — all 3 nodes show `gpu.intel.com/i915: 3`
   ```bash
   kubectl-homelab get node k8s-cp1 -o json | jq '.status.allocatable | with_entries(select(.key | startswith("gpu")))'
   # Expect: "gpu.intel.com/i915": "3"
@@ -214,7 +192,7 @@
   - Increase memory limit to 4Gi (transcoding is memory-hungry, ~300-500Mi idle + ~200-500Mi per stream)
   - Note: Do NOT set `privileged: true` — device plugin handles /dev/dri access
   - Note: Stays PSS baseline compatible
-- [ ] 4.25b.4.2 Apply updated deployment and verify pod starts with GPU:
+- [x] 4.25b.4.2 Apply updated deployment and verify pod starts with GPU — confirmed `gpu.intel.com/i915: 1`:
   ```bash
   kubectl-homelab apply -f manifests/arr-stack/jellyfin/deployment.yaml
   kubectl-homelab -n arr-stack describe pod -l app=jellyfin | grep gpu.intel.com
@@ -224,52 +202,40 @@
 ### 4.25b.4b Grafana Dashboard for Jellyfin & GPU
 
 - [x] 4.25b.4b.1 Create `manifests/monitoring/jellyfin-dashboard-configmap.yaml`:
-  - **Pod Status row:** UP/DOWN stat panel for Jellyfin deployment
-  - **GPU Allocation row:** `gpu.intel.com/i915` allocated vs available per node (from kube-state-metrics: `kube_pod_container_resource_requests`, `kube_node_status_allocatable`)
-  - **Resource Usage row:** CPU + Memory with dashed request/limit lines, highlight memory during transcoding (idle ~300-500Mi, per stream +200-500Mi)
-  - **Transcode Cache row:** Ephemeral storage usage for `/config/transcodes` emptyDir (from `container_fs_usage_bytes`)
-- [ ] 4.25b.4b.2 Apply dashboard ConfigMap:
-  ```bash
-  kubectl-homelab apply -f manifests/monitoring/jellyfin-dashboard-configmap.yaml
-  ```
-- [ ] 4.25b.4b.3 Verify dashboard loads in Grafana
+  - **Pod Status row:** Merged UP/DOWN + node placement (cp1/cp2/cp3) via `label_replace` + `kube_pod_info`, Uptime, Container Restarts, Transcode I/O (disk write rate via `container_fs_writes_bytes_total`)
+  - **GPU Allocation row:** `gpu.intel.com/i915` allocated vs available per node (from kube-state-metrics), cluster-wide available/in-use stat panels
+  - **Network Traffic row:** Jellyfin streaming throughput (left) + Tailscale tunnel traffic on `tailscale0` interface (right) — shows remote vs local streaming
+  - **Resource Usage row:** CPU + Memory with dashed request/limit lines (idle ~300-500Mi, per stream +200-500Mi)
+- [x] 4.25b.4b.2 Apply dashboard ConfigMaps (Jellyfin + ARR Stack)
+- [x] 4.25b.4b.3 Verify both dashboards load in Grafana — confirmed via API (11 panels each, refresh 10s, 12h range)
 
 > **Note:** Actual GPU engine utilization (Video/Render/Blitter %) requires `intel-gpu-exporter` or similar. Out of scope for this phase — use `sudo intel_gpu_top` on nodes for manual checks. Can be added in Phase 4.28 (Observability Improvements).
 
 ### 4.25b.5 Configure Jellyfin QSV in UI
 
-- [ ] 4.25b.5.1 Navigate to Administration Dashboard > Playback > Transcoding
-- [ ] 4.25b.5.2 Set Hardware acceleration to **Intel Quick Sync Video (QSV)**
-- [ ] 4.25b.5.3 Set QSV Device to `/dev/dri/renderD128`
-- [ ] 4.25b.5.4 Enable hardware encoding checkbox
-- [ ] 4.25b.5.5 Check hardware decoding codecs:
-  - [x] H.264
-  - [x] HEVC
-  - [x] MPEG-2
-  - [x] VP9
-  - [ ] AV1 (leave unchecked — not supported on Comet Lake)
-- [ ] 4.25b.5.6 Enable tone mapping (for HDR content)
-- [ ] 4.25b.5.7 Enable VPP tone mapping (preferred over OpenCL — uses fixed-function hardware, more reliable on Linux)
-- [ ] 4.25b.5.8 Allow encoding in HEVC format
+- [x] 4.25b.5.1 Navigate to Administration Dashboard > Playback > Transcoding
+- [x] 4.25b.5.2 Set Hardware acceleration to **Intel Quick Sync Video (QSV)**
+- [x] 4.25b.5.3 Set QSV Device to `/dev/dri/renderD128`
+- [x] 4.25b.5.4 Enable hardware encoding + low-power H.264/HEVC encoders
+- [x] 4.25b.5.5 Check hardware decoding codecs: H.264, HEVC, MPEG-2, VP9, HEVC 10bit, VP9 10bit
+- [x] 4.25b.5.6 Enable tone mapping (for HDR content)
+- [x] 4.25b.5.7 Enable VPP tone mapping (preferred over OpenCL — uses fixed-function hardware)
+- [x] 4.25b.5.8 Allow encoding in HEVC format
 
 > **Tone Mapping Warning:** Jellyfin 10.11.x has a known bug (Issue [#15576](https://github.com/jellyfin/jellyfin/issues/15576)) where OpenCL-based tone mapping produces blocky/pixelated output with QSV. VPP tone mapping is unaffected and takes priority when both are enabled. If HDR content looks bad, verify VPP is being used (check pod logs for `tonemap_vaapi` vs `tonemap_opencl`).
 
 ### 4.25b.6 Verify Transcoding
 
-- [ ] 4.25b.6.1 Play a video in browser that forces transcode (HEVC file in a browser that doesn't support HEVC, or set bitrate limit low)
-- [ ] 4.25b.6.2 Verify Jellyfin dashboard shows **(HW)** next to codec in playback info
-- [ ] 4.25b.6.3 Verify pod logs confirm QSV codec selection:
+- [x] 4.25b.6.1 Play a video in browser that forces transcode — tested with 3mbps bitrate limit
+- [x] 4.25b.6.2 Verify pod logs confirm QSV codec selection — confirmed `hevc_qsv -low_power 1` with `driver=iHD`
+- [x] 4.25b.6.3 Verify hardware scaling — confirmed `scale_vaapi=w=960:h=540` (1080p → 540p on GPU)
+- [x] 4.25b.6.4 Test from phone (Jellyfin Android 2.6.3) — Direct Play at native quality, smooth playback
+- [ ] 4.25b.6.5 Verify on the node — GPU is active during transcode (manual):
   ```bash
-  kubectl-homelab -n arr-stack logs deploy/jellyfin | grep -i "codec"
-  # Look for: -codec:v:0 h264_qsv (confirms QSV, not CPU or VA-API fallback)
-  ```
-- [ ] 4.25b.6.4 Verify on the node — GPU is active during transcode:
-  ```bash
-  ssh wawashi@cp1.k8s.rommelporras.com
+  ssh wawashi@cp3.k8s.rommelporras.com  # Jellyfin currently on cp3
   sudo intel_gpu_top
   # Video engine should show activity
   ```
-- [ ] 4.25b.6.5 Test from phone on mobile data — confirm smooth playback at reduced bitrate
 
 ### 4.25b.7 Documentation & Release
 
@@ -306,6 +272,7 @@ Minimal footprint. The GPU plugin DaemonSet is very lightweight.
 | `ansible/playbooks/08-intel-gpu.yml` | Ansible Playbook | Install Intel GPU drivers + HuC firmware on all nodes |
 | `helm/intel-gpu-plugin/values.yaml` | Helm Values | Intel GPU Plugin configuration (v0.34.1) |
 | `manifests/monitoring/jellyfin-dashboard-configmap.yaml` | ConfigMap | Grafana dashboard for Jellyfin + GPU allocation |
+| `manifests/monitoring/arr-stack-dashboard-configmap.yaml` | ConfigMap | Grafana dashboard for all 6 ARR services overview |
 
 ### Pinned Versions
 
@@ -326,17 +293,19 @@ Minimal footprint. The GPU plugin DaemonSet is very lightweight.
 
 ## Verification Checklist
 
-- [ ] `vainfo` shows iHD driver on all 3 nodes
-- [ ] `dmesg | grep huc` shows "HuC authenticated" on all 3 nodes
-- [ ] NFD labels all nodes with `intel.feature.node.kubernetes.io/gpu: true`
-- [ ] `gpu.intel.com/i915: 3` in node allocatable resources
-- [ ] Jellyfin pod shows `gpu.intel.com/i915: 1` in describe output
-- [ ] Transcode shows **(HW)** in Jellyfin playback dashboard
-- [ ] Pod logs show `h264_qsv` or `hevc_qsv` codec selection (not CPU fallback)
-- [ ] `intel_gpu_top` shows Video engine activity during transcode
+- [x] `vainfo` shows iHD driver on all 3 nodes — iHD 24.1.0
+- [x] `dmesg | grep huc` shows "HuC authenticated" on all 3 nodes — kbl_huc_4.0.0.bin
+- [x] NFD labels all nodes with `intel.feature.node.kubernetes.io/gpu: true`
+- [x] `gpu.intel.com/i915: 3` in node allocatable resources — all 3 nodes
+- [x] Jellyfin pod shows `gpu.intel.com/i915: 1` in describe output
+- [x] Pod logs show `hevc_qsv` codec selection with `-low_power 1` (HuC-enabled encode)
+- [x] ARR Stack overview dashboard applied to Grafana (merged Pod Status + node placement)
+- [x] Jellyfin dashboard improved: merged UP/DOWN+node, Transcode I/O stat, Tailscale tunnel traffic panel
+- [x] Verify dashboards load in Grafana — both confirmed via Grafana API (11 panels each, 10s refresh)
+- [ ] Verify `intel_gpu_top` shows Video engine activity during transcode (manual)
 - [ ] VPP tone mapping works on HDR content (no blocky/pixelated output)
-- [ ] Mobile phone playback smooth on low bandwidth
-- [ ] Grafana dashboard loads and shows GPU allocation + Jellyfin resource usage
+- [x] Mobile phone playback smooth on low bandwidth — Jellyfin Android 2.6.3 Direct Play + 720kbps QSV transcode verified
+- [x] Grafana dashboards load and show GPU allocation + Jellyfin resource usage — confirmed via Grafana API
 
 ---
 

@@ -1,8 +1,8 @@
 # Phase 5: Production Hardening
 
 > **Status:** ⬜ Planned
-> **Target:** v0.25.0
-> **Prerequisite:** Phase 4.9 complete, all applications migrated
+> **Target:** v0.28.0
+> **Prerequisite:** Phase 4.28 complete (all Phase 4.x work finished)
 > **DevOps Topics:** Security posture, backup/restore, defense in depth
 > **CKA Topics:** RBAC, NetworkPolicy, Pod Security Standards, Resource Quotas
 
@@ -327,7 +327,49 @@ Without RBAC:                    With RBAC:
 
 ---
 
-## 5.5 Backup Strategy (Velero)
+## 5.5 Operational Resilience
+
+> **Purpose:** Improve cluster behavior during node reboots and maintenance windows
+>
+> **Discovered during:** Phase 4.25b Intel QSV rolling reboots — all 3 issues hit in a single session
+
+### 5.5.1 OPNsense Stale Firewall States
+
+**Problem:** After a node reboot, OPNsense keeps stale TCP states (`CLOSED:SYN_SENT`) for the rebooted IP. Cross-VLAN SSH (10.10.20.x → 10.10.30.x) times out until states are manually cleared in Firewall > Diagnostics > States. This happened on **every single node reboot** (cp1, cp2, cp3).
+
+- [ ] 5.5.1.1 Investigate OPNsense state timeout tuning for K8s VLAN
+  - Current behavior: stale states persist for minutes after node comes back
+  - Options: reduce state timeout for VLAN 30, or use adaptive timeouts
+- [ ] 5.5.1.2 Evaluate OPNsense API for automated state clearing
+  - Ansible pre/post-reboot task to clear states via OPNsense REST API
+  - Would eliminate manual intervention during rolling reboots
+
+### 5.5.2 GitLab HA (Registry Availability)
+
+**Problem:** GitLab webservice is single-replica. When its node reboots, the container registry goes down, causing `ImagePullBackOff` cascade for all pods pulling from `registry.k8s.rommelporras.com` (invoicetron, portfolio). Recovery took 10+ minutes.
+
+- [ ] 5.5.2.1 Scale GitLab webservice to 2 replicas with podAntiAffinity
+  - Helm values: `gitlab.webservice.replicas: 2` + anti-affinity to spread across nodes
+  - Memory impact: each replica uses ~2-3GB RAM — budget accordingly
+- [ ] 5.5.2.2 Scale GitLab registry to 2 replicas with podAntiAffinity
+  - Ensures container image pulls survive single-node reboots
+
+### 5.5.3 Pod Eviction Timing
+
+**Problem:** When a node goes down, pods take ~5-6 minutes to reschedule. Default Kubernetes tolerations give `node.kubernetes.io/not-ready` and `node.kubernetes.io/unreachable` a 300s grace period. Services appeared down during this window.
+
+- [ ] 5.5.3.1 Evaluate reducing tolerationSeconds for critical workloads
+  - Default: 300s — could reduce to 30-60s for stateless services (Homepage, Ghost, Portfolio)
+  - Trade-off: faster failover vs. more unnecessary pod migrations on transient blips
+- [ ] 5.5.3.2 Document expected recovery times for maintenance windows
+  - M80q BIOS POST: ~5-7 min
+  - Kubernetes node NotReady detection: ~40s
+  - Pod eviction: 300s (default)
+  - Total worst-case: ~11 min from reboot to pods running elsewhere
+
+---
+
+## 5.6 Backup Strategy (Velero)
 
 > **Purpose:** Recover from disasters (accidental deletion, corruption, node failure)
 
@@ -339,22 +381,22 @@ Without RBAC:                    With RBAC:
 | PVC data | Yes (with restic) | Requires annotation |
 | etcd | No | Use kubeadm snapshot for etcd |
 
-- [ ] 5.5.1 Add Velero Helm repo
+- [ ] 5.6.1 Add Velero Helm repo
   ```bash
   helm-homelab repo add vmware-tanzu https://vmware-tanzu.github.io/helm-charts --force-update
   helm-homelab repo update
   ```
 
-- [ ] 5.5.2 Create NFS backup location on NAS
+- [ ] 5.6.2 Create NFS backup location on NAS
   ```bash
-  # On NAS, create:
-  # /volume1/k8s-backups/velero
+  # On NAS, create backup directory under the Kubernetes NFS export
+  # /export/Kubernetes/Backups/velero
 
   # Test NFS mount from a node
-  ssh k8s-cp1 "sudo mount -t nfs 10.10.30.4:/volume1/k8s-backups /mnt && ls /mnt && sudo umount /mnt"
+  ssh k8s-cp1 "sudo mount -t nfs 10.10.30.4:/export/Kubernetes/Backups /mnt && ls /mnt && sudo umount /mnt"
   ```
 
-- [ ] 5.5.3 Install Velero with NFS plugin
+- [ ] 5.6.3 Install Velero with NFS plugin
   ```bash
   # Create velero namespace
   kubectl-homelab create namespace velero
@@ -363,14 +405,14 @@ Without RBAC:                    With RBAC:
   helm-homelab install velero vmware-tanzu/velero \
     --namespace velero \
     --set configuration.backupStorageLocation.bucket=velero \
-    --set configuration.backupStorageLocation.config.path=/volume1/k8s-backups \
+    --set configuration.backupStorageLocation.config.path=/export/Kubernetes/Backups \
     --set configuration.backupStorageLocation.provider=filesystem \
     --set snapshotsEnabled=false \
     --set deployNodeAgent=true \
     --set nodeAgent.podVolumePath=/var/lib/kubelet/pods
   ```
 
-- [ ] 5.5.4 Create scheduled backup
+- [ ] 5.6.4 Create scheduled backup
   ```bash
   # Daily backup, retain 7 days
   velero schedule create daily-backup \
@@ -379,7 +421,7 @@ Without RBAC:                    With RBAC:
     --include-namespaces portfolio,invoicetron,home,monitoring
   ```
 
-- [ ] 5.5.5 Test backup
+- [ ] 5.6.5 Test backup
   ```bash
   # Create manual backup
   velero backup create test-backup --include-namespaces portfolio
@@ -389,7 +431,7 @@ Without RBAC:                    With RBAC:
   velero backup logs test-backup
   ```
 
-- [ ] 5.5.6 Test restore procedure
+- [ ] 5.6.6 Test restore procedure
   ```bash
   # Delete a deployment (test)
   kubectl-homelab delete deployment portfolio -n portfolio
@@ -403,9 +445,9 @@ Without RBAC:                    With RBAC:
 
 ---
 
-## 5.6 Documentation Updates
+## 5.7 Documentation Updates
 
-- [ ] 5.6.1 Update VERSIONS.md
+- [ ] 5.7.1 Update VERSIONS.md
   ```
   # Add to Infrastructure section:
   | Velero | 1.x.x | Backup and restore |
@@ -414,7 +456,7 @@ Without RBAC:                    With RBAC:
   | YYYY-MM-DD | Phase 5: Production hardening |
   ```
 
-- [ ] 5.6.2 Create docs/context/Security.md
+- [ ] 5.7.2 Create docs/context/Security.md
   ```
   Document:
   - NetworkPolicy strategy
@@ -423,7 +465,7 @@ Without RBAC:                    With RBAC:
   - Backup schedule and retention
   ```
 
-- [ ] 5.6.3 Update docs/reference/CHANGELOG.md
+- [ ] 5.7.3 Update docs/reference/CHANGELOG.md
   - Add Phase 5 section with security decisions
 
 ---
@@ -436,6 +478,9 @@ Without RBAC:                    With RBAC:
 - [ ] PSS baseline enforced on application namespaces
 - [ ] All pods have resource requests and limits
 - [ ] ResourceQuotas prevent runaway resource usage
+- [ ] OPNsense state issue resolved (automated or timeout tuned)
+- [ ] GitLab webservice/registry running 2 replicas with anti-affinity
+- [ ] Pod eviction timing documented and tuned for critical services
 - [ ] Velero installed and backup location accessible
 - [ ] Test backup created successfully
 - [ ] Test restore verified working

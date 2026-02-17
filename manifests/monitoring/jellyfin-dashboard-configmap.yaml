@@ -34,8 +34,9 @@ data:
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "fieldConfig": {
             "defaults": {
+              "noValue": "DOWN",
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
               ],
               "thresholds": {
                 "mode": "absolute",
@@ -54,15 +55,15 @@ data:
             "graphMode": "none",
             "justifyMode": "center",
             "reduceOptions": { "calcs": ["lastNotNull"] },
-            "textMode": "auto"
+            "textMode": "value_and_name"
           },
-          "description": "Jellyfin Deployment available replicas. Green = running, Red = down. Single replica with Recreate strategy — brief downtime during updates.",
+          "description": "Jellyfin pod health and node placement. Shows UP/DOWN status with the shortened node name (cp1/cp2/cp3). Each node has its own UHD 630 iGPU.",
           "title": "Jellyfin",
           "type": "stat",
           "targets": [
             {
-              "expr": "kube_deployment_status_replicas_available{namespace=\"arr-stack\", deployment=\"jellyfin\"}",
-              "legendFormat": "Available"
+              "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"jellyfin.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "legendFormat": "{{ short_node }}"
             }
           ]
         },
@@ -139,10 +140,13 @@ data:
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "fieldConfig": {
             "defaults": {
+              "unit": "Bps",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "text", "value": null }
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 5242880 },
+                  { "color": "red", "value": 52428800 }
                 ]
               }
             },
@@ -152,18 +156,18 @@ data:
           "id": 5,
           "options": {
             "colorMode": "value",
-            "graphMode": "none",
+            "graphMode": "area",
             "justifyMode": "center",
-            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^node$/" },
-            "textMode": "value"
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
           },
-          "description": "Which cluster node is currently running the Jellyfin pod. Relevant for GPU device access — each node has its own UHD 630 iGPU.",
-          "title": "Running on Node",
+          "description": "Disk write rate to the transcode cache (/config/transcodes emptyDir). Spikes indicate active QSV transcoding. Idle = near zero. Yellow > 5 MB/s, Red > 50 MB/s (high transcode load).",
+          "title": "Transcode I/O",
           "type": "stat",
           "targets": [
             {
-              "expr": "kube_pod_info{namespace=\"arr-stack\", pod=~\"jellyfin.*\"}",
-              "legendFormat": "{{ node }}"
+              "expr": "sum(rate(container_fs_writes_bytes_total{namespace=\"arr-stack\", pod=~\"jellyfin.*\", container=\"jellyfin\"}[5m]))",
+              "legendFormat": "Write Rate"
             }
           ]
         },
@@ -300,7 +304,7 @@ data:
           "id": 20,
           "title": "Network Traffic",
           "type": "row",
-          "description": "Jellyfin pod network traffic. High transmit rates indicate active streaming sessions. Spikes during media scans or metadata downloads are normal."
+          "description": "Jellyfin pod network traffic and Tailscale tunnel usage. Left panel shows Jellyfin pod throughput (local + remote combined). Right panel shows Tailscale tunnel traffic (remote access only — mobile streaming, SSH, web UIs over WireGuard)."
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -359,7 +363,7 @@ data:
                 "spanNulls": true,
                 "stacking": { "mode": "none" }
               },
-              "unit": "pps"
+              "unit": "Bps"
             },
             "overrides": [
               {
@@ -376,16 +380,16 @@ data:
             "legend": { "displayMode": "list", "placement": "bottom" },
             "tooltip": { "mode": "multi", "sort": "desc" }
           },
-          "description": "Jellyfin packet rate. High packet rates with low throughput may indicate many small requests (API calls, metadata fetches). High throughput with moderate packets = active streaming.",
-          "title": "Packet Rate",
+          "description": "Traffic through the Tailscale WireGuard tunnel (tailscale0 interface on the subnet connector). Shows all remote access traffic — Jellyfin streaming, SSH, web UIs. High transmit = active remote streaming. Compare with Jellyfin Streaming Throughput to estimate local vs remote ratio.",
+          "title": "Tailscale Tunnel Traffic",
           "type": "timeseries",
           "targets": [
             {
-              "expr": "sum(rate(container_network_receive_packets_total{namespace=\"arr-stack\", pod=~\"jellyfin.*\"}[5m]))",
+              "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"tailscale\", pod=~\"ts-homelab.*\", interface=\"tailscale0\"}[5m]))",
               "legendFormat": "Receive"
             },
             {
-              "expr": "sum(rate(container_network_transmit_packets_total{namespace=\"arr-stack\", pod=~\"jellyfin.*\"}[5m]))",
+              "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"tailscale\", pod=~\"ts-homelab.*\", interface=\"tailscale0\"}[5m]))",
               "legendFormat": "Transmit"
             }
           ]
@@ -518,7 +522,8 @@ data:
       "schemaVersion": 39,
       "tags": ["jellyfin", "gpu", "media", "arr-stack", "homelab"],
       "templating": { "list": [] },
-      "time": { "from": "now-24h", "to": "now" },
+      "refresh": "10s",
+      "time": { "from": "now-12h", "to": "now" },
       "timepicker": {},
       "timezone": "Asia/Manila",
       "title": "Jellyfin Media Server",
