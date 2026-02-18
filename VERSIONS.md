@@ -94,7 +94,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.26 complete. ARR companion apps deployed.
+> **Status:** Phase 4.27 complete. Version automation deployed.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -110,7 +110,7 @@ helm-homelab repo update
 | Uptime Kuma | v2.0.2 (rootless) | Running | Self-hosted uptime monitoring |
 | MySpeed | 1.0.9 | Running | Internet speed test tracker (migrated from LXC) |
 | TrafficAnalytics | 1.0.72 | Running | Ghost analytics proxy (browser → Tinybird) |
-| Firefox Browser | latest (lscr.io/linuxserver/firefox) | Running | Persistent browser via KasmVNC (LAN-only) |
+| Firefox Browser | 1147.0.3build1-1xtradeb1.2404.1-ls69 (LSIO) | Running | Persistent browser via KasmVNC (LAN-only) |
 | Karakeep | 0.30.0 | Running | Bookmark manager with AI tagging (SQLite + s6-overlay) |
 | Chrome (Karakeep) | alpine-chrome:124 | Running | Headless browser for page crawling |
 | Meilisearch | v1.13.3 | Running | Full-text search engine for Karakeep |
@@ -122,14 +122,14 @@ helm-homelab repo update
 | Tailscale Operator | v1.94.1 | Running | Watches CRDs, manages proxy pods |
 | Tailscale Proxy (Connector) | v1.94.1 | Running | WireGuard subnet router (homelab-subnet) |
 | Prowlarr | 2.3.0 (LSIO) | Running | Indexer manager (arr-stack namespace) |
-| Sonarr | latest (LSIO) | Running | TV show management (imagePullPolicy: Always) |
-| Radarr | latest (LSIO) | Running | Movie management (imagePullPolicy: Always) |
+| Sonarr | 4.0.16.2944-ls303 (LSIO) | Running | TV show management |
+| Radarr | 6.0.4.10291-ls293 (LSIO) | Running | Movie management |
 | qBittorrent | 5.1.4 (LSIO) | Running | Download client (arr-stack namespace) |
 | Jellyfin | 10.11.6 (official) | Running | Media server (Intel QSV hardware transcoding) |
 | Node Feature Discovery | v0.18.3 | Running | Auto-labels GPU nodes (OCI Helm chart) |
 | Intel Device Plugins Operator | v0.34.1 | Running | Manages GPU plugin lifecycle |
 | Intel GPU Plugin | v0.34.1 | Running | Advertises gpu.intel.com/i915 (sharedDevNum=3) |
-| Bazarr | latest (LSIO) | Running | Subtitle management (imagePullPolicy: Always) |
+| Bazarr | v1.5.5-ls338 (LSIO) | Running | Subtitle management |
 | Seerr | v3.0.1 | Running | Media requests + discovery (replaces Jellyseerr/Overseerr) |
 | Configarr | 1.20.0 | Running | TRaSH Guide quality profile sync (CronJob, daily 3AM) |
 | Unpackerr | v0.14.5 | Running | RAR archive extraction daemon (no web UI) |
@@ -261,6 +261,7 @@ helm-homelab repo update
 | Alertmanager | v0.30.1 | Configured |
 | Discord #incidents | Webhook | Configured |
 | Discord #status | Webhook | Configured |
+| Discord #versions | Webhook | Configured |
 | SMTP Server | smtp.mail.me.com:587 | Configured |
 | SMTP From | noreply@rommelporras.com | Configured |
 | healthchecks.io | K8s Alertmanager check | Configured |
@@ -278,5 +279,18 @@ helm-homelab repo update
 - `TargetDown` (kube-scheduler, kube-controller-manager, kube-etcd)
 
 See `docs/todo/deferred.md` for future fix.
+
+---
+
+## Version Automation (Phase 4.27)
+
+> **Status:** Deployed. Three-tool version tracking covering images, charts, and K8s itself.
+
+| Component | Version | Status | Purpose |
+|-----------|---------|--------|---------|
+| version-checker | v0.10.0 | Running | Container + K8s version drift (Prometheus metrics) |
+| Nova (CronJob) | v3.11.10 | Running | Weekly Helm chart drift digest (Discord) |
+| Nova (CLI) | v3.11.10 | Installed | Local Helm chart analysis |
+| Renovate Bot | GitHub App | Active | Automated image update PRs |
 
 > **Note:** For detailed change history with decisions and rationale, see [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md).

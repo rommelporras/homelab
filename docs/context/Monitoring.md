@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-02-18
+updated: 2026-02-19
 ---
 
 # Monitoring
@@ -21,6 +21,8 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 | nut-exporter | 3.1.1 | monitoring |
 | blackbox-exporter | v0.28.0 | monitoring |
 | OTel Collector | v0.144.0 | monitoring |
+| version-checker | v0.10.0 | monitoring |
+| Nova CronJob | v3.11.10 | monitoring |
 | Uptime Kuma | v2.0.2 | uptime-kuma |
 
 ## Access
@@ -184,6 +186,22 @@ Every new service should include a Grafana dashboard ConfigMap (`manifests/monit
 
 **Example files:** `tailscale-dashboard-configmap.yaml`, `claude-dashboard-configmap.yaml`, `kube-vip-dashboard-configmap.yaml`
 
+## Version Tracking
+
+Three-tool approach covering container images, Helm charts, and Kubernetes version:
+
+| Tool | Scope | Output | Schedule |
+|------|-------|--------|----------|
+| version-checker | Container images + K8s version | Prometheus metrics → Grafana dashboard + alerts | Continuous (1h scrape) |
+| Nova CronJob | Helm chart drift | Discord #versions embed | Weekly (Sunday 08:00 PHT) |
+| Renovate Bot | Container image tags in manifests | GitHub PRs (dependency dashboard approval) | Continuous |
+
+**version-checker** runs as a Deployment in `monitoring` with `--test-all-containers` (scans all pods). LinuxServer.io images use `match-regex` annotations for non-standard tag formats. Alerts fire after 7d outdated (containers) or 14d (K8s version).
+
+**Nova CronJob** uses an init container to copy the Nova binary from the official image to a shared emptyDir. The main container (Alpine) installs curl+jq, runs Nova, parses JSON, builds Discord embeds, and sends via webhook. Runs as root (apk needs it).
+
+**Renovate Bot** is a GitHub App with `dependencyDashboardApproval: true` — PRs require manual approval via the Dependency Dashboard issue. Major bumps get separate PRs; minor/patch are grouped weekly.
+
 ## Configuration Files
 
 | File | Purpose |
@@ -214,6 +232,15 @@ Every new service should include a Grafana dashboard ConfigMap (`manifests/monit
 | manifests/monitoring/scraparr-dashboard-configmap.yaml | Scraparr ARR metrics dashboard (library size, queues, health) |
 | manifests/monitoring/network-dashboard-configmap.yaml | Network throughput dashboard (1GbE NIC utilization, saturation analysis) |
 | manifests/monitoring/arr-alerts.yaml | ARR PrometheusRule (ArrAppDown, QueueStalled, NIC saturation, JellyfinDown) |
+| manifests/monitoring/version-checker-deployment.yaml | version-checker Deployment + Service |
+| manifests/monitoring/version-checker-rbac.yaml | version-checker RBAC (pods + apps read) |
+| manifests/monitoring/version-checker-servicemonitor.yaml | version-checker ServiceMonitor (1h scrape) |
+| manifests/monitoring/version-checker-alerts.yaml | version-checker PrometheusRule (ImageOutdated, K8sOutdated, Down) |
+| manifests/monitoring/version-checker-dashboard-configmap.yaml | version-checker Grafana dashboard |
+| manifests/monitoring/version-check-cronjob.yaml | Nova CronJob (weekly Helm drift → Discord) |
+| manifests/monitoring/version-check-script.yaml | Nova CronJob script ConfigMap |
+| manifests/monitoring/version-check-rbac.yaml | Nova CronJob RBAC (secrets read for Helm) |
+| renovate.json | Renovate Bot configuration (image update PRs) |
 
 ## Upgrade Prometheus Stack
 

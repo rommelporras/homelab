@@ -76,6 +76,9 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Alertmanager (Discord + Email, severity routing)
 - Dead Man's Switch (healthchecks.io), Blackbox probes, UPS monitoring (NUT)
 - Uptime Kuma (public [status page](https://status.rommelporras.com))
+- version-checker (container + K8s version drift, Prometheus metrics)
+- Renovate Bot (automated image update PRs with dependency dashboard)
+- Nova CronJob (weekly Helm chart drift digest to Discord)
 
 **Networking & Access**
 - Cloudflare Tunnel (HA, 2 replicas) for public services
@@ -131,7 +134,7 @@ Things that bit us and might save you time:
 | Document | Purpose |
 |----------|---------|
 | [docs/context/Cluster.md](docs/context/Cluster.md) | **Source of truth** — nodes, IPs, hardware |
-| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (25 releases, v0.1.0 to v0.25.0) |
+| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (26 releases, v0.1.0 to v0.26.0) |
 | [docs/context/](docs/context/) | Knowledge base (11 topic files: Architecture, Gateway, Networking, etc.) |
 | [docs/todo/](docs/todo/README.md) | Phase plans (active + [completed](docs/todo/completed/)) |
 | [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md) | Decision history and project timeline |
@@ -141,6 +144,6 @@ Things that bit us and might save you time:
 
 ## Next Steps
 
-1. **Version Automation** — Upgrade runbooks and automated version tracking (Phase 4.27)
-2. **Alerting & Observability** — Dashboard improvements, log-based panels (Phase 4.28)
+1. **Alerting & Observability** — Dashboard improvements, log-based panels (Phase 4.28)
+2. **Production Hardening** — Security posture, resource tuning (Phase 5)
 3. **CKA Certification** — September 2026 target

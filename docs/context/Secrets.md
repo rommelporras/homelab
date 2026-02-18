@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password]
-updated: 2026-02-18
+updated: 2026-02-19
 ---
 
 # Secrets
@@ -44,6 +44,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Cloudflare DNS API Token | `credential` | cert-manager (Let's Encrypt) |
 | Discord Webhook Incidents | `credential` | Alertmanager |
 | Discord Webhook Status | `credential` | Alertmanager |
+| Discord Webhook Versions | `credential` | Version Check CronJob (Nova → Discord) |
 | iCloud SMTP | `username`, `password`, `server`, `port` | Alertmanager, GitLab |
 | GitLab | `username`, `password`, `postgresql-password` | GitLab CE |
 | GitLab Runner | `runner-token` | GitLab Runner |
@@ -80,6 +81,7 @@ op://Kubernetes/Cloudflare DNS API Token/credential
 # Discord webhooks
 op://Kubernetes/Discord Webhook Incidents/credential
 op://Kubernetes/Discord Webhook Status/credential
+op://Kubernetes/Discord Webhook Versions/credential
 
 # SMTP (Alertmanager, GitLab)
 op://Kubernetes/iCloud SMTP/username

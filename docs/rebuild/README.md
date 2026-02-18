@@ -33,6 +33,7 @@
 | v0.23.0 | Phase 4.25 | ARR Media Stack (Prowlarr, Sonarr, Radarr, qBit, Jellyfin, Bazarr) | [v0.23.0-arr-stack.md](v0.23.0-arr-stack.md) |
 | v0.24.0 | Phase 4.25b | Intel QSV Hardware Transcoding (NFD, GPU Plugin, Jellyfin QSV) | [v0.24.0-intel-qsv.md](v0.24.0-intel-qsv.md) |
 | v0.25.0 | Phase 4.26 | ARR Companions (Seerr, Configarr, Unpackerr, Scraparr, Tdarr, Recommendarr, Byparr) | [v0.25.0-arr-companions.md](v0.25.0-arr-companions.md) |
+| v0.26.0 | Phase 4.27 | Version Automation & Upgrade Runbooks (version-checker, Nova CronJob, Renovate) | [v0.26.0-version-automation.md](v0.26.0-version-automation.md) |
 
 ---
 
@@ -115,6 +116,9 @@ docs/rebuild/v0.24.0-intel-qsv.md
 
 # 25. ARR Companions - Seerr, Configarr, Unpackerr, Scraparr, Tdarr, Recommendarr, Byparr
 docs/rebuild/v0.25.0-arr-companions.md
+
+# 26. Version Automation - version-checker, Nova CronJob, Renovate Bot
+docs/rebuild/v0.26.0-version-automation.md
 ```
 
 ---
@@ -191,7 +195,7 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | OTel Collector | v0.144.0 | v0.15.0 |
 | MySpeed | 1.0.9 | v0.16.0 |
 | TrafficAnalytics | 1.0.72 | v0.17.0 |
-| Firefox (KasmVNC) | latest | v0.18.0 |
+| Firefox (KasmVNC) | 1147.0.3build1-1xtradeb1.2404.1-ls69 | v0.18.0 |
 | Ollama | 0.15.6 | v0.20.0 |
 | qwen3:1.7b | Q4_K_M | v0.20.0 |
 | moondream | Q4_K_M | v0.20.0 |
@@ -203,11 +207,11 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | Tailscale Operator | v1.94.1 | v0.22.0 |
 | Tailscale Proxy (Connector) | v1.94.1 | v0.22.0 |
 | Prowlarr | 2.3.0 (LSIO) | v0.23.0 |
-| Sonarr | latest (LSIO) | v0.23.0 |
-| Radarr | latest (LSIO) | v0.23.0 |
+| Sonarr | 4.0.16.2944-ls303 (LSIO) | v0.23.0 |
+| Radarr | 6.0.4.10291-ls293 (LSIO) | v0.23.0 |
 | qBittorrent | 5.1.4 (LSIO) | v0.23.0 |
 | Jellyfin | 10.11.6 (official) | v0.23.0 |
-| Bazarr | latest (LSIO) | v0.23.0 |
+| Bazarr | v1.5.5-ls338 (LSIO) | v0.23.0 |
 | Node Feature Discovery | v0.18.3 | v0.24.0 |
 | Intel Device Plugins Operator | v0.34.1 | v0.24.0 |
 | Intel GPU Plugin | v0.34.1 | v0.24.0 |
@@ -218,6 +222,8 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | Tdarr | 2.58.02 | v0.25.0 |
 | Recommendarr | v1.4.4 | v0.25.0 |
 | Byparr | latest | v0.25.0 |
+| version-checker | v0.10.0 | v0.26.0 |
+| Nova (CronJob) | v3.11.10 | v0.26.0 |
 
 ---
 
@@ -365,7 +371,15 @@ homelab/
 │       ├── arr-stack-dashboard-configmap.yaml  # v0.24.0
 │       ├── scraparr-dashboard-configmap.yaml  # v0.25.0
 │       ├── network-dashboard-configmap.yaml   # v0.25.0
-│       └── arr-alerts.yaml                    # v0.25.0
+│       ├── arr-alerts.yaml                    # v0.25.0
+│       ├── version-checker-rbac.yaml          # v0.26.0
+│       ├── version-checker-deployment.yaml    # v0.26.0
+│       ├── version-checker-servicemonitor.yaml  # v0.26.0
+│       ├── version-checker-alerts.yaml        # v0.26.0
+│       ├── version-checker-dashboard-configmap.yaml  # v0.26.0
+│       ├── version-check-rbac.yaml            # v0.26.0
+│       ├── version-check-script.yaml          # v0.26.0
+│       └── version-check-cronjob.yaml         # v0.26.0
 │
 ├── scripts/
 │   ├── upgrade-prometheus.sh           # v0.5.0
@@ -373,6 +387,8 @@ homelab/
 │   ├── sync-ghost-prod-to-local.sh    # v0.11.0
 │   ├── test-cloudflare-networkpolicy.sh  # v0.7.0
 │   └── apply-arr-secrets.sh           # v0.23.0
+│
+├── renovate.json                      # v0.26.0
 ```
 
 ---
@@ -407,3 +423,4 @@ homelab/
 | Tailscale K8s Operator | Kubernetes | v0.22.0 |
 | ARR Stack | Kubernetes | v0.23.0 |
 | Opensubtitles | Kubernetes | v0.23.0 |
+| Discord Webhook Versions | Kubernetes | v0.26.0 |

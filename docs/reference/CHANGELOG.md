@@ -4,6 +4,72 @@
 
 ---
 
+## February 19, 2026 — v0.26.0: Version Automation & Upgrade Runbooks
+
+### Summary
+
+Phase 4.27 — three-tool automated version tracking covering container images, Helm charts, and Kubernetes version. Includes upgrade/rollback runbook for all component types.
+
+### New Components
+
+| Component | Version | Type | Purpose |
+|-----------|---------|------|---------|
+| version-checker | v0.10.0 | Deployment | Container + K8s version drift → Prometheus metrics |
+| Nova CronJob | v3.11.10 | CronJob | Weekly Helm chart drift digest → Discord #versions |
+| Renovate Bot | GitHub App | SaaS | Automated image update PRs with dependency dashboard |
+| Nova CLI | v3.11.10 | Local binary | On-demand Helm chart analysis |
+
+### Prerequisites Completed
+
+| Image | Before | After |
+|-------|--------|-------|
+| bazarr | `:latest` | `v1.5.5-ls338` |
+| radarr | `:latest` | `6.0.4.10291-ls293` |
+| sonarr | `:latest` | `4.0.16.2944-ls303` |
+| firefox | `:latest` | `1147.0.3build1-1xtradeb1.2404.1-ls69` |
+
+All pinned images also got `match-regex` version-checker annotations for LinuxServer.io tag format and `imagePullPolicy: IfNotPresent`.
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Renovate over Dependabot | Renovate | Better K8s manifest support, weekly grouping, dependency dashboard |
+| version-checker over custom | version-checker | Maintained project, Prometheus-native, includes K8s version tracking |
+| `--test-all-containers` | Flag | Scans all pods without annotation opt-in |
+| CronJob uses Nova | Nova JSON | Eliminates brittle bash semver parsing and API rate limits |
+| Init container for Nova | Copy pattern | Avoids building custom image, CKA-relevant pattern |
+| byparr cannot be pinned | Renovate ignore | Only publishes `latest`/`main`/`nightly` tags (no semver) |
+| CronJob runs as root | Intentional | Alpine `apk` needs write access to `/lib/apk/db` |
+| Nova CLI via tarball | GitHub release | Ubuntu WSL has no brew; installed to `~/.local/bin` |
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| renovate.json | Renovate Bot configuration |
+| manifests/monitoring/version-checker-rbac.yaml | ServiceAccount, ClusterRole, ClusterRoleBinding |
+| manifests/monitoring/version-checker-deployment.yaml | Deployment + Service (port 8080) |
+| manifests/monitoring/version-checker-servicemonitor.yaml | ServiceMonitor (1h scrape) |
+| manifests/monitoring/version-checker-alerts.yaml | PrometheusRule (3 alerts) |
+| manifests/monitoring/version-checker-dashboard-configmap.yaml | Grafana dashboard |
+| manifests/monitoring/version-check-rbac.yaml | CronJob RBAC (secrets read) |
+| manifests/monitoring/version-check-script.yaml | CronJob script ConfigMap |
+| manifests/monitoring/version-check-cronjob.yaml | CronJob (Sunday 00:00 UTC) |
+| docs/context/Upgrades.md | Upgrade/rollback runbook |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| manifests/arr-stack/bazarr/deployment.yaml | Pin image, add match-regex annotation |
+| manifests/arr-stack/radarr/deployment.yaml | Pin image, add match-regex annotation |
+| manifests/arr-stack/sonarr/deployment.yaml | Pin image, add match-regex annotation |
+| manifests/browser/deployment.yaml | Pin image, add match-regex annotation |
+| docs/context/_Index.md | Add Upgrades.md to Quick Links |
+
+---
+
 ## February 19, 2026 — v0.25.2: ARR Media Quality and Playback Fixes
 
 ### Summary

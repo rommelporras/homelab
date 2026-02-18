@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.25.2 (ARR Media Quality and Playback Fixes)
+> **Latest Release:** v0.26.0 (Version Automation & Upgrade Runbooks)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -36,7 +36,7 @@
 | v0.25.0 | ARR Companions | Phase 4.26 | ✅ Released |
 | v0.25.1 | ARR Alert and Byparr Fixes | — | ✅ Released |
 | v0.25.2 | ARR Media Quality and Playback Fixes | — | ✅ Released |
-| v0.26.0 | Version Automation & Upgrade Runbooks | Phase 4.27 | ⬜ Planned |
+| v0.26.0 | Version Automation & Upgrade Runbooks | Phase 4.27 | ✅ Released |
 | v0.27.0 | Alerting & Observability Improvements | Phase 4.28 | ⬜ Planned |
 | v0.28.0 | Production Hardening | Phase 5 | ⬜ Planned |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
@@ -76,12 +76,12 @@
 | 4.25 | ARR Media Stack | [phase-4.25-arr-stack.md](completed/phase-4.25-arr-stack.md) |
 | 4.25b | Intel QSV Hardware Transcoding | [phase-4.25b-intel-qsv.md](completed/phase-4.25b-intel-qsv.md) |
 | 4.26 | ARR Companions | [phase-4.26-arr-companions.md](completed/phase-4.26-arr-companions.md) |
+| 4.27 | Version Automation & Upgrade Runbooks | [phase-4.27-version-automation.md](completed/phase-4.27-version-automation.md) |
 
 ### Planned
 
 | Phase | Description | File |
 |-------|-------------|------|
-| 4.27 | Version Automation & Upgrade Runbooks | [phase-4.27-version-automation.md](phase-4.27-version-automation.md) |
 | 4.28 | Alerting & Observability Improvements | [phase-4.28-alerting-observability.md](phase-4.28-alerting-observability.md) |
 | 5 | Production Hardening | [phase-5-hardening.md](phase-5-hardening.md) |
 | 6 | CKA Focused Learning | [phase-6-cka.md](phase-6-cka.md) |

@@ -882,22 +882,22 @@ helm-homelab rollback cilium <revision> -n kube-system
 
 ### 4.27.7 Security & Commit
 
-- [ ] 4.27.7.1 `/audit-security`
-- [ ] 4.27.7.2 `/commit` (infrastructure)
+- [x] 4.27.7.1 `/audit-security` — PASS (0 critical, 3 warnings, 7 info)
+- [x] 4.27.7.2 `/commit` (infrastructure) — `f0f65ec`
 
 ### 4.27.8 Documentation & Release
 
 > Second commit: documentation updates and audit.
 
-- [ ] 4.27.8.1 Update `docs/todo/README.md` — add Phase 4.27 to phase index + release mapping
-- [ ] 4.27.8.2 Update `README.md` (root) — add version-checker, Renovate, Nova to services list
-- [ ] 4.27.8.3 Update `VERSIONS.md` — add version-checker, Nova versions
-- [ ] 4.27.8.4 Update `docs/reference/CHANGELOG.md` — add version automation entry
-- [ ] 4.27.8.5 Update `docs/context/Monitoring.md` — add version-checker + CronJob
-- [ ] 4.27.8.6 Update `docs/context/Secrets.md` — add Discord Webhook 1Password item
-- [ ] 4.27.8.7 Create `docs/rebuild/v0.26.0-version-automation.md`
-- [ ] 4.27.8.8 `/audit-docs`
-- [ ] 4.27.8.9 `/commit` (documentation)
+- [x] 4.27.8.1 Update `docs/todo/README.md` — add Phase 4.27 to phase index + release mapping
+- [x] 4.27.8.2 Update `README.md` (root) — add version-checker, Renovate, Nova to services list
+- [x] 4.27.8.3 Update `VERSIONS.md` — add version-checker, Nova versions; pin bazarr/radarr/sonarr/firefox
+- [x] 4.27.8.4 Update `docs/reference/CHANGELOG.md` — add version automation entry
+- [x] 4.27.8.5 Update `docs/context/Monitoring.md` — add version-checker + CronJob + Renovate
+- [x] 4.27.8.6 Update `docs/context/Secrets.md` — add Discord Webhook Versions 1Password item
+- [x] 4.27.8.7 Create `docs/rebuild/v0.26.0-version-automation.md`
+- [x] 4.27.8.8 `/audit-docs` — 6 issues in rebuild/README.md (all fixed)
+- [x] 4.27.8.9 `/commit` (documentation) — `6b7d671`
 - [ ] 4.27.8.10 `/release v0.26.0 "Version Automation & Upgrade Runbooks"`
 - [ ] 4.27.8.11 Move this file to `docs/todo/completed/`
 
