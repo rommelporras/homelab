@@ -1,6 +1,6 @@
 # Phase 4.26: ARR Companions
 
-> **Status:** In Progress
+> **Status:** Complete (v0.25.0)
 > **Target:** v0.25.0
 > **Prerequisite:** Phase 4.25b complete (ARR core stack + QSV transcoding running)
 > **Priority:** Medium (automation, discovery, monitoring, and transcoding for media stack)
