@@ -4,6 +4,54 @@
 
 ---
 
+## February 19, 2026 — v0.25.2: ARR Media Quality and Playback Fixes
+
+### Summary
+
+Fixed Italian-default audio in Jellyfin, added language release filtering, expanded Configarr quality profiles for better release availability, and raised minimum seeders to avoid stuck low-seed downloads.
+
+### Bug Fixes
+
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| Jellyfin defaulting to Italian audio on multi-language releases | Preferred Audio Language not set — Jellyfin respected MKV file's default track flag (Italian) over user preference | Set Preferred Audio Language to `Auto`, Subtitle Mode to `Smart`, Preferred Subtitle Language to `English` in Jellyfin user settings |
+| Italian audio releases downloaded by Radarr/Sonarr | No language filtering — Italian-first multi-audio releases (e.g. `iTA-ENG`, CYBER/Licdom release groups) grabbed freely | Added Custom Format "Penalize Italian Dub" (Language = Italian, score -10000) to all quality profiles in both Radarr and Sonarr |
+| K-pop Demon Hunters stuck on Italian 4K release | Movie assigned to unmanaged 4K profile, no replacement found at -10000 score | Changed quality profile to "HD Bluray + WEB", grabbed `KPop.Demon.Hunters.2025.1080p.WEB.h264-EDITH` |
+| Mercy grabbed Italian release | `Mercy.2026.iTA-ENG.WEBDL.1080p.x264-CYBER.mkv` was the only available release | Penalize Italian Dub CF scored it -10000, triggered automatic search, grabbed `Mercy.Sotto.Accusa.2026.1080p.AMZN.WEB-DL.DDP5.1.H.264-FHC_CREW` |
+| Konosuba episodes stuck downloading (<5 seeds) | minimumSeeders was 1 on all indexers — Sonarr grabbed the first available release regardless of seed count | Raised minimumSeeders from 1 → 10 on all Sonarr and Radarr indexers via API |
+| No 4K quality profile in Radarr | Configarr only synced `radarr-quality-profile-hd-bluray-web` (1080p) | Added `radarr-quality-profile-uhd-bluray-web` + `radarr-custom-formats-uhd-bluray-web` templates to Configarr |
+| Sonarr WEB-only releases (no BluRay sources) | Configarr only synced `sonarr-v4-quality-profile-web-1080p` | Added `sonarr-v4-quality-profile-hd-bluray-web` + `sonarr-v4-custom-formats-hd-bluray-web` templates to Configarr |
+
+### Configuration Changes
+
+| App | Setting | Before | After |
+|-----|---------|--------|-------|
+| Jellyfin | Preferred Audio Language | English | Auto (uses file default) |
+| Jellyfin | Subtitle Mode | Default | Smart |
+| Jellyfin | Preferred Subtitle Language | — | English |
+| Radarr + Sonarr | All indexers minimumSeeders | 1 | 10 |
+| Radarr | Quality profiles | HD Bluray + WEB only | + UHD Bluray + WEB |
+| Sonarr | Quality profiles | WEB-1080p only | + HD Bluray + WEB |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Jellyfin audio preference | `Auto` (not `English`) | "English" would force English dub on Korean/Japanese movies; `Auto` respects original language when file is correctly flagged |
+| Subtitle mode | `Smart` | Shows English subs only when audio is non-English — no subs on English content, subs on Korean/Japanese automatically |
+| Language filter approach | Custom Format -10000 (not hard restriction) | Allows fallback to Italian release if no alternative exists; just heavily penalizes |
+| minimumSeeders | 10 | Filters out sub-5-seed stuck torrents while still allowing niche content with moderate seeding |
+| minimumSeeders set via API | Bulk API update | "Minimum Seeders" is a hidden field (requires "Show hidden" in UI) — API faster than editing 8 indexers manually |
+| Configarr Custom Format scores | Manual per new profile | Configarr manages TRaSH CF scores but not user-added CFs — must manually set -10000 on each new profile Configarr creates |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| manifests/arr-stack/configarr/configmap.yaml | Added UHD Bluray + WEB profile for Radarr; added HD Bluray + WEB profile for Sonarr |
+
+---
+
 ## February 18, 2026 — v0.25.1: ARR Alert and Byparr Fixes
 
 ### Bug Fixes

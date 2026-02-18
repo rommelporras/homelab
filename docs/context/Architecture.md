@@ -101,7 +101,7 @@ Ollama runs in the `ai` namespace as an internal-only ClusterIP service. Consume
 http://ollama.ai.svc.cluster.local:11434
 ```
 
-CiliumNetworkPolicy restricts ingress to only authorized namespaces (`monitoring`, `karakeep`). This pattern applies to any shared internal service consumed across namespaces.
+CiliumNetworkPolicy restricts ingress to only authorized namespaces (`monitoring`, `karakeep`, `arr-stack`). This pattern applies to any shared internal service consumed across namespaces.
 
 ## Dell 3090 Integration
 

@@ -78,6 +78,9 @@ Network configuration for the homelab cluster.
 | qBittorrent | https://qbit.k8s.rommelporras.com | base |
 | Jellyfin | https://jellyfin.k8s.rommelporras.com | base |
 | Bazarr | https://bazarr.k8s.rommelporras.com | base |
+| Seerr | https://seerr.k8s.rommelporras.com | base |
+| Tdarr | https://tdarr.k8s.rommelporras.com | base |
+| Recommendarr | https://recommendarr.k8s.rommelporras.com | base |
 
 ## Tailscale (Remote Access)
 
