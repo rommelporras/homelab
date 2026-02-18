@@ -3,7 +3,8 @@
 #
 # Metrics used:
 #   scraparr_services_up — service health via Scraparr exporter
-#   sonarr_*/radarr_* — queue metrics via Scraparr
+#   sonarr_queue_count/radarr_queue_count — active download queue via Scraparr
+#   sonarr_missing_episodes_total/radarr_missing_movies_total — missing counts via Scraparr
 #   node_network_*_bytes_total — NIC throughput from node-exporter
 #   node_network_speed_bytes — NIC link speed from node-exporter
 #   probe_success{job="jellyfin"} — HTTP probe from Blackbox Exporter
@@ -42,15 +43,15 @@ spec:
               4. If API key issues, re-run:
                  ./scripts/apply-arr-secrets.sh
 
-        # Sonarr queue items stuck — downloads may be stalled
+        # Sonarr download queue stuck — items queued but nothing completing
         - alert: SonarrQueueStalled
-          expr: sonarr_episodes_total > 0 and changes(sonarr_episodes_total[2h]) == 0 and sonarr_missing_episodes_total > 0
+          expr: sonarr_queue_count > 0 and changes(sonarr_missing_episodes_total[2h]) == 0
           for: 2h
           labels:
             severity: warning
           annotations:
-            summary: "Sonarr queue appears stalled"
-            description: "Sonarr episode count hasn't changed in 2+ hours despite having {{ $value }} missing episodes. Downloads may be stuck."
+            summary: "Sonarr download queue is stalled"
+            description: "Sonarr has {{ $value }} items in download queue but missing episode count hasn't decreased in 2+ hours. Downloads may be stuck."
             runbook: |
               1. Check Sonarr Activity queue:
                  https://sonarr.k8s.rommelporras.com/activity/queue
@@ -61,15 +62,15 @@ spec:
               3. Check Prowlarr for indexer health:
                  https://prowlarr.k8s.rommelporras.com/system/status
 
-        # Radarr queue items stuck — downloads may be stalled
+        # Radarr download queue stuck — items queued but nothing completing
         - alert: RadarrQueueStalled
-          expr: radarr_movies_total > 0 and changes(radarr_movies_total[2h]) == 0 and radarr_missing_movies_total > 0
+          expr: radarr_queue_count > 0 and changes(radarr_missing_movies_total[2h]) == 0
           for: 2h
           labels:
             severity: warning
           annotations:
-            summary: "Radarr queue appears stalled"
-            description: "Radarr movie count hasn't changed in 2+ hours despite having {{ $value }} missing movies. Downloads may be stuck."
+            summary: "Radarr download queue is stalled"
+            description: "Radarr has {{ $value }} items in download queue but missing movie count hasn't decreased in 2+ hours. Downloads may be stuck."
             runbook: |
               1. Check Radarr Activity queue:
                  https://radarr.k8s.rommelporras.com/activity/queue
