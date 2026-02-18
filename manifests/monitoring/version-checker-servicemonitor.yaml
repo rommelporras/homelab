@@ -1,0 +1,21 @@
+# version-checker ServiceMonitor
+# Scrapes Prometheus metrics from version-checker every 1h
+# No need for frequent scrapes — image versions don't change often
+#
+# CKA topics: ServiceMonitor, Prometheus integration
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: version-checker
+  namespace: monitoring
+  labels:
+    app: version-checker
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: version-checker
+  endpoints:
+    - port: metrics
+      interval: 1h

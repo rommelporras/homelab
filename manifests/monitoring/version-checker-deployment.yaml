@@ -1,0 +1,88 @@
+# version-checker Deployment + Service
+# Checks all running container images against upstream registries
+# Also checks Kubernetes cluster version (v0.10.0 feature)
+#
+# Exposes Prometheus metrics on port 8080:
+#   - version_checker_is_latest_version (per container)
+#   - version_checker_is_latest_kube_version (cluster)
+#
+# CKA topics: Deployment, Service, ServiceAccount, security context
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: version-checker
+  namespace: monitoring
+  labels:
+    app: version-checker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: version-checker
+  template:
+    metadata:
+      labels:
+        app: version-checker
+    spec:
+      serviceAccountName: version-checker
+      automountServiceAccountToken: true
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: version-checker
+          image: quay.io/jetstack/version-checker:v0.10.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --test-all-containers
+            - --log-level=info
+          ports:
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+            periodSeconds: 30
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+            periodSeconds: 60
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: version-checker
+  namespace: monitoring
+  labels:
+    app: version-checker
+spec:
+  selector:
+    app: version-checker
+  ports:
+    - name: metrics
+      port: 8080
+      targetPort: metrics
+      protocol: TCP

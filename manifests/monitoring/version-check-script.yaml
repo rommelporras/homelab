@@ -1,0 +1,108 @@
+# Version Check Script ConfigMap
+# Shell script for the weekly CronJob — runs Nova, formats output, sends to Discord
+#
+# Flow: install deps → run Nova → parse JSON with jq → build Discord embed → curl webhook
+#
+# CKA topics: ConfigMap as script mount
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: version-check-script
+  namespace: monitoring
+  labels:
+    app: version-check
+data:
+  version-check.sh: |
+    #!/bin/sh
+    set -e
+
+    # Install dependencies (~3 seconds)
+    apk add --no-cache curl jq -q
+
+    # Run Nova for Helm chart drift
+    NOVA_OUTPUT=$(/shared/nova find --helm --format=json 2>/dev/null || echo '[]')
+
+    # Count results
+    OUTDATED_COUNT=$(echo "$NOVA_OUTPUT" | jq '[.[] | select(.outdated == true)] | length')
+    DEPRECATED_COUNT=$(echo "$NOVA_OUTPUT" | jq '[.[] | select(.deprecated == true)] | length')
+    CURRENT_COUNT=$(echo "$NOVA_OUTPUT" | jq '[.[] | select(.outdated == false and .deprecated == false)] | length')
+    TODAY=$(date +%Y-%m-%d)
+
+    # Build Discord embed fields for outdated charts
+    OUTDATED_FIELDS=$(echo "$NOVA_OUTPUT" | jq -r '
+      [.[] | select(.outdated == true) |
+        {"name": .release, "value": (.Installed.version + " → " + .Latest.version), "inline": true}
+      ]')
+
+    # Build Discord embed fields for deprecated charts
+    DEPRECATED_FIELDS=$(echo "$NOVA_OUTPUT" | jq -r '
+      [.[] | select(.deprecated == true) |
+        {"name": .release, "value": ("Deprecated since " + .Installed.version), "inline": true}
+      ]')
+
+    # Build the embeds array
+    EMBEDS="[]"
+
+    # Add outdated embed if any
+    if [ "$OUTDATED_COUNT" -gt 0 ]; then
+      OUTDATED_EMBED=$(jq -n \
+        --argjson fields "$OUTDATED_FIELDS" \
+        '{
+          "title": "Outdated Helm Charts",
+          "description": "These charts have newer versions available upstream.",
+          "color": 16705372,
+          "fields": $fields
+        }')
+      EMBEDS=$(echo "$EMBEDS" | jq --argjson embed "$OUTDATED_EMBED" '. + [$embed]')
+    fi
+
+    # Add deprecated embed if any
+    if [ "$DEPRECATED_COUNT" -gt 0 ]; then
+      DEPRECATED_EMBED=$(jq -n \
+        --argjson fields "$DEPRECATED_FIELDS" \
+        '{
+          "title": "Deprecated Charts",
+          "description": "These charts are marked as deprecated upstream. Find replacements.",
+          "color": 15548997,
+          "fields": $fields
+        }')
+      EMBEDS=$(echo "$EMBEDS" | jq --argjson embed "$DEPRECATED_EMBED" '. + [$embed]')
+    fi
+
+    # Summary color: green if all current, yellow if any outdated/deprecated
+    if [ "$OUTDATED_COUNT" -eq 0 ] && [ "$DEPRECATED_COUNT" -eq 0 ]; then
+      SUMMARY_COLOR=5763719
+    else
+      SUMMARY_COLOR=16705372
+    fi
+
+    # Add summary embed
+    SUMMARY_EMBED=$(jq -n \
+      --arg date "$TODAY" \
+      --argjson outdated "$OUTDATED_COUNT" \
+      --argjson deprecated "$DEPRECATED_COUNT" \
+      --argjson current "$CURRENT_COUNT" \
+      --argjson color "$SUMMARY_COLOR" \
+      '{
+        "title": "Homelab Version Digest",
+        "description": ($date + " | " + ($outdated|tostring) + " outdated, " + ($deprecated|tostring) + " deprecated, " + ($current|tostring) + " current\nUpgrade runbook: docs/context/Upgrades.md"),
+        "color": $color
+      }')
+    EMBEDS=$(echo "$EMBEDS" | jq --argjson embed "$SUMMARY_EMBED" '. + [$embed]')
+
+    # Build final payload
+    PAYLOAD=$(jq -n --argjson embeds "$EMBEDS" '{"embeds": $embeds}')
+
+    # Send to Discord
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$DISCORD_WEBHOOK_URL" \
+      -H "Content-Type: application/json" \
+      -d "$PAYLOAD")
+
+    if [ "$HTTP_CODE" -eq 204 ] || [ "$HTTP_CODE" -eq 200 ]; then
+      echo "Discord notification sent successfully (HTTP $HTTP_CODE)"
+      echo "Summary: $OUTDATED_COUNT outdated, $DEPRECATED_COUNT deprecated, $CURRENT_COUNT current"
+    else
+      echo "Failed to send Discord notification (HTTP $HTTP_CODE)" >&2
+      exit 1
+    fi

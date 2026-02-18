@@ -1,0 +1,100 @@
+# Version Check CronJob
+# Weekly Discord digest of Helm chart drift using Nova
+#
+# Schedule: Sunday 00:00 UTC = 08:00 PHT
+# Init container: copies Nova binary from official image to shared emptyDir
+# Main container: runs the version-check script with curl + jq
+#
+# Note: Main container runs as root because apk needs write access to /lib/apk/db.
+# Other security controls remain: drop ALL capabilities, no privilege escalation, seccomp.
+#
+# CKA topics: CronJob, init containers, emptyDir, ConfigMap mount, Secret env
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: version-check
+  namespace: monitoring
+  labels:
+    app: version-check
+spec:
+  schedule: "0 0 * * 0"
+  timeZone: "Etc/UTC"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: version-check
+        spec:
+          serviceAccountName: version-check-cronjob
+          restartPolicy: OnFailure
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: nova
+              image: quay.io/fairwinds/nova:v3.11.10
+              imagePullPolicy: IfNotPresent
+              command: ["cp", "/nova", "/shared/nova"]
+              resources:
+                requests:
+                  cpu: "10m"
+                  memory: "16Mi"
+                limits:
+                  cpu: "50m"
+                  memory: "32Mi"
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65534
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+          containers:
+            - name: version-check
+              image: alpine:3.21
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/scripts/version-check.sh"]
+              env:
+                - name: DISCORD_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: discord-webhook
+                      key: webhook-url
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "256Mi"
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+                - name: script
+                  mountPath: /scripts
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: shared
+              emptyDir: {}
+            - name: script
+              configMap:
+                name: version-check-script
+                defaultMode: 0555
+            - name: tmp
+              emptyDir: {}

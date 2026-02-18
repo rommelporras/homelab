@@ -1,0 +1,55 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Asia/Manila",
+  "labels": ["renovate", "dependencies"],
+  "dependencyDashboard": true,
+  "dependencyDashboardApproval": true,
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "kubernetes": {
+    "managerFilePatterns": ["/^manifests/.+\\.ya?ml$/"]
+  },
+  "ignorePaths": ["ansible/**", "docs/**", "scripts/**"],
+  "packageRules": [
+    {
+      "description": "Major bumps: separate PR, never automerge, needs manual review",
+      "matchUpdateTypes": ["major"],
+      "groupName": null,
+      "automerge": false,
+      "labels": ["breaking-change"],
+      "prBodyNotes": ["**MAJOR VERSION** - Check upgrade path in docs/context/Upgrades.md before merging. Read upstream release notes for breaking changes, database migrations, and deprecations."],
+      "schedule": ["before 6am on sunday"]
+    },
+    {
+      "description": "Group minor/patch updates into one weekly PR",
+      "matchManagers": ["kubernetes"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "kubernetes-weekly-minor-patch",
+      "schedule": ["before 6am on sunday"]
+    },
+    {
+      "description": "Group all linuxserver.io images together",
+      "matchDatasources": ["docker"],
+      "matchPackagePrefixes": ["lscr.io/linuxserver/"],
+      "groupName": "linuxserver.io images"
+    },
+    {
+      "description": "Never automerge critical infrastructure (any update type)",
+      "matchPackagePatterns": ["longhorn", "cilium", "kube-prometheus-stack", "cert-manager"],
+      "automerge": false
+    },
+    {
+      "description": "Skip CI/CD-built images from private registry",
+      "matchDatasources": ["docker"],
+      "matchPackagePrefixes": ["registry.k8s.rommelporras.com/"],
+      "enabled": false
+    },
+    {
+      "description": "Skip byparr (no semver tags — only latest/main/nightly)",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/thephaseless/byparr"],
+      "enabled": false
+    }
+  ]
+}

@@ -22,6 +22,8 @@ spec:
     metadata:
       labels:
         app: firefox
+      annotations:
+        match-regex.version-checker.io/firefox: "^\\d+.*-ls\\d+$"
     spec:
       dnsPolicy: None  # bypass cluster DNS — use AdGuard for ad-blocking + privacy
       dnsConfig:
@@ -34,8 +36,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: firefox
-          image: lscr.io/linuxserver/firefox:latest
-          imagePullPolicy: Always  # latest tag — always pull for security patches
+          image: lscr.io/linuxserver/firefox:1147.0.3build1-1xtradeb1.2404.1-ls69
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 3000

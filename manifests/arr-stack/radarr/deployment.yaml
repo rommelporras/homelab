@@ -43,6 +43,8 @@ spec:
     metadata:
       labels:
         app: radarr
+      annotations:
+        match-regex.version-checker.io/radarr: "^\\d+\\.\\d+\\.\\d+\\.\\d+-ls\\d+$"
     spec:
       securityContext:
         fsGroup: 1000
@@ -50,8 +52,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: radarr
-          image: lscr.io/linuxserver/radarr:latest
-          imagePullPolicy: Always  # latest tag — always pull for updates
+          image: lscr.io/linuxserver/radarr:6.0.4.10291-ls293
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 7878

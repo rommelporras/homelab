@@ -1,0 +1,45 @@
+# version-checker PrometheusRule
+# Alerts for outdated container images, Kubernetes version, and service health
+#
+# ContainerImageOutdated: fires after 7 days outdated (severity: warning)
+# KubernetesVersionOutdated: fires after 14 days (severity: info — K8s upgrades need planning)
+# VersionCheckerDown: fires after 15 minutes (severity: warning)
+#
+# CKA topics: PrometheusRule, alerting thresholds
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: version-checker-alerts
+  namespace: monitoring
+  labels:
+    app: version-checker
+    release: prometheus
+spec:
+  groups:
+    - name: version-checker
+      rules:
+        - alert: ContainerImageOutdated
+          expr: version_checker_is_latest_version == 0
+          for: 7d
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.image }} in {{ $labels.namespace }} is outdated"
+            description: "Running {{ $labels.current_version }}, latest is {{ $labels.latest_version }}"
+        - alert: KubernetesVersionOutdated
+          expr: version_checker_is_latest_kube_version == 0
+          for: 14d
+          labels:
+            severity: info
+          annotations:
+            summary: "Kubernetes update available"
+            description: "Running {{ $labels.current_version }}, latest is {{ $labels.latest_version }}"
+        - alert: VersionCheckerDown
+          expr: up{job="version-checker"} == 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "version-checker is down"
+            description: "version-checker has been unreachable for 15 minutes"

@@ -1,0 +1,187 @@
+# Grafana Dashboard - version-checker
+# Shows all running container images and their version status
+# Downloaded from Grafana dashboard #12833, cleaned for provisioning
+# Auto-provisioned via grafana_dashboard label
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: version-checker-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus-stack
+data:
+  version-checker.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": "prometheus",
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "limit": 100,
+            "name": "Annotations & Alerts",
+            "showIn": 0,
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "gnetId": 12833,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": "prometheus",
+          "description": "Table showing the images in use on this cluster, the version in use, and the upstream latest version. Version gathering is subject to options defined on the host pod.",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": null
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Is Latest"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "from": "",
+                        "id": 0,
+                        "text": "No",
+                        "to": "",
+                        "type": 1,
+                        "value": "0"
+                      },
+                      {
+                        "from": "1",
+                        "id": 1,
+                        "text": "Yes",
+                        "to": "999999999",
+                        "type": 2,
+                        "value": "1"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.align",
+                    "value": "left"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 25,
+            "w": 16,
+            "x": 0,
+            "y": 0
+          },
+          "id": 2,
+          "options": {
+            "showHeader": true,
+            "sortBy": [
+              {
+                "desc": false,
+                "displayName": "Image"
+              }
+            ]
+          },
+          "pluginVersion": "7.0.3",
+          "targets": [
+            {
+              "expr": "sum by(image,current_version,latest_version) (version_checker_is_latest_version)",
+              "format": "time_series",
+              "instant": true,
+              "interval": "",
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Cluster Image Version Checks",
+          "transformations": [
+            {
+              "id": "labelsToFields",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value": false
+                },
+                "indexByName": {
+                  "Time": 0,
+                  "Value": 4,
+                  "current_version": 2,
+                  "image": 1,
+                  "latest_version": 3
+                },
+                "renameByName": {
+                  "Value": "Is Latest",
+                  "current_version": "Current Version",
+                  "image": "Image",
+                  "latest_version": "Latest Version"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        }
+      ],
+      "schemaVersion": 25,
+      "style": "dark",
+      "tags": [],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-15m",
+        "to": "now"
+      },
+      "timepicker": {
+        "refresh_intervals": [
+          "10s",
+          "30s",
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "2h",
+          "1d"
+        ]
+      },
+      "timezone": "",
+      "title": "version-checker",
+      "uid": "Awr5zZ4Gk",
+      "version": 3,
+      "description": "Dashboard for viewing the current, and latest upstream, image versions in use on a Kubernetes cluster. To be used with the version-checker project.\n\nhttps://github.com/jetstack/version-checker"
+    }

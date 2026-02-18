@@ -1,0 +1,39 @@
+# Version Check CronJob RBAC
+# Grants read access to secrets (Helm stores releases as secrets)
+# Required for Nova to check Helm chart drift
+#
+# CKA topics: ServiceAccount, ClusterRole, ClusterRoleBinding
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: version-check-cronjob
+  namespace: monitoring
+  labels:
+    app: version-check
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: version-check-cronjob
+  labels:
+    app: version-check
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: version-check-cronjob
+  labels:
+    app: version-check
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: version-check-cronjob
+subjects:
+  - kind: ServiceAccount
+    name: version-check-cronjob
+    namespace: monitoring

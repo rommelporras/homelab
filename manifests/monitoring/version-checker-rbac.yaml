@@ -1,0 +1,42 @@
+# version-checker RBAC
+# Grants read access to pods and workload controllers across all namespaces
+# Required for --test-all-containers mode (scans all running images)
+#
+# CKA topics: ServiceAccount, ClusterRole, ClusterRoleBinding
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: version-checker
+  namespace: monitoring
+  labels:
+    app: version-checker
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: version-checker
+  labels:
+    app: version-checker
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: version-checker
+  labels:
+    app: version-checker
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: version-checker
+subjects:
+  - kind: ServiceAccount
+    name: version-checker
+    namespace: monitoring

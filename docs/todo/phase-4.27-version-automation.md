@@ -25,7 +25,7 @@ Renovate **silently skips** `:latest` tags. version-checker falls back to SHA-ba
 | `lscr.io/linuxserver/radarr` | `:latest` | Pin to version tag |
 | `lscr.io/linuxserver/sonarr` | `:latest` | Pin to version tag |
 | `lscr.io/linuxserver/firefox` | `:latest` | Pin to version tag |
-| `ghcr.io/thephaseless/byparr` | `:latest` | Pin to version tag |
+| `ghcr.io/thephaseless/byparr` | `:latest` | Add to Renovate ignore (no semver tags published) |
 | `registry.k8s.rommelporras.com/0xwsh/portfolio` | `:latest` | Add to Renovate ignore (CI/CD-built) |
 | `registry.k8s.rommelporras.com/0xwsh/invoicetron` | `:latest` | Add to Renovate ignore (CI/CD-built) |
 
@@ -767,65 +767,49 @@ helm-homelab rollback cilium <revision> -n kube-system
 
 ### 4.27.0 Prerequisites
 
-- [ ] 4.27.0.1 Pin linuxserver.io images to version tags:
-  - `bazarr`, `radarr`, `sonarr`, `firefox` — check current running version with `kubectl-homelab get pods -n arr-stack -o jsonpath` and pin to that tag
-- [ ] 4.27.0.2 Pin `byparr` to version tag
-- [ ] 4.27.0.3 Add `match-regex` version-checker annotations to linuxserver.io deployments
-- [ ] 4.27.0.4 Apply updated manifests and verify pods restart successfully
+- [x] 4.27.0.1 Pin linuxserver.io images to version tags:
+  - `bazarr:v1.5.5-ls338`, `radarr:6.0.4.10291-ls293`, `sonarr:4.0.16.2944-ls303`, `firefox:1147.0.3build1-1xtradeb1.2404.1-ls69`
+- [x] 4.27.0.2 ~~Pin `byparr` to version tag~~ — byparr only publishes `latest`/`main`/`nightly` tags (no semver). Added to Renovate ignore list instead.
+- [x] 4.27.0.3 Add `match-regex` version-checker annotations to linuxserver.io deployments
+- [x] 4.27.0.4 Apply updated manifests and verify pods restart successfully
 
 ### 4.27.1 Install Renovate Bot
 
-- [ ] 4.27.1.1 Install [Renovate GitHub App](https://github.com/apps/renovate) on `rommelporras/homelab` repo
-- [ ] 4.27.1.2 Merge the auto-generated onboarding PR
-- [ ] 4.27.1.3 Create `renovate.json` with homelab config (corrected `managerFilePatterns`, `ignorePaths`, package rules)
+- [x] 4.27.1.1 Install [Renovate GitHub App](https://github.com/apps/renovate) on `rommelporras/homelab` repo (Mend registration + Renovate Only + Scan and Alert)
+- [ ] 4.27.1.2 Close the auto-generated onboarding PR (our `renovate.json` is already in repo)
+- [x] 4.27.1.3 Create `renovate.json` with homelab config (corrected `managerFilePatterns`, `ignorePaths`, package rules, byparr ignore)
 - [ ] 4.27.1.4 Verify Renovate creates Dependency Dashboard issue
 - [ ] 4.27.1.5 Verify Renovate detects images in `manifests/` (check Dashboard issue lists discovered dependencies)
-- [ ] 4.27.1.6 Commit `renovate.json`
+- [x] 4.27.1.6 Commit `renovate.json` (will be committed with infra changes)
 
 ### 4.27.2 Deploy version-checker
 
-- [ ] 4.27.2.1 Create `manifests/monitoring/version-checker-rbac.yaml`
+- [x] 4.27.2.1 Create `manifests/monitoring/version-checker-rbac.yaml`
   - ServiceAccount, ClusterRole (pods + deployments read), ClusterRoleBinding
-- [ ] 4.27.2.2 Create `manifests/monitoring/version-checker-deployment.yaml`
+- [x] 4.27.2.2 Create `manifests/monitoring/version-checker-deployment.yaml`
   - Image: `quay.io/jetstack/version-checker:v0.10.0`
   - Args: `--test-all-containers` (scan all pods without annotation opt-in)
   - Port 8080, readiness/liveness on `/readyz`
-  - Security context: runAsNonRoot, drop ALL, readOnlyRootFilesystem
+  - Security context: runAsUser 65534 (image runs as root, must set explicit UID), drop ALL, readOnlyRootFilesystem
   - Resource limits: 50m/100m CPU, 64Mi/128Mi memory
-- [ ] 4.27.2.3 Create `manifests/monitoring/version-checker-servicemonitor.yaml`
+- [x] 4.27.2.3 Create `manifests/monitoring/version-checker-servicemonitor.yaml`
   - Scrape interval: 1h (no need for frequent checks)
-- [ ] 4.27.2.4 Create `manifests/monitoring/version-checker-alerts.yaml`
+- [x] 4.27.2.4 Create `manifests/monitoring/version-checker-alerts.yaml`
   - Alert: `ContainerImageOutdated` (fires after 7d outdated)
   - Alert: `KubernetesVersionOutdated` (fires after 14d, severity: info)
   - Alert: `VersionCheckerDown` (fires after 15m)
-- [ ] 4.27.2.5 Download Grafana dashboard #12833 JSON and create `manifests/monitoring/version-checker-dashboard-configmap.yaml`
+- [x] 4.27.2.5 Download Grafana dashboard #12833 JSON and create `manifests/monitoring/version-checker-dashboard-configmap.yaml`
   - Labels: `grafana_dashboard: "1"`, `app.kubernetes.io/part-of: kube-prometheus-stack`
-- [ ] 4.27.2.6 Apply all manifests:
-  ```bash
-  kubectl-homelab apply \
-    -f manifests/monitoring/version-checker-rbac.yaml \
-    -f manifests/monitoring/version-checker-deployment.yaml \
-    -f manifests/monitoring/version-checker-servicemonitor.yaml \
-    -f manifests/monitoring/version-checker-alerts.yaml \
-    -f manifests/monitoring/version-checker-dashboard-configmap.yaml
-  ```
-- [ ] 4.27.2.7 Verify pod running:
-  ```bash
-  kubectl-homelab -n monitoring get pods -l app=version-checker
-  ```
-- [ ] 4.27.2.8 Verify metrics exposed:
-  ```bash
-  kubectl-homelab -n monitoring port-forward deploy/version-checker 8080:8080 &
-  curl -s http://localhost:8080/metrics | grep version_checker_is_latest_version
-  curl -s http://localhost:8080/metrics | grep version_checker_is_latest_kube_version
-  ```
+- [x] 4.27.2.6 Applied all manifests
+- [x] 4.27.2.7 Verified pod running
+- [x] 4.27.2.8 Verified metrics exposed (both container and K8s version metrics working)
 - [ ] 4.27.2.9 Verify Grafana dashboard shows data (allow 1h for first scrape)
 
 ### 4.27.3 Create Discord Webhook
 
-- [ ] 4.27.3.1 Create `#version-alerts` channel in Discord server
-- [ ] 4.27.3.2 Create webhook: Server Settings → Integrations → Create Webhook → select channel
-- [ ] 4.27.3.3 Store webhook URL in 1Password:
+- [x] 4.27.3.1 Create `#versions` channel in Discord server (under Notification group)
+- [x] 4.27.3.2 Create webhook: Server Settings → Integrations → Create Webhook → select channel
+- [x] 4.27.3.3 Store webhook URL in 1Password (`Discord Webhook Versions` → `credential` field):
   ```bash
   op item create \
     --vault "Kubernetes" \
@@ -833,12 +817,12 @@ helm-homelab rollback cilium <revision> -n kube-system
     --title "Discord Webhook" \
     --field "version-alerts-url=<webhook-url>"
   ```
-- [ ] 4.27.3.4 Create K8s Secret:
+- [x] 4.27.3.4 Create K8s Secret:
   ```bash
   kubectl-homelab -n monitoring create secret generic discord-webhook \
     --from-literal=webhook-url="$(op read 'op://Kubernetes/Discord Webhook/version-alerts-url')"
   ```
-- [ ] 4.27.3.5 Test webhook manually:
+- [x] 4.27.3.5 Test webhook manually:
   ```bash
   curl -X POST "$(op read 'op://Kubernetes/Discord Webhook/version-alerts-url')" \
     -H "Content-Type: application/json" \
@@ -847,54 +831,50 @@ helm-homelab rollback cilium <revision> -n kube-system
 
 ### 4.27.4 Deploy Version Check CronJob
 
-- [ ] 4.27.4.1 Create `manifests/monitoring/version-check-rbac.yaml`
+- [x] 4.27.4.1 Create `manifests/monitoring/version-check-rbac.yaml`
   - ServiceAccount `version-check-cronjob`
   - ClusterRole: read secrets (Helm release data)
   - ClusterRoleBinding
-- [ ] 4.27.4.2 Create `manifests/monitoring/version-check-script.yaml` (ConfigMap with shell script)
+- [x] 4.27.4.2 Create `manifests/monitoring/version-check-script.yaml` (ConfigMap with shell script)
   - Install curl + jq via apk (~3 seconds overhead)
   - Run `/shared/nova find --helm --format=json` for Helm chart drift
   - Parse JSON with jq: extract outdated and deprecated charts
   - Build Discord embed JSON (yellow=outdated, red=deprecated, green=summary)
   - Send via curl to `$DISCORD_WEBHOOK_URL`
-- [ ] 4.27.4.3 Create `manifests/monitoring/version-check-cronjob.yaml`
+- [x] 4.27.4.3 Create `manifests/monitoring/version-check-cronjob.yaml`
   - Schedule: `0 0 * * 0` (Sunday 00:00 UTC = 08:00 PHT)
   - Init container: `quay.io/fairwinds/nova:v3.11.10` → copies `/usr/local/bin/nova` to `/shared/`
   - Main container: `alpine:3.21` → runs script from ConfigMap mount
   - Mount: script ConfigMap + Secret webhook URL + shared emptyDir
   - `activeDeadlineSeconds: 300`
   - Security context: runAsNonRoot (65534), drop ALL
-- [ ] 4.27.4.4 Apply:
+- [x] 4.27.4.4 Applied manifests (CronJob created, awaiting Discord webhook secret)
   ```bash
   kubectl-homelab apply \
     -f manifests/monitoring/version-check-rbac.yaml \
     -f manifests/monitoring/version-check-script.yaml \
     -f manifests/monitoring/version-check-cronjob.yaml
   ```
-- [ ] 4.27.4.5 Trigger manual run to test:
+- [x] 4.27.4.5 Trigger manual run to test:
   ```bash
   kubectl-homelab -n monitoring create job --from=cronjob/version-check version-check-manual
   kubectl-homelab -n monitoring logs job/version-check-manual -f
   ```
-- [ ] 4.27.4.6 Verify Discord message received with Helm chart drift info
+- [x] 4.27.4.6 Verify Discord message received (8 outdated, 0 deprecated, 6 current)
 
 ### 4.27.5 Write Upgrade Runbook
 
-- [ ] 4.27.5.1 Create `docs/context/Upgrades.md` with:
-  - Pre-upgrade checklist (etcd backup, node health, PVC status, Longhorn volume health)
-  - Upgrade/rollback procedures for each component type (Helm, manifests, kubeadm, kube-vip, Longhorn, Cilium)
-  - Risk matrix
-  - Emergency rollback procedures
-  - Service-specific major upgrade warnings (Ghost DB migration, Longhorn no-downgrade, K8s one-minor-at-a-time, Cilium network disruption, GitLab upgrade path tool, MySQL/PostgreSQL major version procedures, Meilisearch re-index)
-- [ ] 4.27.5.2 Update `docs/context/_Index.md` — add Upgrades.md to Quick Links
+- [x] 4.27.5.1 Create `docs/context/Upgrades.md` with all component types, risk matrix, emergency rollback, service-specific warnings
+- [x] 4.27.5.2 Update `docs/context/_Index.md` — add Upgrades.md to Quick Links
 
 ### 4.27.6 Install Nova CLI (Local)
 
-- [ ] 4.27.6.1 Install Nova on local machine:
+- [x] 4.27.6.1 Install Nova on local machine (GitHub release binary to `~/.local/bin/nova`):
   ```bash
-  brew install fairwindsops/tap/nova
+  curl -sL https://github.com/FairwindsOps/nova/releases/download/v3.11.10/nova_3.11.10_linux_amd64.tar.gz -o /tmp/nova.tar.gz
+  tar xzf /tmp/nova.tar.gz -C /tmp nova && chmod +x /tmp/nova && mv /tmp/nova ~/.local/bin/nova
   ```
-- [ ] 4.27.6.2 Test:
+- [x] 4.27.6.2 Test (8 outdated charts found):
   ```bash
   KUBECONFIG=~/.kube/homelab.yaml nova find --helm --format table
   KUBECONFIG=~/.kube/homelab.yaml nova find --containers --format table
