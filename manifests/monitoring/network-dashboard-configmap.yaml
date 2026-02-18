@@ -1,0 +1,191 @@
+# Grafana Dashboard - Network Throughput (1GbE vs 2.5GbE Decision)
+# Monitors NIC utilization across cluster nodes to determine if 2.5GbE upgrade is justified
+# Data source: node_network_* metrics from node-exporter (via kube-prometheus-stack)
+# Auto-provisioned via grafana_dashboard label
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: network-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus-stack
+data:
+  network-throughput.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "title": "NIC Utilization",
+          "description": "NIC utilization as percentage of link speed — used to determine if 2.5GbE upgrade is needed",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 50 },
+                  { "color": "orange", "value": 80 },
+                  { "color": "red", "value": 95 }
+                ]
+              }
+            }
+          },
+          "gridPos": { "h": 6, "w": 8, "x": 0, "y": 1 },
+          "id": 2,
+          "title": "NIC Utilization % (Current)",
+          "description": "Current NIC utilization as percentage of link speed. >80% sustained = consider 2.5GbE upgrade. Uses node_network_speed_bytes if available, falls back to 125000000 (1GbE).",
+          "type": "gauge",
+          "targets": [
+            {
+              "expr": "(\n  rate(node_network_receive_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n  + rate(node_network_transmit_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n)\n/ clamp_min(node_network_speed_bytes{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}, 125000000)\n* 100",
+              "legendFormat": "{{instance}} - {{device}}"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 80 },
+                  { "color": "red", "value": 95 }
+                ]
+              }
+            }
+          },
+          "gridPos": { "h": 6, "w": 8, "x": 8, "y": 1 },
+          "id": 3,
+          "title": "Peak Utilization (24h)",
+          "description": "Maximum NIC utilization in the last 24 hours",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "max_over_time(\n  (\n    (\n      rate(node_network_receive_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n      + rate(node_network_transmit_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n    )\n    / clamp_min(node_network_speed_bytes{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}, 125000000)\n    * 100\n  )[24h:5m]\n)",
+              "legendFormat": "{{instance}} - {{device}}"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 5 },
+                  { "color": "red", "value": 20 }
+                ]
+              }
+            }
+          },
+          "gridPos": { "h": 6, "w": 8, "x": 16, "y": 1 },
+          "id": 4,
+          "title": "Time Above 80% (24h)",
+          "description": "Number of 5-minute intervals where NIC utilization exceeded 80% in the last 24 hours. High values indicate sustained saturation.",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "count_over_time(\n  (\n    (\n      (\n        rate(node_network_receive_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n        + rate(node_network_transmit_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n      )\n      / clamp_min(node_network_speed_bytes{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}, 125000000)\n      * 100\n    ) > 80\n  )[24h:5m]\n)",
+              "legendFormat": "{{instance}} - {{device}}"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
+          "id": 10,
+          "title": "Throughput",
+          "description": "Network throughput in Mbps across all cluster nodes",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Mbits",
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "stacking": { "mode": "none" }
+              }
+            }
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+          "id": 11,
+          "title": "Total Throughput (Mbps)",
+          "description": "Combined RX + TX throughput per node physical NIC. 1GbE max = 1000 Mbps.",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "(\n  rate(node_network_receive_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n  + rate(node_network_transmit_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n) * 8 / 1000000",
+              "legendFormat": "{{instance}} - {{device}}"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Mbits",
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "stacking": { "mode": "normal" }
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byRegexp", "options": ".*TX.*" },
+                "properties": [{ "id": "custom.transform", "value": "negative-Y" }]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+          "id": 12,
+          "title": "RX vs TX per Node (Mbps)",
+          "description": "Receive (positive) vs Transmit (negative) traffic per node. Stacked view shows total bandwidth direction.",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "rate(node_network_receive_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m]) * 8 / 1000000",
+              "legendFormat": "{{instance}} RX"
+            },
+            {
+              "expr": "rate(node_network_transmit_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m]) * 8 / 1000000",
+              "legendFormat": "{{instance}} TX"
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["network", "infrastructure"],
+      "templating": { "list": [] },
+      "time": { "from": "now-24h", "to": "now" },
+      "title": "Network Throughput (1GbE vs 2.5GbE)",
+      "uid": "network-throughput"
+    }

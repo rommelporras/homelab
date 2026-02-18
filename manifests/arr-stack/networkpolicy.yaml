@@ -1,5 +1,5 @@
 # CiliumNetworkPolicy for arr-stack namespace
-# Phase 4.25 - ARR Media Stack
+# Phase 4.25 - ARR Media Stack + Phase 4.26 Companions
 #
 # Security model:
 #   - All *ARR apps talk to each other freely (Prowlarr syncs to Sonarr/Radarr,
@@ -74,6 +74,15 @@ spec:
             - 10.0.0.0/8
             - 172.16.0.0/12
             - 192.168.0.0/16
+
+    # Ollama access for Recommendarr (AI recommendations — Phase 4.26)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ai
+      toPorts:
+        - ports:
+            - port: "11434"
+              protocol: TCP
 
     # NFS access to OMV NAS (10.10.30.4)
     - toCIDRSet:

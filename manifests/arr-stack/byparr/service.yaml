@@ -1,0 +1,20 @@
+# Byparr Service
+# Internal ClusterIP — Prowlarr connects via FlareSolverr proxy settings
+# No HTTPRoute needed (internal proxy only, no user-facing UI)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: byparr
+  namespace: arr-stack
+  labels:
+    app: byparr
+spec:
+  type: ClusterIP
+  selector:
+    app: byparr
+  ports:
+    - name: http
+      port: 8191
+      targetPort: http
+      protocol: TCP

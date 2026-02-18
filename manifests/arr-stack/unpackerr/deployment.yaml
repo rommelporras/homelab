@@ -1,0 +1,93 @@
+# Unpackerr Deployment
+# Archive extraction daemon — extracts RAR-packed torrent downloads
+#
+# Image: Official unpackerr (Go binary, not LSIO)
+# Data: Shared NFS PVC at /data (needs access to /data/torrents/ for extraction)
+# Config: Environment variables only — no config file needed
+#
+# Runs as a long-lived daemon polling Sonarr/Radarr queues every 2 minutes.
+# No web UI, no Service, no HTTPRoute.
+#
+# Important: DELETE_ORIG=false — never delete originals for torrents (breaks seeding)
+#
+# CKA topics: Deployment, Secret envFrom, NFS volume mount
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unpackerr
+  namespace: arr-stack
+  labels:
+    app: unpackerr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unpackerr
+  template:
+    metadata:
+      labels:
+        app: unpackerr
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: unpackerr
+          image: ghcr.io/unpackerr/unpackerr:v0.14.5
+          env:
+            - name: TZ
+              value: "Asia/Manila"
+            # Sonarr connection
+            - name: UN_SONARR_0_URL
+              value: "http://sonarr.arr-stack.svc:8989"
+            - name: UN_SONARR_0_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arr-api-keys
+                  key: SONARR_API_KEY
+            - name: UN_SONARR_0_PATHS_0
+              value: "/data/torrents/series"
+            - name: UN_SONARR_0_PROTOCOLS
+              value: "torrent"
+            - name: UN_SONARR_0_DELETE_ORIG
+              value: "false"
+            # Radarr connection
+            - name: UN_RADARR_0_URL
+              value: "http://radarr.arr-stack.svc:7878"
+            - name: UN_RADARR_0_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arr-api-keys
+                  key: RADARR_API_KEY
+            - name: UN_RADARR_0_PATHS_0
+              value: "/data/torrents/movies"
+            - name: UN_RADARR_0_PROTOCOLS
+              value: "torrent"
+            - name: UN_RADARR_0_DELETE_ORIG
+              value: "false"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: arr-data

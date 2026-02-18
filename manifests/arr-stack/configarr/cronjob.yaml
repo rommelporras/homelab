@@ -1,0 +1,85 @@
+# Configarr CronJob
+# Syncs TRaSH Guide quality profiles to Sonarr/Radarr daily
+#
+# Image: Official raydak-labs/configarr
+# Schedule: Daily at 3 AM Manila time (low-activity window)
+# Config: ConfigMap mounted at /app/config/config.yml
+# API Keys: Injected as env vars from arr-api-keys Secret (!env tags in config)
+# Repos: emptyDir for TRaSH-Guides/Recyclarr git repo cache (~30s clone per run)
+#
+# Manual test run:
+#   kubectl-homelab create job --from=cronjob/configarr configarr-test -n arr-stack
+#   kubectl-homelab logs -n arr-stack job/configarr-test
+#
+# CKA topics: CronJob, ConfigMap volume mount, Secret envFrom, restartPolicy
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: configarr
+  namespace: arr-stack
+  labels:
+    app: configarr
+spec:
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: configarr
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: configarr
+              image: ghcr.io/raydak-labs/configarr:1.20.0
+              tty: true
+              env:
+                - name: TZ
+                  value: "Asia/Manila"
+                - name: SONARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: arr-api-keys
+                      key: SONARR_API_KEY
+                - name: RADARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: arr-api-keys
+                      key: RADARR_API_KEY
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "256Mi"
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: config
+                  mountPath: /app/config/config.yml
+                  subPath: config.yml
+                  readOnly: true
+                - name: repos
+                  mountPath: /app/repos
+          volumes:
+            - name: config
+              configMap:
+                name: configarr-config
+            - name: repos
+              emptyDir: {}

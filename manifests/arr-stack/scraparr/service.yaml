@@ -1,0 +1,18 @@
+# Scraparr Service
+# ClusterIP — internal metrics endpoint for Prometheus scraping
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scraparr
+  namespace: arr-stack
+  labels:
+    app: scraparr
+spec:
+  type: ClusterIP
+  selector:
+    app: scraparr
+  ports:
+    - name: metrics
+      port: 7100
+      targetPort: metrics

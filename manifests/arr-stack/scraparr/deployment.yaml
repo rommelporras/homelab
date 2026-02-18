@@ -1,0 +1,110 @@
+# Scraparr Deployment
+# Prometheus metrics exporter for all *ARR apps (single deployment)
+#
+# Image: Official thecfu/scraparr
+# Stateless — no PVC needed
+# Port: 7100 (/metrics endpoint for Prometheus)
+#
+# Monitors: Sonarr, Radarr, Prowlarr, Bazarr
+# API keys sourced from shared arr-api-keys Secret (Phase 4.25)
+#
+# CKA topics: Deployment, Secret envFrom, ServiceMonitor integration
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scraparr
+  namespace: arr-stack
+  labels:
+    app: scraparr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: scraparr
+  template:
+    metadata:
+      labels:
+        app: scraparr
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: scraparr
+          image: ghcr.io/thecfu/scraparr:3.0.3
+          ports:
+            - name: metrics
+              containerPort: 7100
+              protocol: TCP
+          env:
+            - name: TZ
+              value: "Asia/Manila"
+            # Sonarr
+            - name: SONARR_URL
+              value: "http://sonarr.arr-stack.svc:8989"
+            - name: SONARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arr-api-keys
+                  key: SONARR_API_KEY
+            # Radarr
+            - name: RADARR_URL
+              value: "http://radarr.arr-stack.svc:7878"
+            - name: RADARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arr-api-keys
+                  key: RADARR_API_KEY
+            # Prowlarr
+            - name: PROWLARR_URL
+              value: "http://prowlarr.arr-stack.svc:9696"
+            - name: PROWLARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arr-api-keys
+                  key: PROWLARR_API_KEY
+            # Bazarr
+            - name: BAZARR_URL
+              value: "http://bazarr.arr-stack.svc:6767"
+            - name: BAZARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arr-api-keys
+                  key: BAZARR_API_KEY
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "128Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          startupProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            periodSeconds: 10
+            failureThreshold: 2

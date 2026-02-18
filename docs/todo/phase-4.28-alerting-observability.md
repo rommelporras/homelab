@@ -427,6 +427,29 @@ kubectl-homelab apply -f manifests/monitoring/logging-alerts.yaml
 
 ---
 
+## 4.28.8 ARR Stack Dashboard Improvements (from Phase 4.26 learnings)
+
+> During Phase 4.26 deployment, manual `kubectl logs` was needed to debug indexer issues, download failures, and quality profile rejections. These operational insights should be visible in Grafana.
+
+- [ ] 4.28.8.1 Add Loki log panels to ARR Stack dashboard:
+  - Radarr/Sonarr grab/reject logs (which indexer, quality score, rejection reason)
+  - Prowlarr indexer search activity (queries per indexer, failure rate)
+  - Byparr Cloudflare solve success/failure rate
+- [ ] 4.28.8.2 Add qBittorrent download panels:
+  - Active downloads (count, speed, ETA)
+  - Download history by indexer source (1337x vs YTS vs Bitsearch)
+  - Failed/stalled downloads
+- [ ] 4.28.8.3 Add Radarr/Sonarr quality panels:
+  - Custom format score distribution (how many releases are YTS fallback vs proper BluRay)
+  - Upgrade queue (movies/shows waiting for better quality)
+  - Import list activity (new additions per list per day)
+- [ ] 4.28.8.4 Add Tdarr transcoding panels:
+  - Transcode queue size and progress
+  - Space saved by transcoding (original vs transcoded size)
+  - QSV GPU utilization during transcode window
+
+---
+
 ## Not In Scope (Phase 5 or Later)
 
 | Gap | Phase | Rationale |

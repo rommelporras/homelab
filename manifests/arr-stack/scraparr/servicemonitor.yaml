@@ -1,0 +1,27 @@
+# ServiceMonitor for Scraparr — Prometheus scrape config
+# Scrapes /metrics on port 7100 every 5 minutes
+# (no point scraping faster than *ARR app refresh cycles)
+#
+# Apply:
+#   kubectl-homelab apply -f manifests/arr-stack/scraparr/servicemonitor.yaml
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: scraparr
+  namespace: monitoring
+  labels:
+    app: scraparr
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: scraparr
+  namespaceSelector:
+    matchNames:
+      - arr-stack
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 5m
+      scrapeTimeout: 30s

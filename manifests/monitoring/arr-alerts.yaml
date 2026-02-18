@@ -1,0 +1,158 @@
+# PrometheusRule for ARR Stack + Network Alerts
+# Phase 4.26: Monitor ARR app health, queue stalls, and network saturation
+#
+# Metrics used:
+#   scraparr_services_up — service health via Scraparr exporter
+#   sonarr_*/radarr_* — queue metrics via Scraparr
+#   node_network_*_bytes_total — NIC throughput from node-exporter
+#   node_network_speed_bytes — NIC link speed from node-exporter
+#   probe_success{job="jellyfin"} — HTTP probe from Blackbox Exporter
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: arr-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: arr-stack
+      rules:
+        # Scraparr exporter unreachable — all ARR metrics will be missing
+        - alert: ArrAppDown
+          expr: up{job="scraparr"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Scraparr exporter is unreachable"
+            description: "Scraparr metrics endpoint has been down for 5+ minutes. All ARR app monitoring is blind."
+            runbook: |
+              1. Check Scraparr pod status:
+                 kubectl-homelab get pods -n arr-stack -l app=scraparr
+
+              2. Check pod logs:
+                 kubectl-homelab logs -n arr-stack deploy/scraparr --tail=50
+
+              3. Verify ARR apps are running (Scraparr depends on their APIs):
+                 kubectl-homelab get pods -n arr-stack
+
+              4. If API key issues, re-run:
+                 ./scripts/apply-arr-secrets.sh
+
+        # Sonarr queue items stuck — downloads may be stalled
+        - alert: SonarrQueueStalled
+          expr: sonarr_episodes_total > 0 and changes(sonarr_episodes_total[2h]) == 0 and sonarr_missing_episodes_total > 0
+          for: 2h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Sonarr queue appears stalled"
+            description: "Sonarr episode count hasn't changed in 2+ hours despite having {{ $value }} missing episodes. Downloads may be stuck."
+            runbook: |
+              1. Check Sonarr Activity queue:
+                 https://sonarr.k8s.rommelporras.com/activity/queue
+
+              2. Check qBittorrent for stalled downloads:
+                 https://qbittorrent.k8s.rommelporras.com
+
+              3. Check Prowlarr for indexer health:
+                 https://prowlarr.k8s.rommelporras.com/system/status
+
+        # Radarr queue items stuck — downloads may be stalled
+        - alert: RadarrQueueStalled
+          expr: radarr_movies_total > 0 and changes(radarr_movies_total[2h]) == 0 and radarr_missing_movies_total > 0
+          for: 2h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Radarr queue appears stalled"
+            description: "Radarr movie count hasn't changed in 2+ hours despite having {{ $value }} missing movies. Downloads may be stuck."
+            runbook: |
+              1. Check Radarr Activity queue:
+                 https://radarr.k8s.rommelporras.com/activity/queue
+
+              2. Check qBittorrent for stalled downloads:
+                 https://qbittorrent.k8s.rommelporras.com
+
+              3. Check Prowlarr for indexer health:
+                 https://prowlarr.k8s.rommelporras.com/system/status
+
+    - name: network
+      rules:
+        # NIC utilization sustained above 80% — 2.5GbE upgrade may be justified
+        - alert: NetworkInterfaceSaturated
+          expr: |
+            (
+              rate(node_network_receive_bytes_total{device!~"lo|cni.*|veth.*|cilium.*|lxc.*"}[5m])
+              + rate(node_network_transmit_bytes_total{device!~"lo|cni.*|veth.*|cilium.*|lxc.*"}[5m])
+            )
+            / clamp_min(node_network_speed_bytes{device!~"lo|cni.*|veth.*|cilium.*|lxc.*"}, 125000000)
+            * 100 > 80
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "NIC utilization above 80% on {{ $labels.instance }}"
+            description: "{{ $labels.device }} on {{ $labels.instance }} is at {{ $value | humanize }}% utilization for 10+ minutes. Consider 2.5GbE NIC upgrade."
+            runbook: |
+              1. Check Network Throughput dashboard in Grafana
+
+              2. Identify which pods are generating traffic:
+                 kubectl-homelab top pod -A --sort-by=cpu
+
+              3. If NFS-related, check qBittorrent download activity
+
+              4. If sustained during off-hours, this is likely Tdarr transcoding
+
+        # NIC utilization critical — active bottleneck
+        - alert: NetworkInterfaceCritical
+          expr: |
+            (
+              rate(node_network_receive_bytes_total{device!~"lo|cni.*|veth.*|cilium.*|lxc.*"}[5m])
+              + rate(node_network_transmit_bytes_total{device!~"lo|cni.*|veth.*|cilium.*|lxc.*"}[5m])
+            )
+            / clamp_min(node_network_speed_bytes{device!~"lo|cni.*|veth.*|cilium.*|lxc.*"}, 125000000)
+            * 100 > 95
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "NIC critically saturated on {{ $labels.instance }}"
+            description: "{{ $labels.device }} on {{ $labels.instance }} is at {{ $value | humanize }}% utilization for 5+ minutes. Network is a bottleneck — downloads, streaming, and NFS will be degraded."
+            runbook: |
+              1. Check if Tdarr is running a large batch transcode:
+                 https://tdarr.k8s.rommelporras.com
+
+              2. If yes, pause Tdarr queue to restore bandwidth
+
+              3. Check qBittorrent for many simultaneous downloads:
+                 https://qbittorrent.k8s.rommelporras.com
+
+              4. Consider 2.5GbE NIC upgrade if this is frequent
+
+    - name: jellyfin
+      rules:
+        # Jellyfin media server unreachable
+        - alert: JellyfinDown
+          expr: probe_success{job="jellyfin"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Jellyfin media server is unreachable"
+            description: "Jellyfin health probe has failed for 5+ minutes. Media streaming is unavailable."
+            runbook: |
+              1. Check Jellyfin pod status:
+                 kubectl-homelab get pods -n arr-stack -l app=jellyfin
+
+              2. Check pod logs:
+                 kubectl-homelab logs -n arr-stack deploy/jellyfin --tail=50
+
+              3. Check if NFS mount is healthy:
+                 kubectl-homelab exec -n arr-stack deploy/jellyfin -- ls /data/media/
+
+              4. Check GPU device plugin (QSV):
+                 kubectl-homelab get pods -n kube-system -l app=intel-gpu-plugin

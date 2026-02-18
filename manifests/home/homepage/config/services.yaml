@@ -1,15 +1,228 @@
 # Homepage Services Configuration
 # Docs: https://gethomepage.dev/configs/services/
 #
-# Layout: Option A (Function-Based) with Multi-Page Tabs
-# - Tab 1 "Main": Compute, Network, Storage, Apps, Health
-# - Tab 2 "Infra": Proxmox and Kubernetes details
+# Layout: Two-Tab Design
+# - Tab 1 "Dashboard": Media, Media Tools, Apps, Health
+# - Tab 2 "Infrastructure": Compute, Network, Storage, Proxmox, Kubernetes
 #
 # NOTE: All {{HOMEPAGE_VAR_XXX}} placeholders MUST be quoted to prevent
 # YAML special characters (*, @, !) from breaking parsing.
 
 #############################################
-# TAB 1: MAIN DASHBOARD
+# TAB 1: DASHBOARD (daily use)
+#############################################
+
+- Media:
+    - Jellyfin:
+        icon: jellyfin.png
+        href: https://jellyfin.k8s.rommelporras.com
+        description: Media Server
+        statusStyle: dot
+        siteMonitor: https://jellyfin.k8s.rommelporras.com
+        widget:
+          type: jellyfin
+          url: https://jellyfin.k8s.rommelporras.com
+          key: "{{HOMEPAGE_VAR_JELLYFIN_KEY}}"
+          enableBlocks: true
+          enableNowPlaying: true
+
+    - Seerr:
+        icon: overseerr.png
+        href: https://seerr.k8s.rommelporras.com
+        description: Media Requests & Discovery
+        statusStyle: dot
+        siteMonitor: https://seerr.k8s.rommelporras.com
+        widget:
+          type: overseerr
+          url: https://seerr.k8s.rommelporras.com
+          key: "{{HOMEPAGE_VAR_SEERR_API_KEY}}"
+
+    - Sonarr:
+        icon: sonarr.png
+        href: https://sonarr.k8s.rommelporras.com
+        description: TV Show Management
+        statusStyle: dot
+        siteMonitor: https://sonarr.k8s.rommelporras.com
+        widget:
+          type: sonarr
+          url: https://sonarr.k8s.rommelporras.com
+          key: "{{HOMEPAGE_VAR_SONARR_API_KEY}}"
+
+    - Radarr:
+        icon: radarr.png
+        href: https://radarr.k8s.rommelporras.com
+        description: Movie Management
+        statusStyle: dot
+        siteMonitor: https://radarr.k8s.rommelporras.com
+        widget:
+          type: radarr
+          url: https://radarr.k8s.rommelporras.com
+          key: "{{HOMEPAGE_VAR_RADARR_API_KEY}}"
+
+    - qBittorrent:
+        icon: qbittorrent.png
+        href: https://qbit.k8s.rommelporras.com
+        description: Download Client
+        statusStyle: dot
+        siteMonitor: https://qbit.k8s.rommelporras.com
+        widget:
+          type: qbittorrent
+          url: https://qbit.k8s.rommelporras.com
+          username: "{{HOMEPAGE_VAR_QBIT_USER}}"
+          password: "{{HOMEPAGE_VAR_QBIT_PASS}}"
+
+- Calendar:
+    - Upcoming:
+        widget:
+          type: calendar
+          firstDayInWeek: sunday
+          view: agenda
+          maxEvents: 7
+          showTime: true
+          timezone: Asia/Manila
+          integrations:
+            - type: sonarr
+              service_group: Media
+              service_name: Sonarr
+              color: teal
+              baseUrl: https://sonarr.k8s.rommelporras.com
+              params:
+                unmonitored: false
+            - type: radarr
+              service_group: Media
+              service_name: Radarr
+              color: yellow
+              baseUrl: https://radarr.k8s.rommelporras.com
+              params:
+                unmonitored: false
+
+- Media Tools:
+    - Bazarr:
+        icon: bazarr.png
+        href: https://bazarr.k8s.rommelporras.com
+        description: Subtitle Management
+        statusStyle: dot
+        siteMonitor: https://bazarr.k8s.rommelporras.com
+        widget:
+          type: bazarr
+          url: https://bazarr.k8s.rommelporras.com
+          key: "{{HOMEPAGE_VAR_BAZARR_API_KEY}}"
+
+    - Prowlarr:
+        icon: prowlarr.png
+        href: https://prowlarr.k8s.rommelporras.com
+        description: Indexer Manager
+        statusStyle: dot
+        siteMonitor: https://prowlarr.k8s.rommelporras.com
+        widget:
+          type: prowlarr
+          url: https://prowlarr.k8s.rommelporras.com
+          key: "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}"
+
+    - Tdarr:
+        icon: tdarr.png
+        href: https://tdarr.k8s.rommelporras.com
+        description: Library Transcoding (QSV)
+        statusStyle: dot
+        siteMonitor: https://tdarr.k8s.rommelporras.com
+        widget:
+          type: tdarr
+          url: https://tdarr.k8s.rommelporras.com
+
+    - Recommendarr:
+        icon: mdi-robot-happy-outline
+        href: https://recommendarr.k8s.rommelporras.com
+        description: AI Recommendations
+        statusStyle: dot
+        siteMonitor: https://recommendarr.k8s.rommelporras.com
+
+- Apps:
+    - Immich:
+        icon: immich.png
+        href: https://immich.home.rommelporras.com
+        description: Photo Management
+        statusStyle: dot
+        siteMonitor: https://immich.home.rommelporras.com
+        widget:
+          type: immich
+          url: https://immich.home.rommelporras.com
+          key: "{{HOMEPAGE_VAR_IMMICH_KEY}}"
+          version: 2
+
+    - Karakeep:
+        icon: karakeep.png
+        href: https://karakeep.k8s.rommelporras.com
+        description: Bookmark Manager
+        statusStyle: dot
+        siteMonitor: https://karakeep.k8s.rommelporras.com
+        widget:
+          type: karakeep
+          url: https://karakeep.k8s.rommelporras.com
+          key: "{{HOMEPAGE_VAR_KARAKEEP_KEY}}"
+
+    - Grafana:
+        icon: grafana.png
+        href: https://grafana.k8s.rommelporras.com
+        description: Dashboards & Metrics
+        statusStyle: dot
+        siteMonitor: https://grafana.k8s.rommelporras.com
+        widget:
+          type: grafana
+          url: https://grafana.k8s.rommelporras.com
+          username: "{{HOMEPAGE_VAR_GRAFANA_USER}}"
+          password: "{{HOMEPAGE_VAR_GRAFANA_PASS}}"
+
+    - Blog (Prod):
+        icon: ghost.png
+        href: https://blog.rommelporras.com
+        description: blog.rommelporras.com
+        statusStyle: dot
+        siteMonitor: https://blog.rommelporras.com
+
+    - Blog (Dev):
+        icon: ghost.png
+        href: https://blog.dev.k8s.rommelporras.com
+        description: Ghost Dev Environment
+        statusStyle: dot
+        siteMonitor: https://blog.dev.k8s.rommelporras.com
+
+    - Firefox Browser:
+        icon: firefox.png
+        href: https://browser.k8s.rommelporras.com
+        description: Persistent Browser (KasmVNC)
+        statusStyle: dot
+        siteMonitor: https://browser.k8s.rommelporras.com
+
+- Health:
+    - Uptime Kuma:
+        icon: uptime-kuma.png
+        href: https://uptime.k8s.rommelporras.com
+        description: Service Monitoring
+        statusStyle: dot
+        siteMonitor: https://uptime.k8s.rommelporras.com
+        widget:
+          type: uptimekuma
+          url: https://uptime.k8s.rommelporras.com
+          slug: homelab
+
+    - Speed Test:
+        icon: myspeed.png
+        href: https://myspeed.k8s.rommelporras.com
+        description: Internet Speed History
+        statusStyle: dot
+        widget:
+          type: myspeed
+          url: https://myspeed.k8s.rommelporras.com
+
+    - UPS Status:
+        icon: mdi-battery-charging
+        href: https://grafana.k8s.rommelporras.com/d/ups-monitoring
+        description: CyberPower UPS
+        statusStyle: dot
+        siteMonitor: https://grafana.k8s.rommelporras.com/d/ups-monitoring
+
+#############################################
+# TAB 2: INFRASTRUCTURE (troubleshooting)
 #############################################
 
 - Compute:
@@ -147,165 +360,6 @@
           password: "{{HOMEPAGE_VAR_GLANCES_PASS}}"
           version: 3
           metric: fs:/srv/dev-disk-by-uuid-00ece9b6-d675-4371-82e2-efa6cfd7e589
-
-- Apps:
-    - Immich:
-        icon: immich.png
-        href: https://immich.home.rommelporras.com
-        description: Photo Management
-        statusStyle: dot
-        siteMonitor: https://immich.home.rommelporras.com
-        widget:
-          type: immich
-          url: https://immich.home.rommelporras.com
-          key: "{{HOMEPAGE_VAR_IMMICH_KEY}}"
-          version: 2
-
-    - Karakeep:
-        icon: karakeep.png
-        href: https://karakeep.k8s.rommelporras.com
-        description: Bookmark Manager
-        statusStyle: dot
-        siteMonitor: https://karakeep.k8s.rommelporras.com
-        widget:
-          type: karakeep
-          url: https://karakeep.k8s.rommelporras.com
-          key: "{{HOMEPAGE_VAR_KARAKEEP_KEY}}"
-
-    - Grafana:
-        icon: grafana.png
-        href: https://grafana.k8s.rommelporras.com
-        description: Dashboards & Metrics
-        statusStyle: dot
-        siteMonitor: https://grafana.k8s.rommelporras.com
-        widget:
-          type: grafana
-          url: https://grafana.k8s.rommelporras.com
-          username: "{{HOMEPAGE_VAR_GRAFANA_USER}}"
-          password: "{{HOMEPAGE_VAR_GRAFANA_PASS}}"
-
-    - Blog (Dev):
-        icon: ghost.png
-        href: https://blog.dev.k8s.rommelporras.com
-        description: Ghost Dev Environment
-        statusStyle: dot
-        siteMonitor: https://blog.dev.k8s.rommelporras.com
-
-    - Blog (Prod):
-        icon: ghost.png
-        href: https://blog.rommelporras.com
-        description: blog.rommelporras.com
-        statusStyle: dot
-        siteMonitor: https://blog.rommelporras.com
-
-    - Firefox Browser:
-        icon: firefox.png
-        href: https://browser.k8s.rommelporras.com
-        description: Persistent Browser (KasmVNC)
-        statusStyle: dot
-        siteMonitor: https://browser.k8s.rommelporras.com
-
-- Media:
-    - Jellyfin:
-        icon: jellyfin.png
-        href: https://jellyfin.k8s.rommelporras.com
-        description: Media Server
-        statusStyle: dot
-        siteMonitor: https://jellyfin.k8s.rommelporras.com
-        widget:
-          type: jellyfin
-          url: https://jellyfin.k8s.rommelporras.com
-          key: "{{HOMEPAGE_VAR_JELLYFIN_KEY}}"
-          enableBlocks: true
-          enableNowPlaying: true
-
-    - Sonarr:
-        icon: sonarr.png
-        href: https://sonarr.k8s.rommelporras.com
-        description: TV Show Management
-        statusStyle: dot
-        siteMonitor: https://sonarr.k8s.rommelporras.com
-        widget:
-          type: sonarr
-          url: https://sonarr.k8s.rommelporras.com
-          key: "{{HOMEPAGE_VAR_SONARR_API_KEY}}"
-
-    - Radarr:
-        icon: radarr.png
-        href: https://radarr.k8s.rommelporras.com
-        description: Movie Management
-        statusStyle: dot
-        siteMonitor: https://radarr.k8s.rommelporras.com
-        widget:
-          type: radarr
-          url: https://radarr.k8s.rommelporras.com
-          key: "{{HOMEPAGE_VAR_RADARR_API_KEY}}"
-
-    - qBittorrent:
-        icon: qbittorrent.png
-        href: https://qbit.k8s.rommelporras.com
-        description: Download Client
-        statusStyle: dot
-        siteMonitor: https://qbit.k8s.rommelporras.com
-        widget:
-          type: qbittorrent
-          url: https://qbit.k8s.rommelporras.com
-          username: "{{HOMEPAGE_VAR_QBIT_USER}}"
-          password: "{{HOMEPAGE_VAR_QBIT_PASS}}"
-
-    - Bazarr:
-        icon: bazarr.png
-        href: https://bazarr.k8s.rommelporras.com
-        description: Subtitle Management
-        statusStyle: dot
-        siteMonitor: https://bazarr.k8s.rommelporras.com
-        widget:
-          type: bazarr
-          url: https://bazarr.k8s.rommelporras.com
-          key: "{{HOMEPAGE_VAR_BAZARR_API_KEY}}"
-
-    - Prowlarr:
-        icon: prowlarr.png
-        href: https://prowlarr.k8s.rommelporras.com
-        description: Indexer Manager
-        statusStyle: dot
-        siteMonitor: https://prowlarr.k8s.rommelporras.com
-        widget:
-          type: prowlarr
-          url: https://prowlarr.k8s.rommelporras.com
-          key: "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}"
-
-- Health:
-    - Uptime Kuma:
-        icon: uptime-kuma.png
-        href: https://uptime.k8s.rommelporras.com
-        description: Service Monitoring
-        statusStyle: dot
-        siteMonitor: https://uptime.k8s.rommelporras.com
-        widget:
-          type: uptimekuma
-          url: https://uptime.k8s.rommelporras.com
-          slug: homelab
-
-    - Speed Test:
-        icon: myspeed.png
-        href: https://myspeed.k8s.rommelporras.com
-        description: Internet Speed History
-        statusStyle: dot
-        widget:
-          type: myspeed
-          url: https://myspeed.k8s.rommelporras.com
-
-    - UPS Status:
-        icon: mdi-battery-charging
-        href: https://grafana.k8s.rommelporras.com/d/ups-monitoring
-        description: CyberPower UPS
-        statusStyle: dot
-        siteMonitor: https://grafana.k8s.rommelporras.com/d/ups-monitoring
-
-#############################################
-# TAB 2: INFRASTRUCTURE DETAILS
-#############################################
 
 - Proxmox:
     - PVE Node:

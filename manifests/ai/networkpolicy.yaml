@@ -4,6 +4,7 @@
 # ALLOWED ingress:
 #   - monitoring namespace (Blackbox Exporter probe)
 #   - karakeep namespace (AI tagging — Phase 4.24)
+#   - arr-stack namespace (Recommendarr AI recommendations — Phase 4.26)
 # BLOCKED: all other namespaces and external traffic
 #
 # CKA topic: CiliumNetworkPolicy ingress, namespace-based access control
@@ -35,6 +36,15 @@ spec:
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: karakeep
+      toPorts:
+        - ports:
+            - port: "11434"
+              protocol: TCP
+
+    # Recommendarr (Phase 4.26) — AI recommendation requests on port 11434
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: arr-stack
       toPorts:
         - ports:
             - port: "11434"

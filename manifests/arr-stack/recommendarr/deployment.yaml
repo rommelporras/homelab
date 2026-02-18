@@ -1,0 +1,104 @@
+# Recommendarr Deployment + Config PVC
+# AI-powered media recommendations — uses Ollama LLM + Jellyfin/Sonarr/Radarr data
+#
+# Image: Official tannermiddleton/recommendarr
+# Config: Longhorn 1Gi PVC at /app/server/data (SQLite DB + config)
+# No NFS needed — reads from Sonarr/Radarr/Jellyfin APIs + Ollama API
+#
+# Integration: Ollama at http://ollama.ai.svc.cluster.local:11434
+#   - Requires NetworkPolicy egress rule for ai namespace (task 4.26.8)
+#
+# Default login: admin / 1234 (change on first setup via UI)
+#
+# Security: Pattern B (non-root, no capability adds)
+#
+# CKA topics: Deployment, PVC, cross-namespace communication, NetworkPolicy
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: recommendarr-config
+  namespace: arr-stack
+  labels:
+    app: recommendarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recommendarr
+  namespace: arr-stack
+  labels:
+    app: recommendarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: recommendarr
+  template:
+    metadata:
+      labels:
+        app: recommendarr
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: recommendarr
+          image: tannermiddleton/recommendarr:v1.4.4
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: TZ
+              value: "Asia/Manila"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /app/server/data
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            failureThreshold: 2
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: recommendarr-config

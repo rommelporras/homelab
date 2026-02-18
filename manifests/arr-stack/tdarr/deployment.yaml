@@ -1,0 +1,185 @@
+# Tdarr Deployment + Config PVCs
+# Library transcoding server with internal node — QSV hardware encoding
+#
+# Image: Official haveagitgat/tdarr (server + internal node in one container)
+# Config: Longhorn 5Gi PVC for /app/server (embedded DB) + 2Gi PVC for /app/configs + /app/logs
+# Data: Shared NFS PVC at /media (read/write for in-place transcoding)
+#   Library source configured in Tdarr UI as /media/media (NFS root → media/ subdir)
+# Cache: emptyDir at /temp (disk-backed transcode cache on NVMe)
+#
+# QSV Hardware Transcoding:
+#   - gpu.intel.com/i915: "1" — Intel GPU device plugin auto-mounts /dev/dri
+#   - supplementalGroups: 44 (video), 993 (render) — device file access
+#   - Same pattern as Jellyfin (Phase 4.25b)
+#
+# Anti-affinity: Soft preference to schedule away from Jellyfin to reduce GPU contention
+# Scheduling: Configure off-hours (2AM-8AM Manila time) in Tdarr UI, not K8s
+#
+# Security: PUID/PGID env vars (Pattern A style — Tdarr uses s6-overlay)
+#   - Cannot use runAsNonRoot (Tdarr image expects root init then drops privileges)
+#   - PSS baseline compatible (no privileged, no hostNetwork)
+#
+# CKA topics: Deployment, PVC, Device Plugin, anti-affinity, emptyDir
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tdarr-server
+  namespace: arr-stack
+  labels:
+    app: tdarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tdarr-configs
+  namespace: arr-stack
+  labels:
+    app: tdarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tdarr
+  namespace: arr-stack
+  labels:
+    app: tdarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tdarr
+  template:
+    metadata:
+      labels:
+        app: tdarr
+    spec:
+      securityContext:
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+        # Device file access for Intel QSV — video and render groups
+        # Verified on all 3 nodes: getent group video -> 44, render -> 993
+        supplementalGroups:
+          - 44    # video
+          - 993   # render
+      # Soft anti-affinity: prefer scheduling away from Jellyfin to reduce GPU contention
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 50
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: jellyfin
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: tdarr
+          image: ghcr.io/haveagitgat/tdarr:2.58.02
+          ports:
+            - name: webui
+              containerPort: 8265
+              protocol: TCP
+            - name: api
+              containerPort: 8266
+              protocol: TCP
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "Asia/Manila"
+            - name: internalNode
+              value: "true"
+            - name: inContainer
+              value: "true"
+            - name: ffmpegVersion
+              value: "7"
+            - name: serverIP
+              value: "0.0.0.0"
+            - name: serverPort
+              value: "8266"
+            - name: webUIPort
+              value: "8265"
+            - name: nodeName
+              value: "InternalNode"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+              gpu.intel.com/i915: "1"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+              gpu.intel.com/i915: "1"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - SETUID
+                - SETGID
+          volumeMounts:
+            - name: server
+              mountPath: /app/server
+            - name: configs
+              mountPath: /app/configs
+              subPath: configs
+            - name: configs
+              mountPath: /app/logs
+              subPath: logs
+            - name: media
+              mountPath: /media
+            - name: temp
+              mountPath: /temp
+          startupProbe:
+            httpGet:
+              path: /api/v2/status
+              port: api
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /api/v2/status
+              port: api
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/v2/status
+              port: api
+            periodSeconds: 10
+            failureThreshold: 2
+      volumes:
+        - name: server
+          persistentVolumeClaim:
+            claimName: tdarr-server
+        - name: configs
+          persistentVolumeClaim:
+            claimName: tdarr-configs
+        - name: media
+          persistentVolumeClaim:
+            claimName: arr-data
+        # Disk-backed transcode cache (NOT tmpfs)
+        # Jellyfin uses same pattern — disk-backed is nearly as fast due to page cache
+        - name: temp
+          emptyDir: {}

@@ -1,0 +1,22 @@
+# Tdarr Service
+# ClusterIP — WebUI on 8265, Server API on 8266
+# WebUI accessed via Gateway API HTTPRoute
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tdarr
+  namespace: arr-stack
+  labels:
+    app: tdarr
+spec:
+  type: ClusterIP
+  selector:
+    app: tdarr
+  ports:
+    - name: webui
+      port: 8265
+      targetPort: webui
+    - name: api
+      port: 8266
+      targetPort: api

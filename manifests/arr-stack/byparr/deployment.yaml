@@ -1,0 +1,86 @@
+# Byparr Deployment
+# Cloudflare bypass proxy for Prowlarr — drop-in FlareSolverr replacement
+#
+# Image: Official thephaseless/byparr (Camoufox/Firefox-based, NOT Chromium)
+# Stateless — no PVC needed (cookies returned per-request, not cached)
+# Port: 8191 (FlareSolverr-compatible API)
+#
+# Prowlarr integration: Settings > Indexers > FlareSolverr
+#   - Host: http://byparr.arr-stack.svc:8191
+#   - Tag indexers that need Cloudflare bypass (1337x, TorrentGalaxy)
+#
+# Security: Pattern B (non-root, no SYS_ADMIN — uses Firefox not Chromium)
+#
+# CKA topics: Deployment, Service, cross-app communication
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: byparr
+  namespace: arr-stack
+  labels:
+    app: byparr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: byparr
+  template:
+    metadata:
+      labels:
+        app: byparr
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: byparr
+          image: ghcr.io/thephaseless/byparr:latest
+          ports:
+            - name: http
+              containerPort: 8191
+              protocol: TCP
+          env:
+            - name: TZ
+              value: "Asia/Manila"
+            - name: LOG_LEVEL
+              value: "INFO"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            timeoutSeconds: 10
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            timeoutSeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            timeoutSeconds: 10
+            periodSeconds: 15
+            failureThreshold: 2

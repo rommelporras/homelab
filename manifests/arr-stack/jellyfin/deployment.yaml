@@ -96,6 +96,7 @@ spec:
               mountPath: /config
             - name: data
               mountPath: /data
+              readOnly: true
             - name: transcode
               mountPath: /config/transcodes
           startupProbe:

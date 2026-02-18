@@ -16,44 +16,59 @@ providers:
     url: https://longhorn.k8s.rommelporras.com
 
 # Multi-tab layout configuration
-# Tab 1: Main (overview dashboard)
-# Tab 2: Infra (detailed Proxmox & K8s)
+# Tab 1: Dashboard (daily use — media, apps, health)
+# Tab 2: Infrastructure (nodes, network, storage — troubleshooting)
 layout:
-  # === TAB 1: MAIN ===
-  Compute:
-    tab: Main
+  # === TAB 1: DASHBOARD ===
+  Media:
+    tab: Dashboard
     style: row
     columns: 5
-    icon: mdi-server-network
-  Network:
-    tab: Main
+    icon: mdi-play-circle
+  Calendar:
+    tab: Dashboard
+    style: column
+    columns: 1
+    icon: mdi-calendar
+  Media Tools:
+    tab: Dashboard
     style: row
-    columns: 5
-    icon: mdi-lan
-  Storage:
-    tab: Main
-    style: row
-    columns: 3
-    icon: mdi-harddisk
+    columns: 4
+    icon: mdi-tools
   Apps:
-    tab: Main
+    tab: Dashboard
     style: row
     columns: 3
     icon: mdi-apps
   Health:
-    tab: Main
+    tab: Dashboard
     style: row
-    columns: 2
+    columns: 3
     icon: mdi-heart-pulse
 
-  # === TAB 2: INFRA ===
+  # === TAB 2: INFRASTRUCTURE ===
+  Compute:
+    tab: Infrastructure
+    style: row
+    columns: 5
+    icon: mdi-server-network
+  Network:
+    tab: Infrastructure
+    style: row
+    columns: 5
+    icon: mdi-lan
+  Storage:
+    tab: Infrastructure
+    style: row
+    columns: 3
+    icon: mdi-harddisk
   Proxmox:
-    tab: Infra
+    tab: Infrastructure
     style: row
     columns: 2
     icon: si-proxmox
   Kubernetes:
-    tab: Infra
+    tab: Infrastructure
     style: row
     columns: 4
     icon: mdi-kubernetes

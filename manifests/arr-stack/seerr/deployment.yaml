@@ -1,0 +1,101 @@
+# Seerr Deployment + Config PVC
+# Media requests + discovery — replaces Jellyseerr/Overseerr (merged Feb 2026)
+#
+# Image: Official seerr-team (MIT license, 9.1k stars)
+# Config: Longhorn 1Gi PVC (SQLite DB at /app/config)
+# No NFS needed — talks to Sonarr/Radarr/Jellyfin via API only
+#
+# Security: Pattern B (official image, not LSIO)
+#   - runAsNonRoot: true, no capability adds
+#   - No PUID/PGID env vars — uses runAsUser/runAsGroup
+#
+# CKA topics: Deployment, PVC, health probes, resource limits
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: seerr-config
+  namespace: arr-stack
+  labels:
+    app: seerr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seerr
+  namespace: arr-stack
+  labels:
+    app: seerr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: seerr
+  template:
+    metadata:
+      labels:
+        app: seerr
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: seerr
+          image: ghcr.io/seerr-team/seerr:v3.0.1
+          ports:
+            - name: http
+              containerPort: 5055
+              protocol: TCP
+          env:
+            - name: TZ
+              value: "Asia/Manila"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+          startupProbe:
+            httpGet:
+              path: /api/v1/status
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /api/v1/status
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/v1/status
+              port: http
+            periodSeconds: 10
+            failureThreshold: 2
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: seerr-config
