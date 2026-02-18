@@ -32,6 +32,7 @@
 | v0.22.0 | Phase 4.10 | Tailscale Operator (subnet router for remote access) | [v0.22.0-tailscale-operator.md](v0.22.0-tailscale-operator.md) |
 | v0.23.0 | Phase 4.25 | ARR Media Stack (Prowlarr, Sonarr, Radarr, qBit, Jellyfin, Bazarr) | [v0.23.0-arr-stack.md](v0.23.0-arr-stack.md) |
 | v0.24.0 | Phase 4.25b | Intel QSV Hardware Transcoding (NFD, GPU Plugin, Jellyfin QSV) | [v0.24.0-intel-qsv.md](v0.24.0-intel-qsv.md) |
+| v0.25.0 | Phase 4.26 | ARR Companions (Seerr, Configarr, Unpackerr, Scraparr, Tdarr, Recommendarr, Byparr) | [v0.25.0-arr-companions.md](v0.25.0-arr-companions.md) |
 
 ---
 
@@ -111,6 +112,9 @@ docs/rebuild/v0.23.0-arr-stack.md
 
 # 24. Intel QSV Hardware Transcoding - NFD, GPU Plugin, Jellyfin QSV
 docs/rebuild/v0.24.0-intel-qsv.md
+
+# 25. ARR Companions - Seerr, Configarr, Unpackerr, Scraparr, Tdarr, Recommendarr, Byparr
+docs/rebuild/v0.25.0-arr-companions.md
 ```
 
 ---
@@ -207,6 +211,13 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | Node Feature Discovery | v0.18.3 | v0.24.0 |
 | Intel Device Plugins Operator | v0.34.1 | v0.24.0 |
 | Intel GPU Plugin | v0.34.1 | v0.24.0 |
+| Seerr | v3.0.1 | v0.25.0 |
+| Configarr | 1.20.0 | v0.25.0 |
+| Unpackerr | v0.14.5 | v0.25.0 |
+| Scraparr | 3.0.3 | v0.25.0 |
+| Tdarr | 2.58.02 | v0.25.0 |
+| Recommendarr | v1.4.4 | v0.25.0 |
+| Byparr | latest | v0.25.0 |
 
 ---
 
@@ -307,7 +318,14 @@ homelab/
 │   │   ├── radarr/{deployment,service,httproute}.yaml
 │   │   ├── qbittorrent/{deployment,service,httproute}.yaml
 │   │   ├── jellyfin/{deployment,service,httproute}.yaml
-│   │   └── bazarr/{deployment,service,httproute}.yaml
+│   │   ├── bazarr/{deployment,service,httproute}.yaml
+│   │   ├── seerr/{deployment,service,httproute}.yaml       # v0.25.0
+│   │   ├── configarr/{cronjob,configmap}.yaml              # v0.25.0
+│   │   ├── unpackerr/deployment.yaml                       # v0.25.0
+│   │   ├── scraparr/{deployment,service,servicemonitor}.yaml  # v0.25.0
+│   │   ├── tdarr/{deployment,service,httproute}.yaml       # v0.25.0
+│   │   ├── recommendarr/{deployment,service,httproute}.yaml  # v0.25.0
+│   │   └── byparr/{deployment,service}.yaml                # v0.25.0
 │   ├── cloudflare/                     # v0.7.0
 │   │   ├── deployment.yaml
 │   │   ├── networkpolicy.yaml
@@ -344,7 +362,10 @@ homelab/
 │       ├── tailscale-alerts.yaml     # v0.22.0
 │       ├── tailscale-dashboard-configmap.yaml  # v0.22.0
 │       ├── jellyfin-dashboard-configmap.yaml   # v0.24.0
-│       └── arr-stack-dashboard-configmap.yaml  # v0.24.0
+│       ├── arr-stack-dashboard-configmap.yaml  # v0.24.0
+│       ├── scraparr-dashboard-configmap.yaml  # v0.25.0
+│       ├── network-dashboard-configmap.yaml   # v0.25.0
+│       └── arr-alerts.yaml                    # v0.25.0
 │
 ├── scripts/
 │   ├── upgrade-prometheus.sh           # v0.5.0

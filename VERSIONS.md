@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** February 17, 2026
+> **Last Updated:** February 18, 2026
 
 ---
 
@@ -55,7 +55,7 @@
 > **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
 > Use `grafana/loki` + `grafana/alloy` instead.
 >
-> **Note:** cert-manager, kube-prometheus-stack, and Loki use OCI registry (recommended by upstream).
+> **Note:** cert-manager, kube-prometheus-stack, Loki, and NFD use OCI registry (recommended by upstream).
 > No `helm repo add` needed - install directly from OCI URLs.
 >
 > **Note:** Grafana Alloy doesn't support OCI yet. Uses traditional Helm repo (`grafana`).
@@ -71,14 +71,14 @@ helm-homelab repo add prometheus-community https://prometheus-community.github.i
 helm-homelab repo add tailscale https://pkgs.tailscale.com/helmcharts
 helm-homelab repo add intel https://intel.github.io/helm-charts/
 helm-homelab repo update
-# Note: cert-manager, kube-prometheus-stack, and NFD use OCI - no repo add needed
+# Note: cert-manager, kube-prometheus-stack, Loki, and NFD use OCI - no repo add needed
 ```
 
 ---
 
 ## Gateway API
 
-> **Why Gateway API?** Ingress is deprecated (NGINX Ingress EOL March 2026).
+> **Why Gateway API?** Ingress API is feature-frozen; Gateway API is the successor.
 > Cilium has native Gateway API support - no need for Traefik or NGINX.
 
 | Component | Version | Status |
@@ -94,7 +94,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.25b complete. Intel QSV hardware transcoding enabled.
+> **Status:** Phase 4.26 complete. ARR companion apps deployed.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -130,6 +130,13 @@ helm-homelab repo update
 | Intel Device Plugins Operator | v0.34.1 | Running | Manages GPU plugin lifecycle |
 | Intel GPU Plugin | v0.34.1 | Running | Advertises gpu.intel.com/i915 (sharedDevNum=3) |
 | Bazarr | latest (LSIO) | Running | Subtitle management (imagePullPolicy: Always) |
+| Seerr | v3.0.1 | Running | Media requests + discovery (replaces Jellyseerr/Overseerr) |
+| Configarr | 1.20.0 | Running | TRaSH Guide quality profile sync (CronJob, daily 3AM) |
+| Unpackerr | v0.14.5 | Running | RAR archive extraction daemon (no web UI) |
+| Scraparr | 3.0.3 | Running | Prometheus metrics exporter for *ARR apps |
+| Tdarr | 2.58.02 | Running | Library transcoding server (Intel QSV, internal node) |
+| Recommendarr | v1.4.4 | Running | AI media recommendations (Ollama qwen2.5:3b) |
+| Byparr | latest (v2.1.0) | Running | Cloudflare bypass proxy for Prowlarr indexers |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -165,6 +172,9 @@ helm-homelab repo update
 | qBittorrent | qbit.k8s.rommelporras.com | base | arr-stack |
 | Jellyfin | jellyfin.k8s.rommelporras.com | base | arr-stack |
 | Bazarr | bazarr.k8s.rommelporras.com | base | arr-stack |
+| Seerr | seerr.k8s.rommelporras.com | base | arr-stack |
+| Tdarr | tdarr.k8s.rommelporras.com | base | arr-stack |
+| Recommendarr | recommendarr.k8s.rommelporras.com | base | arr-stack |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |

@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
-3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 24 releases, each with a [complete rebuild guide](docs/rebuild/README.md).
+3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 25 releases, each with a [complete rebuild guide](docs/rebuild/README.md).
 
 > **Owner:** Rommel Porras  |  **CKA Target:** September 2026
 
@@ -87,7 +87,8 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - GitLab CE (Runner, Container Registry, SSH) with CI/CD pipelines
 - Ghost Blog (dev/prod, MySQL, Tinybird analytics, Cloudflare Tunnel)
 - ARR Media Stack (Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin, Bazarr)
-- Ollama (CPU-only LLM: qwen3, moondream, gemma3)
+- ARR Companions (Seerr, Configarr, Unpackerr, Scraparr, Tdarr, Recommendarr, Byparr)
+- Ollama (CPU-only LLM: qwen3, qwen2.5:3b, moondream, gemma3)
 - Karakeep (bookmark manager with Ollama AI tagging + Meilisearch)
 - Portfolio (Next.js, 3-env GitLab CI/CD: dev/staging/prod)
 - Invoicetron (Next.js + PostgreSQL, Cloudflare Access)
@@ -103,7 +104,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 | **CNI** | Cilium (eBPF) | Replaces kube-proxy, native Gateway API, NetworkPolicy for CKA |
 | **Storage** | Longhorn on NVMe | Full HA from day one, no extra hardware |
 | **VIP** | kube-vip (ARP mode) | No OPNsense changes needed |
-| **Ingress** | Gateway API (not NGINX) | Ingress is deprecated, Cilium has native support |
+| **Ingress** | Gateway API (not NGINX) | Ingress API is feature-frozen, Cilium has native Gateway API support |
 | **Remote access** | Tailscale Connector (not per-service Ingress) | 1 pod routes entire subnet, zero per-service manifests |
 | **Secrets** | 1Password CLI (`op read`) | Runtime injection, never committed to git |
 
@@ -119,7 +120,7 @@ Things that bit us and might save you time:
 
 - **Cloudflare free SSL wildcard depth** — Free plans only cover `*.rommelporras.com`, NOT `*.blog.rommelporras.com`. We use single-level subdomains like `blog-api.rommelporras.com` for analytics endpoints to stay on the free tier.
 
-- **Rebuild guides as a pattern** — Every release (v0.1.0 through v0.23.0) has a [complete rebuild guide](docs/rebuild/README.md). If the cluster dies, we can rebuild everything from scratch by following the guides in order. This also serves as living documentation that never goes stale.
+- **Rebuild guides as a pattern** — Every release (v0.1.0 through v0.25.0) has a [complete rebuild guide](docs/rebuild/README.md). If the cluster dies, we can rebuild everything from scratch by following the guides in order. This also serves as living documentation that never goes stale.
 
 - **CiliumNetworkPolicy vs forwarded traffic** — CiliumNetworkPolicy filters forwarded/routed packets, not just local pod traffic. This means a network policy on a Tailscale Connector pod will break subnet routing entirely. Only apply policies to the operator, not the proxy.
 
@@ -130,7 +131,7 @@ Things that bit us and might save you time:
 | Document | Purpose |
 |----------|---------|
 | [docs/context/Cluster.md](docs/context/Cluster.md) | **Source of truth** — nodes, IPs, hardware |
-| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (24 releases, v0.1.0 to v0.24.0) |
+| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (25 releases, v0.1.0 to v0.25.0) |
 | [docs/context/](docs/context/) | Knowledge base (11 topic files: Architecture, Gateway, Networking, etc.) |
 | [docs/todo/](docs/todo/README.md) | Phase plans (active + [completed](docs/todo/completed/)) |
 | [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md) | Decision history and project timeline |
@@ -140,6 +141,6 @@ Things that bit us and might save you time:
 
 ## Next Steps
 
-1. **ARR Companions** — Configarr, Unpackerr, Scraparr (Phase 4.26)
-2. **Version Automation** — Upgrade runbooks and automated version tracking (Phase 4.27)
+1. **Version Automation** — Upgrade runbooks and automated version tracking (Phase 4.27)
+2. **Alerting & Observability** — Dashboard improvements, log-based panels (Phase 4.28)
 3. **CKA Certification** — September 2026 target

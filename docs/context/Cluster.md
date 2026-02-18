@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, cluster, nodes]
-updated: 2026-02-17
+updated: 2026-02-18
 ---
 
 # Cluster
@@ -76,7 +76,7 @@ ssh wawashi@cp3.k8s.rommelporras.com
 | ai | Ollama LLM inference server |
 | karakeep | Karakeep bookmark manager (web, Chrome, Meilisearch) |
 | tailscale | Tailscale Operator (subnet router, DNS) |
-| arr-stack | ARR media stack (Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin, Bazarr) |
+| arr-stack | ARR media stack (Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin, Bazarr, Seerr, Configarr, Unpackerr, Scraparr, Tdarr, Recommendarr, Byparr) |
 | node-feature-discovery | NFD (auto-labels GPU nodes) |
 | intel-device-plugins | Intel GPU Plugin Operator + GPU Plugin DaemonSet |
 

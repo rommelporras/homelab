@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password]
-updated: 2026-02-16
+updated: 2026-02-18
 ---
 
 # Secrets
@@ -64,7 +64,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Karakeep | `nextauth-secret`, `meili-master-key`, `api-key` | Karakeep auth + Meilisearch + Homepage widget |
 | Tailscale K8s Operator | `client-id`, `client-secret`, `api-token` | Tailscale OAuth + Homepage widget (api-token expires 2026-05-14) |
 | Portfolio | `kube-api-url`, `kube-token-development`, `kube-token-staging`, `kube-token-production` | GitLab CI/CD (portfolio deploy to K8s) |
-| ARR Stack | `username`, `password`, `prowlarr-api-key`, `sonarr-api-key`, `radarr-api-key`, `bazarr-api-key`, `jellyfin-api-key` | All ARR apps (shared login), Homepage widgets, arr-api-keys Secret |
+| ARR Stack | `username`, `password`, `prowlarr-api-key`, `sonarr-api-key`, `radarr-api-key`, `bazarr-api-key`, `jellyfin-api-key`, `tdarr-api-key`, `discord-webhook-url` | All ARR apps (shared login), Homepage widgets, arr-api-keys Secret, Discord notifications |
 | Opensubtitles | `username`, `user[password_confirmation]` | Bazarr subtitle provider (OpenSubtitles.com) |
 | iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
 
@@ -168,6 +168,8 @@ op://Kubernetes/ARR Stack/sonarr-api-key
 op://Kubernetes/ARR Stack/radarr-api-key
 op://Kubernetes/ARR Stack/bazarr-api-key
 op://Kubernetes/ARR Stack/jellyfin-api-key
+op://Kubernetes/ARR Stack/tdarr-api-key
+op://Kubernetes/ARR Stack/discord-webhook-url
 
 # Opensubtitles (Bazarr subtitle provider)
 op://Kubernetes/Opensubtitles/username
@@ -188,6 +190,7 @@ op://Kubernetes/Homepage/adguard-pass
 op://Kubernetes/Homepage/weather-key
 op://Kubernetes/Homepage/grafana-user
 op://Kubernetes/Homepage/grafana-pass
+op://Kubernetes/Homepage/seerr-api-key
 ```
 
 ## Usage

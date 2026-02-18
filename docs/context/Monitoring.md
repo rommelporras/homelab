@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-02-12
+updated: 2026-02-18
 ---
 
 # Monitoring
@@ -210,7 +210,10 @@ Every new service should include a Grafana dashboard ConfigMap (`manifests/monit
 | manifests/monitoring/tailscale-alerts.yaml | Tailscale PrometheusRule (ConnectorDown, OperatorDown) |
 | manifests/monitoring/tailscale-dashboard-configmap.yaml | Tailscale Grafana dashboard (pod status, VPN/pod traffic, resources) |
 | manifests/monitoring/jellyfin-dashboard-configmap.yaml | Jellyfin Media Server dashboard (pod status, GPU allocation, streaming traffic, resources) |
-| manifests/monitoring/arr-stack-dashboard-configmap.yaml | ARR Media Stack overview dashboard (6 services: pod status, network, resources) |
+| manifests/monitoring/arr-stack-dashboard-configmap.yaml | ARR Media Stack overview dashboard (13 services: pod status, network, resources) |
+| manifests/monitoring/scraparr-dashboard-configmap.yaml | Scraparr ARR metrics dashboard (library size, queues, health) |
+| manifests/monitoring/network-dashboard-configmap.yaml | Network throughput dashboard (1GbE NIC utilization, saturation analysis) |
+| manifests/monitoring/arr-alerts.yaml | ARR PrometheusRule (ArrAppDown, QueueStalled, NIC saturation, JellyfinDown) |
 
 ## Upgrade Prometheus Stack
 

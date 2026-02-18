@@ -4,6 +4,82 @@
 
 ---
 
+## February 18, 2026 — Phase 4.26: ARR Companions
+
+### Milestone: Complete Media Automation Platform
+
+Deployed 7 companion apps to the ARR media stack: Seerr (media requests + discovery), Configarr (TRaSH Guide quality sync), Unpackerr (RAR extraction), Scraparr (Prometheus metrics), Tdarr (QSV library transcoding), Recommendarr (AI recommendations via Ollama), and Byparr (Cloudflare bypass for Prowlarr indexers). Added Grafana dashboards, alert rules, Homepage redesign, Discord notifications, and import list configuration.
+
+| App | Version | Type | Purpose |
+|-----|---------|------|---------|
+| Seerr | v3.0.1 | Deployment | Media requests + discovery (replaces Jellyseerr/Overseerr) |
+| Configarr | 1.20.0 | CronJob | TRaSH Guide quality profile sync (daily 3AM) |
+| Unpackerr | v0.14.5 | Deployment | RAR archive extraction daemon |
+| Scraparr | 3.0.3 | Deployment | Prometheus metrics exporter for all *ARR apps |
+| Tdarr | 2.58.02 | Deployment | Library transcoding with Intel QSV (internal node) |
+| Recommendarr | v1.4.4 | Deployment | AI recommendations via Ollama (qwen2.5:3b) |
+| Byparr | latest (v2.1.0) | Deployment | Cloudflare bypass proxy (Camoufox/Firefox) |
+
+### Key Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Media requests | Seerr (not Overseerr/Jellyseerr) | Overseerr archived Feb 2026, Jellyseerr merged into Seerr |
+| Quality sync | Configarr (not Recyclarr/Notifiarr) | Native K8s CronJob, no sidecar, Notifiarr is paid |
+| Metrics exporter | Scraparr (not Exportarr) | Single deployment monitors all *ARR apps |
+| Library transcoding | Tdarr (not manual) | QSV available on all nodes since Phase 4.25b |
+| AI recommendations | Recommendarr | Reuses existing Ollama in `ai` namespace |
+| Cloudflare bypass | Byparr (not FlareSolverr) | FlareSolverr dead, Byparr is active Camoufox replacement |
+| Seeding policy | Ratio 0, auto-remove | NAS has single NVMe, no space for seeding |
+| Import lists | TMDB Popular + Trakt Popular + AniList | MDBList skipped (user cancelled streaming subscriptions) |
+
+### Integration Highlights
+
+- **Homepage redesign:** 2-tab layout (Dashboard + Infrastructure), Seerr/Tdarr/Recommendarr widgets, Sonarr/Radarr calendar (agenda view)
+- **Discord `#arr` channel:** Sonarr/Radarr webhook notifications (grab, import, health events)
+- **NetworkPolicy:** arr-stack → ai namespace egress for Recommendarr → Ollama
+- **NFS hardening:** Jellyfin mount set to `readOnly: true`
+- **Tdarr QSV:** hevc_qsv encoding, 0.8 bitrate modifier, 2AM-8AM schedule, soft anti-affinity with Jellyfin
+
+### Grafana Dashboards
+
+| Dashboard | Purpose |
+|-----------|---------|
+| Scraparr ARR Metrics | Library size, queues, missing content, health per app |
+| Network Throughput | 1GbE NIC utilization, saturation analysis (2.5GbE upgrade decision) |
+| ARR Stack (updated) | Added companion app Pod Status panels + CPU/Memory queries |
+
+### Files Added
+
+| File | Purpose |
+|------|---------|
+| manifests/arr-stack/seerr/{deployment,service,httproute}.yaml | Seerr media requests |
+| manifests/arr-stack/configarr/{cronjob,configmap}.yaml | Configarr TRaSH sync |
+| manifests/arr-stack/unpackerr/deployment.yaml | Unpackerr extraction daemon |
+| manifests/arr-stack/scraparr/{deployment,service,servicemonitor}.yaml | Scraparr metrics |
+| manifests/arr-stack/tdarr/{deployment,service,httproute}.yaml | Tdarr transcoding |
+| manifests/arr-stack/recommendarr/{deployment,service,httproute}.yaml | Recommendarr AI |
+| manifests/arr-stack/byparr/{deployment,service}.yaml | Byparr Cloudflare bypass |
+| manifests/monitoring/scraparr-dashboard-configmap.yaml | Scraparr Grafana dashboard |
+| manifests/monitoring/network-dashboard-configmap.yaml | Network throughput dashboard |
+| manifests/monitoring/arr-alerts.yaml | ARR PrometheusRule alerts |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| manifests/arr-stack/networkpolicy.yaml | Added egress to ai namespace (Ollama port 11434) |
+| manifests/ai/networkpolicy.yaml | Added ingress from arr-stack namespace |
+| manifests/arr-stack/jellyfin/deployment.yaml | NFS mount set to readOnly |
+| manifests/arr-stack/arr-api-keys-secret.yaml | Added TDARR_API_KEY field |
+| scripts/apply-arr-secrets.sh | Added Tdarr API key injection |
+| manifests/home/homepage/config/services.yaml | 2-tab redesign, companion widgets, calendar |
+| manifests/home/homepage/config/settings.yaml | New layout with Calendar row |
+| manifests/home/homepage/secret.yaml | Added SEERR_API_KEY to docs |
+| manifests/monitoring/arr-stack-dashboard-configmap.yaml | Added companion pod status panels |
+
+---
+
 ## February 17, 2026 — Phase 4.25b: Intel QSV Hardware Transcoding
 
 ### Milestone: GPU-Accelerated Media Streaming

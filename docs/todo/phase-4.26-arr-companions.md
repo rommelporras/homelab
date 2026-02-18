@@ -7,7 +7,7 @@
 > **DevOps Topics:** CronJobs, Prometheus exporters, Grafana dashboards, GPU scheduling, network saturation monitoring
 > **CKA Topics:** CronJob, Deployment, Service, ServiceMonitor, PrometheusRule, ConfigMap, PVC, NetworkPolicy, anti-affinity
 
-> **Purpose:** Deploy companion apps for the *ARR stack — media requests & discovery (Seerr), quality profile sync (Configarr), archive extraction (Unpackerr), Prometheus monitoring (Scraparr), library transcoding (Tdarr), AI recommendations (Recommendarr) — plus configure import lists in Radarr/Sonarr for automated content discovery.
+> **Purpose:** Deploy companion apps for the *ARR stack — media requests & discovery (Seerr), quality profile sync (Configarr), archive extraction (Unpackerr), Prometheus monitoring (Scraparr), library transcoding (Tdarr), AI recommendations (Recommendarr), Cloudflare bypass (Byparr) — plus configure import lists in Radarr/Sonarr for automated content discovery.
 >
 > **Why:** The core stack (Phase 4.25) handles media management and Phase 4.25b added hardware transcoding. This phase adds the automation layer (set-and-forget maintenance), user-facing discovery (request & recommend), bulk transcoding (space savings + compatibility), and observability (know when something breaks, and whether your network is the bottleneck).
 
@@ -178,7 +178,7 @@
 
 - [x] 4.26.6.1 Pin image — `tannermiddleton/recommendarr:v1.4.4` (released Apr 13 2025, repo: TannerMidd/recommendarr)
 - [x] 4.26.6.2 Create `manifests/arr-stack/recommendarr/deployment.yaml`
-  - Image: `tannermiddleton/recommendarr:latest` (pin version)
+  - Image: `tannermiddleton/recommendarr:v1.4.4`
   - Replicas: 1
   - Port: 3000
   - Longhorn PVC `recommendarr-config` (1Gi) for persistent config
@@ -369,15 +369,15 @@
 
 > Second commit: documentation updates and audit.
 
-- [ ] 4.26.13.1 Update `docs/todo/README.md` — add Phase 4.26 to phase index
-- [ ] 4.26.13.2 Update `README.md` (root) — add companion apps to services list (Seerr, Configarr, Unpackerr, Scraparr, Tdarr, Recommendarr)
-- [ ] 4.26.13.3 Update `VERSIONS.md` — add all companion app versions
-- [ ] 4.26.13.4 Update `docs/reference/CHANGELOG.md` — add companion selection decisions (Scraparr over Exportarr, Configarr over Recyclarr/Notifiarr, Seerr over Overseerr/Jellyseerr, Tdarr now viable with QSV)
-- [ ] 4.26.13.5 Update `docs/context/Monitoring.md` — add Scraparr exporter + network dashboard
-- [ ] 4.26.13.6 Update `docs/context/Gateway.md` — add Seerr, Tdarr, Recommendarr HTTPRoutes
-- [ ] 4.26.13.7 Update `docs/context/Secrets.md` — document Tdarr API key field in `ARR Stack` 1Password item + shared `arr-api-keys` secret usage by companion apps
-- [ ] 4.26.13.8 Create `docs/rebuild/v0.25.0-arr-companions.md`
-- [ ] 4.26.13.9 `/audit-docs`
+- [x] 4.26.13.1 Update `docs/todo/README.md` — added Phase 4.28 to release mapping + phase index, updated arr-stack namespace description with companion apps
+- [x] 4.26.13.2 Update `README.md` (root) — added ARR Companions line to services list, updated Next Steps
+- [x] 4.26.13.3 Update `VERSIONS.md` — added all 7 companion app versions + 3 new HTTPRoutes
+- [x] 4.26.13.4 Update `docs/reference/CHANGELOG.md` — added Phase 4.26 entry with key decisions, integration highlights, dashboards, files added/modified
+- [x] 4.26.13.5 Update `docs/context/Monitoring.md` — added Scraparr dashboard, network dashboard, ARR alerts to config files table
+- [x] 4.26.13.6 Update `docs/context/Gateway.md` — added Seerr, Tdarr, Recommendarr HTTPRoutes to exposed services table
+- [x] 4.26.13.7 Update `docs/context/Secrets.md` — added tdarr-api-key + discord-webhook-url to ARR Stack item, seerr-api-key to Homepage paths
+- [x] 4.26.13.8 Create `docs/rebuild/v0.25.0-arr-companions.md` — 14-step rebuild guide
+- [x] 4.26.13.9 `/audit-docs` — fixed 10 doc issues (dates, descriptions, rebuild README) + 9 rebuild guide issues (order, TZ, indexers, CF scores, qBit settings, Tdarr details, user accounts)
 - [ ] 4.26.13.10 `/commit`
 - [ ] 4.26.13.11 `/release v0.25.0 "ARR Companions"`
 - [ ] 4.26.13.12 Move this file to `docs/todo/completed/`
@@ -411,11 +411,12 @@ Recommended order (dependencies flow downward):
 4. **Scraparr** — needs all *ARR apps running for metrics
 5. **Tdarr** — needs NFS + GPU (heaviest, deploy last among apps)
 6. **Recommendarr** — needs Jellyfin + Ollama (independent)
-7. **Import list config** — UI-only, do after Seerr to avoid duplicate requests
-8. **NetworkPolicy update** — required for Recommendarr → Ollama
-9. **Grafana dashboards + alerts**
-10. **NFS hardening**
-11. **Documentation + release**
+7. **Byparr** — Cloudflare bypass for Prowlarr (independent)
+8. **Import list config** — UI-only, do after Seerr to avoid duplicate requests
+9. **NetworkPolicy update** — required for Recommendarr → Ollama
+10. **Grafana dashboards + alerts**
+11. **NFS hardening**
+12. **Documentation + release**
 
 ---
 
@@ -449,6 +450,13 @@ Recommended order (dependencies flow downward):
 | File | Change |
 |------|--------|
 | `manifests/arr-stack/networkpolicy.yaml` | Add egress rule for `ai` namespace (Ollama port 11434) |
+| `manifests/ai/networkpolicy.yaml` | Add ingress rule from `arr-stack` namespace (Ollama port 11434) |
+| `manifests/arr-stack/arr-api-keys-secret.yaml` | Add TDARR_API_KEY field |
+| `scripts/apply-arr-secrets.sh` | Add tdarr-api-key to op read + kubectl create |
+| `manifests/arr-stack/jellyfin/deployment.yaml` | NFS volumeMount → readOnly: true |
+| `manifests/monitoring/arr-stack-dashboard-configmap.yaml` | Add companion pod status panels |
+| `manifests/home/homepage/config/services.yaml` | Add Seerr, Tdarr, Recommendarr widgets |
+| `manifests/home/homepage/secret.yaml` | Add SEERR_API_KEY field |
 
 ---
 

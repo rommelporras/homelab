@@ -41,7 +41,7 @@ homelab/
 │
 ├── manifests/                     # Raw K8s manifests (non-Helm resources)
 │   ├── ai/                        # Ollama LLM inference server
-│   ├── arr-stack/                 # ARR media stack (Prowlarr, Sonarr, Radarr, qBit, Jellyfin, Bazarr)
+│   ├── arr-stack/                 # ARR media stack (core + companions: 13 apps)
 │   ├── browser/                   # Firefox browser (KasmVNC)
 │   ├── cert-manager/              # ClusterIssuer
 │   ├── cilium/                    # IP pool, L2 announcements
@@ -68,7 +68,7 @@ homelab/
     │   ├── Gateway.md             # HTTPRoutes, TLS, cert-manager
     │   ├── Networking.md          # VIPs, DNS, VLANs
     │   └── ...                    # Architecture, Monitoring, Storage, etc.
-    ├── rebuild/                   # Step-by-step rebuild guides (v0.1.0–v0.24.0)
+    ├── rebuild/                   # Step-by-step rebuild guides (v0.1.0–v0.25.0)
     ├── todo/                      # Active and completed phase plans
     ├── K8S_v135_NOTES.md          # Kubernetes v1.35 release notes
     └── reference/                 # Historical reference docs
