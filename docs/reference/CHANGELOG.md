@@ -4,6 +4,25 @@
 
 ---
 
+## February 18, 2026 — v0.25.1: ARR Alert and Byparr Fixes
+
+### Bug Fixes
+
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| RadarrQueueStalled false positive (permanently firing) | Alert used `changes(radarr_movies_total[2h])` which tracks library size, not downloads — metric almost never changes | Rewrite to `radarr_queue_count > 0 and changes(radarr_missing_movies_total[2h]) == 0` — only fires when queue items exist but aren't completing |
+| SonarrQueueStalled false positive (same issue) | Same flawed pattern using `sonarr_episodes_total` | Same fix using `sonarr_queue_count` and `sonarr_missing_episodes_total` |
+| Byparr restart loop (16 restarts in 14h) | Liveness probe `/health` runs Playwright browser page load; 10s timeout too short when browser busy with real requests | Relaxed probe: 30s timeout, 60s period, 5 failures (5min grace vs 90s) |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| manifests/monitoring/arr-alerts.yaml | Rewrite SonarrQueueStalled + RadarrQueueStalled expressions |
+| manifests/arr-stack/byparr/deployment.yaml | Relax liveness probe timing |
+
+---
+
 ## February 18, 2026 — Phase 4.26: ARR Companions
 
 ### Milestone: Complete Media Automation Platform
