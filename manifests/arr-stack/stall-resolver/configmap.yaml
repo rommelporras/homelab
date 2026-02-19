@@ -1,0 +1,264 @@
+# ConfigMap: ARR Stall Resolver Python script
+# Phase 4.28: Mounted into the CronJob at /scripts/resolve.py
+#
+# Logic:
+#   For each Sonarr/Radarr queue item where:
+#     - trackedDownloadStatus = warning OR error   (Sonarr/Radarr flagged it)
+#     - trackedDownloadState  = stopped            (download stopped, NOT import issue)
+#   1. Switch the series/movie quality profile to FALLBACK_PROFILE ("Any")
+#      NOTE: This affects ALL episodes of the series permanently. Manually revert
+#      the quality profile in Sonarr/Radarr UI after a successful download if desired.
+#   2. DELETE with blocklist=true + skipRedownload=false
+#      → removes from qBittorrent, blocklists the release,
+#        triggers Sonarr/Radarr to auto-search with the new "Any" profile
+#
+# Why trackedDownloadState=stopped filter matters:
+#   warning/importPending  → torrent done, waiting to import (DO NOT blocklist)
+#   warning/importBlocked  → torrent done, import path issue (DO NOT blocklist)
+#   error/importFailed     → torrent done, import failed (DO NOT blocklist — fix NFS/perms)
+#   warning/stopped        → stalled, no seeds (ACT — blocklist + re-search)
+#   error/stopped          → download failed completely (ACT — blocklist + re-search)
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: arr-stall-resolver-script
+  namespace: arr-stack
+  labels:
+    app: arr-stall-resolver
+data:
+  resolve.py: |
+    #!/usr/bin/env python3
+    """
+    ARR Stall Resolver — Phase 4.28 automation
+
+    Runs every 30 minutes as a CronJob in the arr-stack namespace.
+    Only acts on queue items where the download itself is stopped (stalled/failed).
+    Skips import errors — those need manual intervention (NFS, disk, permissions).
+
+    For each actionable item (trackedDownloadStatus=warning|error AND trackedDownloadState=stopped):
+      1. Switches the series/movie quality profile to FALLBACK_PROFILE (default: Any)
+         IMPORTANT: This change is permanent and affects ALL episodes of the series.
+         Manually revert the quality profile in Sonarr/Radarr UI after download succeeds.
+      2. Removes from queue with blocklist=true, skipRedownload=false
+         → removes torrent from qBittorrent, blocklists the dead release,
+           triggers immediate re-search using the new "Any" profile
+
+    Skipped states (logged but not acted on):
+      importPending / importBlocked / importFailed → download complete, import is the issue
+
+    Environment variables:
+      SONARR_URL         (default: http://sonarr.arr-stack.svc:8989)
+      SONARR_API_KEY     (required)
+      RADARR_URL         (default: http://radarr.arr-stack.svc:7878)
+      RADARR_API_KEY     (required)
+      FALLBACK_PROFILE   (default: Any)
+      DRY_RUN            (default: false) — log actions without executing
+    """
+    import os
+    import json
+    import sys
+    import urllib.request
+    import urllib.error
+    from datetime import datetime, timezone
+
+    SONARR_URL = os.environ.get("SONARR_URL", "http://sonarr.arr-stack.svc:8989")
+    SONARR_API_KEY = os.environ["SONARR_API_KEY"]
+    RADARR_URL = os.environ.get("RADARR_URL", "http://radarr.arr-stack.svc:7878")
+    RADARR_API_KEY = os.environ["RADARR_API_KEY"]
+    FALLBACK_PROFILE = os.environ.get("FALLBACK_PROFILE", "Any")
+    DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
+
+    # Only act when the download itself is stopped.
+    # Import states (importPending, importBlocked, importFailed) mean the torrent
+    # finished downloading — blocklisting it would delete already-downloaded data.
+    ACTIONABLE_STATES = ("stopped",)
+
+    # States where the file downloaded but import failed — skip with a clear message
+    IMPORT_ISSUE_STATES = ("importPending", "importBlocked", "importFailed")
+
+
+    def now():
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+    def api_request(method, url, api_key, data=None):
+        headers = {"X-Api-Key": api_key}
+        body = None
+        if data is not None:
+            body = json.dumps(data).encode()
+            headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                raw = resp.read()
+                return json.loads(raw) if raw else None
+        except urllib.error.HTTPError as e:
+            body = e.read().decode(errors="replace")
+            raise RuntimeError(f"HTTP {e.code} {method} {url}: {body[:300]}")
+
+
+    def get_fallback_profile_id(base_url, api_key):
+        profiles = api_request("GET", f"{base_url}/api/v3/qualityprofile", api_key)
+        for p in profiles:
+            if p["name"].lower() == FALLBACK_PROFILE.lower():
+                return p["id"]
+        return None
+
+
+    def resolve_queue(app_name, base_url, api_key, queue_params,
+                      entity_key, entity_title_key, update_path):
+        print(f"\n[{now()}] === {app_name} ===")
+
+        fallback_profile_id = get_fallback_profile_id(base_url, api_key)
+        if fallback_profile_id:
+            print(f"  Fallback profile '{FALLBACK_PROFILE}' -> id={fallback_profile_id}")
+        else:
+            print(f"  WARNING: Profile '{FALLBACK_PROFILE}' not found — profile switch disabled")
+
+        queue_url = f"{base_url}/api/v3/queue?{queue_params}&pageSize=200"
+        queue = api_request("GET", queue_url, api_key)
+        items = queue.get("records", [])
+
+        # Separate: items needing action vs items with import issues (different fix)
+        flagged = [
+            item for item in items
+            if item.get("trackedDownloadStatus") in ("warning", "error")
+        ]
+        actionable = [
+            item for item in flagged
+            if item.get("trackedDownloadState") in ACTIONABLE_STATES
+        ]
+        import_issues = [
+            item for item in flagged
+            if item.get("trackedDownloadState") in IMPORT_ISSUE_STATES
+        ]
+
+        print(f"  Queue: {len(items)} total, {len(flagged)} flagged "
+              f"({len(actionable)} stalled, {len(import_issues)} import issues)")
+
+        # Log import issues so the operator knows — but don't touch them
+        for item in import_issues:
+            entity = item.get(entity_key, {})
+            title = entity.get(entity_title_key, "Unknown")
+            state = item.get("trackedDownloadState", "unknown")
+            messages = [m.get("title", "") for m in item.get("statusMessages", [])]
+            print(f"\n  [SKIP/IMPORT] '{title}' state={state} — download complete, import issue")
+            if messages:
+                print(f"    reason: {'; '.join(messages)}")
+            print(f"    -> Manual fix needed: check NFS mount, disk space, file permissions")
+            print(f"    -> kubectl-homelab exec -n arr-stack deploy/sonarr -- df -h /data")
+
+        if not actionable:
+            print(f"  No stalled downloads to resolve.")
+            return 0
+
+        resolved = 0
+        errors = 0
+
+        for item in actionable:
+            entity = item.get(entity_key, {})
+            entity_id = entity.get("id")
+            title = entity.get(entity_title_key, "Unknown")
+            queue_id = item["id"]
+            status = item.get("trackedDownloadStatus", "unknown")
+            state = item.get("trackedDownloadState", "unknown")
+            messages = [m.get("title", "") for m in item.get("statusMessages", [])]
+
+            print(f"\n  [{status.upper()}] '{title}' (queue_id={queue_id}, state={state})")
+            if messages:
+                print(f"    reason: {'; '.join(messages)}")
+
+            if DRY_RUN:
+                print(f"    [DRY RUN] Would: switch to '{FALLBACK_PROFILE}' profile + blocklist + re-search")
+                continue
+
+            # Step 1: Switch quality profile to fallback ("Any") if not already
+            # SIDE EFFECT: This changes the profile for the ENTIRE series/movie,
+            # not just this episode. All future episodes will also use "Any".
+            # After a successful download, manually revert in Sonarr/Radarr UI if desired.
+            if fallback_profile_id and entity_id:
+                try:
+                    entity_data = api_request(
+                        "GET", f"{base_url}/{update_path}/{entity_id}", api_key
+                    )
+                    current_profile_id = entity_data.get("qualityProfileId")
+                    if current_profile_id != fallback_profile_id:
+                        entity_data["qualityProfileId"] = fallback_profile_id
+                        api_request(
+                            "PUT", f"{base_url}/{update_path}/{entity_id}", api_key, entity_data
+                        )
+                        print(
+                            f"    -> Quality profile switched to '{FALLBACK_PROFILE}' "
+                            f"(was id={current_profile_id})"
+                        )
+                        print(
+                            f"    -> ACTION REQUIRED: After download succeeds, manually revert "
+                            f"'{title}' quality profile in {app_name} UI if you want HD-only."
+                        )
+                    else:
+                        print(f"    -> Already on '{FALLBACK_PROFILE}' profile")
+                except Exception as e:
+                    print(f"    -> ERROR switching profile: {e}")
+
+            # Step 2: Remove from queue + blocklist + trigger re-search with new profile
+            # skipRedownload=false tells Sonarr/Radarr to immediately search for another release
+            try:
+                delete_url = (
+                    f"{base_url}/api/v3/queue/{queue_id}"
+                    "?removeFromClient=true&blocklist=true&skipRedownload=false"
+                )
+                api_request("DELETE", delete_url, api_key)
+                print(f"    -> Blocklisted dead release + triggered re-search")
+                resolved += 1
+            except Exception as e:
+                print(f"    -> ERROR removing from queue: {e}")
+                errors += 1
+
+        if not DRY_RUN:
+            print(f"\n  Summary: {resolved} resolved, {errors} errors")
+
+        return errors
+
+
+    def main():
+        mode = "[DRY RUN] " if DRY_RUN else ""
+        print(f"=== ARR Stall Resolver {mode}===")
+
+        total_errors = 0
+
+        try:
+            total_errors += resolve_queue(
+                app_name="Sonarr",
+                base_url=SONARR_URL,
+                api_key=SONARR_API_KEY,
+                queue_params="includeSeries=true&includeEpisode=true",
+                entity_key="series",
+                entity_title_key="title",
+                update_path="api/v3/series",
+            )
+        except Exception as e:
+            print(f"\nFATAL ERROR in Sonarr: {e}", file=sys.stderr)
+            total_errors += 1
+
+        try:
+            total_errors += resolve_queue(
+                app_name="Radarr",
+                base_url=RADARR_URL,
+                api_key=RADARR_API_KEY,
+                queue_params="includeMovie=true",
+                entity_key="movie",
+                entity_title_key="title",
+                update_path="api/v3/movie",
+            )
+        except Exception as e:
+            print(f"\nFATAL ERROR in Radarr: {e}", file=sys.stderr)
+            total_errors += 1
+
+        status = "with errors" if total_errors else "OK"
+        print(f"\n=== Done {status} ===")
+        sys.exit(1 if total_errors else 0)
+
+
+    if __name__ == "__main__":
+        main()

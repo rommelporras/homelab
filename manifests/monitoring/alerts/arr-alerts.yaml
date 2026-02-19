@@ -1,9 +1,12 @@
 # PrometheusRule for ARR Stack + Network Alerts
 # Phase 4.26: Monitor ARR app health, queue stalls, and network saturation
+# Phase 4.28: Added ArrQueueWarning/ArrQueueError for stall-resolver automation feedback
 #
 # Metrics used:
 #   scraparr_services_up — service health via Scraparr exporter
 #   sonarr_queue_count/radarr_queue_count — active download queue via Scraparr
+#   sonarr_queue_warning/radarr_queue_warning — queue items Sonarr/Radarr flagged as stalled
+#   sonarr_queue_error/radarr_queue_error — queue items in hard error state
 #   sonarr_missing_episodes_total/radarr_missing_movies_total — missing counts via Scraparr
 #   node_network_*_bytes_total — NIC throughput from node-exporter
 #   node_network_speed_bytes — NIC link speed from node-exporter
@@ -199,6 +202,72 @@ spec:
 
               3. Check events:
                  kubectl-homelab describe pod -n arr-stack -l app=byparr
+
+    - name: arr-queue-health
+      rules:
+        # Sonarr/Radarr have flagged queue items as stalled (no seeds, no connections)
+        # The arr-stall-resolver CronJob handles these every 30 min automatically:
+        #   → switches quality profile to "Any" + blocklists release + triggers re-search
+        # This alert fires after 60m (2 CronJob cycles) — means automation couldn't fix it.
+        # Common causes: content not on any indexer, all indexers down, Prowlarr config issue.
+        - alert: ArrQueueWarning
+          expr: (sum(sonarr_queue_warning) + sum(radarr_queue_warning)) > 0
+          for: 60m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ARR stalled downloads not resolved after 60 minutes"
+            description: "{{ $value }} queue item(s) have been stalled for 60+ minutes. The stall-resolver ran twice but couldn't clear them. The release may not exist on any indexer at any quality."
+            runbook: |
+              1. Check stall-resolver CronJob logs (last 3 runs):
+                 kubectl-homelab logs -n arr-stack -l app=arr-stall-resolver --tail=100
+
+              2. Check Sonarr/Radarr Activity queues for specific items:
+                 https://sonarr.k8s.rommelporras.com/activity/queue
+                 https://radarr.k8s.rommelporras.com/activity/queue
+
+              3. Check Prowlarr indexer health (no results = content not available):
+                 https://prowlarr.k8s.rommelporras.com/indexers
+
+              4. If indexers are healthy but no releases found, the content may not
+                 be available yet — remove from queue and re-add when released.
+
+        # Sonarr/Radarr queue items in hard error state for 15+ minutes.
+        # Two distinct causes — check the CronJob logs to determine which:
+        #   state=stopped    → download failed (no seeds). stall-resolver handled it automatically.
+        #   state=importFailed/importBlocked → torrent downloaded but import failed.
+        #                      stall-resolver skips these. Manual fix required (NFS/disk/perms).
+        - alert: ArrQueueError
+          expr: (sum(sonarr_queue_error) + sum(radarr_queue_error)) > 0
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "ARR queue has items in hard error state"
+            description: "{{ $value }} queue item(s) are in error state for 15+ minutes. Check CronJob logs to determine if this is a stalled download (handled automatically) or an import failure (needs manual fix)."
+            runbook: |
+              1. Check stall-resolver logs to determine the error type:
+                 kubectl-homelab logs -n arr-stack -l app=arr-stall-resolver --tail=100
+
+                 If logs show [SKIP/IMPORT]: torrent downloaded OK, import failed.
+                   → Go to step 3 (NFS/disk/perms issue).
+                 If logs show [ERROR] with state=stopped: download failed, automation acted.
+                   → Check Prowlarr for indexer health (step 4).
+
+              2. Check Sonarr/Radarr queue for error details:
+                 https://sonarr.k8s.rommelporras.com/activity/queue
+                 https://radarr.k8s.rommelporras.com/activity/queue
+
+              3. For import failures — check NFS and disk:
+                 kubectl-homelab exec -n arr-stack deploy/sonarr -- df -h /data
+                 kubectl-homelab get pvc -n arr-stack
+                 https://omv.home.rommelporras.com  (NAS disk usage)
+
+              4. For download failures — check indexer availability:
+                 https://prowlarr.k8s.rommelporras.com/indexers
+
+              5. Check qBittorrent for stuck torrents:
+                 https://qbit.k8s.rommelporras.com
 
     - name: jellyfin
       rules:

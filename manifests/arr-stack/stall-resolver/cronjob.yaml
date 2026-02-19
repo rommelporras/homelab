@@ -1,0 +1,101 @@
+# CronJob: ARR Stall Resolver
+# Phase 4.28: Automatically resolves stalled/failed Sonarr and Radarr downloads
+#
+# Runs every 30 minutes. For each queue item with warning/error status:
+#   1. Switches quality profile to "Any" (accepts any quality if preferred profile has no seeds)
+#   2. Removes from queue with blocklist=true (removes from qBit, blocklists release)
+#   3. Triggers Sonarr/Radarr re-search with the new "Any" profile
+#
+# Uses existing arr-api-keys Secret for Sonarr/Radarr API keys.
+# Script lives in arr-stall-resolver-script ConfigMap (configmap.yaml).
+# Logs captured by Alloy → Loki (label: app=arr-stall-resolver).
+#
+# DRY_RUN: set to "true" to log what would happen without taking any action.
+#
+# CKA topics: CronJob, ConfigMap volume mount, Secret envFrom, concurrencyPolicy
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: arr-stall-resolver
+  namespace: arr-stack
+  labels:
+    app: arr-stall-resolver
+spec:
+  schedule: "*/30 * * * *"  # Every 30 minutes
+  timeZone: "Asia/Manila"
+  concurrencyPolicy: Forbid          # Skip run if previous is still running
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0                 # Don't retry — wait for next scheduled run
+      activeDeadlineSeconds: 300      # Kill if still running after 5 minutes
+      template:
+        metadata:
+          labels:
+            app: arr-stall-resolver
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false   # only calls Sonarr/Radarr HTTP APIs, not K8s API
+          securityContext:
+            runAsUser: 65534          # nobody
+            runAsGroup: 65534
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: resolver
+              image: python:3.12-alpine
+              command: ["python3", "/scripts/resolve.py"]
+              env:
+                - name: SONARR_URL
+                  value: "http://sonarr.arr-stack.svc:8989"
+                - name: RADARR_URL
+                  value: "http://radarr.arr-stack.svc:7878"
+                - name: SONARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: arr-api-keys
+                      key: SONARR_API_KEY
+                - name: RADARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: arr-api-keys
+                      key: RADARR_API_KEY
+                - name: FALLBACK_PROFILE
+                  value: "Any"
+                - name: DRY_RUN
+                  value: "false"
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: PYTHONUNBUFFERED
+                  value: "1"
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "128Mi"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: script
+              configMap:
+                name: arr-stall-resolver-script
+                defaultMode: 0555
+            - name: tmp
+              emptyDir:
+                medium: Memory
+                sizeLimit: 16Mi
