@@ -361,31 +361,6 @@
           version: 3
           metric: fs:/srv/dev-disk-by-uuid-00ece9b6-d675-4371-82e2-efa6cfd7e589
 
-- Proxmox:
-    - PVE Node:
-        icon: proxmox.png
-        href: https://pve.home.rommelporras.com
-        description: i5-10400T / 64GB / 2TB NVMe
-        statusStyle: dot
-        widget:
-          type: proxmox
-          url: https://pve.home.rommelporras.com
-          username: "{{HOMEPAGE_VAR_PROXMOX_PVE_USER}}"
-          password: "{{HOMEPAGE_VAR_PROXMOX_PVE_TOKEN}}"
-          node: pve
-
-    - Firewall Node:
-        icon: proxmox.png
-        href: https://firewall.home.rommelporras.com
-        description: i5-10400T / 16GB / 256GB NVMe
-        statusStyle: dot
-        widget:
-          type: proxmox
-          url: https://firewall.home.rommelporras.com
-          username: "{{HOMEPAGE_VAR_PROXMOX_FW_USER}}"
-          password: "{{HOMEPAGE_VAR_PROXMOX_FW_TOKEN}}"
-          node: firewall
-
 - Kubernetes:
     - Grafana:
         icon: grafana.png
@@ -398,6 +373,40 @@
           url: https://grafana.k8s.rommelporras.com
           username: "{{HOMEPAGE_VAR_GRAFANA_USER}}"
           password: "{{HOMEPAGE_VAR_GRAFANA_PASS}}"
+
+    - Prometheus:
+        icon: prometheus.png
+        href: https://prometheus.k8s.rommelporras.com
+        description: Metrics & Alert Rules
+        statusStyle: dot
+        siteMonitor: https://prometheus.k8s.rommelporras.com
+        widget:
+          type: prometheus
+          url: https://prometheus.k8s.rommelporras.com
+
+    - Alertmanager:
+        icon: alertmanager.png
+        href: https://alertmanager.k8s.rommelporras.com
+        description: Alert Routing & Silences
+        statusStyle: dot
+        siteMonitor: https://alertmanager.k8s.rommelporras.com
+        widget:
+          type: prometheusmetric
+          url: https://prometheus.k8s.rommelporras.com
+          refreshInterval: 30000
+          metrics:
+            - label: Firing
+              query: count(ALERTS{alertstate="firing", alertname!="Watchdog"}) or vector(0)
+              format:
+                type: number
+                options:
+                  maximumFractionDigits: 0
+            - label: Pending
+              query: count(ALERTS{alertstate="pending"}) or vector(0)
+              format:
+                type: number
+                options:
+                  maximumFractionDigits: 0
 
     - Longhorn:
         icon: longhorn.png

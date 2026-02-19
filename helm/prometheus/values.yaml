@@ -14,6 +14,14 @@
 #     --set grafana.adminPassword="$(op read 'op://Kubernetes/Grafana/password')"
 
 # =============================================================================
+# kube-proxy
+# =============================================================================
+# Disabled: Cilium runs in kube-proxy replacement mode — no kube-proxy DaemonSet exists.
+# Without this, KubeProxyDown fires permanently and 3 scrape targets show as down.
+kubeProxy:
+  enabled: false
+
+# =============================================================================
 # Default Rules
 # =============================================================================
 # Disable alerts that aren't useful for this homelab setup
