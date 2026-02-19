@@ -1,0 +1,69 @@
+# PrometheusRule for Longhorn Storage Alerts
+# Phase 4.28: Alert on Longhorn volume degradation — the gap that kube-prometheus-stack
+# defaults cannot cover (they handle PVC capacity, not Longhorn replica health)
+#
+# Metrics used:
+#   longhorn_volume_robustness — per-volume health (0=unknown, 1=healthy, 2=degraded, 3=faulted)
+#
+# Note: PVC capacity and node disk are already covered by kube-prometheus-stack defaults:
+#   KubePersistentVolumeFillingUp (warning <15%, critical <3%)
+#   NodeFilesystemSpaceFillingUp (predictive, 24h/4h window)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: storage-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: longhorn
+      rules:
+        # Longhorn volume has reduced replicas but is still accessible
+        - alert: LonghornVolumeDegraded
+          expr: longhorn_volume_robustness == 2
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Longhorn volume {{ $labels.pvc }} ({{ $labels.pvc_namespace }}) is degraded"
+            description: "Longhorn volume {{ $labels.pvc }} in namespace {{ $labels.pvc_namespace }} has been in degraded state for 10+ minutes. At least one replica is unhealthy. Data is accessible but redundancy is reduced."
+            runbook: |
+              1. Check volume status in Longhorn UI:
+                 https://longhorn.k8s.rommelporras.com
+
+              2. Check replicas (volume label is the Longhorn volume UUID):
+                 kubectl-homelab -n longhorn-system get replicas -l longhornvolume={{ $labels.volume }}
+
+              3. Check node health (a node issue may affect replicas):
+                 kubectl-homelab get nodes
+
+              4. If a replica is rebuilding, monitor progress in Longhorn UI
+
+        # Longhorn volume has no healthy replicas — data at risk
+        - alert: LonghornVolumeReplicaFailed
+          expr: longhorn_volume_robustness == 3
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Longhorn volume {{ $labels.pvc }} ({{ $labels.pvc_namespace }}) has no healthy replicas"
+            description: "Longhorn volume {{ $labels.pvc }} in namespace {{ $labels.pvc_namespace }} is in faulted state for 5+ minutes. All replicas have failed. Data access is at risk."
+            runbook: |
+              1. Check volume status immediately in Longhorn UI:
+                 https://longhorn.k8s.rommelporras.com
+
+              2. Check which replicas failed:
+                 kubectl-homelab -n longhorn-system get replicas -l longhornvolume={{ $labels.volume }} -o wide
+
+              3. Check node conditions:
+                 kubectl-homelab get nodes
+                 kubectl-homelab describe nodes | grep -A5 Conditions
+
+              4. If nodes are healthy, check Longhorn manager logs:
+                 kubectl-homelab -n longhorn-system logs deploy/longhorn-manager --tail=100
+
+              5. Check disk availability on all nodes:
+                 kubectl-homelab -n longhorn-system get nodes.longhorn.io -o wide

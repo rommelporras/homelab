@@ -1,0 +1,40 @@
+# PrometheusRule for Uptime Kuma Alerts
+# Phase 4.28: Bug fix — probe exists and scrapes probe_success{job="uptime-kuma"}
+# but no PrometheusRule was acting on it. The uptime monitoring tool had no uptime monitoring.
+#
+# Metrics used:
+#   probe_success{job="uptime-kuma"} — HTTP probe reachability (from existing Blackbox Probe)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: uptime-kuma-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: uptime-kuma
+      rules:
+        # Uptime Kuma monitoring dashboard unreachable
+        - alert: UptimeKumaDown
+          expr: probe_success{job="uptime-kuma"} == 0
+          for: 3m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Uptime Kuma is unreachable"
+            description: "Blackbox HTTP probe to uptime.k8s.rommelporras.com has failed for 3+ minutes. The uptime monitoring dashboard is unavailable."
+            runbook: |
+              1. Check pod status:
+                 kubectl-homelab get pods -n uptime-kuma
+
+              2. Check pod logs:
+                 kubectl-homelab logs -n uptime-kuma statefulset/uptime-kuma --tail=50
+
+              3. Check PVC is bound:
+                 kubectl-homelab get pvc -n uptime-kuma
+
+              4. Check events:
+                 kubectl-homelab describe pod -n uptime-kuma -l app=uptime-kuma

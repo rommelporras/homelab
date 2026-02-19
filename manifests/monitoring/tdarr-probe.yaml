@@ -1,0 +1,28 @@
+# Blackbox HTTP probe for Tdarr
+# Phase 4.28: Monitor Tdarr GPU transcoding service availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://tdarr.arr-stack.svc:8265 -> Tdarr WebUI
+#   If unreachable -> probe_success=0 -> TdarrDown alert fires
+#
+# Target is internal ClusterIP — blackbox exporter reaches it via cluster DNS
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: tdarr
+  namespace: monitoring
+  labels:
+    app: tdarr-probe
+spec:
+  jobName: tdarr
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://tdarr.arr-stack.svc.cluster.local:8265
+      labels:
+        target_name: tdarr

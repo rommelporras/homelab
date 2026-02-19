@@ -1,0 +1,39 @@
+# PrometheusRule for Ghost Blog Alerts
+# Phase 4.28: Monitor availability of public-facing Ghost blog
+#
+# Metrics used:
+#   probe_success{job="ghost"} — HTTP probe reachability (from Blackbox Exporter)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ghost-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: ghost
+      rules:
+        # Ghost blog unreachable (public service via Cloudflare Tunnel)
+        - alert: GhostDown
+          expr: probe_success{job="ghost"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ghost blog is unreachable"
+            description: "Blackbox HTTP probe to ghost.ghost-prod.svc:2368 has failed for 5+ minutes. The public blog is unavailable."
+            runbook: |
+              1. Check pod status:
+                 kubectl-homelab get pods -n ghost-prod -l app=ghost
+
+              2. Check pod logs:
+                 kubectl-homelab logs -n ghost-prod deploy/ghost --tail=50
+
+              3. Check database connectivity:
+                 kubectl-homelab get pods -n ghost-prod -l app=ghost-mysql
+
+              4. Check events:
+                 kubectl-homelab describe pod -n ghost-prod -l app=ghost

@@ -1,0 +1,72 @@
+# PrometheusRule for Cloudflare Tunnel Alerts
+# Phase 4.28: Alert on Cloudflare Tunnel health — ServiceMonitor already exists
+# and metrics are scraped, but no alerts were defined.
+#
+# Current setup: 2-replica Deployment with pod anti-affinity (one pod per node)
+# ServiceMonitor: cloudflared (job="cloudflared") — already scraping
+#
+# Thresholds:
+#   < 2 healthy pods for 5m: warning (degraded — one pod/node down)
+#   0 healthy pods for 2m: critical (all public access via Cloudflare Tunnel is dead)
+#
+# Metrics used:
+#   up{job="cloudflared"} — per-pod scrape health from Prometheus Operator
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cloudflare-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: cloudflare-tunnel
+      rules:
+        # One cloudflared pod is down — reduced redundancy
+        - alert: CloudflareTunnelDegraded
+          expr: sum(up{job="cloudflared"}) < 2 and sum(up{job="cloudflared"}) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Cloudflare Tunnel is degraded"
+            description: "Only {{ $value }} of 2 cloudflared pods are healthy for 5+ minutes. Tunnel is running on reduced redundancy — a second failure will cause a full outage."
+            runbook: |
+              1. Check cloudflared pod status:
+                 kubectl-homelab get pods -n cloudflare -l app=cloudflared -o wide
+
+              2. Check pod logs:
+                 kubectl-homelab logs -n cloudflare -l app=cloudflared --tail=50
+
+              3. Check if a node is down (anti-affinity means 1 pod per node):
+                 kubectl-homelab get nodes
+
+              4. Check Cloudflare dashboard for tunnel health:
+                 https://dash.cloudflare.com → Zero Trust → Tunnels
+
+        # All cloudflared pods are down — all public access via Cloudflare Tunnel is dead
+        - alert: CloudflareTunnelDown
+          expr: sum(up{job="cloudflared"}) == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Cloudflare Tunnel is completely down"
+            description: "All cloudflared pods have been unhealthy for 2+ minutes. All services exposed via Cloudflare Tunnel (Ghost, Invoicetron) are unreachable from the internet."
+            runbook: |
+              1. Check cloudflared pod status immediately:
+                 kubectl-homelab get pods -n cloudflare -l app=cloudflared -o wide
+
+              2. Check pod logs:
+                 kubectl-homelab logs -n cloudflare -l app=cloudflared --tail=100
+
+              3. Check node health (if all nodes down, tunnel will fail):
+                 kubectl-homelab get nodes
+
+              4. Check Cloudflare dashboard:
+                 https://dash.cloudflare.com → Zero Trust → Tunnels
+
+              5. Restart deployment if pods are stuck:
+                 kubectl-homelab rollout restart deploy/cloudflared -n cloudflare

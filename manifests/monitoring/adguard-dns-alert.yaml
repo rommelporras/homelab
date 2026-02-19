@@ -12,9 +12,9 @@ metadata:
   name: adguard-dns-alerts
   namespace: monitoring
   labels:
-    # Required for Prometheus to discover this rule
-    prometheus: prometheus
-    role: alert-rules
+    # Required for Prometheus Operator to discover this rule
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
 spec:
   groups:
   - name: adguard-dns

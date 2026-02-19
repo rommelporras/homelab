@@ -1,0 +1,27 @@
+# ServiceMonitor for cert-manager
+# Phase 4.28: Enable Prometheus scraping of cert-manager certificate metrics
+#
+# Currently NOT scraped — this adds certmanager_certificate_expiration_timestamp_seconds
+# and related metrics. Without this, certificate renewal failures are completely silent.
+#
+# Service: cert-manager in cert-manager namespace
+# Port: tcp-prometheus-servicemonitor (9402)
+# Scrape interval: 300s (certificate expiry changes daily — 5 minutes is more than sufficient)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cert-manager
+      app.kubernetes.io/component: controller
+  endpoints:
+    - port: tcp-prometheus-servicemonitor
+      interval: 300s
+      path: /metrics

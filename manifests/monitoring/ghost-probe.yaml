@@ -1,0 +1,33 @@
+# Blackbox HTTP probe for Ghost (prod)
+# Phase 4.28: Monitor Ghost blog availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://ghost.ghost-prod.svc:2368 -> Ghost
+#   If unreachable -> probe_success=0 -> GhostDown alert fires
+#
+# Note: Ghost is configured with url: https://blog.k8s.rommelporras.com so all requests
+# to the internal ClusterIP get a 301 redirect to HTTPS on the public hostname.
+# Probing the internal ClusterIP fails — instead we probe the actual URL Ghost serves,
+# which goes through the internal Gateway API (HTTPRoute) and tests the real user-facing path.
+#
+# Target is the internal HTTPS hostname — routed via homelab-gateway HTTPRoute
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: ghost
+  namespace: monitoring
+  labels:
+    app: ghost-probe
+spec:
+  jobName: ghost
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - https://blog.k8s.rommelporras.com
+      labels:
+        target_name: ghost

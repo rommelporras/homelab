@@ -1,0 +1,39 @@
+# PrometheusRule for Invoicetron Alerts
+# Phase 4.28: Monitor availability of public-facing Invoicetron app
+#
+# Metrics used:
+#   probe_success{job="invoicetron"} — HTTP probe reachability (from Blackbox Exporter)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: invoicetron-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: invoicetron
+      rules:
+        # Invoicetron app unreachable (public service via Cloudflare Tunnel)
+        - alert: InvoicetronDown
+          expr: probe_success{job="invoicetron"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Invoicetron is unreachable"
+            description: "Blackbox HTTP probe to invoicetron.invoicetron-prod.svc:3000/api/health has failed for 5+ minutes. The invoicing app is unavailable."
+            runbook: |
+              1. Check pod status:
+                 kubectl-homelab get pods -n invoicetron-prod -l app=invoicetron
+
+              2. Check pod logs:
+                 kubectl-homelab logs -n invoicetron-prod deploy/invoicetron --tail=50
+
+              3. Check database connectivity:
+                 kubectl-homelab get pods -n invoicetron-prod -l app=postgres
+
+              4. Check events:
+                 kubectl-homelab describe pod -n invoicetron-prod -l app=invoicetron

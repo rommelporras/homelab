@@ -1,0 +1,29 @@
+# Blackbox HTTP probe for Jellyfin
+# Phase 4.28: Fixes broken JellyfinDown alert — alert references probe_success{job="jellyfin"}
+# but no Probe existed. This provides the metric.
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://jellyfin.arr-stack.svc:8096 -> Jellyfin
+#   If health check fails -> probe_success=0 -> JellyfinDown alert fires
+#
+# Target is internal ClusterIP — blackbox exporter reaches it via cluster DNS
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: jellyfin
+  namespace: monitoring
+  labels:
+    app: jellyfin-probe
+spec:
+  jobName: jellyfin
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://jellyfin.arr-stack.svc.cluster.local:8096
+      labels:
+        target_name: jellyfin

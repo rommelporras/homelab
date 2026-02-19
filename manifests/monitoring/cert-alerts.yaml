@@ -1,0 +1,98 @@
+# PrometheusRule for TLS Certificate Alerts
+# Phase 4.28: Alert on certificate expiry and renewal failures
+#
+# Certificates monitored: wildcard-k8s-tls, wildcard-dev-k8s-tls, wildcard-stg-k8s-tls
+# All are Let's Encrypt certificates (90-day cycle, auto-renewed by cert-manager at ~30 days)
+#
+# Thresholds:
+#   30 days: warning — first sign of renewal failure (cert-manager should have renewed by now)
+#   7 days: critical — urgent, manual intervention likely needed
+#
+# Metrics used:
+#   certmanager_certificate_expiration_timestamp_seconds — Unix timestamp of cert expiry
+#   certmanager_certificate_ready_status — Ready condition value per certificate
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cert-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: certificates
+      rules:
+        # Certificate expiring in less than 30 days — Let's Encrypt should have renewed by now
+        - alert: CertificateExpiringSoon
+          expr: |
+            (certmanager_certificate_expiration_timestamp_seconds - time()) < 30 * 24 * 3600
+            and
+            (certmanager_certificate_expiration_timestamp_seconds - time()) >= 7 * 24 * 3600
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Certificate {{ $labels.name }} expires in less than 30 days"
+            description: "Certificate {{ $labels.name }} in namespace {{ $labels.namespace }} expires in {{ $value | humanizeDuration }}. cert-manager should have renewed it by now — check for renewal failures."
+            runbook: |
+              1. Check certificate status:
+                 kubectl-homelab get certificate -A
+                 kubectl-homelab describe certificate {{ $labels.name }} -n {{ $labels.namespace }}
+
+              2. Check certificate request:
+                 kubectl-homelab get certificaterequest -n {{ $labels.namespace }}
+
+              3. Check cert-manager logs:
+                 kubectl-homelab logs -n cert-manager deploy/cert-manager --tail=100
+
+              4. Check ACME challenge status (if DNS challenge):
+                 kubectl-homelab get challenge -A
+
+        # Certificate expiring in less than 7 days — urgent
+        - alert: CertificateExpiryCritical
+          expr: (certmanager_certificate_expiration_timestamp_seconds - time()) < 7 * 24 * 3600
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "Certificate {{ $labels.name }} expires in less than 7 days"
+            description: "Certificate {{ $labels.name }} in namespace {{ $labels.namespace }} expires in {{ $value | humanizeDuration }}. Immediate action required — HTTPS will break when expired."
+            runbook: |
+              1. Check certificate status immediately:
+                 kubectl-homelab get certificate -A
+                 kubectl-homelab describe certificate {{ $labels.name }} -n {{ $labels.namespace }}
+
+              2. Manually trigger renewal by deleting the CertificateRequest:
+                 kubectl-homelab get certificaterequest -n {{ $labels.namespace }}
+                 kubectl-homelab delete certificaterequest -n {{ $labels.namespace }} <name-from-above>
+
+              3. Check cert-manager controller logs:
+                 kubectl-homelab logs -n cert-manager deploy/cert-manager --tail=200
+
+              4. Check if ClusterIssuer is healthy:
+                 kubectl-homelab get clusterissuer -o wide
+
+        # Certificate not in Ready state — renewal may have failed
+        - alert: CertificateNotReady
+          expr: certmanager_certificate_ready_status{condition="False"} == 1
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Certificate {{ $labels.name }} is not ready"
+            description: "Certificate {{ $labels.name }} in namespace {{ $labels.namespace }} has not been in Ready state for 15+ minutes. A renewal may have failed."
+            runbook: |
+              1. Check certificate status:
+                 kubectl-homelab describe certificate {{ $labels.name }} -n {{ $labels.namespace }}
+
+              2. Check certificate requests:
+                 kubectl-homelab get certificaterequest -n {{ $labels.namespace }} -o wide
+
+              3. Check ACME order/challenge status:
+                 kubectl-homelab get order -n {{ $labels.namespace }}
+                 kubectl-homelab get challenge -A
+
+              4. Check cert-manager logs:
+                 kubectl-homelab logs -n cert-manager deploy/cert-manager --tail=200

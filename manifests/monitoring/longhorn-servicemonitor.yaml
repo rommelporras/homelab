@@ -1,0 +1,25 @@
+# ServiceMonitor for Longhorn
+# Phase 4.28: Enable Prometheus scraping of Longhorn volume health metrics
+#
+# Currently NOT scraped — this adds longhorn_volume_robustness and related metrics.
+# Without this, degraded/faulted volumes are invisible to Prometheus.
+#
+# Service: longhorn-backend in longhorn-system (port 9500, port name: manager)
+# Scrape interval: 60s (volume health doesn't change rapidly)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: longhorn
+  namespace: longhorn-system
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: longhorn-manager
+  endpoints:
+    - port: manager
+      interval: 60s
+      path: /metrics

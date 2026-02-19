@@ -134,6 +134,72 @@ spec:
 
               4. Consider 2.5GbE NIC upgrade if this is frequent
 
+    - name: arr-companions
+      rules:
+        # Seerr (Overseerr) request portal unreachable
+        - alert: SeerrDown
+          expr: probe_success{job="seerr"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Seerr request portal is unreachable"
+            description: "Blackbox HTTP probe to seerr.arr-stack.svc:5055 has failed for 5+ minutes. Users cannot submit media requests."
+            runbook: |
+              1. Check pod status:
+                 kubectl-homelab get pods -n arr-stack -l app=seerr
+
+              2. Check pod logs:
+                 kubectl-homelab logs -n arr-stack deploy/seerr --tail=50
+
+              3. Verify Sonarr/Radarr connectivity (Seerr depends on them):
+                 kubectl-homelab get pods -n arr-stack -l app=sonarr
+                 kubectl-homelab get pods -n arr-stack -l app=radarr
+
+              4. Check events:
+                 kubectl-homelab describe pod -n arr-stack -l app=seerr
+
+        # Tdarr GPU transcoding service unreachable
+        - alert: TdarrDown
+          expr: probe_success{job="tdarr"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Tdarr transcoding service is unreachable"
+            description: "Blackbox HTTP probe to tdarr.arr-stack.svc:8265 has failed for 5+ minutes. GPU transcoding is unavailable."
+            runbook: |
+              1. Check pod status:
+                 kubectl-homelab get pods -n arr-stack -l app=tdarr
+
+              2. Check pod logs:
+                 kubectl-homelab logs -n arr-stack deploy/tdarr --tail=50
+
+              3. Check GPU device plugin:
+                 kubectl-homelab get pods -n kube-system -l app=intel-gpu-plugin
+
+              4. Check events:
+                 kubectl-homelab describe pod -n arr-stack -l app=tdarr
+
+        # Byparr Cloudflare bypass proxy unreachable
+        - alert: ByparrDown
+          expr: probe_success{job="byparr"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Byparr Cloudflare bypass proxy is unreachable"
+            description: "Blackbox HTTP probe to byparr.arr-stack.svc:8191 has failed for 5+ minutes. Prowlarr cannot reach Cloudflare-protected indexers."
+            runbook: |
+              1. Check pod status:
+                 kubectl-homelab get pods -n arr-stack -l app=byparr
+
+              2. Check pod logs:
+                 kubectl-homelab logs -n arr-stack deploy/byparr --tail=50
+
+              3. Check events:
+                 kubectl-homelab describe pod -n arr-stack -l app=byparr
+
     - name: jellyfin
       rules:
         # Jellyfin media server unreachable

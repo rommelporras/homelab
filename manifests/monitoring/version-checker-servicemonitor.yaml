@@ -18,4 +18,4 @@ spec:
       app: version-checker
   endpoints:
     - port: metrics
-      interval: 1h
+      interval: 5m
