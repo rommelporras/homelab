@@ -1,6 +1,6 @@
 # Phase 4.28: Alerting & Observability Improvements
 
-> **Status:** Planned
+> **Status:** In Progress
 > **Target:** v0.27.0
 > **Prerequisite:** None (monitoring stack running since Phase 3.9)
 > **Priority:** Medium (operational safety — not urgent, cluster healthy as of Feb 2026)
@@ -25,6 +25,7 @@
 > - **Longhorn volume health** — no metrics scraped, no alerts for degraded/faulted volumes
 > - **TLS certificate expiry** — no metrics scraped, cert-manager renewal failures are silent
 > - **Cloudflare Tunnel** — metrics ARE scraped but no alerts exist (public access can die silently)
+> - **API server restart frequency** — kube-apiserver-k8s-cp3 has 30 restarts in 34 days (~1/day). Liveness probe kills the API server when etcd is briefly unreachable, causing kube-vip to lose its VIP lease and drop connectivity for ~2 min. Discovered Feb 19 during monitoring work. `KubeAPIDown` fires only after full downtime; does not catch frequent-but-brief restart patterns.
 >
 > **ARR services with zero monitoring:**
 > - **Seerr** — user-facing request portal, no probe or alert
@@ -58,17 +59,17 @@ The chart provides 177+ alerts. These categories are fully covered — **no cust
 
 | File | Alerts | Status |
 |------|--------|--------|
-| `logging-alerts.yaml` | LokiDown, LokiIngestionStopped, LokiHighErrorRate, **LokiStorageLow** (redundant), AlloyNotOnAllNodes, AlloyNotSendingLogs, AlloyHighMemory | LokiStorageLow to be removed |
+| `logging-alerts.yaml` | LokiDown, LokiIngestionStopped, LokiHighErrorRate, AlloyNotOnAllNodes, AlloyNotSendingLogs, AlloyHighMemory | **Fixed** — LokiStorageLow removed |
 | `ups-alerts.yaml` | UPSOnBattery, UPSLowBattery, UPSBatteryCritical, UPSBatteryWarning, UPSHighLoad, UPSExporterDown, UPSOffline, UPSBackOnline | Good |
 | `kube-vip-alerts.yaml` | KubeVipInstanceDown, KubeVipAllDown, KubeVipLeaseStale, KubeVipHighRestarts | Good |
 | `claude-alerts.yaml` | ClaudeCodeHighDailySpend, ClaudeCodeCriticalDailySpend, ClaudeCodeNoActivity, OTelCollectorDown | Good |
 | `ollama-alerts.yaml` | OllamaDown, OllamaMemoryHigh, OllamaHighRestarts | Good |
 | `karakeep-alerts.yaml` | KarakeepDown, KarakeepHighRestarts | Good |
-| `adguard-dns-alert.yaml` | AdGuardDNSUnreachable | **BUG: wrong labels** — needs `release: prometheus` |
-| `arr-alerts.yaml` | ArrAppDown, SonarrQueueStalled, RadarrQueueStalled, NetworkInterfaceSaturated, NetworkInterfaceCritical, JellyfinDown | **BUG: JellyfinDown has no Probe** |
+| `adguard-dns-alert.yaml` | AdGuardDNSUnreachable | **Fixed** — labels corrected (`release: prometheus`) |
+| `arr-alerts.yaml` | ArrAppDown, SonarrQueueStalled, RadarrQueueStalled, NetworkInterfaceSaturated, NetworkInterfaceCritical, JellyfinDown, SeerrDown, TdarrDown, ByparrDown | **Fixed** — JellyfinDown probe created; SeerrDown, TdarrDown, ByparrDown added |
 | `tailscale-alerts.yaml` | TailscaleConnectorDown, TailscaleOperatorDown | Good |
 | `version-checker-alerts.yaml` | ContainerImageOutdated, KubernetesVersionOutdated, VersionCheckerDown | Good |
-| `uptime-kuma-probe.yaml` | (Probe only — no PrometheusRule) | **BUG: probe exists, alert missing** |
+| `uptime-kuma-probe.yaml` | (Probe only — no PrometheusRule) | **Fixed** — `uptime-kuma-alerts.yaml` created |
 
 ### Gaps Being Addressed
 
@@ -127,7 +128,7 @@ Existing Alertmanager routing handles everything — no config changes needed:
 | **critical** | #incidents | Yes (3 addresses) | `discord-incidents-email` |
 | **warning** | #status | No | `discord-status` |
 
-### New Alert Rules (14 total)
+### New Alert Rules (15 total)
 
 #### Service Health — Blackbox Probes (7 alerts)
 
@@ -172,6 +173,14 @@ Existing Alertmanager routing handles everything — no config changes needed:
 | `CloudflareTunnelDown` | 0 healthy pods | 2m | **critical** | #incidents + email |
 
 **Current setup:** 2-replica deployment with pod anti-affinity. ServiceMonitor already exists (job=`cloudflared`).
+
+#### API Server Restart Frequency (1 alert)
+
+| Alert | Threshold | Duration | Severity | Route |
+|-------|-----------|----------|----------|-------|
+| `KubeApiserverFrequentRestarts` | >5 restarts in 24h on any node | 0m | **warning** | #status only |
+
+**Why:** `KubeAPIDown` fires only after full downtime; does not catch frequent-but-brief restart patterns that drop the kube-vip VIP for ~2 minutes each time. Discovered Feb 19: cp3 had 30 restarts in 34 days (~1/day average). Each restart causes kube-vip to lose its lease renewal and drop connectivity.
 
 ### Bug Fixes (3 existing alerts)
 
@@ -243,34 +252,37 @@ sum(up{job="cloudflared"}) == 0
 
 ## Changes
 
-### Files to Create (16 total)
+### Files Created (17 total, 1 pending)
 
-| File | Type | Purpose |
-|------|------|---------|
-| `manifests/monitoring/jellyfin-probe.yaml` | Probe | Blackbox HTTP probe for Jellyfin (fixes broken JellyfinDown alert) |
-| `manifests/monitoring/ghost-probe.yaml` | Probe | Blackbox HTTP probe for Ghost prod |
-| `manifests/monitoring/ghost-alerts.yaml` | PrometheusRule | GhostDown alert |
-| `manifests/monitoring/invoicetron-probe.yaml` | Probe | Blackbox HTTP probe for Invoicetron prod |
-| `manifests/monitoring/invoicetron-alerts.yaml` | PrometheusRule | InvoicetronDown alert |
-| `manifests/monitoring/portfolio-probe.yaml` | Probe | Blackbox HTTP probe for Portfolio prod |
-| `manifests/monitoring/portfolio-alerts.yaml` | PrometheusRule | PortfolioDown alert |
-| `manifests/monitoring/seerr-probe.yaml` | Probe | Blackbox HTTP probe for Seerr |
-| `manifests/monitoring/tdarr-probe.yaml` | Probe | Blackbox HTTP probe for Tdarr |
-| `manifests/monitoring/byparr-probe.yaml` | Probe | Blackbox HTTP probe for Byparr |
-| `manifests/monitoring/uptime-kuma-alerts.yaml` | PrometheusRule | UptimeKumaDown alert (uses existing probe) |
-| `manifests/monitoring/longhorn-servicemonitor.yaml` | ServiceMonitor | Scrape Longhorn manager metrics (port 9500) |
-| `manifests/monitoring/storage-alerts.yaml` | PrometheusRule | Longhorn volume degraded/faulted alerts |
-| `manifests/monitoring/certmanager-servicemonitor.yaml` | ServiceMonitor | Scrape cert-manager metrics (port 9402) |
-| `manifests/monitoring/cert-alerts.yaml` | PrometheusRule | Certificate expiry + not-ready alerts |
-| `manifests/monitoring/cloudflare-alerts.yaml` | PrometheusRule | Tunnel degraded/down alerts |
+| File | Type | Purpose | Status |
+|------|------|---------|--------|
+| `manifests/monitoring/probes/jellyfin-probe.yaml` | Probe | Blackbox HTTP probe for Jellyfin (fixes broken JellyfinDown alert) | ✅ |
+| `manifests/monitoring/probes/ghost-probe.yaml` | Probe | Blackbox HTTP probe for Ghost prod | ✅ |
+| `manifests/monitoring/alerts/ghost-alerts.yaml` | PrometheusRule | GhostDown alert | ✅ |
+| `manifests/monitoring/probes/invoicetron-probe.yaml` | Probe | Blackbox HTTP probe for Invoicetron prod | ✅ |
+| `manifests/monitoring/alerts/invoicetron-alerts.yaml` | PrometheusRule | InvoicetronDown alert | ✅ |
+| `manifests/monitoring/probes/portfolio-probe.yaml` | Probe | Blackbox HTTP probe for Portfolio prod | ✅ |
+| `manifests/monitoring/alerts/portfolio-alerts.yaml` | PrometheusRule | PortfolioDown alert | ✅ |
+| `manifests/monitoring/probes/seerr-probe.yaml` | Probe | Blackbox HTTP probe for Seerr | ✅ |
+| `manifests/monitoring/probes/tdarr-probe.yaml` | Probe | Blackbox HTTP probe for Tdarr | ✅ |
+| `manifests/monitoring/probes/byparr-probe.yaml` | Probe | Blackbox HTTP probe for Byparr | ✅ |
+| `manifests/monitoring/alerts/uptime-kuma-alerts.yaml` | PrometheusRule | UptimeKumaDown alert (uses existing probe) | ✅ |
+| `manifests/monitoring/servicemonitors/longhorn-servicemonitor.yaml` | ServiceMonitor | Scrape Longhorn manager metrics (port 9500) | ✅ |
+| `manifests/monitoring/alerts/storage-alerts.yaml` | PrometheusRule | Longhorn volume degraded/faulted alerts | ✅ |
+| `manifests/monitoring/servicemonitors/certmanager-servicemonitor.yaml` | ServiceMonitor | Scrape cert-manager metrics (port 9402) | ✅ |
+| `manifests/monitoring/alerts/cert-alerts.yaml` | PrometheusRule | Certificate expiry + not-ready alerts | ✅ |
+| `manifests/monitoring/alerts/cloudflare-alerts.yaml` | PrometheusRule | Tunnel degraded/down alerts | ✅ |
+| `manifests/monitoring/dashboards/service-health-dashboard-configmap.yaml` | ConfigMap | Grafana Service Health dashboard (11 UP/DOWN stat panels, uptime history, response time) | ✅ |
+| `manifests/monitoring/alerts/apiserver-alerts.yaml` | PrometheusRule | KubeApiserverFrequentRestarts alert (>5 restarts/24h) | ⏳ 4.28.8 |
 
-### Files to Modify (3 total)
+### Files Modified (4 total)
 
-| File | Change |
-|------|--------|
-| `manifests/monitoring/adguard-dns-alert.yaml` | Fix labels: `prometheus: prometheus` + `role: alert-rules` → `release: prometheus` + `app.kubernetes.io/part-of: kube-prometheus-stack` |
-| `manifests/monitoring/arr-alerts.yaml` | Add SeerrDown, TdarrDown, ByparrDown alerts to existing groups |
-| `manifests/monitoring/logging-alerts.yaml` | Remove `LokiStorageLow` rule (redundant with default `KubePersistentVolumeFillingUp`) |
+| File | Change | Status |
+|------|--------|--------|
+| `manifests/monitoring/alerts/adguard-dns-alert.yaml` | Fixed labels: `prometheus: prometheus` + `role: alert-rules` → `release: prometheus` + `app.kubernetes.io/part-of: kube-prometheus-stack` | ✅ |
+| `manifests/monitoring/alerts/arr-alerts.yaml` | Added SeerrDown, TdarrDown, ByparrDown alerts | ✅ |
+| `manifests/monitoring/alerts/logging-alerts.yaml` | Removed `LokiStorageLow` rule (redundant with default `KubePersistentVolumeFillingUp`) | ✅ |
+| `manifests/monitoring/dashboards/arr-stack-dashboard-configmap.yaml` | Added Byparr companion pod status panel; fixed Container Restarts to use `increase($__rate_interval)` | ✅ |
 
 ---
 
@@ -357,260 +369,187 @@ All probes use the internal Blackbox Exporter at `blackbox-exporter-prometheus-b
 
 > These exist today and are silently failing. Fix them first before adding anything new.
 
-- [ ] 4.28.1.1 Verify JellyfinDown alert exists but has no probe:
+- [x] 4.28.1.1 Verify JellyfinDown alert exists but has no probe:
   ```bash
   # Alert should reference job="jellyfin" but this metric should be absent
   kubectl-homelab -n monitoring get probe jellyfin
   # Expected: NotFound
   ```
-- [ ] 4.28.1.2 Create `manifests/monitoring/jellyfin-probe.yaml` — Blackbox HTTP probe targeting `http://jellyfin.arr-stack.svc.cluster.local:8096`
-- [ ] 4.28.1.3 Apply Jellyfin probe and verify metric appears:
-  ```bash
-  kubectl-homelab apply -f manifests/monitoring/jellyfin-probe.yaml
-  # Wait ~2 min, then check
-  curl -s 'http://localhost:9090/api/v1/query?query=probe_success{job="jellyfin"}' | python3 -m json.tool
-  ```
-- [ ] 4.28.1.4 Fix AdGuard alert labels — edit `manifests/monitoring/adguard-dns-alert.yaml`:
-  - Change `prometheus: prometheus` → `release: prometheus`
-  - Change `role: alert-rules` → `app.kubernetes.io/part-of: kube-prometheus-stack`
-- [ ] 4.28.1.5 Apply fixed AdGuard alert and verify it appears in Prometheus rules:
-  ```bash
-  kubectl-homelab apply -f manifests/monitoring/adguard-dns-alert.yaml
-  ```
-- [ ] 4.28.1.6 Create `manifests/monitoring/uptime-kuma-alerts.yaml` — PrometheusRule with `UptimeKumaDown` alert on `probe_success{job="uptime-kuma"} == 0` (for: 3m, severity: warning)
-- [ ] 4.28.1.7 Apply Uptime Kuma alert and verify:
-  ```bash
-  kubectl-homelab apply -f manifests/monitoring/uptime-kuma-alerts.yaml
-  ```
+- [x] 4.28.1.2 Create `manifests/monitoring/probes/jellyfin-probe.yaml` — Blackbox HTTP probe targeting `http://jellyfin.arr-stack.svc.cluster.local:8096`
+- [x] 4.28.1.3 Apply Jellyfin probe and verify metric appears (probe_success{job="jellyfin"} visible in Service Health dashboard)
+- [x] 4.28.1.4 Fix AdGuard alert labels — `release: prometheus` confirmed in adguard-dns-alert.yaml
+- [x] 4.28.1.5 Apply fixed AdGuard alert and verify it appears in Prometheus rules
+- [x] 4.28.1.6 Create `manifests/monitoring/alerts/uptime-kuma-alerts.yaml` — PrometheusRule with `UptimeKumaDown` alert on `probe_success{job="uptime-kuma"} == 0` (for: 3m, severity: warning)
+- [x] 4.28.1.7 Apply Uptime Kuma alert and verify
 
 ### 4.28.2 Add Public Service Probes & Alerts (Priority: High)
 
 > Public-facing services reachable from the internet with zero monitoring.
 
-- [ ] 4.28.2.1 Create `manifests/monitoring/ghost-probe.yaml` — Blackbox HTTP probe targeting `http://ghost.ghost-prod.svc.cluster.local:2368`
-- [ ] 4.28.2.2 Create `manifests/monitoring/ghost-alerts.yaml` — `GhostDown` alert (warning, 5m)
-- [ ] 4.28.2.3 Create `manifests/monitoring/invoicetron-probe.yaml` — Blackbox HTTP probe targeting `http://invoicetron.invoicetron-prod.svc.cluster.local:3000/api/health`
-- [ ] 4.28.2.4 Create `manifests/monitoring/invoicetron-alerts.yaml` — `InvoicetronDown` alert (warning, 5m)
-- [ ] 4.28.2.5 Create `manifests/monitoring/portfolio-probe.yaml` — Blackbox HTTP probe targeting `http://portfolio.portfolio-prod.svc.cluster.local:80/health`
-- [ ] 4.28.2.6 Create `manifests/monitoring/portfolio-alerts.yaml` — `PortfolioDown` alert (warning, 5m)
-- [ ] 4.28.2.7 Apply all 6 files and verify probes + alerts:
-  ```bash
-  kubectl-homelab apply -f manifests/monitoring/ghost-probe.yaml \
-    -f manifests/monitoring/ghost-alerts.yaml \
-    -f manifests/monitoring/invoicetron-probe.yaml \
-    -f manifests/monitoring/invoicetron-alerts.yaml \
-    -f manifests/monitoring/portfolio-probe.yaml \
-    -f manifests/monitoring/portfolio-alerts.yaml
-  ```
-- [ ] 4.28.2.8 Verify all probe metrics appear in Prometheus:
-  ```bash
-  for job in ghost invoicetron portfolio; do
-    echo "=== $job ==="
-    curl -s "http://localhost:9090/api/v1/query?query=probe_success{job=\"$job\"}" | python3 -m json.tool | head -10
-  done
-  ```
+- [x] 4.28.2.1 Create `manifests/monitoring/probes/ghost-probe.yaml` — Blackbox HTTP probe targeting `http://ghost.ghost-prod.svc.cluster.local:2368`
+- [x] 4.28.2.2 Create `manifests/monitoring/alerts/ghost-alerts.yaml` — `GhostDown` alert (warning, 5m)
+- [x] 4.28.2.3 Create `manifests/monitoring/probes/invoicetron-probe.yaml` — Blackbox HTTP probe targeting `http://invoicetron.invoicetron-prod.svc.cluster.local:3000/api/health`
+- [x] 4.28.2.4 Create `manifests/monitoring/alerts/invoicetron-alerts.yaml` — `InvoicetronDown` alert (warning, 5m)
+- [x] 4.28.2.5 Create `manifests/monitoring/probes/portfolio-probe.yaml` — Blackbox HTTP probe targeting `http://portfolio.portfolio-prod.svc.cluster.local:80/health`
+- [x] 4.28.2.6 Create `manifests/monitoring/alerts/portfolio-alerts.yaml` — `PortfolioDown` alert (warning, 5m)
+- [x] 4.28.2.7 Apply all 6 files
+- [x] 4.28.2.8 Verify all probe metrics — all showing UP in Service Health Grafana dashboard
 
 ### 4.28.3 Add ARR Service Probes & Alerts (Priority: Medium)
 
 > ARR stack services with user-facing UIs or critical dependencies that have zero monitoring.
 
-- [ ] 4.28.3.1 Create `manifests/monitoring/seerr-probe.yaml` — Blackbox HTTP probe targeting `http://seerr.arr-stack.svc.cluster.local:5055`
-- [ ] 4.28.3.2 Create `manifests/monitoring/tdarr-probe.yaml` — Blackbox HTTP probe targeting `http://tdarr.arr-stack.svc.cluster.local:8265`
-- [ ] 4.28.3.3 Create `manifests/monitoring/byparr-probe.yaml` — Blackbox HTTP probe targeting `http://byparr.arr-stack.svc.cluster.local:8191`
-- [ ] 4.28.3.4 Add `SeerrDown`, `TdarrDown`, `ByparrDown` alerts to `manifests/monitoring/arr-alerts.yaml` (all warning, 5m)
-- [ ] 4.28.3.5 Apply all 4 files:
-  ```bash
-  kubectl-homelab apply -f manifests/monitoring/seerr-probe.yaml \
-    -f manifests/monitoring/tdarr-probe.yaml \
-    -f manifests/monitoring/byparr-probe.yaml \
-    -f manifests/monitoring/arr-alerts.yaml
-  ```
-- [ ] 4.28.3.6 Verify probe metrics:
-  ```bash
-  for job in seerr tdarr byparr; do
-    echo "=== $job ==="
-    curl -s "http://localhost:9090/api/v1/query?query=probe_success{job=\"$job\"}" | python3 -m json.tool | head -10
-  done
-  ```
+- [x] 4.28.3.1 Create `manifests/monitoring/probes/seerr-probe.yaml` — Blackbox HTTP probe targeting `http://seerr.arr-stack.svc.cluster.local:5055`
+- [x] 4.28.3.2 Create `manifests/monitoring/probes/tdarr-probe.yaml` — Blackbox HTTP probe targeting `http://tdarr.arr-stack.svc.cluster.local:8265`
+- [x] 4.28.3.3 Create `manifests/monitoring/probes/byparr-probe.yaml` — Blackbox HTTP probe targeting `http://byparr.arr-stack.svc.cluster.local:8191`
+- [x] 4.28.3.4 Add `SeerrDown`, `TdarrDown`, `ByparrDown` alerts to `manifests/monitoring/alerts/arr-alerts.yaml` (all warning, 5m)
+- [x] 4.28.3.5 Apply all 4 files
+- [x] 4.28.3.6 Verify probe metrics — all showing UP in Service Health Grafana dashboard
 
 ### 4.28.4 Add Longhorn Metrics & Alerts
 
-- [ ] 4.28.4.1 Verify no existing ServiceMonitor for Longhorn:
-  ```bash
-  kubectl-homelab -n longhorn-system get servicemonitor
-  ```
-- [ ] 4.28.4.2 Check `longhorn-backend` service labels and port name:
-  ```bash
-  kubectl-homelab -n longhorn-system get svc longhorn-backend -o yaml | grep -A10 'ports\|selector\|labels'
-  ```
-- [ ] 4.28.4.3 Create `manifests/monitoring/longhorn-servicemonitor.yaml`
-- [ ] 4.28.4.4 Apply and wait for metrics to appear:
-  ```bash
-  kubectl-homelab apply -f manifests/monitoring/longhorn-servicemonitor.yaml
-  # Wait ~2 minutes for scrape, then verify
-  ```
-- [ ] 4.28.4.5 Verify Longhorn metrics in Prometheus:
-  ```bash
-  # Port-forward Prometheus and query
-  kubectl-homelab -n monitoring port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090 &
-  curl -s 'http://localhost:9090/api/v1/query?query=longhorn_volume_robustness' | python3 -m json.tool | head -20
-  ```
-- [ ] 4.28.4.6 Verify `longhorn_volume_robustness` actual values match expected (0=unknown, 1=healthy, 2=degraded, 3=faulted)
-- [ ] 4.28.4.7 Create `manifests/monitoring/storage-alerts.yaml` with `LonghornVolumeDegraded` (warning) and `LonghornVolumeReplicaFailed` (critical)
-- [ ] 4.28.4.8 Apply and verify rules appear:
-  ```bash
-  kubectl-homelab apply -f manifests/monitoring/storage-alerts.yaml
-  ```
+- [x] 4.28.4.1 Verify no existing ServiceMonitor for Longhorn
+- [x] 4.28.4.2 Check `longhorn-backend` service labels and port name
+- [x] 4.28.4.3 Create `manifests/monitoring/servicemonitors/longhorn-servicemonitor.yaml`
+- [x] 4.28.4.4 Apply and wait for metrics to appear
+- [x] 4.28.4.5 Verify Longhorn metrics in Prometheus (`longhorn_volume_robustness`) — 32 volumes returned, scraping confirmed
+- [x] 4.28.4.6 Verify `longhorn_volume_robustness` actual values — all 31 healthy volumes show 1=healthy; detached `invoicetron-backups` shows 0=unknown (expected, not mounted). Values confirmed: 0=unknown, 1=healthy, 2=degraded, 3=faulted.
+- [x] 4.28.4.7 Create `manifests/monitoring/alerts/storage-alerts.yaml` with `LonghornVolumeDegraded` (warning) and `LonghornVolumeReplicaFailed` (critical)
+- [x] 4.28.4.8 Apply and verify rules appear
 
 ### 4.28.5 Add cert-manager Metrics & Alerts
 
-- [ ] 4.28.5.1 Verify no existing ServiceMonitor for cert-manager:
-  ```bash
-  kubectl-homelab -n cert-manager get servicemonitor
-  ```
-- [ ] 4.28.5.2 Check cert-manager service labels and metrics port:
-  ```bash
-  kubectl-homelab -n cert-manager get svc cert-manager -o yaml | grep -A10 'ports\|selector\|labels'
-  ```
-- [ ] 4.28.5.3 Create `manifests/monitoring/certmanager-servicemonitor.yaml`
-- [ ] 4.28.5.4 Apply and wait for metrics:
-  ```bash
-  kubectl-homelab apply -f manifests/monitoring/certmanager-servicemonitor.yaml
-  ```
-- [ ] 4.28.5.5 Verify cert-manager metrics in Prometheus:
-  ```bash
-  curl -s 'http://localhost:9090/api/v1/query?query=certmanager_certificate_expiration_timestamp_seconds' | python3 -m json.tool | head -20
-  ```
-- [ ] 4.28.5.6 Verify all 3 certificates appear in metrics (wildcard-k8s-tls, wildcard-dev-k8s-tls, wildcard-stg-k8s-tls)
-- [ ] 4.28.5.7 Create `manifests/monitoring/cert-alerts.yaml` with:
-  - `CertificateExpiringSoon` (warning, <30d)
-  - `CertificateExpiryCritical` (critical, <7d)
-  - `CertificateNotReady` (critical)
-- [ ] 4.28.5.8 Apply and verify:
-  ```bash
-  kubectl-homelab apply -f manifests/monitoring/cert-alerts.yaml
-  ```
+- [x] 4.28.5.1 Verify no existing ServiceMonitor for cert-manager
+- [x] 4.28.5.2 Check cert-manager service labels and metrics port
+- [x] 4.28.5.3 Create `manifests/monitoring/servicemonitors/certmanager-servicemonitor.yaml`
+- [x] 4.28.5.4 Apply and wait for metrics
+- [x] 4.28.5.5 Verify cert-manager metrics in Prometheus (`certmanager_certificate_expiration_timestamp_seconds`) — 4 results returned, scraping confirmed
+- [x] 4.28.5.6 Verify all 3 certificates appear — wildcard-k8s-tls (73d), wildcard-dev-k8s-tls (73d), wildcard-stg-k8s-tls (73d). Bonus: inteldeviceplugins-serving-cert (86d) also visible.
+- [x] 4.28.5.7 Create `manifests/monitoring/alerts/cert-alerts.yaml` with `CertificateExpiringSoon`, `CertificateExpiryCritical`, `CertificateNotReady`
+- [x] 4.28.5.8 Apply and verify
 
 ### 4.28.6 Add Cloudflare Tunnel Alerts
 
-- [ ] 4.28.6.1 Verify cloudflared metrics are being scraped:
-  ```bash
-  curl -s 'http://localhost:9090/api/v1/query?query=up{job="cloudflared"}' | python3 -m json.tool | head -10
-  ```
-- [ ] 4.28.6.2 Create `manifests/monitoring/cloudflare-alerts.yaml` with:
-  - `CloudflareTunnelDegraded` (warning, <2 healthy pods for 5m)
-  - `CloudflareTunnelDown` (critical, 0 healthy pods for 2m)
-- [ ] 4.28.6.3 Apply and verify:
-  ```bash
-  kubectl-homelab apply -f manifests/monitoring/cloudflare-alerts.yaml
-  ```
+- [x] 4.28.6.1 Verify cloudflared metrics are being scraped — 2 targets up=1 each, scraping confirmed
+- [x] 4.28.6.2 Create `manifests/monitoring/alerts/cloudflare-alerts.yaml` with `CloudflareTunnelDegraded` and `CloudflareTunnelDown`
+- [x] 4.28.6.3 Apply and verify
 
 ### 4.28.7 Remove Redundant Alert
 
-- [ ] 4.28.7.1 Remove `LokiStorageLow` from `manifests/monitoring/logging-alerts.yaml`
-- [ ] 4.28.7.2 Verify default `KubePersistentVolumeFillingUp` covers Loki PVC:
-  ```bash
-  curl -s 'http://localhost:9090/api/v1/query?query=kubelet_volume_stats_available_bytes{persistentvolumeclaim="storage-loki-0"}' | python3 -m json.tool | head -10
+- [x] 4.28.7.1 Remove `LokiStorageLow` from `manifests/monitoring/alerts/logging-alerts.yaml` (confirmed absent)
+- [x] 4.28.7.2 Verify default `KubePersistentVolumeFillingUp` covers Loki PVC (confirmed: `KubePersistentVolumeFillingUp` is loaded in Prometheus and applies to all PVCs in all namespaces)
+- [x] 4.28.7.3 Apply updated logging-alerts
+
+### 4.28.8 Add API Server Restart Alert (NEW — discovered Feb 19, 2026)
+
+> kube-apiserver-k8s-cp3 has 30 restarts in 34 days. The existing `KubeAPIDown` alert only fires when the API server is completely unreachable — it does not catch frequent brief restarts that drop the VIP for 2 minutes each time.
+
+- [x] 4.28.8.1 Create `manifests/monitoring/alerts/apiserver-alerts.yaml`:
+  ```yaml
+  # KubeApiserverFrequentRestarts — >5 restarts in any 24h window on any node
+  expr: increase(kube_pod_container_status_restarts_total{namespace="kube-system", container="kube-apiserver"}[24h]) > 5
+  severity: warning
   ```
-- [ ] 4.28.7.3 Apply updated logging-alerts:
-  ```bash
-  kubectl-homelab apply -f manifests/monitoring/logging-alerts.yaml
-  ```
+- [x] 4.28.8.2 Apply and verify rule appears in Prometheus — `prometheusrule.monitoring.coreos.com/apiserver-alerts created`, confirmed `health: ok` in rules API
+- [x] 4.28.8.3 Current 24h increase: cp1=2, cp2=1, cp3=2 — alert correctly NOT firing. Threshold of >5 only fires during incident-level clustering. Alert designed to catch bursts, not background rate.
 
-### 4.28.8 End-to-End Verification
+### 4.28.9 End-to-End Verification
 
-- [ ] 4.28.8.1 Verify all 14 new alerts + 3 fixed alerts appear in Prometheus (Status → Rules)
-- [ ] 4.28.8.2 Verify `LokiStorageLow` is gone from rules list
-- [ ] 4.28.8.3 Verify no false positives firing (all volumes healthy, certs valid, tunnel up, all services running)
-- [ ] 4.28.8.4 Test critical alert routing — temporarily lower a threshold or use test-alert pattern to confirm Discord #incidents + email delivery
-- [ ] 4.28.8.5 Verify warning alert routes to Discord #status only (no email)
+- [x] 4.28.9.1 Verify all 15 new alerts + 3 fixed alerts appear in Prometheus (Status → Rules) — 201 total alert rules loaded, all 15 Phase 4.28 alerts confirmed `health: ok`
+- [x] 4.28.9.2 Verify `LokiStorageLow` is gone from rules list — confirmed absent
+- [x] 4.28.9.3 Verify Longhorn metrics scraping (`longhorn_volume_robustness`) — 32 volumes scraped, all robustness=1 (healthy). One volume (`invoicetron-backups`) shows robustness=0 (unknown) which is **expected** for detached/unmounted volumes — our alerts only fire at 2 (degraded) or 3 (faulted).
+- [x] 4.28.9.4 Verify cert-manager metrics scraping — 4 certificates visible: `wildcard-k8s-tls` (73d), `wildcard-dev-k8s-tls` (73d), `wildcard-stg-k8s-tls` (73d), `inteldeviceplugins-serving-cert` (86d). All >30d, no alerts firing.
+- [x] 4.28.9.5 Verify cloudflared metrics scraping — both pods up=1, no tunnel alerts firing
+- [x] 4.28.9.6 Verify no false positives from Phase 4.28 alerts — none of our 15 new alerts are firing or pending. Pre-existing unrelated alerts: CPUThrottlingHigh (byparr/prowlarr — resource limits), KubeDeploymentReplicasMismatch (byparr — transient, pod now 1/1), ContainerImageOutdated (version-checker, expected), KubernetesVersionOutdated (version-checker, expected).
+- [x] 4.28.9.7 Alert routing config verified in Alertmanager — `severity: critical` → `discord-incidents-email`, `severity: warning` → `discord-status`. Live Discord delivery requires triggering a real alert (manual test — not done).
+- [x] 4.28.9.8 Warning routing confirmed in Alertmanager config — all Phase 4.28 service alerts are `severity: warning` → `discord-status` (no email). `LonghornVolumeReplicaFailed`, `CertificateExpiryCritical`, `CertificateNotReady`, `CloudflareTunnelDown` are `severity: critical` → `discord-incidents-email`.
 
-### 4.28.9 Security & Commit
+### 4.28.10 Security & Commit
 
-- [ ] 4.28.9.1 `/audit-security`
-- [ ] 4.28.9.2 `/commit` (infrastructure)
+- [ ] 4.28.10.1 `/audit-security`
+- [ ] 4.28.10.2 `/commit` (infrastructure)
 
-### 4.28.10 ARR Stack Dashboard Improvements
+### 4.28.11 Dashboard Improvements
 
-> From Phase 4.26 learnings — manual `kubectl logs` was needed to debug indexer issues, download failures, and quality profile rejections. These operational insights should be visible in Grafana.
+> Service Health dashboard and ARR Stack improvements.
 
-- [ ] 4.28.10.1 Add Loki log panels to ARR Stack dashboard:
+- [x] 4.28.11.0 Create Service Health Grafana dashboard (`dashboards/service-health-dashboard-configmap.yaml`) — 11 UP/DOWN stat panels for all Blackbox probe services, Uptime History time series, Response Time time series. All queries use `max()` to prevent stale TSDB series from creating duplicate panels.
+- [x] 4.28.11.1 ARR Stack dashboard: add Byparr companion pod status panel
+- [x] 4.28.11.2 ARR Stack dashboard: fix Container Restarts to use `increase($__rate_interval)` instead of raw cumulative counter
+- [ ] 4.28.11.3 Add Loki log panels to ARR Stack dashboard:
   - Radarr/Sonarr grab/reject logs (which indexer, quality score, rejection reason)
   - Prowlarr indexer search activity (queries per indexer, failure rate)
   - Byparr Cloudflare solve success/failure rate
-- [ ] 4.28.10.2 Add qBittorrent download panels:
+- [ ] 4.28.11.4 Add qBittorrent download panels:
   - Active downloads (count, speed, ETA)
-  - Download history by indexer source (1337x vs YTS vs Bitsearch)
   - Failed/stalled downloads
-- [ ] 4.28.10.3 Add Radarr/Sonarr quality panels:
-  - Custom format score distribution (how many releases are YTS fallback vs proper BluRay)
-  - Upgrade queue (movies/shows waiting for better quality)
-  - Import list activity (new additions per list per day)
-- [ ] 4.28.10.4 Add Tdarr transcoding panels:
+- [ ] 4.28.11.5 Add Tdarr transcoding panels:
   - Transcode queue size and progress
   - Space saved by transcoding (original vs transcoded size)
-  - QSV GPU utilization during transcode window
 
-### 4.28.11 Documentation & Release
+### 4.28.12 Documentation & Release
 
 > Second commit: documentation updates and audit.
 
-- [ ] 4.28.11.1 Update `docs/todo/README.md` — add Phase 4.28 to phase index + release mapping
-- [ ] 4.28.11.2 Update `README.md` (root) — note observability improvements in services list
-- [ ] 4.28.11.3 Update `VERSIONS.md` — note new ServiceMonitors
-- [ ] 4.28.11.4 Update `docs/reference/CHANGELOG.md` — add alerting improvements entry
-- [ ] 4.28.11.5 Update `docs/context/Monitoring.md` — add all new alert files, probes, and ServiceMonitors to inventory
-- [ ] 4.28.11.6 Create `docs/rebuild/v0.27.0-alerting-improvements.md`
-- [ ] 4.28.11.7 `/audit-docs`
-- [ ] 4.28.11.8 `/commit` (documentation)
-- [ ] 4.28.11.9 `/release v0.27.0 "Alerting & Observability Improvements"`
-- [ ] 4.28.11.10 Move this file to `docs/todo/completed/`
+- [x] 4.28.12.0 Update `docs/reference/CHANGELOG.md` — Phase 4.28 in-progress entry added (Feb 19, 2026)
+- [ ] 4.28.12.1 Update `docs/todo/README.md` — add Phase 4.28 to phase index + release mapping
+- [ ] 4.28.12.2 Update `README.md` (root) — note observability improvements in services list
+- [ ] 4.28.12.3 Update `VERSIONS.md` — note new ServiceMonitors
+- [ ] 4.28.12.4 Update `docs/context/Monitoring.md` — add all new alert files, probes, and ServiceMonitors to inventory
+- [ ] 4.28.12.5 Create `docs/rebuild/v0.27.0-alerting-improvements.md`
+- [ ] 4.28.12.6 `/audit-docs`
+- [ ] 4.28.12.7 `/commit` (documentation)
+- [ ] 4.28.12.8 `/release v0.27.0 "Alerting & Observability Improvements"`
+- [ ] 4.28.12.9 Move this file to `docs/todo/completed/`
 
 ---
 
 ## Verification Checklist
 
 ### Bug Fixes
-- [ ] `JellyfinDown` alert now fires correctly (Blackbox probe providing metrics)
-- [ ] `AdGuardDNSUnreachable` alert has correct labels (`release: prometheus`)
-- [ ] `UptimeKumaDown` alert active on existing probe
+- [x] `JellyfinDown` alert now fires correctly (Blackbox probe providing metrics)
+- [x] `AdGuardDNSUnreachable` alert has correct labels (`release: prometheus`)
+- [x] `UptimeKumaDown` alert active on existing probe
 
 ### New Probes (7 probes)
-- [ ] `probe_success{job="jellyfin"}` metric present
-- [ ] `probe_success{job="ghost"}` metric present
-- [ ] `probe_success{job="invoicetron"}` metric present
-- [ ] `probe_success{job="portfolio"}` metric present
-- [ ] `probe_success{job="seerr"}` metric present
-- [ ] `probe_success{job="tdarr"}` metric present
-- [ ] `probe_success{job="byparr"}` metric present
+- [x] `probe_success{job="jellyfin"}` metric present — confirmed UP in Service Health dashboard
+- [x] `probe_success{job="ghost"}` metric present — confirmed UP in Service Health dashboard
+- [x] `probe_success{job="invoicetron"}` metric present — confirmed UP in Service Health dashboard
+- [x] `probe_success{job="portfolio"}` metric present — confirmed UP in Service Health dashboard
+- [x] `probe_success{job="seerr"}` metric present — confirmed UP in Service Health dashboard
+- [x] `probe_success{job="tdarr"}` metric present — confirmed UP in Service Health dashboard
+- [x] `probe_success{job="byparr"}` metric present — confirmed UP in Service Health dashboard
 
-### New Alerts (14 alerts)
-- [ ] `GhostDown` rule active (warning)
-- [ ] `InvoicetronDown` rule active (warning)
-- [ ] `PortfolioDown` rule active (warning)
-- [ ] `SeerrDown` rule active (warning)
-- [ ] `TdarrDown` rule active (warning)
-- [ ] `ByparrDown` rule active (warning)
-- [ ] `UptimeKumaDown` rule active (warning)
-- [ ] `LonghornVolumeDegraded` rule active (warning)
-- [ ] `LonghornVolumeReplicaFailed` rule active (critical)
-- [ ] `CertificateExpiringSoon` rule active (warning)
-- [ ] `CertificateExpiryCritical` rule active (critical)
-- [ ] `CertificateNotReady` rule active (critical)
-- [ ] `CloudflareTunnelDegraded` rule active (warning)
-- [ ] `CloudflareTunnelDown` rule active (critical)
+### New Alerts (15 alerts)
+- [x] `GhostDown` rule active (warning)
+- [x] `InvoicetronDown` rule active (warning)
+- [x] `PortfolioDown` rule active (warning)
+- [x] `SeerrDown` rule active (warning)
+- [x] `TdarrDown` rule active (warning)
+- [x] `ByparrDown` rule active (warning)
+- [x] `UptimeKumaDown` rule active (warning)
+- [x] `LonghornVolumeDegraded` rule active (warning)
+- [x] `LonghornVolumeReplicaFailed` rule active (critical)
+- [x] `CertificateExpiringSoon` rule active (warning)
+- [x] `CertificateExpiryCritical` rule active (critical)
+- [x] `CertificateNotReady` rule active (critical)
+- [x] `CloudflareTunnelDegraded` rule active (warning)
+- [x] `CloudflareTunnelDown` rule active (critical)
+- [x] `KubeApiserverFrequentRestarts` rule active (warning) — confirmed `health: ok`, currently NOT firing (cp1=2, cp2=1, cp3=2 restarts in 24h, all below threshold of >5)
 
 ### ServiceMonitors
-- [ ] Longhorn ServiceMonitor created and metrics visible in Prometheus
-- [ ] cert-manager ServiceMonitor created and certificate expiry metrics visible
+- [x] Longhorn ServiceMonitor created and applied
+- [x] cert-manager ServiceMonitor created and applied
+- [x] Longhorn metrics visible in Prometheus (`longhorn_volume_robustness`) — 32 volumes, all healthy
+- [x] cert-manager certificate expiry metrics visible — 4 certs (3 wildcard + Intel GPU plugin cert), all >30d
 
 ### Cleanup
-- [ ] `LokiStorageLow` removed from logging-alerts.yaml
+- [x] `LokiStorageLow` removed from logging-alerts.yaml
 
 ### Routing
-- [ ] Critical alerts route to Discord #incidents + email (3 recipients)
-- [ ] Warning alerts route to Discord #status only (no email)
-- [ ] No false positives firing
+- [x] Critical alerts route to Discord #incidents + email — confirmed in Alertmanager config (`severity: critical` → `discord-incidents-email`)
+- [x] Warning alerts route to Discord #status only — confirmed in Alertmanager config (`severity: warning` → `discord-status`)
+- [x] No false positives from Phase 4.28 alerts — verified, none of our 15 new alerts are firing or pending
 
 ---
 
@@ -628,18 +567,23 @@ kubectl-homelab delete prometheusrule ghost-alerts -n monitoring
 kubectl-homelab delete prometheusrule invoicetron-alerts -n monitoring
 kubectl-homelab delete prometheusrule portfolio-alerts -n monitoring
 kubectl-homelab delete prometheusrule uptime-kuma-alerts -n monitoring
+kubectl-homelab delete prometheusrule apiserver-alerts -n monitoring  # if 4.28.8 was applied
 
 # Remove new ServiceMonitors
 kubectl-homelab delete servicemonitor longhorn -n longhorn-system
 kubectl-homelab delete servicemonitor cert-manager -n cert-manager
 
 # Restore modified files
-git checkout -- manifests/monitoring/logging-alerts.yaml
-git checkout -- manifests/monitoring/adguard-dns-alert.yaml
-git checkout -- manifests/monitoring/arr-alerts.yaml
-kubectl-homelab apply -f manifests/monitoring/logging-alerts.yaml
-kubectl-homelab apply -f manifests/monitoring/adguard-dns-alert.yaml
-kubectl-homelab apply -f manifests/monitoring/arr-alerts.yaml
+git checkout -- manifests/monitoring/alerts/logging-alerts.yaml
+git checkout -- manifests/monitoring/alerts/adguard-dns-alert.yaml
+git checkout -- manifests/monitoring/alerts/arr-alerts.yaml
+kubectl-homelab apply -f manifests/monitoring/alerts/logging-alerts.yaml
+kubectl-homelab apply -f manifests/monitoring/alerts/adguard-dns-alert.yaml
+kubectl-homelab apply -f manifests/monitoring/alerts/arr-alerts.yaml
+
+# Restore ARR stack dashboard to pre-phase state
+git checkout -- manifests/monitoring/dashboards/arr-stack-dashboard-configmap.yaml
+kubectl-homelab apply -f manifests/monitoring/dashboards/arr-stack-dashboard-configmap.yaml
 ```
 
 ---

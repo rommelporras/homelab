@@ -1,0 +1,67 @@
+# PrometheusRule for kube-apiserver Alerts
+# Phase 4.28: Alert on frequent kube-apiserver restarts
+#
+# Problem: kube-apiserver-k8s-cp3 had 30 restarts in 34 days (~1/day avg).
+# Each restart causes kube-vip to fail lease renewal and drop the VIP
+# (10.10.30.10) for ~2 minutes. KubeAPIDown only fires after full downtime —
+# it does NOT catch this frequent-but-brief restart pattern.
+#
+# Root cause pattern: etcd transient blip → kube-apiserver liveness probe
+# returns HTTP 500 on /livez → kubelet kills the API server → kube-vip
+# on the current leader loses lease renewal → drops VIP → ~2 min gap.
+#
+# Threshold: >5 restarts in 24h. Normal background rate is ~1/day across
+# all 3 nodes. 6+ in a 24h window indicates an active incident.
+#
+# Metrics used:
+#   kube_pod_container_status_restarts_total{namespace="kube-system", container="kube-apiserver"}
+#   — from kube-state-metrics, counter of container restarts per pod
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: apiserver-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: apiserver
+      rules:
+        # kube-apiserver restarting too frequently on a single node
+        # Fires when any single API server pod restarts more than 5 times in 24h.
+        # Each restart causes kube-vip to drop the VIP for ~2 minutes.
+        # Note: KubePodCrashLooping uses a 10m window and misses this slow pattern.
+        - alert: KubeApiserverFrequentRestarts
+          expr: increase(kube_pod_container_status_restarts_total{namespace="kube-system", container="kube-apiserver"}[24h]) > 5
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "kube-apiserver on {{ $labels.pod }} is restarting frequently"
+            description: "{{ $labels.pod }} has restarted {{ $value | printf \"%.0f\" }} times in the last 24 hours. Each restart causes kube-vip to drop the VIP (10.10.30.10) for ~2 minutes, causing brief cluster connectivity loss."
+            runbook: |
+              1. Check current restart count:
+                 kubectl-homelab get pod -n kube-system {{ $labels.pod }}
+
+              2. Check previous container logs (before last restart):
+                 kubectl-homelab logs -n kube-system {{ $labels.pod }} --previous --tail=100
+
+              3. Check kube-vip lease holder (may have changed):
+                 kubectl-homelab get lease plndr-cp-lock -n kube-system -o jsonpath='{.spec.holderIdentity}{"\n"}'
+
+              4. Check etcd health (common root cause):
+                 kubectl-homelab exec -n kube-system etcd-k8s-cp1 -- etcdctl \
+                   --cacert /etc/kubernetes/pki/etcd/ca.crt \
+                   --cert /etc/kubernetes/pki/etcd/peer.crt \
+                   --key /etc/kubernetes/pki/etcd/peer.key \
+                   endpoint health --cluster
+
+              5. Check apiserver liveness probe (triggers restart on failure):
+                 # /livez returns 500 when etcd is unreachable
+                 kubectl-homelab exec -n kube-system {{ $labels.pod }} -- wget -qO- http://127.0.0.1:8080/livez 2>/dev/null || echo "probe failed"
+
+              6. Check node events for OOM or system pressure:
+                 NODE=$(echo {{ $labels.pod }} | sed 's/kube-apiserver-//'); \
+                 kubectl-homelab describe node $NODE | grep -A5 Events

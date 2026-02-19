@@ -4,6 +4,72 @@
 
 ---
 
+## February 19, 2026 — Phase 4.28 (In Progress): Alerting & Observability
+
+### Summary
+
+Phase 4.28 alerting infrastructure complete. Dashboards improved. Control plane bind addresses fixed. kube-vip VIP loss investigated and root-caused. KubeApiserverFrequentRestarts alert identified as remaining gap.
+
+### Infrastructure Changes
+
+| Change | Description |
+|--------|-------------|
+| monitoring/ reorganization | 55 flat files → 8 typed subdirectories (alerts/, dashboards/, exporters/, grafana/, otel/, probes/, servicemonitors/, version-checker/) |
+| Prometheus HTTPRoute | Exposed Prometheus UI at `prometheus.k8s.rommelporras.com` |
+| Alertmanager HTTPRoute | Exposed Alertmanager UI at `alertmanager.k8s.rommelporras.com` |
+| Homepage widgets | Prometheus targets count + Alertmanager firing count (excludes Watchdog) |
+| kubeadm bind addresses | Fixed etcd/kube-controller-manager/kube-scheduler to `0.0.0.0` so Prometheus can scrape |
+| kubeProxy disabled | `kubeProxy.enabled: false` in Helm values — Cilium replaces kube-proxy |
+
+### Alerting Infrastructure Completed (Phase 4.28)
+
+| Item | Files | Status |
+|------|-------|--------|
+| Jellyfin probe (fixes broken JellyfinDown) | `probes/jellyfin-probe.yaml` | Done |
+| Ghost probe + alert | `probes/ghost-probe.yaml`, `alerts/ghost-alerts.yaml` | Done |
+| Invoicetron probe + alert | `probes/invoicetron-probe.yaml`, `alerts/invoicetron-alerts.yaml` | Done |
+| Portfolio probe + alert | `probes/portfolio-probe.yaml`, `alerts/portfolio-alerts.yaml` | Done |
+| Seerr probe + alert | `probes/seerr-probe.yaml`, `alerts/arr-alerts.yaml` | Done |
+| Tdarr probe + alert | `probes/tdarr-probe.yaml`, `alerts/arr-alerts.yaml` | Done |
+| Byparr probe + alert | `probes/byparr-probe.yaml`, `alerts/arr-alerts.yaml` | Done |
+| Uptime Kuma alert | `alerts/uptime-kuma-alerts.yaml` | Done |
+| Longhorn ServiceMonitor + alerts | `servicemonitors/longhorn-servicemonitor.yaml`, `alerts/storage-alerts.yaml` | Done |
+| cert-manager ServiceMonitor + alerts | `servicemonitors/certmanager-servicemonitor.yaml`, `alerts/cert-alerts.yaml` | Done |
+| Cloudflare Tunnel alerts | `alerts/cloudflare-alerts.yaml` | Done |
+| AdGuard alert label fix | `alerts/adguard-dns-alert.yaml` | Done |
+| LokiStorageLow removed | `alerts/logging-alerts.yaml` | Done |
+
+### Dashboards Created/Updated
+
+| Dashboard | Change |
+|-----------|--------|
+| Service Health (new) | 11 UP/DOWN probe stat panels for all monitored services |
+| ARR Stack | Added Byparr companion panel; fixed Container Restarts to use `increase()` |
+
+### kube-vip VIP Loss Investigation
+
+**Root cause chain:**
+1. etcd had a transient blip → API server `/livez` returned HTTP 500
+2. Kubelet killed the API server after 7 consecutive liveness probe failures
+3. kube-vip on cp1 (the leader) could not renew its lease lock → dropped the VIP
+4. ~2 min gap with no VIP → all `kubectl` calls timed out
+5. cp2 won leader election → VIP restored
+
+**Restart counts (34 days):** cp1=7, cp2=21, cp3=30 — cp3 averaging ~1 restart/day.
+
+**Gap identified:** No alert exists for frequent API server restarts. `KubeApiserverFrequentRestarts` to be added in Phase 4.28.
+
+### Key Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| `max()` on all probe stat panels | Prevents stale TSDB series from creating duplicate stat panels when probe targets change |
+| `increase($__rate_interval)` for Container Restarts | Cumulative counter misleads at short time ranges; `increase()` shows new restarts per window |
+| Expose Prometheus/Alertmanager via HTTPRoute | Needed for Homepage widgets and direct troubleshooting |
+| Watchdog excluded from Homepage firing count | `alertname!="Watchdog"` — intentional dead man's switch, always fires |
+
+---
+
 ## February 19, 2026 — v0.26.0: Version Automation & Upgrade Runbooks
 
 ### Summary
