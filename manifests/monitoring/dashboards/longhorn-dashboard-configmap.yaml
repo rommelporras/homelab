@@ -1,6 +1,7 @@
 # Grafana Dashboard - Longhorn Storage
-# Phase 4.28: Storage health, node disk usage, and volume I/O visibility
+# Phase 4.28: Storage health, NVMe S.M.A.R.T., node disk usage, and volume I/O visibility
 # Metrics sourced from longhorn-servicemonitor (scrapes longhorn-backend:manager port)
+# NVMe metrics from smartctl_exporter DaemonSet (prometheus-community/prometheus-smartctl-exporter)
 # Auto-provisioned via grafana_dashboard label
 ---
 apiVersion: v1
@@ -24,108 +25,279 @@ data:
       "panels": [
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
           "id": 1,
           "title": "Storage Health",
           "type": "row",
           "description": "Overall Longhorn storage cluster health. Degraded = volume accessible but missing replicas (replica rebuilding). Faulted = all replicas failed, data at risk (immediate action required)."
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "blue", "value": null }
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
                 ]
               },
               "mappings": []
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 0,
+            "y": 1
+          },
           "id": 2,
-          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
-          "description": "Total Longhorn volumes tracked. Each app config PVC creates one Longhorn volume with 2 replicas across 3 nodes.",
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "description": "Total Longhorn volumes tracked. Should equal Healthy + Degraded + Faulted + Unknown.",
           "title": "Total Volumes",
           "type": "stat",
-          "targets": [{ "expr": "count(max by (volume) (longhorn_volume_robustness))", "legendFormat": "volumes" }]
+          "targets": [
+            {
+              "expr": "count(max by (volume) (longhorn_volume_robustness))",
+              "legendFormat": "volumes"
+            }
+          ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "green", "value": null }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               },
               "mappings": []
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 4,
+            "y": 1
+          },
           "id": 3,
-          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
-          "description": "Volumes where all replicas are healthy (robustness = 1). Should match Total Volumes when cluster is fully healthy.",
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "description": "Volumes with all replicas healthy (robustness = 1). Should equal Total Volumes minus Unknown when no issues exist.",
           "title": "Healthy",
           "type": "stat",
-          "targets": [{ "expr": "count(max by (volume) (longhorn_volume_robustness) == 1) or vector(0)", "legendFormat": "healthy" }]
+          "targets": [
+            {
+              "expr": "count(max by (volume) (longhorn_volume_robustness) == 1) or vector(0)",
+              "legendFormat": "healthy"
+            }
+          ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "green", "value": null },
-                  { "color": "yellow", "value": 1 }
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 1
+                  }
                 ]
               },
               "mappings": []
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 7,
+            "y": 1
+          },
           "id": 4,
-          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
-          "description": "Volumes running with fewer replicas than configured (robustness = 2). Data is accessible but redundancy is reduced. Usually resolves automatically as Longhorn rebuilds the replica.",
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "description": "Volumes with fewer replicas than configured (robustness = 2). Data is accessible but redundancy is reduced \u2014 Longhorn is rebuilding the replica.",
           "title": "Degraded",
           "type": "stat",
-          "targets": [{ "expr": "count(max by (volume) (longhorn_volume_robustness) == 2) or vector(0)", "legendFormat": "degraded" }]
+          "targets": [
+            {
+              "expr": "count(max by (volume) (longhorn_volume_robustness) == 2) or vector(0)",
+              "legendFormat": "degraded"
+            }
+          ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "green", "value": null },
-                  { "color": "red", "value": 1 }
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
                 ]
               },
               "mappings": []
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 10,
+            "y": 1
+          },
           "id": 5,
-          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
-          "description": "Volumes with all replicas failed (robustness = 3). Data access is at risk. Check Longhorn UI immediately and verify node health.",
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "description": "Volumes with all replicas failed (robustness = 3). Data access is at risk \u2014 check Longhorn UI and node health immediately.",
           "title": "Faulted",
           "type": "stat",
-          "targets": [{ "expr": "count(max by (volume) (longhorn_volume_robustness) == 3) or vector(0)", "legendFormat": "faulted" }]
+          "targets": [
+            {
+              "expr": "count(max by (volume) (longhorn_volume_robustness) == 3) or vector(0)",
+              "legendFormat": "faulted"
+            }
+          ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "0",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 13,
+            "y": 1
+          },
+          "id": 8,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "description": "Volumes in Unknown state (robustness = 0) \u2014 detached and not mounted by any pod. Normal for CronJob PVCs (e.g. invoicetron-backups) when no job is running. Not a problem.",
+          "title": "Unknown",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "count(max by (volume) (longhorn_volume_robustness) == 0) or vector(0)",
+              "legendFormat": "unknown"
+            }
+          ]
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "bytes",
@@ -133,23 +305,49 @@ data:
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "blue", "value": null }
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
                 ]
               },
               "mappings": []
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 16,
+            "y": 1
+          },
           "id": 6,
-          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
           "description": "Total Longhorn storage capacity across all 3 nodes. Each M80q node has a 512GB NVMe drive.",
           "title": "Total Capacity",
           "type": "stat",
-          "targets": [{ "expr": "sum(longhorn_node_storage_capacity_bytes)", "legendFormat": "capacity" }]
+          "targets": [
+            {
+              "expr": "sum(longhorn_node_storage_capacity_bytes)",
+              "legendFormat": "capacity"
+            }
+          ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "bytes",
@@ -157,31 +355,533 @@ data:
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "blue", "value": null }
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
                 ]
               },
               "mappings": []
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 20,
+            "y": 1
+          },
           "id": 7,
-          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
           "description": "Total Longhorn storage currently used across all 3 nodes (actual replica data written to NVMe).",
           "title": "Storage Used",
           "type": "stat",
-          "targets": [{ "expr": "sum(longhorn_node_storage_usage_bytes)", "legendFormat": "used" }]
+          "targets": [
+            {
+              "expr": "sum(longhorn_node_storage_usage_bytes)",
+              "legendFormat": "used"
+            }
+          ]
         },
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 5
+          },
+          "id": 40,
+          "title": "NVMe Health (S.M.A.R.T.)",
+          "type": "row",
+          "description": "NVMe drive health via smartctl_exporter DaemonSet. One value per node (cp1/cp2/cp3). S.M.A.R.T. data comes from drive firmware \u2014 independent of OS and filesystem. Scraped every 60s from /dev/nvme0 on each node."
+        },
+        {
+          "gridPos": {
+            "h": 4,
+            "w": 12,
+            "x": 0,
+            "y": 6
+          },
+          "id": 49,
+          "options": {
+            "mode": "markdown",
+            "content": "| Node | Model | Firmware | Serial | Capacity |\n|:-----|:------|:---------|:-------|:--------:|\n| **cp1** | SK Hynix HFS512GDE9X081N | 41730C20 | FSB2N520111202C1K | 512 GB |\n| **cp2** | SK Hynix HFS512GDE9X081N | 41730C20 | FSB2N520114202D2E | 512 GB |\n| **cp3** | SK Hynix HFS512GDE9X081N | 41730C20 | FSB2N520111202C6K | 512 GB |"
+          },
+          "description": "NVMe drive identity per node. All 3 M80q nodes confirmed identical model and firmware. Serials verified via smartctl_exporter. Update this panel only if a drive is physically replaced.",
+          "title": "Drive Info",
+          "type": "text",
+          "targets": []
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "N/A",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              },
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "FAIL",
+                      "color": "red",
+                      "index": 0
+                    },
+                    "1": {
+                      "text": "PASS",
+                      "color": "green",
+                      "index": 1
+                    }
+                  }
+                }
+              ]
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 12,
+            "x": 12,
+            "y": 6
+          },
+          "id": 41,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "description": "Overall S.M.A.R.T. health assessment from drive firmware. PASS = drive is healthy. FAIL = drive has critical issues (immediate replacement required). All 3 M80q nodes use SK Hynix HFS512GDE9X081N 512GB NVMe.",
+          "title": "SMART Status",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "label_replace(smartctl_device_smart_status * on(pod) group_left(node) kube_pod_info{namespace=\"monitoring\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "legendFormat": "{{ short_node }}"
+            }
+          ]
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "celsius",
+              "noValue": "N/A",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 55
+                  },
+                  {
+                    "color": "red",
+                    "value": 60
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 5,
+            "x": 0,
+            "y": 10
+          },
+          "id": 42,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "description": "NVMe controller temperature (current sensor). Normal range: 30\u201355\u00b0C. Alert fires at 60\u00b0C. M80q is a small form factor PC \u2014 sustained load can raise temps. Yellow >55\u00b0C, red >65\u00b0C.",
+          "title": "Temperature",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "label_replace(smartctl_device_temperature{temperature_type=\"current\"} * on(pod) group_left(node) kube_pod_info{namespace=\"monitoring\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "legendFormat": "{{ short_node }}"
+            }
+          ]
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "noValue": "N/A",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 60
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 5,
+            "x": 10,
+            "y": 10
+          },
+          "id": 43,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "description": "NVMe endurance indicator (drive firmware). 0% = brand new, 100% = rated write endurance exhausted. SK Hynix 512GB rated ~300TBW. cp3 (847 days, 22TB written) still at 0% \u2014 well within spec. Drives work beyond 100% but warranty ends.",
+          "title": "Wear % Used",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "label_replace(smartctl_device_percentage_used * on(pod) group_left(node) kube_pod_info{namespace=\"monitoring\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "legendFormat": "{{ short_node }}"
+            }
+          ]
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "noValue": "N/A",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 5,
+            "x": 15,
+            "y": 10
+          },
+          "id": 44,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "description": "Total bytes written to the NVMe since manufacture (drive firmware counter). cp1 \u2248 2TB (45d old), cp2 \u2248 20TB (332d old), cp3 \u2248 22TB (847d old). SK Hynix 512GB rated ~300TBW \u2014 all drives well within endurance budget.",
+          "title": "Total Bytes Written",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "label_replace(smartctl_device_bytes_written * on(pod) group_left(node) kube_pod_info{namespace=\"monitoring\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "legendFormat": "{{ short_node }}"
+            }
+          ]
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "noValue": "N/A",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 20,
+            "y": 10
+          },
+          "id": 45,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "description": "Total powered-on time since manufacture (drive firmware). cp1 \u2248 45 days, cp2 \u2248 332 days, cp3 \u2248 847 days. Useful context for drive age and replacement planning.",
+          "title": "Power-On Time",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "label_replace(smartctl_device_power_on_seconds * on(pod) group_left(node) kube_pod_info{namespace=\"monitoring\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "legendFormat": "{{ short_node }}"
+            }
+          ]
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "noValue": "N/A",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 10
+                  },
+                  {
+                    "color": "green",
+                    "value": 20
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 5,
+            "x": 5,
+            "y": 10
+          },
+          "id": 46,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "description": "Spare NAND blocks remaining for wear leveling. 100% = all spare blocks available. Decreases as drive ages. Alert fires when spare drops below the drive's own threshold (~10%). All 3 drives at 100% \u2014 excellent condition.",
+          "title": "Available Spare",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "label_replace(smartctl_device_available_spare * on(pod) group_left(node) kube_pod_info{namespace=\"monitoring\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "legendFormat": "{{ short_node }}"
+            }
+          ]
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": {
+                  "mode": "none"
+                }
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 14
+          },
+          "id": 47,
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "Cumulative bytes written to each NVMe over time (drive firmware counter). Slope = write intensity. Counter resets only on drive replacement. cp3 shows the steepest accumulated total after 847 days of uptime.",
+          "title": "Total Bytes Written (History)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "label_replace(smartctl_device_bytes_written * on(pod) group_left(node) kube_pod_info{namespace=\"monitoring\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "legendFormat": "{{ short_node }}"
+            }
+          ]
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": {
+                  "mode": "none"
+                }
+              },
+              "unit": "Bps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 14
+          },
+          "id": 48,
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "Real-time NVMe write rate per node (OS kernel counter via node-exporter). Includes all writes: Longhorn replication, etcd, OS page cache flushes. Complements the SMART TBW counter with moment-to-moment write activity.",
+          "title": "NVMe Write Rate (OS)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "label_replace(rate(node_disk_written_bytes_total{device=\"nvme0n1\"}[5m]) * on(instance) group_left(nodename) node_uname_info, \"short_node\", \"cp$1\", \"nodename\", \"k8s-cp(.*)\")",
+              "legendFormat": "{{ short_node }}"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 22
+          },
           "id": 10,
           "title": "Node Disk Usage",
           "type": "row",
-          "description": "Storage utilization per node. Green < 60%, yellow 60–85%, red > 85%. Scheduled = space reserved for replica placement. Usage grows as new PVCs are created and data is written."
+          "description": "Storage utilization per node. Green < 60%, yellow 60\u201385%, red > 85%. Scheduled = space reserved for replica placement. Usage grows as new PVCs are created and data is written."
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "percent",
@@ -190,30 +890,56 @@ data:
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "green", "value": null },
-                  { "color": "yellow", "value": 60 },
-                  { "color": "red", "value": 85 }
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 60
+                  },
+                  {
+                    "color": "red",
+                    "value": 85
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 23
+          },
           "id": 11,
           "options": {
             "displayMode": "gradient",
             "orientation": "horizontal",
-            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
             "showUnfilled": true,
             "text": {}
           },
           "description": "Current disk usage as a percentage of total capacity per node. Alert triggers when any node exceeds 85%. All 3 nodes have identical 512GB NVMe drives.",
           "title": "Disk Usage % per Node",
           "type": "bargauge",
-          "targets": [{ "expr": "longhorn_node_storage_usage_bytes / longhorn_node_storage_capacity_bytes * 100", "legendFormat": "{{ node }}" }]
+          "targets": [
+            {
+              "expr": "longhorn_node_storage_usage_bytes / longhorn_node_storage_capacity_bytes * 100",
+              "legendFormat": "{{ node }}"
+            }
+          ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -223,33 +949,59 @@ data:
                 "pointSize": 5,
                 "showPoints": "never",
                 "spanNulls": true,
-                "stacking": { "mode": "none" }
+                "stacking": {
+                  "mode": "none"
+                }
               },
               "unit": "bytes"
             },
             "overrides": []
           },
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 23
+          },
           "id": 12,
           "options": {
-            "legend": { "displayMode": "list", "placement": "bottom" },
-            "tooltip": { "mode": "multi", "sort": "desc" }
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
           },
           "description": "Storage usage growth over time per node. Gradual increase is normal (new PVCs, data written). Sudden spike may indicate a large snapshot or backup job. Nodes should stay balanced.",
           "title": "Storage Usage Over Time",
           "type": "timeseries",
-          "targets": [{ "expr": "longhorn_node_storage_usage_bytes", "legendFormat": "{{ node }}" }]
+          "targets": [
+            {
+              "expr": "longhorn_node_storage_usage_bytes",
+              "legendFormat": "{{ node }}"
+            }
+          ]
         },
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 31
+          },
           "id": 20,
-          "title": "Volume I/O — Throughput",
+          "title": "Volume I/O \u2014 Throughput",
           "type": "row",
           "description": "Read and write throughput per volume. Only volumes with active I/O are shown. High read = Jellyfin streaming or Tdarr reading source. High write = qBittorrent downloads completing or Tdarr writing transcoded output."
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -259,25 +1011,46 @@ data:
                 "pointSize": 5,
                 "showPoints": "never",
                 "spanNulls": true,
-                "stacking": { "mode": "none" }
+                "stacking": {
+                  "mode": "none"
+                }
               },
               "unit": "Bps"
             },
             "overrides": []
           },
-          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 32
+          },
           "id": 21,
           "options": {
-            "legend": { "displayMode": "list", "placement": "bottom" },
-            "tooltip": { "mode": "multi", "sort": "desc" }
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
           },
           "description": "Read throughput per volume in bytes per second. Jellyfin reads media files during streaming. Tdarr reads source files during transcoding. Only volumes with active reads shown.",
           "title": "Read Throughput (per volume)",
           "type": "timeseries",
-          "targets": [{ "expr": "max by (pvc, pvc_namespace) (longhorn_volume_read_throughput) > 0", "legendFormat": "{{ pvc_namespace }}/{{ pvc }}" }]
+          "targets": [
+            {
+              "expr": "max by (pvc, pvc_namespace) (longhorn_volume_read_throughput) > 0",
+              "legendFormat": "{{ pvc_namespace }}/{{ pvc }}"
+            }
+          ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -287,33 +1060,59 @@ data:
                 "pointSize": 5,
                 "showPoints": "never",
                 "spanNulls": true,
-                "stacking": { "mode": "none" }
+                "stacking": {
+                  "mode": "none"
+                }
               },
               "unit": "Bps"
             },
             "overrides": []
           },
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 32
+          },
           "id": 22,
           "options": {
-            "legend": { "displayMode": "list", "placement": "bottom" },
-            "tooltip": { "mode": "multi", "sort": "desc" }
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
           },
           "description": "Write throughput per volume in bytes per second. qBittorrent config gets writes as downloads complete and are imported. Sonarr/Radarr write metadata during library scans. Only volumes with active writes shown.",
           "title": "Write Throughput (per volume)",
           "type": "timeseries",
-          "targets": [{ "expr": "max by (pvc, pvc_namespace) (longhorn_volume_write_throughput) > 0", "legendFormat": "{{ pvc_namespace }}/{{ pvc }}" }]
+          "targets": [
+            {
+              "expr": "max by (pvc, pvc_namespace) (longhorn_volume_write_throughput) > 0",
+              "legendFormat": "{{ pvc_namespace }}/{{ pvc }}"
+            }
+          ]
         },
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 40
+          },
           "id": 30,
-          "title": "Volume I/O — IOPS",
+          "title": "Volume I/O \u2014 IOPS",
           "type": "row",
           "description": "Read and write IOPS per volume. Database volumes (PostgreSQL, Ghost, Karakeep) show random I/O patterns during queries. High IOPS on ARR config volumes = active library scan or metadata import."
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -323,26 +1122,47 @@ data:
                 "pointSize": 5,
                 "showPoints": "never",
                 "spanNulls": true,
-                "stacking": { "mode": "none" }
+                "stacking": {
+                  "mode": "none"
+                }
               },
               "unit": "short",
               "decimals": 0
             },
             "overrides": []
           },
-          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 41
+          },
           "id": 31,
           "options": {
-            "legend": { "displayMode": "list", "placement": "bottom" },
-            "tooltip": { "mode": "multi", "sort": "desc" }
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
           },
-          "description": "Read IOPS per volume. Database volumes show random read patterns during active queries. NVMe drives handle thousands of IOPS — high values here are normal. Only active volumes shown.",
+          "description": "Read IOPS per volume. Database volumes show random read patterns during active queries. NVMe drives handle thousands of IOPS \u2014 high values here are normal. Only active volumes shown.",
           "title": "Read IOPS (per volume)",
           "type": "timeseries",
-          "targets": [{ "expr": "max by (pvc, pvc_namespace) (longhorn_volume_read_iops) > 0", "legendFormat": "{{ pvc_namespace }}/{{ pvc }}" }]
+          "targets": [
+            {
+              "expr": "max by (pvc, pvc_namespace) (longhorn_volume_read_iops) > 0",
+              "legendFormat": "{{ pvc_namespace }}/{{ pvc }}"
+            }
+          ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -352,30 +1172,59 @@ data:
                 "pointSize": 5,
                 "showPoints": "never",
                 "spanNulls": true,
-                "stacking": { "mode": "none" }
+                "stacking": {
+                  "mode": "none"
+                }
               },
               "unit": "short",
               "decimals": 0
             },
             "overrides": []
           },
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 41
+          },
           "id": 32,
           "options": {
-            "legend": { "displayMode": "list", "placement": "bottom" },
-            "tooltip": { "mode": "multi", "sort": "desc" }
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
           },
           "description": "Write IOPS per volume. Spikes on metadata volumes indicate library scans or database commits. Sonarr/Radarr write frequently during large imports. Only active volumes shown.",
           "title": "Write IOPS (per volume)",
           "type": "timeseries",
-          "targets": [{ "expr": "max by (pvc, pvc_namespace) (longhorn_volume_write_iops) > 0", "legendFormat": "{{ pvc_namespace }}/{{ pvc }}" }]
+          "targets": [
+            {
+              "expr": "max by (pvc, pvc_namespace) (longhorn_volume_write_iops) > 0",
+              "legendFormat": "{{ pvc_namespace }}/{{ pvc }}"
+            }
+          ]
         }
       ],
       "schemaVersion": 39,
-      "tags": ["longhorn", "storage", "homelab"],
-      "templating": { "list": [] },
+      "tags": [
+        "longhorn",
+        "storage",
+        "homelab",
+        "nvme",
+        "smart"
+      ],
+      "templating": {
+        "list": []
+      },
       "refresh": "30s",
-      "time": { "from": "now-12h", "to": "now" },
+      "time": {
+        "from": "now-12h",
+        "to": "now"
+      },
       "timepicker": {},
       "timezone": "Asia/Manila",
       "title": "Longhorn Storage",

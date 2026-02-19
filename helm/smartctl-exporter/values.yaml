@@ -1,0 +1,79 @@
+# Helm values for prometheus-smartctl-exporter
+# Phase 4.28: NVMe S.M.A.R.T. health monitoring for all 3 M80q control plane nodes
+#
+# Chart:  prometheus-community/prometheus-smartctl-exporter 0.16.0
+# Image:  quay.io/prometheuscommunity/smartctl-exporter v0.14.0
+# Deploy: helm-homelab upgrade --install smartctl-exporter \
+#           prometheus-community/prometheus-smartctl-exporter \
+#           -n monitoring -f helm/smartctl-exporter/values.yaml
+#
+# CRITICAL: Pin devices to /dev/nvme0 (the NVMe controller character device).
+#   Do NOT use /dev/nvme0n1 (the block namespace) — smartctl reads SMART data
+#   from the controller. Auto-scan (no device config) picks up Longhorn's iSCSI
+#   virtual block devices (/dev/sd*) and generates bogus/empty SMART data.
+
+config:
+  devices:
+    - /dev/nvme0    # SK Hynix HFS512GDE9X081N 512GB — all 3 M80q nodes
+
+common:
+  config:
+    bind_to: "0.0.0.0:9633"
+    url_path: "/metrics"
+    smartctl_location: /usr/sbin/smartctl
+    collect_not_more_than_period: 60s   # Minimum interval between smartctl invocations
+
+image:
+  repository: quay.io/prometheuscommunity/smartctl-exporter
+  tag: "v0.14.0"
+  pullPolicy: IfNotPresent
+
+serviceMonitor:
+  enabled: true
+  extraLabels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+  interval: 60s
+  scrapeTimeout: 30s
+  attachMetadata:
+    node: true    # Add Kubernetes node name label to scraped metrics
+
+prometheusRules:
+  enabled: true
+  extraLabels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+  rules:
+    # NVMe unrecoverable data integrity errors
+    smartCTLDeviceMediaErrors:
+      enabled: true
+    # NVMe controller critical warning (spare exhaustion, temperature, degraded reliability)
+    smartCTLDeviceCriticalWarning:
+      enabled: true
+    # Available spare capacity dropped below drive's own threshold
+    smartCTLDeviceAvailableSpareUnderThreshold:
+      enabled: true
+    # Overall SMART health assessment failed
+    smartCTLDeviceStatus:
+      enabled: true
+    # Disabled: NVMe drives don't expose interface speed via SMART (SATA-specific)
+    smartCTLDInterfaceSlow:
+      enabled: false
+    # Temperature > 60°C — M80q is a small form factor PC, thermals matter
+    smartCTLDDeviceTemperature:
+      enabled: true
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi
+
+# DaemonSet tolerations — allows scheduling on control-plane nodes if taint is re-added.
+# Our cluster currently runs workloads on all 3 nodes (taint removed), but keeping this
+# as a safety net so SMART monitoring isn't silently lost during maintenance.
+tolerations:
+  - effect: NoSchedule
+    operator: Exists

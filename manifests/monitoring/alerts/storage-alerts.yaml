@@ -1,9 +1,15 @@
 # PrometheusRule for Longhorn Storage Alerts
 # Phase 4.28: Alert on Longhorn volume degradation — the gap that kube-prometheus-stack
 # defaults cannot cover (they handle PVC capacity, not Longhorn replica health)
+# Phase 4.28: Added NVMe S.M.A.R.T. alerts (media errors, spare threshold, wear)
 #
 # Metrics used:
 #   longhorn_volume_robustness — per-volume health (0=unknown, 1=healthy, 2=degraded, 3=faulted)
+#   smartctl_device_media_errors — unrecoverable NVMe data integrity errors
+#   smartctl_device_available_spare — remaining spare NAND blocks (%)
+#   smartctl_device_percentage_used — NVMe endurance used (%)
+#   smartctl_device_critical_warning — NVMe controller critical warning flags
+#   smartctl_device_smart_status — overall SMART health assessment
 #
 # Note: PVC capacity and node disk are already covered by kube-prometheus-stack defaults:
 #   KubePersistentVolumeFillingUp (warning <15%, critical <3%)
@@ -67,3 +73,71 @@ spec:
 
               5. Check disk availability on all nodes:
                  kubectl-homelab -n longhorn-system get nodes.longhorn.io -o wide
+
+    - name: nvme-smart
+      rules:
+        # NVMe drive reported unrecoverable data integrity errors
+        # These are physical drive failures — not transient. Any non-zero value is serious.
+        - alert: NVMeMediaErrors
+          expr: smartctl_device_media_errors > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "NVMe media errors detected on {{ $labels.node }}"
+            description: "{{ $labels.device }} on node {{ $labels.node }} has {{ $value }} unrecoverable media error(s). This indicates physical NAND failure. Back up data and plan drive replacement."
+            runbook: |
+              1. Verify error count in Grafana (NVMe Health row → Longhorn dashboard)
+
+              2. Check full SMART report on the affected node:
+                 ssh wawashi@<node>.k8s.rommelporras.com
+                 sudo smartctl -a /dev/nvme0
+
+              3. Run extended self-test (non-destructive, ~2 min for NVMe):
+                 sudo smartctl -t long /dev/nvme0
+                 sudo smartctl -l selftest /dev/nvme0
+
+              4. If errors confirmed, plan drive replacement. Begin Longhorn backup first:
+                 https://longhorn.k8s.rommelporras.com
+
+        # NVMe available spare dropped below drive's own threshold
+        # SK Hynix drives set this threshold themselves (typically ~10%)
+        # alertCTLDeviceAvailableSpareUnderThreshold is the Helm-provided rule;
+        # this rule provides a proactive warning before reaching that threshold.
+        - alert: NVMeSpareWarning
+          expr: smartctl_device_available_spare < 20
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "NVMe available spare low on {{ $labels.node }}: {{ $value }}%"
+            description: "{{ $labels.device }} on node {{ $labels.node }} has only {{ $value }}% spare NAND blocks remaining. Drive endurance is being consumed. Consider planning replacement."
+            runbook: |
+              1. Check wear level history in Grafana (NVMe Health row → Available Spare panel)
+
+              2. Check full SMART data on the affected node:
+                 ssh wawashi@<node>.k8s.rommelporras.com
+                 sudo smartctl -a /dev/nvme0
+
+              3. Plan drive replacement before spare reaches 0.
+                 SK Hynix HFS512GDE9X081N drives can be sourced as identical replacements.
+
+        # NVMe endurance used above 80% — approaching manufacturer's rated write endurance
+        - alert: NVMeWearHigh
+          expr: smartctl_device_percentage_used > 80
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "NVMe wear indicator high on {{ $labels.node }}: {{ $value }}% used"
+            description: "{{ $labels.device }} on node {{ $labels.node }} has consumed {{ $value }}% of its rated write endurance. SK Hynix 512GB rated ~300TBW. Plan drive replacement."
+            runbook: |
+              1. Check Total Bytes Written in Grafana (NVMe Health row → Longhorn dashboard)
+
+              2. Verify SMART data:
+                 ssh wawashi@<node>.k8s.rommelporras.com
+                 sudo smartctl -a /dev/nvme0
+
+              3. Order replacement drive (SK Hynix HFS512GDE9X081N or equivalent M.2 NVMe).
+                 Drain node before replacement:
+                 kubectl-homelab drain <node> --ignore-daemonsets --delete-emptydir-data
