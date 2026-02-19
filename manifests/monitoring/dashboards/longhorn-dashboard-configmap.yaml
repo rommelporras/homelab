@@ -1,0 +1,384 @@
+# Grafana Dashboard - Longhorn Storage
+# Phase 4.28: Storage health, node disk usage, and volume I/O visibility
+# Metrics sourced from longhorn-servicemonitor (scrapes longhorn-backend:manager port)
+# Auto-provisioned via grafana_dashboard label
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: longhorn-storage-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus-stack
+data:
+  longhorn-storage.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "title": "Storage Health",
+          "type": "row",
+          "description": "Overall Longhorn storage cluster health. Degraded = volume accessible but missing replicas (replica rebuilding). Faulted = all replicas failed, data at risk (immediate action required)."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "0",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "blue", "value": null }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+          "id": 2,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Total Longhorn volumes tracked. Each app config PVC creates one Longhorn volume with 2 replicas across 3 nodes.",
+          "title": "Total Volumes",
+          "type": "stat",
+          "targets": [{ "expr": "count(max by (volume) (longhorn_volume_robustness))", "legendFormat": "volumes" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "0",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+          "id": 3,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Volumes where all replicas are healthy (robustness = 1). Should match Total Volumes when cluster is fully healthy.",
+          "title": "Healthy",
+          "type": "stat",
+          "targets": [{ "expr": "count(max by (volume) (longhorn_volume_robustness) == 1) or vector(0)", "legendFormat": "healthy" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "0",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+          "id": 4,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Volumes running with fewer replicas than configured (robustness = 2). Data is accessible but redundancy is reduced. Usually resolves automatically as Longhorn rebuilds the replica.",
+          "title": "Degraded",
+          "type": "stat",
+          "targets": [{ "expr": "count(max by (volume) (longhorn_volume_robustness) == 2) or vector(0)", "legendFormat": "degraded" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "0",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 1 }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+          "id": 5,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Volumes with all replicas failed (robustness = 3). Data access is at risk. Check Longhorn UI immediately and verify node health.",
+          "title": "Faulted",
+          "type": "stat",
+          "targets": [{ "expr": "count(max by (volume) (longhorn_volume_robustness) == 3) or vector(0)", "legendFormat": "faulted" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "noValue": "0",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "blue", "value": null }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+          "id": 6,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Total Longhorn storage capacity across all 3 nodes. Each M80q node has a 512GB NVMe drive.",
+          "title": "Total Capacity",
+          "type": "stat",
+          "targets": [{ "expr": "sum(longhorn_node_storage_capacity_bytes)", "legendFormat": "capacity" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "noValue": "0",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "blue", "value": null }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+          "id": 7,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Total Longhorn storage currently used across all 3 nodes (actual replica data written to NVMe).",
+          "title": "Storage Used",
+          "type": "stat",
+          "targets": [{ "expr": "sum(longhorn_node_storage_usage_bytes)", "legendFormat": "used" }]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "id": 10,
+          "title": "Node Disk Usage",
+          "type": "row",
+          "description": "Storage utilization per node. Green < 60%, yellow 60–85%, red > 85%. Scheduled = space reserved for replica placement. Usage grows as new PVCs are created and data is written."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 60 },
+                  { "color": "red", "value": 85 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "id": 11,
+          "options": {
+            "displayMode": "gradient",
+            "orientation": "horizontal",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "showUnfilled": true,
+            "text": {}
+          },
+          "description": "Current disk usage as a percentage of total capacity per node. Alert triggers when any node exceeds 85%. All 3 nodes have identical 512GB NVMe drives.",
+          "title": "Disk Usage % per Node",
+          "type": "bargauge",
+          "targets": [{ "expr": "longhorn_node_storage_usage_bytes / longhorn_node_storage_capacity_bytes * 100", "legendFormat": "{{ node }}" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "id": 12,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Storage usage growth over time per node. Gradual increase is normal (new PVCs, data written). Sudden spike may indicate a large snapshot or backup job. Nodes should stay balanced.",
+          "title": "Storage Usage Over Time",
+          "type": "timeseries",
+          "targets": [{ "expr": "longhorn_node_storage_usage_bytes", "legendFormat": "{{ node }}" }]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+          "id": 20,
+          "title": "Volume I/O — Throughput",
+          "type": "row",
+          "description": "Read and write throughput per volume. Only volumes with active I/O are shown. High read = Jellyfin streaming or Tdarr reading source. High write = qBittorrent downloads completing or Tdarr writing transcoded output."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "Bps"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+          "id": 21,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Read throughput per volume in bytes per second. Jellyfin reads media files during streaming. Tdarr reads source files during transcoding. Only volumes with active reads shown.",
+          "title": "Read Throughput (per volume)",
+          "type": "timeseries",
+          "targets": [{ "expr": "max by (pvc, pvc_namespace) (longhorn_volume_read_throughput) > 0", "legendFormat": "{{ pvc_namespace }}/{{ pvc }}" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "Bps"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+          "id": 22,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Write throughput per volume in bytes per second. qBittorrent config gets writes as downloads complete and are imported. Sonarr/Radarr write metadata during library scans. Only volumes with active writes shown.",
+          "title": "Write Throughput (per volume)",
+          "type": "timeseries",
+          "targets": [{ "expr": "max by (pvc, pvc_namespace) (longhorn_volume_write_throughput) > 0", "legendFormat": "{{ pvc_namespace }}/{{ pvc }}" }]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+          "id": 30,
+          "title": "Volume I/O — IOPS",
+          "type": "row",
+          "description": "Read and write IOPS per volume. Database volumes (PostgreSQL, Ghost, Karakeep) show random I/O patterns during queries. High IOPS on ARR config volumes = active library scan or metadata import."
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "short",
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+          "id": 31,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Read IOPS per volume. Database volumes show random read patterns during active queries. NVMe drives handle thousands of IOPS — high values here are normal. Only active volumes shown.",
+          "title": "Read IOPS (per volume)",
+          "type": "timeseries",
+          "targets": [{ "expr": "max by (pvc, pvc_namespace) (longhorn_volume_read_iops) > 0", "legendFormat": "{{ pvc_namespace }}/{{ pvc }}" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": { "mode": "none" }
+              },
+              "unit": "short",
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+          "id": 32,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Write IOPS per volume. Spikes on metadata volumes indicate library scans or database commits. Sonarr/Radarr write frequently during large imports. Only active volumes shown.",
+          "title": "Write IOPS (per volume)",
+          "type": "timeseries",
+          "targets": [{ "expr": "max by (pvc, pvc_namespace) (longhorn_volume_write_iops) > 0", "legendFormat": "{{ pvc_namespace }}/{{ pvc }}" }]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["longhorn", "storage", "homelab"],
+      "templating": { "list": [] },
+      "refresh": "30s",
+      "time": { "from": "now-12h", "to": "now" },
+      "timepicker": {},
+      "timezone": "Asia/Manila",
+      "title": "Longhorn Storage",
+      "uid": "longhorn-storage",
+      "version": 1
+    }

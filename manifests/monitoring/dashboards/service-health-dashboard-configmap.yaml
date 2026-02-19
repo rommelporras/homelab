@@ -494,16 +494,16 @@ data:
           "type": "timeseries",
           "targets": [
             { "expr": "max(probe_duration_seconds{job=\"ghost\"})", "legendFormat": "Blog" },
-            { "expr": "probe_duration_seconds{job=\"invoicetron\"}", "legendFormat": "Invoicetron" },
-            { "expr": "probe_duration_seconds{job=\"portfolio\"}", "legendFormat": "Portfolio" },
-            { "expr": "probe_duration_seconds{job=\"jellyfin\"}", "legendFormat": "Jellyfin" },
-            { "expr": "probe_duration_seconds{job=\"seerr\"}", "legendFormat": "Seerr" },
-            { "expr": "probe_duration_seconds{job=\"tdarr\"}", "legendFormat": "Tdarr" },
-            { "expr": "probe_duration_seconds{job=\"byparr\"}", "legendFormat": "Byparr" },
-            { "expr": "probe_duration_seconds{job=\"uptime-kuma\"}", "legendFormat": "Uptime Kuma" },
-            { "expr": "probe_duration_seconds{job=\"karakeep\"}", "legendFormat": "Karakeep" },
-            { "expr": "probe_duration_seconds{job=\"ollama\"}", "legendFormat": "Ollama" },
-            { "expr": "probe_duration_seconds{job=\"adguard-dns\"}", "legendFormat": "AdGuard DNS" }
+            { "expr": "max(probe_duration_seconds{job=\"invoicetron\"})", "legendFormat": "Invoicetron" },
+            { "expr": "max(probe_duration_seconds{job=\"portfolio\"})", "legendFormat": "Portfolio" },
+            { "expr": "max(probe_duration_seconds{job=\"jellyfin\"})", "legendFormat": "Jellyfin" },
+            { "expr": "max(probe_duration_seconds{job=\"seerr\"})", "legendFormat": "Seerr" },
+            { "expr": "max(probe_duration_seconds{job=\"tdarr\"})", "legendFormat": "Tdarr" },
+            { "expr": "max(probe_duration_seconds{job=\"byparr\"})", "legendFormat": "Byparr" },
+            { "expr": "max(probe_duration_seconds{job=\"uptime-kuma\"})", "legendFormat": "Uptime Kuma" },
+            { "expr": "max(probe_duration_seconds{job=\"karakeep\"})", "legendFormat": "Karakeep" },
+            { "expr": "max(probe_duration_seconds{job=\"ollama\"})", "legendFormat": "Ollama" },
+            { "expr": "max(probe_duration_seconds{job=\"adguard-dns\"})", "legendFormat": "AdGuard DNS" }
           ]
         }
       ],
