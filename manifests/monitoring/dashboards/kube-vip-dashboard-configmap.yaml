@@ -1,3 +1,8 @@
+# Grafana Dashboard - kube-vip VIP Health
+# Monitors VIP leader election, lease health, and instance status across 3 control plane nodes
+# Data source: kube-state-metrics (lease), kube-vip /metrics (process), kube_pod (restarts)
+# Auto-provisioned via grafana_dashboard label
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -30,6 +35,7 @@ data:
           },
           "id": 1,
           "title": "VIP Status",
+          "description": "kube-vip leader election status via plndr-cp-lock lease in kube-system. VIP 10.10.30.10 floats to the current leader node.",
           "type": "row"
         },
         {
@@ -39,7 +45,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "mappings": [],
+              "noValue": "N/A",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -49,20 +55,19 @@ data:
                   }
                 ]
               }
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
             "h": 4,
-            "w": 6,
+            "w": 8,
             "x": 0,
             "y": 1
           },
           "id": 2,
           "options": {
-            "colorMode": "value",
+            "colorMode": "background",
             "graphMode": "none",
-            "justifyMode": "auto",
+            "justifyMode": "center",
             "reduceOptions": {
               "calcs": [
                 "lastNotNull"
@@ -73,6 +78,7 @@ data:
             "textMode": "value"
           },
           "title": "Current VIP Leader",
+          "description": "Node currently holding the plndr-cp-lock lease and serving VIP 10.10.30.10. Changes on failover.",
           "type": "stat",
           "targets": [
             {
@@ -91,6 +97,7 @@ data:
           "fieldConfig": {
             "defaults": {
               "unit": "s",
+              "noValue": "N/A",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -108,32 +115,33 @@ data:
                   }
                 ]
               }
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
             "h": 4,
-            "w": 6,
-            "x": 6,
+            "w": 8,
+            "x": 8,
             "y": 1
           },
           "id": 3,
           "options": {
-            "colorMode": "value",
+            "colorMode": "background",
             "graphMode": "none",
+            "justifyMode": "center",
             "reduceOptions": {
               "calcs": [
                 "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            }
+              ]
+            },
+            "textMode": "auto"
           },
           "title": "Lease Age (since last renew)",
+          "description": "Seconds since the plndr-cp-lock lease was last renewed. kube-vip renews every ~2s. >10s = renewal stalled. >30s = likely failover in progress.",
           "type": "stat",
           "targets": [
             {
               "expr": "time() - kube_lease_renew_time{lease=\"plndr-cp-lock\", namespace=\"kube-system\"}",
+              "instant": true,
               "refId": "A"
             }
           ]
@@ -145,67 +153,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 4,
-            "w": 6,
-            "x": 12,
-            "y": 1
-          },
-          "id": 4,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "none",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            }
-          },
-          "title": "Lease Transitions (total)",
-          "type": "stat",
-          "targets": [
-            {
-              "expr": "kube_lease_spec_lease_transitions{lease=\"plndr-cp-lock\", namespace=\"kube-system\"}",
-              "refId": "A"
-            }
-          ]
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "mappings": [
-                {
-                  "options": {
-                    "0": {
-                      "color": "red",
-                      "text": "DOWN"
-                    },
-                    "1": {
-                      "color": "green",
-                      "text": "UP"
-                    }
-                  },
-                  "type": "value"
-                }
-              ],
+              "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -214,37 +162,42 @@ data:
                     "value": null
                   },
                   {
+                    "color": "yellow",
+                    "value": 2
+                  },
+                  {
                     "color": "green",
-                    "value": 1
+                    "value": 3
                   }
                 ]
               }
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
             "h": 4,
-            "w": 6,
-            "x": 18,
+            "w": 8,
+            "x": 16,
             "y": 1
           },
           "id": 5,
           "options": {
             "colorMode": "background",
             "graphMode": "none",
+            "justifyMode": "center",
             "reduceOptions": {
               "calcs": [
                 "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            }
+              ]
+            },
+            "textMode": "auto"
           },
           "title": "Instances Up",
+          "description": "Number of kube-vip instances responding to scrapes. 3 = all control plane nodes healthy. <3 = a node or kube-vip pod is down.",
           "type": "stat",
           "targets": [
             {
               "expr": "count(up{job=\"kube-vip\"} == 1)",
+              "instant": true,
               "refId": "A"
             }
           ]
@@ -259,6 +212,7 @@ data:
           },
           "id": 10,
           "title": "Instance Health",
+          "description": "Per-node kube-vip instance status and container restart history",
           "type": "row"
         },
         {
@@ -271,8 +225,7 @@ data:
               "custom": {
                 "lineWidth": 2,
                 "fillOpacity": 20,
-                "spanNulls": false,
-                "axisBorderShow": false
+                "spanNulls": false
               },
               "mappings": [
                 {
@@ -302,8 +255,7 @@ data:
               },
               "min": 0,
               "max": 1
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
             "h": 6,
@@ -322,11 +274,12 @@ data:
             }
           },
           "title": "Instance Status",
+          "description": "Per-node kube-vip scrape target status. UP = responding to Prometheus scrapes. DOWN = pod crashed or node unreachable.",
           "type": "timeseries",
           "targets": [
             {
-              "expr": "up{job=\"kube-vip\"}",
-              "legendFormat": "{{ instance }}",
+              "expr": "label_replace(up{job=\"kube-vip\"}, \"short_node\", \"cp$1\", \"instance\", \"10\\\\.10\\\\.30\\\\.1(\\\\d):2112\")",
+              "legendFormat": "{{ short_node }}",
               "refId": "A"
             }
           ]
@@ -343,25 +296,8 @@ data:
                 "fillOpacity": 10,
                 "spanNulls": false
               },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "yellow",
-                    "value": 3
-                  },
-                  {
-                    "color": "red",
-                    "value": 10
-                  }
-                ]
-              }
-            },
-            "overrides": []
+              "noValue": "0"
+            }
           },
           "gridPos": {
             "h": 6,
@@ -379,12 +315,13 @@ data:
               "mode": "multi"
             }
           },
-          "title": "Container Restarts",
+          "title": "Container Restart Count",
+          "description": "Lifetime restart counter per kube-vip pod. Flat line = stable. Each step up = one restart at that point in time. Baseline of ~2 is from early cluster setup — watch for new steps. Investigate pod logs if counter increments unexpectedly.",
           "type": "timeseries",
           "targets": [
             {
-              "expr": "kube_pod_container_status_restarts_total{namespace=\"kube-system\", container=\"kube-vip\"}",
-              "legendFormat": "{{ pod }}",
+              "expr": "sum by (short_node) (label_replace(kube_pod_container_status_restarts_total{namespace=\"kube-system\", container=\"kube-vip\"}, \"short_node\", \"$1\", \"pod\", \"kube-vip-k8s-(cp\\\\d)\"))",
+              "legendFormat": "{{ short_node }}",
               "refId": "A"
             }
           ]
@@ -398,7 +335,8 @@ data:
             "y": 12
           },
           "id": 20,
-          "title": "Process Metrics",
+          "title": "Process & Network",
+          "description": "Go runtime and process-level metrics for kube-vip. Useful for debugging memory leaks, CPU spikes, or goroutine growth.",
           "type": "row"
         },
         {
@@ -414,8 +352,7 @@ data:
                 "fillOpacity": 20,
                 "spanNulls": false
               }
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
             "h": 7,
@@ -427,18 +364,19 @@ data:
           "options": {
             "legend": {
               "displayMode": "table",
-              "placement": "bottom"
+              "placement": "right"
             },
             "tooltip": {
               "mode": "multi"
             }
           },
           "title": "Memory Usage (RSS)",
+          "description": "Resident memory per kube-vip instance. Typically 20-50 MB — the VIP leader may use slightly more. Sustained growth over days may indicate a memory leak.",
           "type": "timeseries",
           "targets": [
             {
-              "expr": "process_resident_memory_bytes{job=\"kube-vip\"}",
-              "legendFormat": "{{ instance }}",
+              "expr": "label_replace(process_resident_memory_bytes{job=\"kube-vip\"}, \"short_node\", \"cp$1\", \"instance\", \"10\\\\.10\\\\.30\\\\.1(\\\\d):2112\")",
+              "legendFormat": "{{ short_node }}",
               "refId": "A"
             }
           ]
@@ -456,8 +394,7 @@ data:
                 "fillOpacity": 20,
                 "spanNulls": false
               }
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
             "h": 7,
@@ -469,18 +406,19 @@ data:
           "options": {
             "legend": {
               "displayMode": "table",
-              "placement": "bottom"
+              "placement": "right"
             },
             "tooltip": {
               "mode": "multi"
             }
           },
           "title": "CPU Time (rate)",
+          "description": "CPU seconds consumed per kube-vip instance. Near-zero is normal — elevated values may indicate a busy loop.",
           "type": "timeseries",
           "targets": [
             {
-              "expr": "rate(process_cpu_seconds_total{job=\"kube-vip\"}[5m])",
-              "legendFormat": "{{ instance }}",
+              "expr": "label_replace(rate(process_cpu_seconds_total{job=\"kube-vip\"}[5m]), \"short_node\", \"cp$1\", \"instance\", \"10\\\\.10\\\\.30\\\\.1(\\\\d):2112\")",
+              "legendFormat": "{{ short_node }}",
               "refId": "A"
             }
           ]
@@ -497,8 +435,7 @@ data:
                 "fillOpacity": 20,
                 "spanNulls": false
               }
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
             "h": 7,
@@ -510,33 +447,22 @@ data:
           "options": {
             "legend": {
               "displayMode": "table",
-              "placement": "bottom"
+              "placement": "right"
             },
             "tooltip": {
               "mode": "multi"
             }
           },
           "title": "Goroutines",
+          "description": "Active Go goroutines per kube-vip instance. VIP leader typically runs more goroutines (~18) than non-leaders (~14). Stable count is normal — sustained growth over hours may indicate a goroutine leak.",
           "type": "timeseries",
           "targets": [
             {
-              "expr": "go_goroutines{job=\"kube-vip\"}",
-              "legendFormat": "{{ instance }}",
+              "expr": "label_replace(go_goroutines{job=\"kube-vip\"}, \"short_node\", \"cp$1\", \"instance\", \"10\\\\.10\\\\.30\\\\.1(\\\\d):2112\")",
+              "legendFormat": "{{ short_node }}",
               "refId": "A"
             }
           ]
-        },
-        {
-          "collapsed": false,
-          "gridPos": {
-            "h": 1,
-            "w": 24,
-            "x": 0,
-            "y": 20
-          },
-          "id": 30,
-          "title": "Network",
-          "type": "row"
         },
         {
           "datasource": {
@@ -551,31 +477,31 @@ data:
                 "fillOpacity": 20,
                 "spanNulls": false
               }
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 21
+            "y": 20
           },
           "id": 31,
           "options": {
             "legend": {
               "displayMode": "table",
-              "placement": "bottom"
+              "placement": "right"
             },
             "tooltip": {
               "mode": "multi"
             }
           },
           "title": "Network Received (rate)",
+          "description": "Network receive rate from kube-vip's process metrics. Note: kube-vip runs with hostNetwork, so this shows ALL host network I/O — not just kube-vip traffic. Useful for spotting node-level anomalies.",
           "type": "timeseries",
           "targets": [
             {
-              "expr": "rate(process_network_receive_bytes_total{job=\"kube-vip\"}[5m])",
-              "legendFormat": "{{ instance }}",
+              "expr": "label_replace(rate(process_network_receive_bytes_total{job=\"kube-vip\"}[5m]), \"short_node\", \"cp$1\", \"instance\", \"10\\\\.10\\\\.30\\\\.1(\\\\d):2112\")",
+              "legendFormat": "{{ short_node }}",
               "refId": "A"
             }
           ]
@@ -593,31 +519,31 @@ data:
                 "fillOpacity": 20,
                 "spanNulls": false
               }
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 21
+            "y": 20
           },
           "id": 32,
           "options": {
             "legend": {
               "displayMode": "table",
-              "placement": "bottom"
+              "placement": "right"
             },
             "tooltip": {
               "mode": "multi"
             }
           },
           "title": "Network Transmitted (rate)",
+          "description": "Network transmit rate from kube-vip's process metrics. Note: kube-vip runs with hostNetwork, so this shows ALL host network I/O — not just kube-vip traffic. Leader node may show slightly higher TX due to ARP announcements.",
           "type": "timeseries",
           "targets": [
             {
-              "expr": "rate(process_network_transmit_bytes_total{job=\"kube-vip\"}[5m])",
-              "legendFormat": "{{ instance }}",
+              "expr": "label_replace(rate(process_network_transmit_bytes_total{job=\"kube-vip\"}[5m]), \"short_node\", \"cp$1\", \"instance\", \"10\\\\.10\\\\.30\\\\.1(\\\\d):2112\")",
+              "legendFormat": "{{ short_node }}",
               "refId": "A"
             }
           ]
@@ -633,6 +559,7 @@ data:
       "templating": {
         "list": []
       },
+      "refresh": "30s",
       "time": {
         "from": "now-6h",
         "to": "now"
