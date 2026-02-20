@@ -252,7 +252,7 @@ sum(up{job="cloudflared"}) == 0
 
 ## Changes
 
-### Files Created (17 total, 1 pending)
+### Files Created (18 total)
 
 | File | Type | Purpose | Status |
 |------|------|---------|--------|
@@ -268,21 +268,33 @@ sum(up{job="cloudflared"}) == 0
 | `manifests/monitoring/probes/byparr-probe.yaml` | Probe | Blackbox HTTP probe for Byparr | ✅ |
 | `manifests/monitoring/alerts/uptime-kuma-alerts.yaml` | PrometheusRule | UptimeKumaDown alert (uses existing probe) | ✅ |
 | `manifests/monitoring/servicemonitors/longhorn-servicemonitor.yaml` | ServiceMonitor | Scrape Longhorn manager metrics (port 9500) | ✅ |
-| `manifests/monitoring/alerts/storage-alerts.yaml` | PrometheusRule | Longhorn volume degraded/faulted alerts | ✅ |
+| `manifests/monitoring/alerts/storage-alerts.yaml` | PrometheusRule | Longhorn volume degraded/faulted alerts + NVMe SMART alerts (NVMeMediaErrors, NVMeSpareWarning, NVMeWearHigh) | ✅ |
 | `manifests/monitoring/servicemonitors/certmanager-servicemonitor.yaml` | ServiceMonitor | Scrape cert-manager metrics (port 9402) | ✅ |
 | `manifests/monitoring/alerts/cert-alerts.yaml` | PrometheusRule | Certificate expiry + not-ready alerts | ✅ |
 | `manifests/monitoring/alerts/cloudflare-alerts.yaml` | PrometheusRule | Tunnel degraded/down alerts | ✅ |
 | `manifests/monitoring/dashboards/service-health-dashboard-configmap.yaml` | ConfigMap | Grafana Service Health dashboard (11 UP/DOWN stat panels, uptime history, response time) | ✅ |
-| `manifests/monitoring/alerts/apiserver-alerts.yaml` | PrometheusRule | KubeApiserverFrequentRestarts alert (>5 restarts/24h) | ⏳ 4.28.8 |
+| `manifests/monitoring/alerts/apiserver-alerts.yaml` | PrometheusRule | KubeApiserverFrequentRestarts alert (>5 restarts/24h) | ✅ |
+| `helm/smartctl-exporter/values.yaml` | Helm values | smartctl-exporter DaemonSet on all 3 nodes, pinned to /dev/nvme0, ServiceMonitor enabled | ✅ |
 
-### Files Modified (4 total)
+### Files Modified (15 total)
 
 | File | Change | Status |
 |------|--------|--------|
 | `manifests/monitoring/alerts/adguard-dns-alert.yaml` | Fixed labels: `prometheus: prometheus` + `role: alert-rules` → `release: prometheus` + `app.kubernetes.io/part-of: kube-prometheus-stack` | ✅ |
 | `manifests/monitoring/alerts/arr-alerts.yaml` | Added SeerrDown, TdarrDown, ByparrDown alerts | ✅ |
 | `manifests/monitoring/alerts/logging-alerts.yaml` | Removed `LokiStorageLow` rule (redundant with default `KubePersistentVolumeFillingUp`) | ✅ |
-| `manifests/monitoring/dashboards/arr-stack-dashboard-configmap.yaml` | Added Byparr companion pod status panel; fixed Container Restarts to use `increase($__rate_interval)` | ✅ |
+| `helm/prometheus/values.yaml` | Enable Grafana sidecar folderAnnotation for auto-provisioned dashboard folders | ✅ |
+| `manifests/monitoring/dashboards/arr-stack-dashboard-configmap.yaml` | Added Byparr companion pod status panel; fixed Container Restarts; Homelab folder annotation | ✅ |
+| `manifests/monitoring/dashboards/longhorn-dashboard-configmap.yaml` | Full NVMe Health section (SMART status, temp, wear, spare, TBW history + write rate); NVMe dashboard redesign (table → stat panels, consolidated layout, Drive Reference section) | ✅ |
+| `manifests/monitoring/dashboards/network-dashboard-configmap.yaml` | Per-node queries (cp1/cp2/cp3), stale series dedup, layout restructure, per-node color overrides, multi-series tooltip + right-side legend | ✅ |
+| `manifests/monitoring/dashboards/scraparr-dashboard-configmap.yaml` | Wider service health panels, fixed Prowlarr indexers query, restructured disk usage panels | ✅ |
+| `manifests/monitoring/dashboards/kube-vip-dashboard-configmap.yaml` | Complete rewrite: remove non-existent Lease Transitions panel, fix all metrics/thresholds/descriptions, switch Container Restarts to raw lifetime counter, standardize layout | ⏳ 4.28.11.12 |
+| `manifests/monitoring/dashboards/jellyfin-dashboard-configmap.yaml` | Standardize metadata, JSON formatting, Homelab folder annotation | ✅ |
+| `manifests/monitoring/dashboards/tailscale-dashboard-configmap.yaml` | Standardize metadata, JSON formatting, Homelab folder annotation | ✅ |
+| `manifests/monitoring/dashboards/claude-dashboard-configmap.yaml` | Simplify tags, Homelab folder annotation | ✅ |
+| `manifests/monitoring/dashboards/ups-dashboard-configmap.yaml` | Add tags, Homelab folder annotation | ✅ |
+| `manifests/monitoring/dashboards/version-checker-dashboard-configmap.yaml` | Add tags, Homelab folder annotation | ✅ |
+| `manifests/monitoring/dashboards/service-health-dashboard-configmap.yaml` | Improvements to existing dashboard | ✅ |
 
 ---
 
@@ -471,11 +483,18 @@ All probes use the internal Blackbox Exporter at `blackbox-exporter-prometheus-b
 
 ### 4.28.11 Dashboard Improvements
 
-> Service Health dashboard and ARR Stack improvements.
+> Service Health dashboard, ARR Stack, and full dashboard audit across all 11 ConfigMaps.
 
 - [x] 4.28.11.0 Create Service Health Grafana dashboard (`dashboards/service-health-dashboard-configmap.yaml`) — 11 UP/DOWN stat panels for all Blackbox probe services, Uptime History time series, Response Time time series. All queries use `max()` to prevent stale TSDB series from creating duplicate panels.
 - [x] 4.28.11.1 ARR Stack dashboard: add Byparr companion pod status panel
 - [x] 4.28.11.2 ARR Stack dashboard: fix Container Restarts to use `increase($__rate_interval)` instead of raw cumulative counter
+- [x] 4.28.11.6 Enable Grafana "Homelab" folder organization — enable `folderAnnotation` in Prometheus Helm values, add `grafana_folder: "Homelab"` annotation to all 11 dashboard ConfigMaps
+- [x] 4.28.11.7 Add NVMe SMART monitoring — `smartctl-exporter` DaemonSet via Helm (`helm/smartctl-exporter/values.yaml`), pinned to `/dev/nvme0`, ServiceMonitor enabled with 5 Helm-provided rules + 3 custom alerts (NVMeMediaErrors critical, NVMeSpareWarning/NVMeWearHigh warning)
+- [x] 4.28.11.8 Longhorn dashboard NVMe Health section — SMART Status stat panel, Temperature, Available Spare, Wear % Used, TBW, Power-On Time all in one row; TBW History + Write Rate timeseries; Drive Reference section (model/serial/firmware); replaced Drive Info table panel (no tables in any dashboard)
+- [x] 4.28.11.9 Network dashboard overhaul — per-node queries (cp1/cp2/cp3 via `label_replace`), stale series dedup via `sum by ()` + explicit `refId`, full layout restructure, per-node color overrides (cp1=green, cp2=blue, cp3=orange), multi-series tooltip + right-side table legend
+- [x] 4.28.11.10 Scraparr dashboard improvements — widen service health panels (w=4→w=6), fix Prowlarr indexers query (add `sum by` across `type` label), restructure disk usage (Library Size + Media Storage Free)
+- [x] 4.28.11.11 Standardize all 11 dashboard ConfigMaps — `refresh: 30s`, `timezone: Asia/Manila`, tags, panel/row descriptions, `noValue`, `colorMode: "background"` on all stat panels
+- [ ] 4.28.11.12 kube-vip dashboard complete rewrite — remove non-existent Lease Transitions panel (`kube_lease_spec_lease_transitions` returns 0 series), fix Instances Up thresholds, switch Container Restarts from `increase([24h])` to raw lifetime counter (step-function shows exact restart timestamps), add accurate descriptions verified against live Prometheus data (pending commit)
 - [ ] 4.28.11.3 Add Loki log panels to ARR Stack dashboard:
   - Radarr/Sonarr grab/reject logs (which indexer, quality score, rejection reason)
   - Prowlarr indexer search activity (queries per indexer, failure rate)
