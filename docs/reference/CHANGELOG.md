@@ -4,22 +4,26 @@
 
 ---
 
-## February 19, 2026 — Phase 4.28 (In Progress): Alerting & Observability
+## February 19–20, 2026 — Phase 4.28 (In Progress): Alerting & Observability
 
 ### Summary
 
-Phase 4.28 alerting infrastructure complete. Dashboards improved. Control plane bind addresses fixed. kube-vip VIP loss investigated and root-caused. KubeApiserverFrequentRestarts alert identified as remaining gap.
+Phase 4.28 alerting infrastructure complete (20 new alerts + 2 bug fixes + 1 cleanup). NVMe S.M.A.R.T. monitoring added via smartctl_exporter. ARR stall resolver automates stuck torrent recovery. Six new/improved Grafana dashboards. All 11 dashboards organized into "Homelab" folder. Control plane bind addresses fixed. kube-vip VIP loss root-caused and KubeApiserverFrequentRestarts alert added.
 
 ### Infrastructure Changes
 
 | Change | Description |
 |--------|-------------|
 | monitoring/ reorganization | 55 flat files → 8 typed subdirectories (alerts/, dashboards/, exporters/, grafana/, otel/, probes/, servicemonitors/, version-checker/) |
+| smartctl_exporter | DaemonSet on all 3 nodes for NVMe S.M.A.R.T. metrics. Pinned to `/dev/nvme0`, 5 Helm-provided PrometheusRules + 3 custom NVMe alerts |
+| ARR stall resolver | CronJob (every 30 min) automates stuck torrent resolution — switches quality profile to Any and blocklists dead releases to trigger re-search |
+| Grafana folder organization | Enable sidecar `folderAnnotation` in Prometheus Helm values; add `grafana_folder: "Homelab"` to all 11 dashboard ConfigMaps |
 | Prometheus HTTPRoute | Exposed Prometheus UI at `prometheus.k8s.rommelporras.com` |
 | Alertmanager HTTPRoute | Exposed Alertmanager UI at `alertmanager.k8s.rommelporras.com` |
 | Homepage widgets | Prometheus targets count + Alertmanager firing count (excludes Watchdog) |
 | kubeadm bind addresses | Fixed etcd/kube-controller-manager/kube-scheduler to `0.0.0.0` so Prometheus can scrape |
 | kubeProxy disabled | `kubeProxy.enabled: false` in Helm values — Cilium replaces kube-proxy |
+| version-checker memory | Memory request 64Mi→128Mi, limit 128Mi→256Mi (was OOMKilled scanning 137 pods) |
 
 ### Alerting Infrastructure Completed (Phase 4.28)
 
@@ -36,6 +40,9 @@ Phase 4.28 alerting infrastructure complete. Dashboards improved. Control plane 
 | Longhorn ServiceMonitor + alerts | `servicemonitors/longhorn-servicemonitor.yaml`, `alerts/storage-alerts.yaml` | Done |
 | cert-manager ServiceMonitor + alerts | `servicemonitors/certmanager-servicemonitor.yaml`, `alerts/cert-alerts.yaml` | Done |
 | Cloudflare Tunnel alerts | `alerts/cloudflare-alerts.yaml` | Done |
+| KubeApiserverFrequentRestarts | `alerts/apiserver-alerts.yaml` | Done |
+| NVMe SMART alerts (3) | `alerts/storage-alerts.yaml` — NVMeMediaErrors (critical), NVMeSpareWarning, NVMeWearHigh | Done |
+| ARR queue health alerts (2) | `alerts/arr-alerts.yaml` — ArrQueueWarning (60m stall), ArrQueueError (15m) | Done |
 | AdGuard alert label fix | `alerts/adguard-dns-alert.yaml` | Done |
 | LokiStorageLow removed | `alerts/logging-alerts.yaml` | Done |
 
@@ -43,8 +50,18 @@ Phase 4.28 alerting infrastructure complete. Dashboards improved. Control plane 
 
 | Dashboard | Change |
 |-----------|--------|
-| Service Health (new) | 11 UP/DOWN probe stat panels for all monitored services |
-| ARR Stack | Added Byparr companion panel; fixed Container Restarts to use `increase()` |
+| Longhorn Storage (new) | Storage Health stats, NVMe S.M.A.R.T. section (SMART status, temp, spare, wear, TBW, power-on), Drive Reference row, Node Disk Usage, Volume I/O Throughput + IOPS |
+| Service Health (new) | 11 UP/DOWN probe stat panels, Uptime History + Response Time time series; `max()` on all queries to collapse stale TSDB series |
+| ARR Stack | Added Byparr companion panel; fixed Container Restarts to use `increase()`; standardized JSON formatting |
+| Jellyfin | Standardized JSON formatting |
+| Kube-VIP | Standardized JSON formatting |
+| Network | Standardized JSON formatting |
+| Scraparr | Standardized JSON formatting |
+| Tailscale | Standardized JSON formatting |
+| UPS | Added tags (`ups`, `power`, `infrastructure`) |
+| Version Checker | Added tags (`version-checker`, `maintenance`, `upgrades`) |
+| Claude | Simplified tags |
+| All 11 dashboards | Added `grafana_folder: "Homelab"` annotation for Grafana folder organization |
 
 ### kube-vip VIP Loss Investigation
 
@@ -57,12 +74,19 @@ Phase 4.28 alerting infrastructure complete. Dashboards improved. Control plane 
 
 **Restart counts (34 days):** cp1=7, cp2=21, cp3=30 — cp3 averaging ~1 restart/day.
 
-**Gap identified:** No alert exists for frequent API server restarts. `KubeApiserverFrequentRestarts` to be added in Phase 4.28.
+**Resolution:** Added `KubeApiserverFrequentRestarts` alert — fires when any kube-apiserver pod exceeds 5 restarts in 24h. Currently NOT firing (cp1=2, cp2=1, cp3=2 restarts/24h, all below threshold).
 
 ### Key Decisions
 
 | Decision | Rationale |
 |----------|-----------|
+| smartctl_exporter pinned to `/dev/nvme0` | Avoids scraping Longhorn iSCSI virtual block devices that appear as `/dev/sd*` on each node |
+| NVMe alerts in storage-alerts.yaml | Groups all storage alerting (Longhorn volumes + NVMe health) in one file |
+| Stall resolver CronJob every 30 min | Two cycles (60 min) before ArrQueueWarning fires — gives automation time to resolve before alerting |
+| Stall resolver skips importPending/importBlocked | Different root cause (NFS/disk issues) requires manual intervention, not blocklisting |
+| `grafana_folder: "Homelab"` on all dashboards | Organizes custom dashboards into dedicated folder, separate from kube-prometheus-stack defaults |
+| Longhorn table panel → stat panels | Zero tables across all dashboards — all info displayed via stat panels with descriptions |
+| Drive reference data at dashboard bottom | Model/serial/firmware is static info, not monitoring — visible but out of the way |
 | `max()` on all probe stat panels | Prevents stale TSDB series from creating duplicate stat panels when probe targets change |
 | `increase($__rate_interval)` for Container Restarts | Cumulative counter misleads at short time ranges; `increase()` shows new restarts per window |
 | Expose Prometheus/Alertmanager via HTTPRoute | Needed for Homepage widgets and direct troubleshooting |
