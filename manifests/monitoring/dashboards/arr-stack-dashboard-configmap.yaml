@@ -1176,6 +1176,280 @@ data:
               "legendFormat": "{{ container }}"
             }
           ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 41 },
+          "id": 20,
+          "title": "Tdarr Library Stats",
+          "description": "Tdarr transcoding library health. Metrics from tdarr-exporter querying the Tdarr REST API every 60s. Transcode errors and health check errors should be investigated in the Tdarr UI.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "GB",
+              "noValue": "0",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+            }
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 0, "y": 42 },
+          "id": 21,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "title": "GB Saved",
+          "description": "Total disk space saved by Tdarr transcoding (original size minus transcoded size). Grows as more files are processed.",
+          "type": "stat",
+          "targets": [{ "expr": "tdarr_size_diff_gb", "instant": true, "refId": "A" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "noValue": "0",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 50 }, { "color": "green", "value": 80 }] }
+            }
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 4, "y": 42 },
+          "id": 22,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "title": "Tdarr Score",
+          "description": "Percentage of library files that meet Tdarr's health and codec requirements. 100% = all files healthy and in target codec.",
+          "type": "stat",
+          "targets": [{ "expr": "tdarr_score_pct", "instant": true, "refId": "A" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "0",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+            }
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 8, "y": 42 },
+          "id": 23,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "title": "Files Tracked",
+          "description": "Total number of files in the Tdarr library.",
+          "type": "stat",
+          "targets": [{ "expr": "tdarr_files_total", "instant": true, "refId": "A" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "0",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+            }
+          },
+          "gridPos": { "h": 4, "w": 3, "x": 12, "y": 42 },
+          "id": 24,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "title": "Transcodes Done",
+          "description": "Files successfully transcoded to target codec (typically HEVC/H.265).",
+          "type": "stat",
+          "targets": [{ "expr": "tdarr_library_transcodes{library_id=\"all_libraries\", status=\"success\"}", "instant": true, "refId": "A" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "0",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }] }
+            }
+          },
+          "gridPos": { "h": 4, "w": 3, "x": 15, "y": 42 },
+          "id": 25,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "title": "Transcode Queue",
+          "description": "Files waiting to be transcoded. Will only process during enabled schedule windows. If schedule is disabled, queue won't drain.",
+          "type": "stat",
+          "targets": [{ "expr": "tdarr_library_transcodes{library_id=\"all_libraries\", status=\"queued\"}", "instant": true, "refId": "A" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "0",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+            }
+          },
+          "gridPos": { "h": 4, "w": 3, "x": 18, "y": 42 },
+          "id": 26,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "title": "Transcode Errors",
+          "description": "Files that failed transcoding. Open Tdarr UI → Library → Error tab to see which files and why. Common causes: corrupted source, unsupported codec, insufficient disk space.",
+          "type": "stat",
+          "targets": [{ "expr": "tdarr_library_transcodes{library_id=\"all_libraries\", status=\"error\"}", "instant": true, "refId": "A" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "0",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+            }
+          },
+          "gridPos": { "h": 4, "w": 3, "x": 21, "y": 42 },
+          "id": 27,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "title": "Health Check Errors",
+          "description": "Files that failed Tdarr health checks (container/stream integrity). High numbers (e.g. 73) may indicate many files have minor issues. Check Tdarr UI → Health Check tab for details.",
+          "type": "stat",
+          "targets": [{ "expr": "tdarr_library_health_checks{library_id=\"all_libraries\", status=\"error\"}", "instant": true, "refId": "A" }]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 46 },
+          "id": 30,
+          "title": "qBittorrent Download Activity",
+          "description": "Torrent client status from qbittorrent-exporter. Shows active downloads, seeding, and transfer speeds. Requires qbittorrent-exporter-secret.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "0",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }, { "color": "green", "value": 1 }] }
+            }
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 0, "y": 47 },
+          "id": 31,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "title": "Downloading",
+          "description": "Torrents actively downloading from peers right now.",
+          "type": "stat",
+          "targets": [{ "expr": "sum(qbittorrent_torrents_count{status=\"downloading\"})", "instant": true, "refId": "A" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "0",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+            }
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 4, "y": 47 },
+          "id": 32,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "title": "Seeding",
+          "description": "Torrents seeding (uploading to other peers). Includes both actively uploading and stalled seeding.",
+          "type": "stat",
+          "targets": [{ "expr": "sum(qbittorrent_torrents_count{status=~\"uploading|stalledUP\"})", "instant": true, "refId": "A" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "0",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }] }
+            }
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 8, "y": 47 },
+          "id": 33,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "title": "Stalled",
+          "description": "Downloads stalled — no seeds available or peer connections failing. Investigate if non-zero for extended periods.",
+          "type": "stat",
+          "targets": [{ "expr": "sum(qbittorrent_torrents_count{status=\"stalledDL\"})", "instant": true, "refId": "A" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "noValue": "0",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }] }
+            }
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 12, "y": 47 },
+          "id": 34,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "title": "Paused",
+          "description": "Paused torrents (manually paused or reached seeding ratio limit).",
+          "type": "stat",
+          "targets": [{ "expr": "sum(qbittorrent_torrents_count{status=~\"pausedDL|pausedUP\"})", "instant": true, "refId": "A" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "Bps", "noValue": "0 B/s", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } } },
+          "gridPos": { "h": 4, "w": 4, "x": 16, "y": 47 },
+          "id": 35,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "title": "DL Speed",
+          "description": "Current aggregate download speed across all active torrents. Derived from rate of qbittorrent_dl_info_data_total counter.",
+          "type": "stat",
+          "targets": [{ "expr": "rate(qbittorrent_dl_info_data_total[5m])", "instant": true, "refId": "A" }]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "Bps", "noValue": "0 B/s", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } } },
+          "gridPos": { "h": 4, "w": 4, "x": 20, "y": 47 },
+          "id": 36,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "title": "UL Speed",
+          "description": "Current aggregate upload speed across all seeding torrents. Derived from rate of qbittorrent_up_info_data_total counter.",
+          "type": "stat",
+          "targets": [{ "expr": "rate(qbittorrent_up_info_data_total[5m])", "instant": true, "refId": "A" }]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 51 },
+          "id": 40,
+          "title": "Recent Activity",
+          "description": "Live log stream from ARR stack pods via Loki. Warnings and errors surface silent failures. App activity shows RSS syncs, grabs, imports, and search queries.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 52 },
+          "id": 41,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showLabels": true,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "title": "Warnings & Errors",
+          "description": "All warning and error log lines across the entire ARR stack. This is the single most useful panel — surfaces silent failures from any app without needing to check each pod individually.",
+          "type": "logs",
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{namespace=\"arr-stack\"} |~ \"\\\\[(Warn|Error)\\\\]\"",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 62 },
+          "id": 42,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showLabels": true,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "title": "ARR App Activity",
+          "description": "Info-level activity from Radarr, Sonarr, and Prowlarr — RSS sync results, grab events, search queries, imports. Authentication noise and repetitive sync-start/complete lines are filtered out.",
+          "type": "logs",
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{namespace=\"arr-stack\", app=~\"radarr|sonarr|prowlarr\"} |~ \"\\\\[Info\\\\]\" != \"AuthenticationScheme\" != \"Starting RSS Sync\" != \"Starting Import List\" != \"No list items\"",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ]
         }
       ],
       "schemaVersion": 39,

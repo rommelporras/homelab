@@ -1,0 +1,90 @@
+# qBittorrent Prometheus Exporter
+# Queries qBittorrent WebUI API and exposes metrics for Prometheus
+# Requires secret: qbittorrent-exporter-secret (QBITTORRENT_PASS)
+# Create: kubectl create secret generic qbittorrent-exporter-secret -n arr-stack \
+#           --from-literal=QBITTORRENT_PASS="$(op read 'op://Kubernetes/ARR Stack/password')"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent-exporter
+  namespace: arr-stack
+  labels:
+    app: qbittorrent-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qbittorrent-exporter
+  template:
+    metadata:
+      labels:
+        app: qbittorrent-exporter
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: qbittorrent-exporter
+          image: esanchezm/prometheus-qbittorrent-exporter:latest
+          env:
+            - name: QBITTORRENT_HOST
+              value: "qbittorrent.arr-stack.svc.cluster.local"
+            - name: QBITTORRENT_PORT
+              value: "8080"
+            - name: QBITTORRENT_SSL
+              value: "False"
+            - name: QBITTORRENT_USER
+              value: "0xwsh"
+            - name: QBITTORRENT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: qbittorrent-exporter-secret
+                  key: QBITTORRENT_PASS
+            - name: EXPORTER_PORT
+              value: "8000"
+            - name: EXPORTER_LOG_LEVEL
+              value: "INFO"
+            - name: METRICS_PREFIX
+              value: "qbittorrent"
+          ports:
+            - name: metrics
+              containerPort: 8000
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qbittorrent-exporter
+  namespace: arr-stack
+  labels:
+    app: qbittorrent-exporter
+spec:
+  selector:
+    app: qbittorrent-exporter
+  ports:
+    - name: metrics
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
