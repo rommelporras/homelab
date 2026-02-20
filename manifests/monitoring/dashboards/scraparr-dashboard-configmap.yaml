@@ -45,6 +45,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
+              "noValue": "DOWN",
               "mappings": [
                 {
                   "options": {
@@ -77,13 +78,24 @@ data:
           },
           "gridPos": {
             "h": 4,
-            "w": 4,
+            "w": 6,
             "x": 0,
             "y": 1
           },
           "id": 2,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
           "title": "Sonarr",
-          "description": "Sonarr service health via Scraparr",
+          "description": "Sonarr service health via Scraparr. UP = API responding. DOWN = unreachable or crashed.",
           "type": "stat",
           "targets": [
             {
@@ -99,6 +111,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
+              "noValue": "DOWN",
               "mappings": [
                 {
                   "options": {
@@ -131,13 +144,24 @@ data:
           },
           "gridPos": {
             "h": 4,
-            "w": 4,
-            "x": 4,
+            "w": 6,
+            "x": 6,
             "y": 1
           },
           "id": 3,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
           "title": "Radarr",
-          "description": "Radarr service health via Scraparr",
+          "description": "Radarr service health via Scraparr. UP = API responding. DOWN = unreachable or crashed.",
           "type": "stat",
           "targets": [
             {
@@ -153,6 +177,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
+              "noValue": "DOWN",
               "mappings": [
                 {
                   "options": {
@@ -185,13 +210,24 @@ data:
           },
           "gridPos": {
             "h": 4,
-            "w": 4,
-            "x": 8,
+            "w": 6,
+            "x": 12,
             "y": 1
           },
           "id": 4,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
           "title": "Prowlarr",
-          "description": "Prowlarr service health via Scraparr",
+          "description": "Prowlarr service health via Scraparr. UP = API responding. DOWN = unreachable or crashed.",
           "type": "stat",
           "targets": [
             {
@@ -207,6 +243,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
+              "noValue": "DOWN",
               "mappings": [
                 {
                   "options": {
@@ -239,13 +276,24 @@ data:
           },
           "gridPos": {
             "h": 4,
-            "w": 4,
-            "x": 12,
+            "w": 6,
+            "x": 18,
             "y": 1
           },
           "id": 5,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
           "title": "Bazarr",
-          "description": "Bazarr service health via Scraparr",
+          "description": "Bazarr service health via Scraparr. UP = API responding. DOWN = unreachable or crashed.",
           "type": "stat",
           "targets": [
             {
@@ -274,6 +322,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
+              "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -292,8 +341,19 @@ data:
             "y": 6
           },
           "id": 11,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
           "title": "Total Movies",
-          "description": "Total movies tracked in Radarr",
+          "description": "Total movies tracked in Radarr (monitored + unmonitored). Grows as you add movies to your watchlist.",
           "type": "stat",
           "targets": [
             {
@@ -309,6 +369,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
+              "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -327,8 +388,19 @@ data:
             "y": 6
           },
           "id": 12,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
           "title": "Missing Movies",
-          "description": "Movies monitored but not yet downloaded",
+          "description": "Movies monitored but not yet downloaded. High count is normal for new libraries — Radarr searches indexers automatically.",
           "type": "stat",
           "targets": [
             {
@@ -344,6 +416,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
+              "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -362,8 +435,19 @@ data:
             "y": 6
           },
           "id": 13,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
           "title": "Total Series",
-          "description": "Total TV series tracked in Sonarr",
+          "description": "Total TV series tracked in Sonarr (monitored + unmonitored). Grows as you add shows to your watchlist.",
           "type": "stat",
           "targets": [
             {
@@ -379,6 +463,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
+              "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -397,8 +482,19 @@ data:
             "y": 6
           },
           "id": 14,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
           "title": "Missing Episodes",
-          "description": "Episodes monitored but not yet downloaded",
+          "description": "Episodes monitored but not yet downloaded. High count is normal — includes all missing episodes across all tracked series.",
           "type": "stat",
           "targets": [
             {
@@ -414,6 +510,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
+              "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -432,12 +529,23 @@ data:
             "y": 6
           },
           "id": 15,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
           "title": "Prowlarr Indexers",
-          "description": "Number of indexers configured in Prowlarr",
+          "description": "Number of indexers configured in Prowlarr. Metric splits by type (torrent/usenet) — summed here. Currently 5 public torrent indexers: 1337x, TheRARBG, EZTV, YTS, Nyaa.si.",
           "type": "stat",
           "targets": [
             {
-              "expr": "prowlarr_indexer_count",
+              "expr": "sum(prowlarr_indexer_count)",
               "legendFormat": "Indexers"
             }
           ]
@@ -449,6 +557,7 @@ data:
           },
           "fieldConfig": {
             "defaults": {
+              "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -467,8 +576,19 @@ data:
             "y": 6
           },
           "id": 16,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
           "title": "Wanted Subtitles",
-          "description": "Movies + episodes missing subtitles (Bazarr)",
+          "description": "Movies + episodes missing subtitles (Bazarr). Bazarr automatically searches for subtitles on configured providers.",
           "type": "stat",
           "targets": [
             {
@@ -498,11 +618,12 @@ data:
           "fieldConfig": {
             "defaults": {
               "unit": "decbytes",
+              "noValue": "N/A",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
+                    "color": "blue",
                     "value": null
                   }
                 ]
@@ -511,18 +632,29 @@ data:
           },
           "gridPos": {
             "h": 4,
-            "w": 6,
+            "w": 8,
             "x": 0,
             "y": 11
           },
           "id": 21,
-          "title": "Radarr Disk Used",
-          "description": "Total disk space used by Radarr library",
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "title": "Radarr Library Size",
+          "description": "Disk space used by Radarr's movie root folder on NFS (/export/Kubernetes/Media/media/movies).",
           "type": "stat",
           "targets": [
             {
               "expr": "radarr_disk_size",
-              "legendFormat": "Used"
+              "legendFormat": "Movies"
             }
           ]
         },
@@ -534,11 +666,12 @@ data:
           "fieldConfig": {
             "defaults": {
               "unit": "decbytes",
+              "noValue": "N/A",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
+                    "color": "blue",
                     "value": null
                   }
                 ]
@@ -547,54 +680,29 @@ data:
           },
           "gridPos": {
             "h": 4,
-            "w": 6,
-            "x": 6,
-            "y": 11
-          },
-          "id": 22,
-          "title": "Radarr Disk Free",
-          "description": "Free disk space available for Radarr",
-          "type": "stat",
-          "targets": [
-            {
-              "expr": "radarr_free_disk_size",
-              "legendFormat": "Free"
-            }
-          ]
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "decbytes",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              }
-            }
-          },
-          "gridPos": {
-            "h": 4,
-            "w": 6,
-            "x": 12,
+            "w": 8,
+            "x": 8,
             "y": 11
           },
           "id": 23,
-          "title": "Sonarr Disk Used",
-          "description": "Total disk space used by Sonarr library",
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "title": "Sonarr Library Size",
+          "description": "Disk space used by Sonarr's series root folder on NFS (/export/Kubernetes/Media/media/tv).",
           "type": "stat",
           "targets": [
             {
               "expr": "sonarr_disk_size",
-              "legendFormat": "Used"
+              "legendFormat": "Series"
             }
           ]
         },
@@ -606,11 +714,12 @@ data:
           "fieldConfig": {
             "defaults": {
               "unit": "decbytes",
+              "noValue": "N/A",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
+                    "color": "blue",
                     "value": null
                   }
                 ]
@@ -619,17 +728,28 @@ data:
           },
           "gridPos": {
             "h": 4,
-            "w": 6,
-            "x": 18,
+            "w": 8,
+            "x": 16,
             "y": 11
           },
           "id": 24,
-          "title": "Sonarr Disk Free",
-          "description": "Free disk space available for Sonarr",
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "title": "Media Storage Free",
+          "description": "Free space on the NFS media volume (/export/Kubernetes/Media). Shared by Radarr and Sonarr — same filesystem, same free space.",
           "type": "stat",
           "targets": [
             {
-              "expr": "sonarr_free_disk_size",
+              "expr": "radarr_free_disk_size",
               "legendFormat": "Free"
             }
           ]
@@ -843,10 +963,13 @@ data:
       "templating": {
         "list": []
       },
+      "refresh": "30s",
       "time": {
         "from": "now-24h",
         "to": "now"
       },
+      "timepicker": {},
+      "timezone": "Asia/Manila",
       "title": "Scraparr - ARR Metrics",
       "uid": "scraparr-arr-metrics"
     }

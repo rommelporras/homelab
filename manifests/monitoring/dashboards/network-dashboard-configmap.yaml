@@ -48,6 +48,7 @@ data:
               "unit": "percent",
               "min": 0,
               "max": 100,
+              "noValue": "N/A",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -73,18 +74,45 @@ data:
           },
           "gridPos": {
             "h": 6,
-            "w": 8,
+            "w": 24,
             "x": 0,
             "y": 1
           },
           "id": 2,
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "orientation": "auto",
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
           "title": "NIC Utilization % (Current)",
-          "description": "Current NIC utilization as percentage of link speed. >80% sustained = consider 2.5GbE upgrade. Uses node_network_speed_bytes if available, falls back to 125000000 (1GbE).",
+          "description": "Current NIC utilization as percentage of 1GbE link speed (125 MB/s). >80% sustained = consider 2.5GbE upgrade.",
           "type": "gauge",
           "targets": [
             {
-              "expr": "(\n  rate(node_network_receive_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n  + rate(node_network_transmit_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n)\n/ clamp_min(node_network_speed_bytes{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}, 125000000)\n* 100",
-              "legendFormat": "{{instance}} - {{device}}"
+              "expr": "sum by () ((rate(node_network_receive_bytes_total{instance=\"10.10.30.11:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.11:9100\", device=\"eno1\"}[5m])) / 125000000 * 100)",
+              "legendFormat": "cp1",
+              "instant": true,
+              "range": false,
+              "refId": "A"
+            },
+            {
+              "expr": "sum by () ((rate(node_network_receive_bytes_total{instance=\"10.10.30.12:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.12:9100\", device=\"eno1\"}[5m])) / 125000000 * 100)",
+              "legendFormat": "cp2",
+              "instant": true,
+              "range": false,
+              "refId": "B"
+            },
+            {
+              "expr": "sum by () ((rate(node_network_receive_bytes_total{instance=\"10.10.30.13:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.13:9100\", device=\"eno1\"}[5m])) / 125000000 * 100)",
+              "legendFormat": "cp3",
+              "instant": true,
+              "range": false,
+              "refId": "C"
             }
           ]
         },
@@ -96,6 +124,7 @@ data:
           "fieldConfig": {
             "defaults": {
               "unit": "percent",
+              "noValue": "N/A",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -116,19 +145,47 @@ data:
             }
           },
           "gridPos": {
-            "h": 6,
-            "w": 8,
-            "x": 8,
-            "y": 1
+            "h": 4,
+            "w": 12,
+            "x": 0,
+            "y": 7
           },
           "id": 3,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
           "title": "Peak Utilization (24h)",
-          "description": "Maximum NIC utilization in the last 24 hours",
+          "description": "Maximum NIC utilization in the last 24 hours. Shows the highest point per node — if consistently high, consider 2.5GbE upgrade.",
           "type": "stat",
           "targets": [
             {
-              "expr": "max_over_time(\n  (\n    (\n      rate(node_network_receive_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n      + rate(node_network_transmit_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n    )\n    / clamp_min(node_network_speed_bytes{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}, 125000000)\n    * 100\n  )[24h:5m]\n)",
-              "legendFormat": "{{instance}} - {{device}}"
+              "expr": "max by () (max_over_time(((rate(node_network_receive_bytes_total{instance=\"10.10.30.11:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.11:9100\", device=\"eno1\"}[5m])) / 125000000 * 100)[24h:5m]))",
+              "legendFormat": "cp1",
+              "instant": true,
+              "range": false,
+              "refId": "A"
+            },
+            {
+              "expr": "max by () (max_over_time(((rate(node_network_receive_bytes_total{instance=\"10.10.30.12:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.12:9100\", device=\"eno1\"}[5m])) / 125000000 * 100)[24h:5m]))",
+              "legendFormat": "cp2",
+              "instant": true,
+              "range": false,
+              "refId": "B"
+            },
+            {
+              "expr": "max by () (max_over_time(((rate(node_network_receive_bytes_total{instance=\"10.10.30.13:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.13:9100\", device=\"eno1\"}[5m])) / 125000000 * 100)[24h:5m]))",
+              "legendFormat": "cp3",
+              "instant": true,
+              "range": false,
+              "refId": "C"
             }
           ]
         },
@@ -140,6 +197,7 @@ data:
           "fieldConfig": {
             "defaults": {
               "unit": "short",
+              "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -160,19 +218,132 @@ data:
             }
           },
           "gridPos": {
-            "h": 6,
-            "w": 8,
-            "x": 16,
-            "y": 1
+            "h": 4,
+            "w": 12,
+            "x": 12,
+            "y": 7
           },
           "id": 4,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
           "title": "Time Above 80% (24h)",
-          "description": "Number of 5-minute intervals where NIC utilization exceeded 80% in the last 24 hours. High values indicate sustained saturation.",
+          "description": "Number of 5-minute intervals where NIC utilization exceeded 80% in the last 24 hours. High values indicate sustained saturation. 0 = healthy.",
           "type": "stat",
           "targets": [
             {
-              "expr": "count_over_time(\n  (\n    (\n      (\n        rate(node_network_receive_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n        + rate(node_network_transmit_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n      )\n      / clamp_min(node_network_speed_bytes{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}, 125000000)\n      * 100\n    ) > 80\n  )[24h:5m]\n)",
-              "legendFormat": "{{instance}} - {{device}}"
+              "expr": "max by () (count_over_time(((rate(node_network_receive_bytes_total{instance=\"10.10.30.11:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.11:9100\", device=\"eno1\"}[5m])) / 125000000 * 100 > 80)[24h:5m])) or vector(0)",
+              "legendFormat": "cp1",
+              "instant": true,
+              "range": false,
+              "refId": "A"
+            },
+            {
+              "expr": "max by () (count_over_time(((rate(node_network_receive_bytes_total{instance=\"10.10.30.12:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.12:9100\", device=\"eno1\"}[5m])) / 125000000 * 100 > 80)[24h:5m])) or vector(0)",
+              "legendFormat": "cp2",
+              "instant": true,
+              "range": false,
+              "refId": "B"
+            },
+            {
+              "expr": "max by () (count_over_time(((rate(node_network_receive_bytes_total{instance=\"10.10.30.13:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.13:9100\", device=\"eno1\"}[5m])) / 125000000 * 100 > 80)[24h:5m])) or vector(0)",
+              "legendFormat": "cp3",
+              "instant": true,
+              "range": false,
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "80% Threshold"
+                },
+                "properties": [
+                  {
+                    "id": "custom.lineStyle",
+                    "value": {
+                      "fill": "dash",
+                      "dash": [
+                        10,
+                        10
+                      ]
+                    }
+                  },
+                  {
+                    "id": "custom.fillOpacity",
+                    "value": 0
+                  },
+                  {
+                    "id": "custom.lineWidth",
+                    "value": 1
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "red",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 11
+          },
+          "id": 13,
+          "title": "NIC Utilization % Over Time",
+          "description": "NIC utilization as percentage of 1GbE link speed over time. Dashed red line at 80% — sustained traffic above this threshold indicates a 2.5GbE upgrade may be needed.",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by () ((rate(node_network_receive_bytes_total{instance=\"10.10.30.11:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.11:9100\", device=\"eno1\"}[5m])) / 125000000 * 100)",
+              "legendFormat": "cp1",
+              "refId": "A"
+            },
+            {
+              "expr": "sum by () ((rate(node_network_receive_bytes_total{instance=\"10.10.30.12:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.12:9100\", device=\"eno1\"}[5m])) / 125000000 * 100)",
+              "legendFormat": "cp2",
+              "refId": "B"
+            },
+            {
+              "expr": "sum by () ((rate(node_network_receive_bytes_total{instance=\"10.10.30.13:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.13:9100\", device=\"eno1\"}[5m])) / 125000000 * 100)",
+              "legendFormat": "cp3",
+              "refId": "C"
+            },
+            {
+              "expr": "vector(80)",
+              "legendFormat": "80% Threshold",
+              "refId": "D"
             }
           ]
         },
@@ -182,7 +353,7 @@ data:
             "h": 1,
             "w": 24,
             "x": 0,
-            "y": 7
+            "y": 19
           },
           "id": 10,
           "title": "Throughput",
@@ -209,9 +380,9 @@ data:
           },
           "gridPos": {
             "h": 8,
-            "w": 24,
+            "w": 12,
             "x": 0,
-            "y": 8
+            "y": 20
           },
           "id": 11,
           "title": "Total Throughput (Mbps)",
@@ -219,8 +390,19 @@ data:
           "type": "timeseries",
           "targets": [
             {
-              "expr": "(\n  rate(node_network_receive_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n  + rate(node_network_transmit_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m])\n) * 8 / 1000000",
-              "legendFormat": "{{instance}} - {{device}}"
+              "expr": "sum by () ((rate(node_network_receive_bytes_total{instance=\"10.10.30.11:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.11:9100\", device=\"eno1\"}[5m])) * 8 / 1000000)",
+              "legendFormat": "cp1",
+              "refId": "A"
+            },
+            {
+              "expr": "sum by () ((rate(node_network_receive_bytes_total{instance=\"10.10.30.12:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.12:9100\", device=\"eno1\"}[5m])) * 8 / 1000000)",
+              "legendFormat": "cp2",
+              "refId": "B"
+            },
+            {
+              "expr": "sum by () ((rate(node_network_receive_bytes_total{instance=\"10.10.30.13:9100\", device=\"eno1\"}[5m]) + rate(node_network_transmit_bytes_total{instance=\"10.10.30.13:9100\", device=\"eno1\"}[5m])) * 8 / 1000000)",
+              "legendFormat": "cp3",
+              "refId": "C"
             }
           ]
         },
@@ -253,14 +435,59 @@ data:
                     "value": "negative-Y"
                   }
                 ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "cp1.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "green",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "cp2.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "blue",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "cp3.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "orange",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
               }
             ]
           },
           "gridPos": {
             "h": 8,
-            "w": 24,
-            "x": 0,
-            "y": 16
+            "w": 12,
+            "x": 12,
+            "y": 20
           },
           "id": 12,
           "title": "RX vs TX per Node (Mbps)",
@@ -268,12 +495,34 @@ data:
           "type": "timeseries",
           "targets": [
             {
-              "expr": "rate(node_network_receive_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m]) * 8 / 1000000",
-              "legendFormat": "{{instance}} RX"
+              "expr": "sum by () (rate(node_network_receive_bytes_total{instance=\"10.10.30.11:9100\", device=\"eno1\"}[5m]) * 8 / 1000000)",
+              "legendFormat": "cp1 RX",
+              "refId": "A"
             },
             {
-              "expr": "rate(node_network_transmit_bytes_total{device!~\"lo|cni.*|veth.*|cilium.*|lxc.*\"}[5m]) * 8 / 1000000",
-              "legendFormat": "{{instance}} TX"
+              "expr": "sum by () (rate(node_network_transmit_bytes_total{instance=\"10.10.30.11:9100\", device=\"eno1\"}[5m]) * 8 / 1000000)",
+              "legendFormat": "cp1 TX",
+              "refId": "B"
+            },
+            {
+              "expr": "sum by () (rate(node_network_receive_bytes_total{instance=\"10.10.30.12:9100\", device=\"eno1\"}[5m]) * 8 / 1000000)",
+              "legendFormat": "cp2 RX",
+              "refId": "C"
+            },
+            {
+              "expr": "sum by () (rate(node_network_transmit_bytes_total{instance=\"10.10.30.12:9100\", device=\"eno1\"}[5m]) * 8 / 1000000)",
+              "legendFormat": "cp2 TX",
+              "refId": "D"
+            },
+            {
+              "expr": "sum by () (rate(node_network_receive_bytes_total{instance=\"10.10.30.13:9100\", device=\"eno1\"}[5m]) * 8 / 1000000)",
+              "legendFormat": "cp3 RX",
+              "refId": "E"
+            },
+            {
+              "expr": "sum by () (rate(node_network_transmit_bytes_total{instance=\"10.10.30.13:9100\", device=\"eno1\"}[5m]) * 8 / 1000000)",
+              "legendFormat": "cp3 TX",
+              "refId": "F"
             }
           ]
         }
@@ -286,10 +535,13 @@ data:
       "templating": {
         "list": []
       },
+      "refresh": "30s",
       "time": {
         "from": "now-24h",
         "to": "now"
       },
+      "timepicker": {},
+      "timezone": "Asia/Manila",
       "title": "Network Throughput (1GbE vs 2.5GbE)",
       "uid": "network-throughput"
     }
