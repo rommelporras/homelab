@@ -3,6 +3,8 @@ kind: ConfigMap
 metadata:
   name: ups-monitoring-dashboard
   namespace: monitoring
+  annotations:
+    grafana_folder: "Homelab"
   labels:
     grafana_dashboard: "1"
     app.kubernetes.io/name: grafana
@@ -1491,7 +1493,11 @@ data:
       "preload": false,
       "refresh": "",
       "schemaVersion": 41,
-      "tags": [],
+      "tags": [
+        "ups",
+        "power",
+        "infrastructure"
+      ],
       "templating": {
         "list": [
           {

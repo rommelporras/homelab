@@ -7,6 +7,8 @@ kind: ConfigMap
 metadata:
   name: service-health-dashboard
   namespace: monitoring
+  annotations:
+    grafana_folder: "Homelab"
   labels:
     grafana_dashboard: "1"
     app.kubernetes.io/name: grafana
@@ -14,7 +16,9 @@ metadata:
 data:
   service-health.json: |
     {
-      "annotations": { "list": [] },
+      "annotations": {
+        "list": []
+      },
       "editable": true,
       "fiscalYearStartMonth": 0,
       "graphTooltip": 1,
@@ -22,385 +26,761 @@ data:
       "panels": [
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
           "id": 1,
           "title": "Probe Status",
           "type": "row",
           "description": "Current UP/DOWN status for each monitored service, polled every 60s by the Blackbox Exporter. Green = probe_success=1 (HTTP 2xx received). Red = probe_success=0 (unreachable, timeout, or non-2xx response)."
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "green", "value": 1 }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 1
+          },
           "id": 2,
           "options": {
             "colorMode": "background",
             "graphMode": "none",
             "justifyMode": "center",
-            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
             "textMode": "auto"
           },
           "description": "HTTP probe to https://blog.k8s.rommelporras.com. Ghost redirects internal HTTP to HTTPS, so we probe the public URL via the internal Gateway.",
           "title": "Blog",
           "type": "stat",
           "targets": [
-            { "expr": "max(probe_success{job=\"ghost\"})", "legendFormat": "Blog" }
+            {
+              "expr": "max(probe_success{job=\"ghost\"})",
+              "legendFormat": "Blog"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "green", "value": 1 }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 1
+          },
           "id": 3,
           "options": {
             "colorMode": "background",
             "graphMode": "none",
             "justifyMode": "center",
-            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
             "textMode": "auto"
           },
           "description": "HTTP probe to invoicetron /api/health endpoint (invoicetron-prod namespace).",
           "title": "Invoicetron",
           "type": "stat",
           "targets": [
-            { "expr": "max(probe_success{job=\"invoicetron\"})", "legendFormat": "Invoicetron" }
+            {
+              "expr": "max(probe_success{job=\"invoicetron\"})",
+              "legendFormat": "Invoicetron"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "green", "value": 1 }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 1
+          },
           "id": 4,
           "options": {
             "colorMode": "background",
             "graphMode": "none",
             "justifyMode": "center",
-            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
             "textMode": "auto"
           },
           "description": "HTTP probe to portfolio /health endpoint (portfolio-prod namespace).",
           "title": "Portfolio",
           "type": "stat",
           "targets": [
-            { "expr": "max(probe_success{job=\"portfolio\"})", "legendFormat": "Portfolio" }
+            {
+              "expr": "max(probe_success{job=\"portfolio\"})",
+              "legendFormat": "Portfolio"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "green", "value": 1 }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 1
+          },
           "id": 5,
           "options": {
             "colorMode": "background",
             "graphMode": "none",
             "justifyMode": "center",
-            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
             "textMode": "auto"
           },
           "description": "HTTP probe to Jellyfin media server (arr-stack namespace, port 8096).",
           "title": "Jellyfin",
           "type": "stat",
           "targets": [
-            { "expr": "max(probe_success{job=\"jellyfin\"})", "legendFormat": "Jellyfin" }
+            {
+              "expr": "max(probe_success{job=\"jellyfin\"})",
+              "legendFormat": "Jellyfin"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "green", "value": 1 }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 5 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 5
+          },
           "id": 6,
           "options": {
             "colorMode": "background",
             "graphMode": "none",
             "justifyMode": "center",
-            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
             "textMode": "auto"
           },
           "description": "HTTP probe to Seerr media request manager (arr-stack namespace, port 5055).",
           "title": "Seerr",
           "type": "stat",
           "targets": [
-            { "expr": "max(probe_success{job=\"seerr\"})", "legendFormat": "Seerr" }
+            {
+              "expr": "max(probe_success{job=\"seerr\"})",
+              "legendFormat": "Seerr"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "green", "value": 1 }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 5 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 5
+          },
           "id": 7,
           "options": {
             "colorMode": "background",
             "graphMode": "none",
             "justifyMode": "center",
-            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
             "textMode": "auto"
           },
           "description": "HTTP probe to Tdarr library transcoding server (arr-stack namespace, port 8265).",
           "title": "Tdarr",
           "type": "stat",
           "targets": [
-            { "expr": "max(probe_success{job=\"tdarr\"})", "legendFormat": "Tdarr" }
+            {
+              "expr": "max(probe_success{job=\"tdarr\"})",
+              "legendFormat": "Tdarr"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "green", "value": 1 }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 5 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 5
+          },
           "id": 8,
           "options": {
             "colorMode": "background",
             "graphMode": "none",
             "justifyMode": "center",
-            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
             "textMode": "auto"
           },
           "description": "HTTP probe to Byparr FlareSolverr-compatible proxy (arr-stack namespace, port 8191).",
           "title": "Byparr",
           "type": "stat",
           "targets": [
-            { "expr": "max(probe_success{job=\"byparr\"})", "legendFormat": "Byparr" }
+            {
+              "expr": "max(probe_success{job=\"byparr\"})",
+              "legendFormat": "Byparr"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "green", "value": 1 }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 5 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 5
+          },
           "id": 9,
           "options": {
             "colorMode": "background",
             "graphMode": "none",
             "justifyMode": "center",
-            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
             "textMode": "auto"
           },
           "description": "HTTP probe to Uptime Kuma service monitor (uptime-kuma namespace, port 3001).",
           "title": "Uptime Kuma",
           "type": "stat",
           "targets": [
-            { "expr": "max(probe_success{job=\"uptime-kuma\"})", "legendFormat": "Uptime Kuma" }
+            {
+              "expr": "max(probe_success{job=\"uptime-kuma\"})",
+              "legendFormat": "Uptime Kuma"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "green", "value": 1 }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 9 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 9
+          },
           "id": 10,
           "options": {
             "colorMode": "background",
             "graphMode": "none",
             "justifyMode": "center",
-            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
             "textMode": "auto"
           },
           "description": "HTTP probe to Karakeep bookmark manager /api/health endpoint.",
           "title": "Karakeep",
           "type": "stat",
           "targets": [
-            { "expr": "max(probe_success{job=\"karakeep\"})", "legendFormat": "Karakeep" }
+            {
+              "expr": "max(probe_success{job=\"karakeep\"})",
+              "legendFormat": "Karakeep"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "green", "value": 1 }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 9 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 9
+          },
           "id": 11,
           "options": {
             "colorMode": "background",
             "graphMode": "none",
             "justifyMode": "center",
-            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
             "textMode": "auto"
           },
           "description": "HTTP probe to Ollama LLM inference server (ai namespace, port 11434).",
           "title": "Ollama",
           "type": "stat",
           "targets": [
-            { "expr": "max(probe_success{job=\"ollama\"})", "legendFormat": "Ollama" }
+            {
+              "expr": "max(probe_success{job=\"ollama\"})",
+              "legendFormat": "Ollama"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "green", "value": 1 }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 9 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 9
+          },
           "id": 12,
           "options": {
             "colorMode": "background",
             "graphMode": "none",
             "justifyMode": "center",
-            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
             "textMode": "auto"
           },
           "description": "HTTP probe to AdGuard Home DNS server /dns-query health check (home namespace, port 3000).",
           "title": "AdGuard DNS",
           "type": "stat",
           "targets": [
-            { "expr": "max(probe_success{job=\"adguard-dns\"})", "legendFormat": "AdGuard DNS" }
+            {
+              "expr": "max(probe_success{job=\"adguard-dns\"})",
+              "legendFormat": "AdGuard DNS"
+            }
           ]
         },
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 13
+          },
           "id": 20,
           "title": "Uptime History",
           "type": "row",
           "description": "Historical probe_success (0 or 1) per service over the selected time range. Gaps or drops to 0 indicate outages. Use this to understand the duration and frequency of past incidents."
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -410,56 +790,128 @@ data:
                 "pointSize": 5,
                 "showPoints": "never",
                 "spanNulls": false,
-                "stacking": { "mode": "none" }
+                "stacking": {
+                  "mode": "none"
+                }
               },
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
               "min": 0,
               "max": 1,
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "green", "value": 1 }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 14
+          },
           "id": 21,
           "options": {
-            "legend": { "displayMode": "list", "placement": "bottom" },
-            "tooltip": { "mode": "multi", "sort": "desc" }
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
           },
-          "description": "probe_success time series for all services. Value is 0 (DOWN) or 1 (UP). Probes run every 60s — short outages may show as brief dips. The legend shows each service; click to isolate a single service.",
+          "description": "probe_success time series for all services. Value is 0 (DOWN) or 1 (UP). Probes run every 60s \u2014 short outages may show as brief dips. The legend shows each service; click to isolate a single service.",
           "title": "Probe Success History",
           "type": "timeseries",
           "targets": [
-            { "expr": "max(probe_success{job=\"ghost\"})", "legendFormat": "Blog" },
-            { "expr": "max(probe_success{job=\"invoicetron\"})", "legendFormat": "Invoicetron" },
-            { "expr": "max(probe_success{job=\"portfolio\"})", "legendFormat": "Portfolio" },
-            { "expr": "max(probe_success{job=\"jellyfin\"})", "legendFormat": "Jellyfin" },
-            { "expr": "max(probe_success{job=\"seerr\"})", "legendFormat": "Seerr" },
-            { "expr": "max(probe_success{job=\"tdarr\"})", "legendFormat": "Tdarr" },
-            { "expr": "max(probe_success{job=\"byparr\"})", "legendFormat": "Byparr" },
-            { "expr": "max(probe_success{job=\"uptime-kuma\"})", "legendFormat": "Uptime Kuma" },
-            { "expr": "max(probe_success{job=\"karakeep\"})", "legendFormat": "Karakeep" },
-            { "expr": "max(probe_success{job=\"ollama\"})", "legendFormat": "Ollama" },
-            { "expr": "max(probe_success{job=\"adguard-dns\"})", "legendFormat": "AdGuard DNS" }
+            {
+              "expr": "max(probe_success{job=\"ghost\"})",
+              "legendFormat": "Blog"
+            },
+            {
+              "expr": "max(probe_success{job=\"invoicetron\"})",
+              "legendFormat": "Invoicetron"
+            },
+            {
+              "expr": "max(probe_success{job=\"portfolio\"})",
+              "legendFormat": "Portfolio"
+            },
+            {
+              "expr": "max(probe_success{job=\"jellyfin\"})",
+              "legendFormat": "Jellyfin"
+            },
+            {
+              "expr": "max(probe_success{job=\"seerr\"})",
+              "legendFormat": "Seerr"
+            },
+            {
+              "expr": "max(probe_success{job=\"tdarr\"})",
+              "legendFormat": "Tdarr"
+            },
+            {
+              "expr": "max(probe_success{job=\"byparr\"})",
+              "legendFormat": "Byparr"
+            },
+            {
+              "expr": "max(probe_success{job=\"uptime-kuma\"})",
+              "legendFormat": "Uptime Kuma"
+            },
+            {
+              "expr": "max(probe_success{job=\"karakeep\"})",
+              "legendFormat": "Karakeep"
+            },
+            {
+              "expr": "max(probe_success{job=\"ollama\"})",
+              "legendFormat": "Ollama"
+            },
+            {
+              "expr": "max(probe_success{job=\"adguard-dns\"})",
+              "legendFormat": "AdGuard DNS"
+            }
           ]
         },
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 22
+          },
           "id": 30,
           "title": "Response Time",
           "type": "row",
-          "description": "probe_duration_seconds — how long each HTTP probe took to complete. Rising response times can indicate load or degradation before a service fully goes down. Spikes that resolve quickly are usually transient network hops."
+          "description": "probe_duration_seconds \u2014 how long each HTTP probe took to complete. Rising response times can indicate load or degradation before a service fully goes down. Spikes that resolve quickly are usually transient network hops."
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -469,48 +921,112 @@ data:
                 "pointSize": 5,
                 "showPoints": "never",
                 "spanNulls": true,
-                "stacking": { "mode": "none" }
+                "stacking": {
+                  "mode": "none"
+                }
               },
               "unit": "s",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "green", "value": null },
-                  { "color": "orange", "value": 1 },
-                  { "color": "red", "value": 3 }
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1
+                  },
+                  {
+                    "color": "red",
+                    "value": 3
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 23 },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 23
+          },
           "id": 31,
           "options": {
-            "legend": { "displayMode": "list", "placement": "bottom" },
-            "tooltip": { "mode": "multi", "sort": "desc" }
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
           },
           "description": "HTTP probe round-trip duration in seconds. Green < 1s (healthy), orange 1-3s (slow), red > 3s (very slow / near-timeout). Blog probes through Cloudflare may be slightly higher due to TLS overhead.",
           "title": "Probe Response Time",
           "type": "timeseries",
           "targets": [
-            { "expr": "max(probe_duration_seconds{job=\"ghost\"})", "legendFormat": "Blog" },
-            { "expr": "max(probe_duration_seconds{job=\"invoicetron\"})", "legendFormat": "Invoicetron" },
-            { "expr": "max(probe_duration_seconds{job=\"portfolio\"})", "legendFormat": "Portfolio" },
-            { "expr": "max(probe_duration_seconds{job=\"jellyfin\"})", "legendFormat": "Jellyfin" },
-            { "expr": "max(probe_duration_seconds{job=\"seerr\"})", "legendFormat": "Seerr" },
-            { "expr": "max(probe_duration_seconds{job=\"tdarr\"})", "legendFormat": "Tdarr" },
-            { "expr": "max(probe_duration_seconds{job=\"byparr\"})", "legendFormat": "Byparr" },
-            { "expr": "max(probe_duration_seconds{job=\"uptime-kuma\"})", "legendFormat": "Uptime Kuma" },
-            { "expr": "max(probe_duration_seconds{job=\"karakeep\"})", "legendFormat": "Karakeep" },
-            { "expr": "max(probe_duration_seconds{job=\"ollama\"})", "legendFormat": "Ollama" },
-            { "expr": "max(probe_duration_seconds{job=\"adguard-dns\"})", "legendFormat": "AdGuard DNS" }
+            {
+              "expr": "max(probe_duration_seconds{job=\"ghost\"})",
+              "legendFormat": "Blog"
+            },
+            {
+              "expr": "max(probe_duration_seconds{job=\"invoicetron\"})",
+              "legendFormat": "Invoicetron"
+            },
+            {
+              "expr": "max(probe_duration_seconds{job=\"portfolio\"})",
+              "legendFormat": "Portfolio"
+            },
+            {
+              "expr": "max(probe_duration_seconds{job=\"jellyfin\"})",
+              "legendFormat": "Jellyfin"
+            },
+            {
+              "expr": "max(probe_duration_seconds{job=\"seerr\"})",
+              "legendFormat": "Seerr"
+            },
+            {
+              "expr": "max(probe_duration_seconds{job=\"tdarr\"})",
+              "legendFormat": "Tdarr"
+            },
+            {
+              "expr": "max(probe_duration_seconds{job=\"byparr\"})",
+              "legendFormat": "Byparr"
+            },
+            {
+              "expr": "max(probe_duration_seconds{job=\"uptime-kuma\"})",
+              "legendFormat": "Uptime Kuma"
+            },
+            {
+              "expr": "max(probe_duration_seconds{job=\"karakeep\"})",
+              "legendFormat": "Karakeep"
+            },
+            {
+              "expr": "max(probe_duration_seconds{job=\"ollama\"})",
+              "legendFormat": "Ollama"
+            },
+            {
+              "expr": "max(probe_duration_seconds{job=\"adguard-dns\"})",
+              "legendFormat": "AdGuard DNS"
+            }
           ]
         }
       ],
       "schemaVersion": 39,
-      "tags": ["blackbox", "probes", "homelab", "health"],
-      "templating": { "list": [] },
-      "time": { "from": "now-24h", "to": "now" },
+      "tags": [
+        "blackbox",
+        "probes",
+        "health"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-24h",
+        "to": "now"
+      },
       "timepicker": {},
       "timezone": "Asia/Manila",
       "title": "Service Health",

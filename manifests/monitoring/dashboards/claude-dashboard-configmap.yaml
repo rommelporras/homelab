@@ -3,6 +3,8 @@ kind: ConfigMap
 metadata:
   name: claude-code-dashboard
   namespace: monitoring
+  annotations:
+    grafana_folder: "Homelab"
   labels:
     grafana_dashboard: "1"
 data:
@@ -2900,10 +2902,7 @@ data:
       "tags": [
         "claude-code",
         "ai",
-        "monitoring",
-        "cost",
-        "tokens",
-        "events"
+        "llm"
       ],
       "templating": {
         "list": [

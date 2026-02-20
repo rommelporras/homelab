@@ -8,6 +8,8 @@ kind: ConfigMap
 metadata:
   name: scraparr-dashboard
   namespace: monitoring
+  annotations:
+    grafana_folder: "Homelab"
   labels:
     grafana_dashboard: "1"
     app.kubernetes.io/name: grafana
@@ -15,7 +17,9 @@ metadata:
 data:
   scraparr.json: |
     {
-      "annotations": { "list": [] },
+      "annotations": {
+        "list": []
+      },
       "editable": true,
       "fiscalYearStartMonth": 0,
       "graphTooltip": 1,
@@ -23,278 +27,631 @@ data:
       "panels": [
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
           "id": 1,
           "title": "Service Health",
           "description": "UP/DOWN status for each *ARR app monitored by Scraparr",
           "type": "row"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
-              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              }
             }
           },
-          "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 0,
+            "y": 1
+          },
           "id": 2,
           "title": "Sonarr",
           "description": "Sonarr service health via Scraparr",
           "type": "stat",
           "targets": [
-            { "expr": "scraparr_services_up{scraparr_services=\"sonarr\"}", "legendFormat": "Sonarr" }
+            {
+              "expr": "scraparr_services_up{scraparr_services=\"sonarr\"}",
+              "legendFormat": "Sonarr"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
-              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              }
             }
           },
-          "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 4,
+            "y": 1
+          },
           "id": 3,
           "title": "Radarr",
           "description": "Radarr service health via Scraparr",
           "type": "stat",
           "targets": [
-            { "expr": "scraparr_services_up{scraparr_services=\"radarr\"}", "legendFormat": "Radarr" }
+            {
+              "expr": "scraparr_services_up{scraparr_services=\"radarr\"}",
+              "legendFormat": "Radarr"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
-              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              }
             }
           },
-          "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 8,
+            "y": 1
+          },
           "id": 4,
           "title": "Prowlarr",
           "description": "Prowlarr service health via Scraparr",
           "type": "stat",
           "targets": [
-            { "expr": "scraparr_services_up{scraparr_services=\"prowlarr\"}", "legendFormat": "Prowlarr" }
+            {
+              "expr": "scraparr_services_up{scraparr_services=\"prowlarr\"}",
+              "legendFormat": "Prowlarr"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
-              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              }
             }
           },
-          "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 12,
+            "y": 1
+          },
           "id": 5,
           "title": "Bazarr",
           "description": "Bazarr service health via Scraparr",
           "type": "stat",
           "targets": [
-            { "expr": "scraparr_services_up{scraparr_services=\"bazarr\"}", "legendFormat": "Bazarr" }
+            {
+              "expr": "scraparr_services_up{scraparr_services=\"bazarr\"}",
+              "legendFormat": "Bazarr"
+            }
           ]
         },
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 5
+          },
           "id": 10,
           "title": "Library Stats",
           "description": "Library sizes and missing content across Radarr, Sonarr, and Bazarr",
           "type": "row"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
-              "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null } ] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              }
             }
           },
-          "gridPos": { "h": 4, "w": 4, "x": 0, "y": 6 },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 0,
+            "y": 6
+          },
           "id": 11,
           "title": "Total Movies",
           "description": "Total movies tracked in Radarr",
           "type": "stat",
           "targets": [
-            { "expr": "radarr_movies_total", "legendFormat": "Movies" }
+            {
+              "expr": "radarr_movies_total",
+              "legendFormat": "Movies"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
-              "thresholds": { "mode": "absolute", "steps": [ { "color": "orange", "value": null } ] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "orange",
+                    "value": null
+                  }
+                ]
+              }
             }
           },
-          "gridPos": { "h": 4, "w": 4, "x": 4, "y": 6 },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 4,
+            "y": 6
+          },
           "id": 12,
           "title": "Missing Movies",
           "description": "Movies monitored but not yet downloaded",
           "type": "stat",
           "targets": [
-            { "expr": "radarr_missing_movies_total", "legendFormat": "Missing" }
+            {
+              "expr": "radarr_missing_movies_total",
+              "legendFormat": "Missing"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
-              "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null } ] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              }
             }
           },
-          "gridPos": { "h": 4, "w": 4, "x": 8, "y": 6 },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 8,
+            "y": 6
+          },
           "id": 13,
           "title": "Total Series",
           "description": "Total TV series tracked in Sonarr",
           "type": "stat",
           "targets": [
-            { "expr": "sonarr_series_total", "legendFormat": "Series" }
+            {
+              "expr": "sonarr_series_total",
+              "legendFormat": "Series"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
-              "thresholds": { "mode": "absolute", "steps": [ { "color": "orange", "value": null } ] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "orange",
+                    "value": null
+                  }
+                ]
+              }
             }
           },
-          "gridPos": { "h": 4, "w": 4, "x": 12, "y": 6 },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 12,
+            "y": 6
+          },
           "id": 14,
           "title": "Missing Episodes",
           "description": "Episodes monitored but not yet downloaded",
           "type": "stat",
           "targets": [
-            { "expr": "sonarr_missing_episodes_total", "legendFormat": "Missing" }
+            {
+              "expr": "sonarr_missing_episodes_total",
+              "legendFormat": "Missing"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
-              "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null } ] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              }
             }
           },
-          "gridPos": { "h": 4, "w": 4, "x": 16, "y": 6 },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 16,
+            "y": 6
+          },
           "id": 15,
           "title": "Prowlarr Indexers",
           "description": "Number of indexers configured in Prowlarr",
           "type": "stat",
           "targets": [
-            { "expr": "prowlarr_indexer_count", "legendFormat": "Indexers" }
+            {
+              "expr": "prowlarr_indexer_count",
+              "legendFormat": "Indexers"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
-              "thresholds": { "mode": "absolute", "steps": [ { "color": "orange", "value": null } ] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "orange",
+                    "value": null
+                  }
+                ]
+              }
             }
           },
-          "gridPos": { "h": 4, "w": 4, "x": 20, "y": 6 },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 20,
+            "y": 6
+          },
           "id": 16,
           "title": "Wanted Subtitles",
           "description": "Movies + episodes missing subtitles (Bazarr)",
           "type": "stat",
           "targets": [
-            { "expr": "bazarr_wanted_movies_total + bazarr_wanted_episodes_total", "legendFormat": "Wanted" }
+            {
+              "expr": "bazarr_wanted_movies_total + bazarr_wanted_episodes_total",
+              "legendFormat": "Wanted"
+            }
           ]
         },
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 10 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 10
+          },
           "id": 20,
           "title": "Disk Usage",
           "description": "Disk space used and available for media storage",
           "type": "row"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "decbytes",
-              "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
             }
           },
-          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 11 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 11
+          },
           "id": 21,
           "title": "Radarr Disk Used",
           "description": "Total disk space used by Radarr library",
           "type": "stat",
           "targets": [
-            { "expr": "radarr_disk_size", "legendFormat": "Used" }
+            {
+              "expr": "radarr_disk_size",
+              "legendFormat": "Used"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "decbytes",
-              "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
             }
           },
-          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 11 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 11
+          },
           "id": 22,
           "title": "Radarr Disk Free",
           "description": "Free disk space available for Radarr",
           "type": "stat",
           "targets": [
-            { "expr": "radarr_free_disk_size", "legendFormat": "Free" }
+            {
+              "expr": "radarr_free_disk_size",
+              "legendFormat": "Free"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "decbytes",
-              "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
             }
           },
-          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 11 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 11
+          },
           "id": 23,
           "title": "Sonarr Disk Used",
           "description": "Total disk space used by Sonarr library",
           "type": "stat",
           "targets": [
-            { "expr": "sonarr_disk_size", "legendFormat": "Used" }
+            {
+              "expr": "sonarr_disk_size",
+              "legendFormat": "Used"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "decbytes",
-              "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
             }
           },
-          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 11 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 11
+          },
           "id": 24,
           "title": "Sonarr Disk Free",
           "description": "Free disk space available for Sonarr",
           "type": "stat",
           "targets": [
-            { "expr": "sonarr_free_disk_size", "legendFormat": "Free" }
+            {
+              "expr": "sonarr_free_disk_size",
+              "legendFormat": "Free"
+            }
           ]
         },
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 15
+          },
           "id": 30,
           "title": "Resource Usage",
           "description": "CPU and memory for the Scraparr exporter pod",
           "type": "row"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "short",
@@ -305,23 +662,89 @@ data:
               }
             },
             "overrides": [
-              { "matcher": { "id": "byName", "options": "Request" }, "properties": [{ "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } }, { "id": "custom.fillOpacity", "value": 0 }] },
-              { "matcher": { "id": "byName", "options": "Limit" }, "properties": [{ "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } }, { "id": "custom.fillOpacity", "value": 0 }, { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Request"
+                },
+                "properties": [
+                  {
+                    "id": "custom.lineStyle",
+                    "value": {
+                      "fill": "dash",
+                      "dash": [
+                        10,
+                        10
+                      ]
+                    }
+                  },
+                  {
+                    "id": "custom.fillOpacity",
+                    "value": 0
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Limit"
+                },
+                "properties": [
+                  {
+                    "id": "custom.lineStyle",
+                    "value": {
+                      "fill": "dash",
+                      "dash": [
+                        10,
+                        10
+                      ]
+                    }
+                  },
+                  {
+                    "id": "custom.fillOpacity",
+                    "value": 0
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "red",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
             ]
           },
-          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 16
+          },
           "id": 31,
           "title": "Scraparr CPU Usage",
           "description": "CPU usage with request/limit reference lines",
           "type": "timeseries",
           "targets": [
-            { "expr": "rate(container_cpu_usage_seconds_total{namespace=\"arr-stack\", container=\"scraparr\"}[5m])", "legendFormat": "Usage" },
-            { "expr": "kube_pod_container_resource_requests{namespace=\"arr-stack\", container=\"scraparr\", resource=\"cpu\"}", "legendFormat": "Request" },
-            { "expr": "kube_pod_container_resource_limits{namespace=\"arr-stack\", container=\"scraparr\", resource=\"cpu\"}", "legendFormat": "Limit" }
+            {
+              "expr": "rate(container_cpu_usage_seconds_total{namespace=\"arr-stack\", container=\"scraparr\"}[5m])",
+              "legendFormat": "Usage"
+            },
+            {
+              "expr": "kube_pod_container_resource_requests{namespace=\"arr-stack\", container=\"scraparr\", resource=\"cpu\"}",
+              "legendFormat": "Request"
+            },
+            {
+              "expr": "kube_pod_container_resource_limits{namespace=\"arr-stack\", container=\"scraparr\", resource=\"cpu\"}",
+              "legendFormat": "Limit"
+            }
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "bytes",
@@ -332,26 +755,98 @@ data:
               }
             },
             "overrides": [
-              { "matcher": { "id": "byName", "options": "Request" }, "properties": [{ "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } }, { "id": "custom.fillOpacity", "value": 0 }] },
-              { "matcher": { "id": "byName", "options": "Limit" }, "properties": [{ "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } }, { "id": "custom.fillOpacity", "value": 0 }, { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Request"
+                },
+                "properties": [
+                  {
+                    "id": "custom.lineStyle",
+                    "value": {
+                      "fill": "dash",
+                      "dash": [
+                        10,
+                        10
+                      ]
+                    }
+                  },
+                  {
+                    "id": "custom.fillOpacity",
+                    "value": 0
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Limit"
+                },
+                "properties": [
+                  {
+                    "id": "custom.lineStyle",
+                    "value": {
+                      "fill": "dash",
+                      "dash": [
+                        10,
+                        10
+                      ]
+                    }
+                  },
+                  {
+                    "id": "custom.fillOpacity",
+                    "value": 0
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "red",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
             ]
           },
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 16
+          },
           "id": 32,
           "title": "Scraparr Memory Usage",
           "description": "Memory working set with request/limit reference lines",
           "type": "timeseries",
           "targets": [
-            { "expr": "container_memory_working_set_bytes{namespace=\"arr-stack\", container=\"scraparr\"}", "legendFormat": "Usage" },
-            { "expr": "kube_pod_container_resource_requests{namespace=\"arr-stack\", container=\"scraparr\", resource=\"memory\"}", "legendFormat": "Request" },
-            { "expr": "kube_pod_container_resource_limits{namespace=\"arr-stack\", container=\"scraparr\", resource=\"memory\"}", "legendFormat": "Limit" }
+            {
+              "expr": "container_memory_working_set_bytes{namespace=\"arr-stack\", container=\"scraparr\"}",
+              "legendFormat": "Usage"
+            },
+            {
+              "expr": "kube_pod_container_resource_requests{namespace=\"arr-stack\", container=\"scraparr\", resource=\"memory\"}",
+              "legendFormat": "Request"
+            },
+            {
+              "expr": "kube_pod_container_resource_limits{namespace=\"arr-stack\", container=\"scraparr\", resource=\"memory\"}",
+              "legendFormat": "Limit"
+            }
           ]
         }
       ],
       "schemaVersion": 39,
-      "tags": ["arr-stack", "scraparr", "monitoring"],
-      "templating": { "list": [] },
-      "time": { "from": "now-24h", "to": "now" },
+      "tags": [
+        "arr-stack",
+        "scraparr",
+        "media"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-24h",
+        "to": "now"
+      },
       "title": "Scraparr - ARR Metrics",
       "uid": "scraparr-arr-metrics"
     }

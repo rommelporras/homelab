@@ -94,6 +94,13 @@ grafana:
       cpu: 500m
       memory: 512Mi
 
+  # Dashboard sidecar — enables grafana_folder annotation for folder organization
+  sidecar:
+    dashboards:
+      folderAnnotation: grafana_folder
+      provider:
+        foldersFromFilesStructure: true
+
   # Grafana configuration
   grafana.ini:
     server:

@@ -8,6 +8,8 @@ kind: ConfigMap
 metadata:
   name: network-dashboard
   namespace: monitoring
+  annotations:
+    grafana_folder: "Homelab"
   labels:
     grafana_dashboard: "1"
     app.kubernetes.io/name: grafana
@@ -15,7 +17,9 @@ metadata:
 data:
   network-throughput.json: |
     {
-      "annotations": { "list": [] },
+      "annotations": {
+        "list": []
+      },
       "editable": true,
       "fiscalYearStartMonth": 0,
       "graphTooltip": 1,
@@ -23,14 +27,22 @@ data:
       "panels": [
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
           "id": 1,
           "title": "NIC Utilization",
-          "description": "NIC utilization as percentage of link speed — used to determine if 2.5GbE upgrade is needed",
+          "description": "NIC utilization as percentage of link speed \u2014 used to determine if 2.5GbE upgrade is needed",
           "type": "row"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "percent",
@@ -39,15 +51,32 @@ data:
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "green", "value": null },
-                  { "color": "yellow", "value": 50 },
-                  { "color": "orange", "value": 80 },
-                  { "color": "red", "value": 95 }
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 50
+                  },
+                  {
+                    "color": "orange",
+                    "value": 80
+                  },
+                  {
+                    "color": "red",
+                    "value": 95
+                  }
                 ]
               }
             }
           },
-          "gridPos": { "h": 6, "w": 8, "x": 0, "y": 1 },
+          "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 1
+          },
           "id": 2,
           "title": "NIC Utilization % (Current)",
           "description": "Current NIC utilization as percentage of link speed. >80% sustained = consider 2.5GbE upgrade. Uses node_network_speed_bytes if available, falls back to 125000000 (1GbE).",
@@ -60,21 +89,38 @@ data:
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "percent",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "green", "value": null },
-                  { "color": "orange", "value": 80 },
-                  { "color": "red", "value": 95 }
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 80
+                  },
+                  {
+                    "color": "red",
+                    "value": 95
+                  }
                 ]
               }
             }
           },
-          "gridPos": { "h": 6, "w": 8, "x": 8, "y": 1 },
+          "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 1
+          },
           "id": 3,
           "title": "Peak Utilization (24h)",
           "description": "Maximum NIC utilization in the last 24 hours",
@@ -87,21 +133,38 @@ data:
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "short",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "green", "value": null },
-                  { "color": "orange", "value": 5 },
-                  { "color": "red", "value": 20 }
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 5
+                  },
+                  {
+                    "color": "red",
+                    "value": 20
+                  }
                 ]
               }
             }
           },
-          "gridPos": { "h": 6, "w": 8, "x": 16, "y": 1 },
+          "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 16,
+            "y": 1
+          },
           "id": 4,
           "title": "Time Above 80% (24h)",
           "description": "Number of 5-minute intervals where NIC utilization exceeded 80% in the last 24 hours. High values indicate sustained saturation.",
@@ -115,14 +178,22 @@ data:
         },
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 7
+          },
           "id": 10,
           "title": "Throughput",
           "description": "Network throughput in Mbps across all cluster nodes",
           "type": "row"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "Mbits",
@@ -130,11 +201,18 @@ data:
                 "drawStyle": "line",
                 "fillOpacity": 15,
                 "lineWidth": 2,
-                "stacking": { "mode": "none" }
+                "stacking": {
+                  "mode": "none"
+                }
               }
             }
           },
-          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 8
+          },
           "id": 11,
           "title": "Total Throughput (Mbps)",
           "description": "Combined RX + TX throughput per node physical NIC. 1GbE max = 1000 Mbps.",
@@ -147,7 +225,10 @@ data:
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "Mbits",
@@ -155,17 +236,32 @@ data:
                 "drawStyle": "line",
                 "fillOpacity": 15,
                 "lineWidth": 2,
-                "stacking": { "mode": "normal" }
+                "stacking": {
+                  "mode": "normal"
+                }
               }
             },
             "overrides": [
               {
-                "matcher": { "id": "byRegexp", "options": ".*TX.*" },
-                "properties": [{ "id": "custom.transform", "value": "negative-Y" }]
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*TX.*"
+                },
+                "properties": [
+                  {
+                    "id": "custom.transform",
+                    "value": "negative-Y"
+                  }
+                ]
               }
             ]
           },
-          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 16
+          },
           "id": 12,
           "title": "RX vs TX per Node (Mbps)",
           "description": "Receive (positive) vs Transmit (negative) traffic per node. Stacked view shows total bandwidth direction.",
@@ -183,9 +279,17 @@ data:
         }
       ],
       "schemaVersion": 39,
-      "tags": ["network", "infrastructure"],
-      "templating": { "list": [] },
-      "time": { "from": "now-24h", "to": "now" },
+      "tags": [
+        "network",
+        "infrastructure"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-24h",
+        "to": "now"
+      },
       "title": "Network Throughput (1GbE vs 2.5GbE)",
       "uid": "network-throughput"
     }

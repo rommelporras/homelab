@@ -3,6 +3,8 @@ kind: ConfigMap
 metadata:
   name: kube-vip-dashboard
   namespace: monitoring
+  annotations:
+    grafana_folder: "Homelab"
   labels:
     grafana_dashboard: "1"
     app.kubernetes.io/name: grafana
@@ -20,27 +22,54 @@ data:
       "panels": [
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
           "id": 1,
           "title": "VIP Status",
           "type": "row"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [],
-              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 1
+          },
           "id": 2,
           "options": {
             "colorMode": "value",
             "graphMode": "none",
             "justifyMode": "auto",
-            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^lease_holder$/", "values": false },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "/^lease_holder$/",
+              "values": false
+            },
             "textMode": "value"
           },
           "title": "Current VIP Leader",
@@ -55,27 +84,50 @@ data:
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "s",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "green", "value": null },
-                  { "color": "yellow", "value": 10 },
-                  { "color": "red", "value": 30 }
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 10
+                  },
+                  {
+                    "color": "red",
+                    "value": 30
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 1
+          },
           "id": 3,
           "options": {
             "colorMode": "value",
             "graphMode": "none",
-            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
           },
           "title": "Lease Age (since last renew)",
           "type": "stat",
@@ -87,24 +139,41 @@ data:
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "green", "value": null }
+                  {
+                    "color": "green",
+                    "value": null
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 1
+          },
           "id": 4,
           "options": {
             "colorMode": "value",
             "graphMode": "none",
-            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
           },
           "title": "Lease Transitions (total)",
           "type": "stat",
@@ -116,28 +185,60 @@ data:
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "mappings": [
-                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "green", "value": 1 }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 1
+          },
           "id": 5,
           "options": {
             "colorMode": "background",
             "graphMode": "none",
-            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
           },
           "title": "Instances Up",
           "type": "stat",
@@ -150,13 +251,21 @@ data:
         },
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 5
+          },
           "id": 10,
           "title": "Instance Health",
           "type": "row"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -166,13 +275,29 @@ data:
                 "axisBorderShow": false
               },
               "mappings": [
-                { "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } }, "type": "value" }
+                {
+                  "options": {
+                    "0": {
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
               ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "green", "value": 1 }
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
                 ]
               },
               "min": 0,
@@ -180,11 +305,21 @@ data:
             },
             "overrides": []
           },
-          "gridPos": { "h": 6, "w": 12, "x": 0, "y": 6 },
+          "gridPos": {
+            "h": 6,
+            "w": 12,
+            "x": 0,
+            "y": 6
+          },
           "id": 11,
           "options": {
-            "legend": { "displayMode": "table", "placement": "right" },
-            "tooltip": { "mode": "multi" }
+            "legend": {
+              "displayMode": "table",
+              "placement": "right"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
           },
           "title": "Instance Status",
           "type": "timeseries",
@@ -197,7 +332,10 @@ data:
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -208,19 +346,38 @@ data:
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  { "color": "green", "value": null },
-                  { "color": "yellow", "value": 3 },
-                  { "color": "red", "value": 10 }
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 3
+                  },
+                  {
+                    "color": "red",
+                    "value": 10
+                  }
                 ]
               }
             },
             "overrides": []
           },
-          "gridPos": { "h": 6, "w": 12, "x": 12, "y": 6 },
+          "gridPos": {
+            "h": 6,
+            "w": 12,
+            "x": 12,
+            "y": 6
+          },
           "id": 12,
           "options": {
-            "legend": { "displayMode": "table", "placement": "right" },
-            "tooltip": { "mode": "multi" }
+            "legend": {
+              "displayMode": "table",
+              "placement": "right"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
           },
           "title": "Container Restarts",
           "type": "timeseries",
@@ -234,13 +391,21 @@ data:
         },
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 12 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 12
+          },
           "id": 20,
           "title": "Process Metrics",
           "type": "row"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "bytes",
@@ -252,11 +417,21 @@ data:
             },
             "overrides": []
           },
-          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 13 },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 0,
+            "y": 13
+          },
           "id": 21,
           "options": {
-            "legend": { "displayMode": "table", "placement": "bottom" },
-            "tooltip": { "mode": "multi" }
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
           },
           "title": "Memory Usage (RSS)",
           "type": "timeseries",
@@ -269,7 +444,10 @@ data:
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "s",
@@ -281,11 +459,21 @@ data:
             },
             "overrides": []
           },
-          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 13 },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 8,
+            "y": 13
+          },
           "id": 22,
           "options": {
-            "legend": { "displayMode": "table", "placement": "bottom" },
-            "tooltip": { "mode": "multi" }
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
           },
           "title": "CPU Time (rate)",
           "type": "timeseries",
@@ -298,7 +486,10 @@ data:
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -309,11 +500,21 @@ data:
             },
             "overrides": []
           },
-          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 13 },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 13
+          },
           "id": 23,
           "options": {
-            "legend": { "displayMode": "table", "placement": "bottom" },
-            "tooltip": { "mode": "multi" }
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
           },
           "title": "Goroutines",
           "type": "timeseries",
@@ -327,13 +528,21 @@ data:
         },
         {
           "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 },
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 20
+          },
           "id": 30,
           "title": "Network",
           "type": "row"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "Bps",
@@ -345,11 +554,21 @@ data:
             },
             "overrides": []
           },
-          "gridPos": { "h": 7, "w": 12, "x": 0, "y": 21 },
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 0,
+            "y": 21
+          },
           "id": 31,
           "options": {
-            "legend": { "displayMode": "table", "placement": "bottom" },
-            "tooltip": { "mode": "multi" }
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
           },
           "title": "Network Received (rate)",
           "type": "timeseries",
@@ -362,7 +581,10 @@ data:
           ]
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "Bps",
@@ -374,11 +596,21 @@ data:
             },
             "overrides": []
           },
-          "gridPos": { "h": 7, "w": 12, "x": 12, "y": 21 },
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 12,
+            "y": 21
+          },
           "id": 32,
           "options": {
-            "legend": { "displayMode": "table", "placement": "bottom" },
-            "tooltip": { "mode": "multi" }
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
           },
           "title": "Network Transmitted (rate)",
           "type": "timeseries",
@@ -392,9 +624,19 @@ data:
         }
       ],
       "schemaVersion": 39,
-      "tags": ["kube-vip", "networking", "ha"],
-      "templating": { "list": [] },
-      "time": { "from": "now-6h", "to": "now" },
+      "tags": [
+        "kube-vip",
+        "networking",
+        "ha",
+        "infrastructure"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
       "timepicker": {},
       "timezone": "Asia/Manila",
       "title": "kube-vip VIP Health",
