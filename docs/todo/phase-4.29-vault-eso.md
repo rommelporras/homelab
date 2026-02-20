@@ -181,7 +181,194 @@ No `kubectl create secret`. No `op read`. No scripts.
 
 ---
 
-## Implementation Plan
+## Technical Reference
 
-Full step-by-step plan with exact commands and file contents:
-`docs/plans/2026-02-20-phase-4.29-vault-eso.md` (local only, gitignored)
+> This section captures key commands and config so the phase is fully executable
+> from this file alone. A detailed step-by-step plan also exists locally at
+> `docs/plans/2026-02-20-phase-4.29-vault-eso.md` (gitignored — regenerate with
+> Claude if lost by referencing this file + the design at
+> `docs/plans/2026-02-20-vault-eso-secrets-management-design.md`).
+
+### Component Versions
+
+| Component | Helm Chart | Helm Version | App Version |
+|-----------|-----------|--------------|-------------|
+| HashiCorp Vault | `hashicorp/vault` | 0.29.1 | v1.19.0 |
+| External Secrets Operator | `external-secrets/external-secrets` | 0.14.4 | v0.14.4 |
+
+```bash
+helm-homelab repo add hashicorp https://helm.releases.hashicorp.com
+helm-homelab repo add external-secrets https://charts.external-secrets.io
+helm-homelab repo update
+```
+
+### Vault Helm Values Summary (`helm/vault/values.yaml`)
+
+Key settings — 3-pod HA, Raft storage, Longhorn 5Gi per pod, injector disabled:
+
+```yaml
+server:
+  image: { repository: hashicorp/vault, tag: "1.19.0" }
+  ha:
+    enabled: true
+    replicas: 3
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = true
+        listener "tcp" { tls_disable = 1, address = "[::]:8200", cluster_address = "[::]:8201" }
+        storage "raft" {
+          path = "/vault/data"
+          retry_join { leader_api_addr = "http://vault-0.vault-internal:8200" }
+          retry_join { leader_api_addr = "http://vault-1.vault-internal:8200" }
+          retry_join { leader_api_addr = "http://vault-2.vault-internal:8200" }
+        }
+        service_registration "kubernetes" {}
+  dataStorage: { enabled: true, size: 5Gi, storageClass: longhorn }
+  resources: { requests: { memory: 256Mi, cpu: 100m }, limits: { memory: 512Mi, cpu: 500m } }
+ui:
+  enabled: true
+  serviceType: ClusterIP
+  externalPort: 8200
+  targetPort: 8200
+injector:
+  enabled: false
+```
+
+### Vault Initialization Commands
+
+```bash
+# Port-forward to vault-0 (run in separate terminal, keep open)
+kubectl --kubeconfig ~/.kube/homelab.yaml port-forward -n vault vault-0 8200:8200
+
+export VAULT_ADDR=http://localhost:8200
+
+# Initialize — output contains 5 unseal keys + root token
+vault operator init > ~/.vault-keys && chmod 600 ~/.vault-keys
+
+# Save to 1Password as break-glass (Vault Unseal Keys item in Kubernetes vault)
+op item create --category=login --title="Vault Unseal Keys" --vault=Kubernetes \
+  "unseal-key-1=$(grep 'Unseal Key 1' ~/.vault-keys | awk '{print $NF}')" \
+  "unseal-key-2=$(grep 'Unseal Key 2' ~/.vault-keys | awk '{print $NF}')" \
+  "unseal-key-3=$(grep 'Unseal Key 3' ~/.vault-keys | awk '{print $NF}')" \
+  "unseal-key-4=$(grep 'Unseal Key 4' ~/.vault-keys | awk '{print $NF}')" \
+  "unseal-key-5=$(grep 'Unseal Key 5' ~/.vault-keys | awk '{print $NF}')" \
+  "root-token=$(grep 'Initial Root Token' ~/.vault-keys | awk '{print $NF}')"
+
+# Unseal each pod (repeat for vault-0, vault-1, vault-2 via separate port-forwards)
+vault operator unseal $(grep 'Unseal Key 1' ~/.vault-keys | awk '{print $NF}')
+vault operator unseal $(grep 'Unseal Key 2' ~/.vault-keys | awk '{print $NF}')
+vault operator unseal $(grep 'Unseal Key 3' ~/.vault-keys | awk '{print $NF}')
+```
+
+### Vault Configuration Commands (run after init, logged in as root)
+
+```bash
+export VAULT_ADDR=http://localhost:8200
+vault login $(grep 'Initial Root Token' ~/.vault-keys | awk '{print $NF}')
+
+# Enable KV v2
+vault secrets enable -path=secret kv-v2
+
+# Enable Kubernetes auth
+vault auth enable kubernetes
+vault write auth/kubernetes/config \
+  kubernetes_host="https://kubernetes.default.svc.cluster.local"
+
+# Create read-only policy for ESO
+vault policy write eso-policy - <<'EOF'
+path "secret/data/*" { capabilities = ["read"] }
+path "secret/metadata/*" { capabilities = ["read", "list"] }
+EOF
+
+# Bind ESO ServiceAccount to policy
+vault write auth/kubernetes/role/eso \
+  bound_service_account_names=external-secrets \
+  bound_service_account_namespaces=external-secrets \
+  policies=eso-policy \
+  ttl=24h
+```
+
+### Auto-unsealer K8s Secret (imperative — never commit values)
+
+```bash
+kubectl --kubeconfig ~/.kube/homelab.yaml create secret generic vault-unseal-keys \
+  -n vault \
+  --from-literal=key1="$(grep 'Unseal Key 1' ~/.vault-keys | awk '{print $NF}')" \
+  --from-literal=key2="$(grep 'Unseal Key 2' ~/.vault-keys | awk '{print $NF}')" \
+  --from-literal=key3="$(grep 'Unseal Key 3' ~/.vault-keys | awk '{print $NF}')"
+```
+
+Unsealer Deployment (`manifests/vault/unsealer.yaml`) loops every 30s, checks each pod's
+sealed status at `http://vault-{0,1,2}.vault-internal.vault.svc.cluster.local:8200`, and
+runs `vault operator unseal $UNSEAL_KEY_{1,2,3}` if sealed. Uses `hashicorp/vault:1.19.0`
+image so `vault` CLI is available. Env vars mapped from `vault-unseal-keys` secret.
+
+### ClusterSecretStore (`manifests/vault/clustersecretstore.yaml`)
+
+```yaml
+apiVersion: external-secrets.io/v1beta1
+kind: ClusterSecretStore
+metadata:
+  name: vault-backend
+spec:
+  provider:
+    vault:
+      server: "http://vault.vault.svc.cluster.local:8200"
+      path: "secret"
+      version: "v2"
+      auth:
+        kubernetes:
+          mountPath: "kubernetes"
+          role: "eso"
+          serviceAccountRef:
+            name: external-secrets
+            namespace: external-secrets
+```
+
+### ExternalSecret Patterns
+
+**Single field:**
+```yaml
+spec:
+  data:
+    - secretKey: token          # K8s Secret key
+      remoteRef:
+        key: cloudflare/cloudflared-token   # Vault path (no "secret/" prefix)
+        property: token         # Vault field name
+```
+
+**All fields from a path (use for secrets with many fields):**
+```yaml
+spec:
+  dataFrom:
+    - extract:
+        key: homepage/secrets   # pulls ALL fields as K8s Secret keys
+```
+
+Use `dataFrom.extract` for homepage (17 fields), karakeep, invoicetron, ghost.
+Use `data` for cloudflare (1 field) and arr-stack (explicit field naming).
+
+### Migration Sequence (per namespace)
+
+```bash
+# 1. Read current K8s Secret values (to seed into Vault UI)
+kubectl --kubeconfig ~/.kube/homelab.yaml get secret <name> -n <ns> -o json | \
+  jq -r '.data | map_values(@base64d)'
+
+# 2. Seed values in Vault UI: https://vault.k8s.rommelporras.com
+#    Path: secret/<namespace>/<secret-name>
+
+# 3. Apply ExternalSecret
+kubectl --kubeconfig ~/.kube/homelab.yaml apply -f manifests/<ns>/externalsecret.yaml
+
+# 4. Verify synced
+kubectl --kubeconfig ~/.kube/homelab.yaml get externalsecrets -n <ns>
+# Expected: STATUS=SecretSynced, READY=True
+
+# 5. Remove old placeholder
+git rm manifests/<ns>/secret.yaml
+git add manifests/<ns>/externalsecret.yaml
+git commit -m "infra: migrate <ns> secrets to Vault + ESO"
+```
