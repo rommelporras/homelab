@@ -321,6 +321,15 @@ data:
             "y": 11
           },
           "id": 13,
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
           "title": "NIC Utilization % Over Time",
           "description": "NIC utilization as percentage of 1GbE link speed over time. Dashed red line at 80% — sustained traffic above this threshold indicates a 2.5GbE upgrade may be needed.",
           "type": "timeseries",
@@ -385,6 +394,15 @@ data:
             "y": 20
           },
           "id": 11,
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
           "title": "Total Throughput (Mbps)",
           "description": "Combined RX + TX throughput per node physical NIC. 1GbE max = 1000 Mbps.",
           "type": "timeseries",
@@ -490,6 +508,15 @@ data:
             "y": 20
           },
           "id": 12,
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
           "title": "RX vs TX per Node (Mbps)",
           "description": "Receive (positive) vs Transmit (negative) traffic per node. Stacked view shows total bandwidth direction.",
           "type": "timeseries",
