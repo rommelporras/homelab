@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, index]
-updated: 2026-02-19
+updated: 2026-02-21
 ---
 
 # Homelab Kubernetes Context
@@ -33,7 +33,7 @@ updated: 2026-02-19
 | Nodes | 3 control planes (k8s-cp1, cp2, cp3) |
 | CNI | Cilium 1.18.6 |
 | Storage | Longhorn 1.10.1 |
-| Status | Phase 4.27 complete (v0.26.0 released) |
+| Status | Phase 4.28 complete (pending v0.27.0 release) |
 
 ## Source
 

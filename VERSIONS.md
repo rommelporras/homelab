@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** February 19, 2026
+> **Last Updated:** February 21, 2026
 
 ---
 
@@ -40,7 +40,7 @@
 | longhorn/longhorn | 1.10.1 | v1.10.1 | Installed | longhorn-system |
 | cilium/cilium | 1.18.6 | v1.18.6 | Installed | kube-system |
 | oci://quay.io/jetstack/charts/cert-manager | 1.19.2 | v1.19.2 | Installed | cert-manager |
-| oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 81.0.0 | v0.88.0 | Installed | monitoring |
+| oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 81.6.5 | v0.88.1 | Installed | monitoring |
 | oci://ghcr.io/grafana/helm-charts/loki | 6.49.0 | v3.6.3 | Installed | monitoring |
 | grafana/alloy | 1.5.2 | v1.12.2 | Installed | monitoring |
 | metrics-server/metrics-server | 3.13.0 | v0.8.0 | Installed | kube-system |
@@ -51,6 +51,7 @@
 | oci://registry.k8s.io/nfd/charts/node-feature-discovery | 0.18.3 | v0.18.3 | Installed | node-feature-discovery |
 | intel/intel-device-plugins-operator | 0.34.1 | v0.34.1 | Installed | intel-device-plugins |
 | intel/intel-device-plugins-gpu | 0.34.1 | v0.34.1 | Installed | intel-device-plugins |
+| prometheus-community/prometheus-smartctl-exporter | 0.16.0 | v0.14.0 | Installed | monitoring |
 
 > **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
 > Use `grafana/loki` + `grafana/alloy` instead.
@@ -94,7 +95,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.27 complete. Version automation deployed.
+> **Status:** Phase 4.28 complete (pending v0.27.0 release). Alerting & Observability improvements deployed.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -137,6 +138,9 @@ helm-homelab repo update
 | Tdarr | 2.58.02 | Running | Library transcoding server (Intel QSV, internal node) |
 | Recommendarr | v1.4.4 | Running | AI media recommendations (Ollama qwen2.5:3b) |
 | Byparr | latest (v2.1.0) | Running | Cloudflare bypass proxy for Prowlarr indexers |
+| tdarr-exporter | latest (homeylab) | Running | Prometheus metrics for Tdarr library stats (arr-stack ns) |
+| qbittorrent-exporter | latest (esanchezm) | Running | Prometheus metrics for qBittorrent downloads (arr-stack ns) |
+| smartctl-exporter | v0.14.0 | Running | NVMe S.M.A.R.T. DaemonSet on all 3 nodes (monitoring ns) |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -175,6 +179,8 @@ helm-homelab repo update
 | Seerr | seerr.k8s.rommelporras.com | base | arr-stack |
 | Tdarr | tdarr.k8s.rommelporras.com | base | arr-stack |
 | Recommendarr | recommendarr.k8s.rommelporras.com | base | arr-stack |
+| Alertmanager | alertmanager.k8s.rommelporras.com | base | monitoring |
+| Prometheus | prometheus.k8s.rommelporras.com | base | monitoring |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |

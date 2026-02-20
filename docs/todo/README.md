@@ -37,7 +37,7 @@
 | v0.25.1 | ARR Alert and Byparr Fixes | — | ✅ Released |
 | v0.25.2 | ARR Media Quality and Playback Fixes | — | ✅ Released |
 | v0.26.0 | Version Automation & Upgrade Runbooks | Phase 4.27 | ✅ Released |
-| v0.27.0 | Alerting & Observability Improvements | Phase 4.28 | ⬜ Planned |
+| v0.27.0 | Alerting & Observability Improvements | Phase 4.28 | 🔄 In Progress |
 | v0.28.0 | Production Hardening | Phase 5 | ⬜ Planned |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 

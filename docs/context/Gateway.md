@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, gateway, tls, cert-manager]
-updated: 2026-02-18
+updated: 2026-02-21
 ---
 
 # Gateway API
@@ -133,6 +133,8 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 | Seerr | https://seerr.k8s.rommelporras.com | seerr | arr-stack | https |
 | Tdarr | https://tdarr.k8s.rommelporras.com | tdarr | arr-stack | https |
 | Recommendarr | https://recommendarr.k8s.rommelporras.com | recommendarr | arr-stack | https |
+| Alertmanager | https://alertmanager.k8s.rommelporras.com | alertmanager | monitoring | https |
+| Prometheus | https://prometheus.k8s.rommelporras.com | prometheus | monitoring | https |
 
 ## Adding a New Service
 
@@ -271,7 +273,7 @@ curl -vI https://grafana.k8s.rommelporras.com 2>&1 | grep -A5 "Server certificat
 |------|---------|
 | manifests/gateway/homelab-gateway.yaml | Gateway resource |
 | manifests/cert-manager/cluster-issuer.yaml | Let's Encrypt issuers |
-| manifests/monitoring/grafana-httproute.yaml | Grafana route |
+| manifests/monitoring/grafana/grafana-httproute.yaml | Grafana route |
 
 ## Related
 

@@ -69,5 +69,5 @@ kubectl-homelab get storageclass
 
 ## Related Documents
 
-- [STORAGE_SETUP.md](../../STORAGE_SETUP.md) — Longhorn installation guide
-- [EXISTING_INFRA.md](../../EXISTING_INFRA.md) — Dell 5090 NAS integration
+- [Storage.md](../../context/Storage.md) — Longhorn installation guide
+- [Storage.md](../../context/Storage.md) — Dell NAS integration

@@ -41,5 +41,5 @@ cd ansible && ansible-playbook -i inventory/homelab.yml playbooks/05-join-cluste
 
 ## Related Documents
 
-- [KUBEADM_BOOTSTRAP.md](../../KUBEADM_BOOTSTRAP.md) — Bootstrap commands
-- [ARCHITECTURE.md](../../ARCHITECTURE.md) — Design decisions
+- [v0.2.0-bootstrap.md](../../rebuild/v0.2.0-bootstrap.md) — Bootstrap commands
+- [Architecture.md](../../context/Architecture.md) — Design decisions

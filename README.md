@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
-3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 25 releases, each with a [complete rebuild guide](docs/rebuild/README.md).
+3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 27 releases, each with a [complete rebuild guide](docs/rebuild/README.md).
 
 > **Owner:** Rommel Porras  |  **CKA Target:** September 2026
 
@@ -72,9 +72,14 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Ansible-automated bootstrap ([8 playbooks](ansible/playbooks/))
 
 **Observability**
-- Prometheus + Grafana + Loki + Alloy (full metrics, logs, dashboards)
-- Alertmanager (Discord + Email, severity routing)
-- Dead Man's Switch (healthchecks.io), Blackbox probes, UPS monitoring (NUT)
+- Prometheus + Grafana + Loki + Alloy (full metrics, logs, 11 Grafana dashboards in Homelab folder)
+- Alertmanager (Discord + Email, severity routing) — 30+ custom PrometheusRules across 10 alert files
+- Blackbox probes (11 services: Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard)
+- Dead Man's Switch (healthchecks.io), UPS monitoring (NUT + nut-exporter)
+- smartctl-exporter DaemonSet (NVMe S.M.A.R.T. health on all 3 nodes — temp, wear, spare, TBW)
+- Longhorn + cert-manager ServiceMonitors (volume robustness alerts + TLS certificate expiry alerts)
+- tdarr-exporter + qbittorrent-exporter (ARR stack Prometheus metrics)
+- Service Health dashboard (11-service UP/DOWN grid), Grafana Homelab folder organization
 - Uptime Kuma (public [status page](https://status.rommelporras.com))
 - version-checker (container + K8s version drift, Prometheus metrics)
 - Renovate Bot (automated image update PRs with dependency dashboard)
@@ -134,7 +139,7 @@ Things that bit us and might save you time:
 | Document | Purpose |
 |----------|---------|
 | [docs/context/Cluster.md](docs/context/Cluster.md) | **Source of truth** — nodes, IPs, hardware |
-| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (26 releases, v0.1.0 to v0.26.0) |
+| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (27 releases, v0.1.0 to v0.27.0) |
 | [docs/context/](docs/context/) | Knowledge base (11 topic files: Architecture, Gateway, Networking, etc.) |
 | [docs/todo/](docs/todo/README.md) | Phase plans (active + [completed](docs/todo/completed/)) |
 | [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md) | Decision history and project timeline |
@@ -144,6 +149,6 @@ Things that bit us and might save you time:
 
 ## Next Steps
 
-1. **Alerting & Observability** — Dashboard improvements, log-based panels (Phase 4.28)
-2. **Production Hardening** — Security posture, resource tuning (Phase 5)
+1. **Vault + External Secrets Operator** — Declarative GitOps secrets management, replaces all `kubectl create secret` (Phase 4.29)
+2. **Production Hardening** — RBAC audit, NetworkPolicy hardening, resource tuning (Phase 5)
 3. **CKA Certification** — September 2026 target

@@ -4,11 +4,78 @@
 
 ---
 
-## February 19–20, 2026 — Phase 4.28 (In Progress): Alerting & Observability
+## February 20, 2026 — Tdarr: Debugging, Worker Tuning & Phase 4.29 Planning
 
 ### Summary
 
-Phase 4.28 alerting infrastructure complete (20 new alerts + 2 bug fixes + 1 cleanup). NVMe S.M.A.R.T. monitoring added via smartctl_exporter. ARR stall resolver automates stuck torrent recovery. Six new/improved Grafana dashboards. All 11 dashboards organized into "Homelab" folder. Control plane bind addresses fixed. kube-vip VIP loss root-caused and KubeApiserverFrequentRestarts alert added.
+Investigated 4 Tdarr transcode errors for Frieren episodes. Root cause: DASH-remuxed WEB-DL files
+(mp41 container) lack per-stream video `BitRate` metadata, causing the Boosh-Transcode QSV plugin
+to compute `undefined × 0.8 = NaN` → `-b:v NaNk` in the ffmpeg command (exit code 234). Partial
+fix applied (min/max bitrate bounds set); 10 ToonsHub DASH-remuxed files added to Tdarr skip list.
+Inception 3D SBS resolved by adding one CPU worker slot. Library at 100% Tdarr score with 0
+errors. Phase 4.29 Vault + ESO design approved and 21-task plan committed to git.
+
+### Tdarr Bug Investigation
+
+| File Group | Root Cause |
+|------------|-----------|
+| Frieren S01E24–33 (10 files, ToonsHub) | DASH-remuxed WEB-DL (mp41 container). No per-stream `BitRate` field → `source_video_stream_bitrate × 0.8 = NaN`. ffmpeg args: `-b:v NaNk -minrate NaNk -maxrate NaNk -bufsize NaNk`. Exit code 234. |
+| Inception 3D SBS HEVC (iFA-AI3D) | Lmg1 Reorder Streams plugin requires a CPU worker slot; internal node had 0 CPU workers. Status stuck at "Require CPU Worker". |
+
+### Configuration Changes
+
+| Item | Before | After | Rationale |
+|------|--------|-------|-----------|
+| Boosh-Transcode QSV: `min_average_bitrate` | 0 | 2000 | Overrides NaN `-minrate`; `max_average_bitrate` overrides NaN `-maxrate` |
+| Boosh-Transcode QSV: `max_average_bitrate` | 0 | 8000 | Upper bound for files with no source bitrate metadata |
+| Tdarr node: Transcode CPU workers | 1 | 1 | Kept — CPU transcode is slow; GPU is the correct tool |
+| Tdarr node: Transcode GPU workers | 1 | 1 | Kept — one UHD 630 QSV session at a time is optimal |
+| Tdarr node: Health Check CPU workers | 1 | 3 | Faster health check scans; ffprobe is I/O-bound and lightweight |
+| Tdarr node: Health Check GPU workers | 1 | 0 | Health checks use ffprobe only — no GPU benefit; frees device slot |
+
+### Tdarr Library State (end of session)
+
+| Metric | Value |
+|--------|-------|
+| Files tracked | 90 |
+| Tdarr score | 100% |
+| Successfully transcoded | 41 |
+| Transcode not required (already HEVC) | 49 |
+| Transcode errors | 0 |
+| Health check errors | 0 |
+| Disk space saved | 14.1 GB |
+
+### Phase 4.29 Planning
+
+Design approved for Vault + ESO. Full 21-task plan committed to `docs/todo/phase-4.29-vault-eso.md`.
+Targets v0.28.0. Production hardening shifted to v0.29.0.
+
+| Component | Helm Chart Version | App Version | Purpose |
+|-----------|-------------------|-------------|---------|
+| HashiCorp Vault | 0.29.1 | v1.19.0 | 3-pod HA, Raft on Longhorn 5Gi/pod, auto-unseal via init container |
+| External Secrets Operator | 0.14.4 | v0.14.4 | `ExternalSecret` CRD → K8s Secret sync via Kubernetes auth |
+
+Migration scope: 7 namespaces, all `secret.yaml` placeholders → `externalsecret.yaml`. Every
+secret in the cluster becomes a committed manifest with zero hardcoded values.
+
+### Key Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| Ignore DASH-remuxed files (skip list) | `extra_qsv_options` inserts BEFORE calculated values — cannot override NaN this way. No safe config-only fix. 10 files skipped permanently. |
+| Keep Transcode GPU workers at 1 | Intel UHD 630 is one physical QSV device. Multiple simultaneous sessions compete for the same hardware and cause encode failures or slowdowns. NFS read is the real bottleneck. |
+| Health Check CPU → 3 | ffprobe is I/O-bound and lightweight. 3 parallel probes finish 3× faster; pod's 2-core CPU limit gently throttles without failures. |
+| Health Check GPU → 0 | Health checks use ffprobe only — no GPU acceleration. Setting to 0 frees the UHD 630 device slot for transcoding. |
+| Add CPU worker for Inception 3D | Lmg1 Reorder Streams requires a CPU worker slot even in a GPU transcode pipeline. 3D SBS files need stream reordering before encode. One slot is sufficient. |
+| Tdarr stats API caches state | Tdarr stats endpoint caches previous file states. `FileJSONDB` `HealthCheck` field is ground truth. Grafana exporter metrics lag until cache refreshes after scan completes. |
+
+---
+
+## February 19–20, 2026 — Phase 4.28 (Complete): Alerting & Observability
+
+### Summary
+
+Phase 4.28 complete — 20 new alerts + NVMe S.M.A.R.T. monitoring + ARR stall resolver + Tdarr and qBittorrent Prometheus exporters + 11 Grafana dashboards (6 new/rewritten, 5 updated). All 11 dashboards in "Homelab" folder. Control plane bind addresses fixed. kube-vip VIP loss root-caused and KubeApiserverFrequentRestarts alert added. kube-vip, Network, and Scraparr dashboards fully overhauled after initial standardization pass.
 
 ### Infrastructure Changes
 
@@ -24,6 +91,8 @@ Phase 4.28 alerting infrastructure complete (20 new alerts + 2 bug fixes + 1 cle
 | kubeadm bind addresses | Fixed etcd/kube-controller-manager/kube-scheduler to `0.0.0.0` so Prometheus can scrape |
 | kubeProxy disabled | `kubeProxy.enabled: false` in Helm values — Cilium replaces kube-proxy |
 | version-checker memory | Memory request 64Mi→128Mi, limit 128Mi→256Mi (was OOMKilled scanning 137 pods) |
+| tdarr-exporter | Deployment + Service (`homeylab/tdarr-exporter`, port 9090) + ServiceMonitor (60s). Exposes library stats: GB Saved, Tdarr Score %, Files, Transcodes by status, Health Check errors, codec/container/resolution breakdown |
+| qbittorrent-exporter | Deployment + Service (`esanchezm/prometheus-qbittorrent-exporter`, port 8000) + ServiceMonitor (30s). Exposes torrent counts by status (downloading/seeding/stalled/paused) and transfer rates |
 
 ### Alerting Infrastructure Completed (Phase 4.28)
 
@@ -50,13 +119,13 @@ Phase 4.28 alerting infrastructure complete (20 new alerts + 2 bug fixes + 1 cle
 
 | Dashboard | Change |
 |-----------|--------|
-| Longhorn Storage (new) | Storage Health stats, NVMe S.M.A.R.T. section (SMART status, temp, spare, wear, TBW, power-on), Drive Reference row, Node Disk Usage, Volume I/O Throughput + IOPS |
+| Longhorn Storage (new) | Storage Health stats, NVMe S.M.A.R.T. section (6 stat panels: SMART status, temp, spare, wear, TBW, power-on — replaced initial table panel with single stat row saving 4 vertical rows, drive model/serial/firmware in row description hover), Node Disk Usage, Volume I/O Throughput + IOPS |
 | Service Health (new) | 11 UP/DOWN probe stat panels, Uptime History + Response Time time series; `max()` on all queries to collapse stale TSDB series |
-| ARR Stack | Added Byparr companion panel; fixed Container Restarts to use `increase()`; standardized JSON formatting |
+| kube-vip (full rewrite) | Fix Instance Health thresholds (red<2, yellow=2, green=3), per-node labels via `label_replace` (cp1/cp2/cp3), merge Process+Network into one collapsed row, multi-series tooltip, right-side table legend, 30s refresh. Remove non-existent `kube_lease_spec_lease_transitions` panel. |
+| Network (full overhaul) | Per-node queries (cp1/cp2/cp3), deduplicate with `sum/max by()`, NIC Utilization % Over Time with 80% threshold line, multi-series tooltip, right-side table legend, per-node color overrides |
+| Scraparr | Widen Service Health panels w=4→6, fix Prowlarr indexers query (`sum by type`), restructure Disk Usage to Library Size + Media Storage Free, improved descriptions |
+| ARR Stack | Added Byparr companion panel, fixed Container Restarts to `increase()`, added Tdarr Library Stats row (GB Saved, Score%, Files, Transcodes Done/Queue/Errors, Health Check Errors), qBittorrent Download Activity row (Downloading/Seeding/Stalled/Paused/DL Speed/UL Speed), Recent Activity row (Loki log panels). Row order: Core → Companions → Tdarr → qBit → Network → Resources → Restarts → Activity. Fixed Configarr panel showing "configarr OK" → "OK". |
 | Jellyfin | Standardized JSON formatting |
-| Kube-VIP | Standardized JSON formatting |
-| Network | Standardized JSON formatting |
-| Scraparr | Standardized JSON formatting |
 | Tailscale | Standardized JSON formatting |
 | UPS | Added tags (`ups`, `power`, `infrastructure`) |
 | Version Checker | Added tags (`version-checker`, `maintenance`, `upgrades`) |
@@ -85,12 +154,13 @@ Phase 4.28 alerting infrastructure complete (20 new alerts + 2 bug fixes + 1 cle
 | Stall resolver CronJob every 30 min | Two cycles (60 min) before ArrQueueWarning fires — gives automation time to resolve before alerting |
 | Stall resolver skips importPending/importBlocked | Different root cause (NFS/disk issues) requires manual intervention, not blocklisting |
 | `grafana_folder: "Homelab"` on all dashboards | Organizes custom dashboards into dedicated folder, separate from kube-prometheus-stack defaults |
-| Longhorn table panel → stat panels | Zero tables across all dashboards — all info displayed via stat panels with descriptions |
-| Drive reference data at dashboard bottom | Model/serial/firmware is static info, not monitoring — visible but out of the way |
+| Longhorn NVMe table → 6 stat panels | Zero tables across all dashboards. Removed table panel, consolidated SMART/Temp/Spare/Wear/TBW/Power-On into one stat row. Drive model/serial/firmware moved to NVMe Health row description (hover) — static reference data, not monitoring. |
 | `max()` on all probe stat panels | Prevents stale TSDB series from creating duplicate stat panels when probe targets change |
 | `increase($__rate_interval)` for Container Restarts | Cumulative counter misleads at short time ranges; `increase()` shows new restarts per window |
 | Expose Prometheus/Alertmanager via HTTPRoute | Needed for Homepage widgets and direct troubleshooting |
 | Watchdog excluded from Homepage firing count | `alertname!="Watchdog"` — intentional dead man's switch, always fires |
+| kube-vip Network panels show host traffic | `hostNetwork: true` means RX/TX panels show all host network I/O (~485 KB/s), not just kube-vip ARP traffic — documented in panel descriptions |
+| qBittorrent torrent count uses `sum()` | Torrent metrics include `category` label — `sum()` aggregates across all categories to give total count |
 
 ---
 

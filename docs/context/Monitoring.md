@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-02-19
+updated: 2026-02-21
 ---
 
 # Monitoring
@@ -20,9 +20,12 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 | node-exporter | — | monitoring |
 | nut-exporter | 3.1.1 | monitoring |
 | blackbox-exporter | v0.28.0 | monitoring |
+| smartctl-exporter | v0.14.0 | monitoring |
 | OTel Collector | v0.144.0 | monitoring |
 | version-checker | v0.10.0 | monitoring |
 | Nova CronJob | v3.11.10 | monitoring |
+| tdarr-exporter | latest | arr-stack |
+| qbittorrent-exporter | latest | arr-stack |
 | Uptime Kuma | v2.0.2 | uptime-kuma |
 
 ## Access
@@ -166,7 +169,9 @@ Events (Loki):
 
 Every new service should include a Grafana dashboard ConfigMap (`manifests/monitoring/<service>-dashboard-configmap.yaml`).
 
-**Required label:** `grafana_dashboard: "1"` (auto-provisioned by Grafana sidecar).
+**Required labels:**
+- `grafana_dashboard: "1"` — auto-provisioned by Grafana sidecar
+- `grafana_folder: "Homelab"` annotation — all dashboards appear in the Homelab folder (enabled via `folderAnnotation` in helm/prometheus/values.yaml)
 
 **Standard sections:**
 
@@ -204,43 +209,134 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 
 ## Configuration Files
 
+> All monitoring manifests are organized into subdirectories under `manifests/monitoring/`.
+
+### Helm Values
+
 | File | Purpose |
 |------|---------|
-| helm/prometheus/values.yaml | Alertmanager config, routes |
-| scripts/upgrade-prometheus.sh | Upgrade with 1Password secrets |
-| manifests/monitoring/test-alert.yaml | Test PrometheusRule |
-| manifests/monitoring/adguard-dns-probe.yaml | Blackbox DNS probe for AdGuard |
-| manifests/monitoring/adguard-dns-alert.yaml | Alert on DNS probe failure |
-| manifests/monitoring/uptime-kuma-probe.yaml | Blackbox HTTP probe for Uptime Kuma |
-| manifests/monitoring/otel-collector-config.yaml | OTel Collector pipeline config |
-| manifests/monitoring/otel-collector.yaml | OTel Collector Deployment + LoadBalancer Service |
-| manifests/monitoring/otel-collector-servicemonitor.yaml | OTel Collector ServiceMonitor |
-| manifests/monitoring/claude-dashboard-configmap.yaml | Claude Code Grafana dashboard |
-| manifests/monitoring/claude-alerts.yaml | Claude Code cost alert rules |
-| manifests/monitoring/kube-vip-monitoring.yaml | kube-vip Headless Service + Endpoints + ServiceMonitor |
-| manifests/monitoring/kube-vip-alerts.yaml | kube-vip PrometheusRule (4 alerts) |
-| manifests/monitoring/kube-vip-dashboard-configmap.yaml | kube-vip Grafana dashboard |
-| helm/blackbox-exporter/values.yaml | Blackbox exporter config (dns_udp, http_2xx modules) |
-| manifests/monitoring/ollama-probe.yaml | Blackbox HTTP probe for Ollama (60s interval) |
-| manifests/monitoring/ollama-alerts.yaml | Ollama PrometheusRule (Down, MemoryHigh, HighRestarts) |
-| manifests/monitoring/karakeep-probe.yaml | Blackbox HTTP probe for Karakeep /api/health |
-| manifests/monitoring/karakeep-alerts.yaml | Karakeep PrometheusRule (Down, HighRestarts) |
-| manifests/monitoring/tailscale-alerts.yaml | Tailscale PrometheusRule (ConnectorDown, OperatorDown) |
-| manifests/monitoring/tailscale-dashboard-configmap.yaml | Tailscale Grafana dashboard (pod status, VPN/pod traffic, resources) |
-| manifests/monitoring/jellyfin-dashboard-configmap.yaml | Jellyfin Media Server dashboard (pod status, GPU allocation, streaming traffic, resources) |
-| manifests/monitoring/arr-stack-dashboard-configmap.yaml | ARR Media Stack overview dashboard (13 services: pod status, network, resources) |
-| manifests/monitoring/scraparr-dashboard-configmap.yaml | Scraparr ARR metrics dashboard (library size, queues, health) |
-| manifests/monitoring/network-dashboard-configmap.yaml | Network throughput dashboard (1GbE NIC utilization, saturation analysis) |
-| manifests/monitoring/arr-alerts.yaml | ARR PrometheusRule (ArrAppDown, QueueStalled, NIC saturation, JellyfinDown) |
-| manifests/monitoring/version-checker-deployment.yaml | version-checker Deployment + Service |
-| manifests/monitoring/version-checker-rbac.yaml | version-checker RBAC (pods + apps read) |
-| manifests/monitoring/version-checker-servicemonitor.yaml | version-checker ServiceMonitor (1h scrape) |
-| manifests/monitoring/version-checker-alerts.yaml | version-checker PrometheusRule (ImageOutdated, K8sOutdated, Down) |
-| manifests/monitoring/version-checker-dashboard-configmap.yaml | version-checker Grafana dashboard |
-| manifests/monitoring/version-check-cronjob.yaml | Nova CronJob (weekly Helm drift → Discord) |
-| manifests/monitoring/version-check-script.yaml | Nova CronJob script ConfigMap |
-| manifests/monitoring/version-check-rbac.yaml | Nova CronJob RBAC (secrets read for Helm) |
-| renovate.json | Renovate Bot configuration (image update PRs) |
+| `helm/prometheus/values.yaml` | Alertmanager config, routes, Grafana folderAnnotation |
+| `helm/blackbox-exporter/values.yaml` | Blackbox exporter modules (dns_udp, http_2xx) |
+| `helm/smartctl-exporter/values.yaml` | smartctl-exporter DaemonSet (NVMe S.M.A.R.T., /dev/nvme0, 60s interval) |
+| `scripts/upgrade-prometheus.sh` | Helm upgrade with 1Password secrets |
+| `renovate.json` | Renovate Bot configuration (image update PRs) |
+
+### Exporters (`manifests/monitoring/exporters/`)
+
+| File | Purpose |
+|------|---------|
+| `kube-vip-monitoring.yaml` | kube-vip Headless Service + Endpoints (enables Prometheus scraping of DaemonSet pods) |
+| `nut-exporter.yaml` | NUT UPS exporter Deployment + Service |
+
+> ARR-stack exporters live in their service directory (they target `arr-stack` namespace):
+> - `manifests/arr-stack/tdarr/tdarr-exporter.yaml` — Tdarr stats API → Prometheus metrics
+> - `manifests/arr-stack/qbittorrent/qbittorrent-exporter.yaml` — qBittorrent WebUI API → Prometheus metrics
+
+### OTel Collector (`manifests/monitoring/otel/`)
+
+| File | Purpose |
+|------|---------|
+| `otel-collector.yaml` | OTel Collector Deployment + LoadBalancer Service (VIP 10.10.30.22) |
+| `otel-collector-config.yaml` | OTel Collector pipeline config (OTLP→Prometheus + Loki) |
+| `otel-collector-servicemonitor.yaml` | OTel Collector ServiceMonitor |
+
+### Grafana Routes & Datasources (`manifests/monitoring/grafana/`)
+
+| File | Purpose |
+|------|---------|
+| `grafana-httproute.yaml` | Grafana HTTPRoute (grafana.k8s.rommelporras.com) |
+| `alertmanager-httproute.yaml` | Alertmanager HTTPRoute (internal) |
+| `prometheus-httproute.yaml` | Prometheus HTTPRoute (internal) |
+| `loki-datasource.yaml` | Loki datasource ConfigMap |
+
+### Blackbox Probes (`manifests/monitoring/probes/`)
+
+| File | Service | Target | Interval |
+|------|---------|--------|----------|
+| `adguard-dns-probe.yaml` | AdGuard | DNS UDP probe (10.10.30.53:53) | 30s |
+| `uptime-kuma-probe.yaml` | Uptime Kuma | HTTP (uptime-kuma.uptime-kuma.svc:3001) | 60s |
+| `ollama-probe.yaml` | Ollama | HTTP (ollama.ai.svc:11434) | 60s |
+| `karakeep-probe.yaml` | Karakeep | HTTP /api/health (karakeep.karakeep.svc:3000) | 60s |
+| `jellyfin-probe.yaml` | Jellyfin | HTTP (jellyfin.arr-stack.svc:8096) | 60s |
+| `ghost-probe.yaml` | Ghost | HTTP (ghost.ghost-prod.svc:2368) | 60s |
+| `invoicetron-probe.yaml` | Invoicetron | HTTP /api/health (invoicetron.invoicetron-prod.svc:3000) | 60s |
+| `portfolio-probe.yaml` | Portfolio | HTTP /health (portfolio.portfolio-prod.svc:80) | 60s |
+| `seerr-probe.yaml` | Seerr | HTTP (seerr.arr-stack.svc:5055) | 60s |
+| `tdarr-probe.yaml` | Tdarr | HTTP (tdarr.arr-stack.svc:8265) | 60s |
+| `byparr-probe.yaml` | Byparr | HTTP (byparr.arr-stack.svc:8191) | 60s |
+
+All probes use the `http_2xx` module (Blackbox Exporter at `blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115`).
+
+### ServiceMonitors (`manifests/monitoring/servicemonitors/`)
+
+| File | Target | Namespace | Interval |
+|------|--------|-----------|----------|
+| `loki-servicemonitor.yaml` | Loki | monitoring | 60s |
+| `alloy-servicemonitor.yaml` | Grafana Alloy | monitoring | 60s |
+| `otel-collector-servicemonitor.yaml` | OTel Collector | monitoring | 60s |
+| `version-checker-servicemonitor.yaml` | version-checker | monitoring | 1h |
+| `longhorn-servicemonitor.yaml` | Longhorn manager (port 9500) | longhorn-system | 60s |
+| `certmanager-servicemonitor.yaml` | cert-manager (port 9402) | cert-manager | 300s |
+| `tdarr-servicemonitor.yaml` | tdarr-exporter (:9090) | arr-stack | 60s |
+| `qbittorrent-servicemonitor.yaml` | qbittorrent-exporter (:8000) | arr-stack | 30s |
+
+All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kube-prometheus-stack` labels for Prometheus Operator discovery.
+
+### Alert Rules (`manifests/monitoring/alerts/`)
+
+| File | Alerts | Phase |
+|------|--------|-------|
+| `test-alert.yaml` | AlwaysFiring (manual testing only) | v0.5.0 |
+| `logging-alerts.yaml` | LokiDown, LokiIngestionStopped, LokiHighErrorRate, AlloyNotOnAllNodes, AlloyNotSendingLogs, AlloyHighMemory | v0.5.0 |
+| `ups-alerts.yaml` | UPSOnBattery, UPSLowBattery, UPSBatteryCritical, UPSBatteryWarning, UPSHighLoad, UPSExporterDown, UPSOffline, UPSBackOnline | v0.4.0 |
+| `adguard-dns-alert.yaml` | AdGuardDNSUnreachable (DNS probe failure) | v0.9.0 |
+| `claude-alerts.yaml` | ClaudeCodeHighDailySpend, ClaudeCodeCriticalDailySpend, ClaudeCodeNoActivity, OTelCollectorDown | v0.15.0 |
+| `kube-vip-alerts.yaml` | KubeVipInstanceDown, KubeVipAllDown, KubeVipLeaseStale, KubeVipHighRestarts | v0.19.0 |
+| `ollama-alerts.yaml` | OllamaDown, OllamaMemoryHigh, OllamaHighRestarts | v0.20.0 |
+| `karakeep-alerts.yaml` | KarakeepDown, KarakeepHighRestarts | v0.21.0 |
+| `tailscale-alerts.yaml` | TailscaleConnectorDown, TailscaleOperatorDown | v0.22.0 |
+| `arr-alerts.yaml` | ArrAppDown, SonarrQueueStalled, RadarrQueueStalled, NetworkInterfaceSaturated, NetworkInterfaceCritical, JellyfinDown, SeerrDown, TdarrDown, ByparrDown | v0.25.0 |
+| `version-checker-alerts.yaml` | ContainerImageOutdated, KubernetesVersionOutdated, VersionCheckerDown | v0.26.0 |
+| `uptime-kuma-alerts.yaml` | UptimeKumaDown (3m, warning) | v0.27.0 |
+| `ghost-alerts.yaml` | GhostDown (5m, warning) | v0.27.0 |
+| `invoicetron-alerts.yaml` | InvoicetronDown (5m, warning) | v0.27.0 |
+| `portfolio-alerts.yaml` | PortfolioDown (5m, warning) | v0.27.0 |
+| `storage-alerts.yaml` | LonghornVolumeDegraded (warning), LonghornVolumeReplicaFailed (critical), NVMeMediaErrors (critical), NVMeSpareWarning (warning), NVMeWearHigh (warning) | v0.27.0 |
+| `cert-alerts.yaml` | CertificateExpiringSoon (30d, warning), CertificateExpiryCritical (7d, critical), CertificateNotReady (critical) | v0.27.0 |
+| `cloudflare-alerts.yaml` | CloudflareTunnelDegraded (warning), CloudflareTunnelDown (critical) | v0.27.0 |
+| `apiserver-alerts.yaml` | KubeApiserverFrequentRestarts (>5 restarts/24h, warning) | v0.27.0 |
+
+**Severity routing:**
+- `critical` → Discord #incidents + Email (3 recipients)
+- `warning` → Discord #status only
+
+### Grafana Dashboards (`manifests/monitoring/dashboards/`)
+
+All dashboards are auto-provisioned via Grafana sidecar. All have `grafana_folder: "Homelab"` annotation.
+
+| File | Dashboard | Key Panels |
+|------|-----------|------------|
+| `ups-dashboard-configmap.yaml` | UPS Monitoring | Battery status, load, runtime, events |
+| `claude-dashboard-configmap.yaml` | Claude Code | Daily cost, token usage, session count, commits |
+| `kube-vip-dashboard-configmap.yaml` | kube-vip HA | Instances up/down, leader election, restarts, network |
+| `tailscale-dashboard-configmap.yaml` | Tailscale VPN | Pod status, VPN/pod traffic, resource usage |
+| `jellyfin-dashboard-configmap.yaml` | Jellyfin | Pod status, GPU utilization, streaming traffic, resources |
+| `network-dashboard-configmap.yaml` | Network Traffic | Per-node NIC throughput (cp1/cp2/cp3), saturation analysis |
+| `arr-stack-dashboard-configmap.yaml` | ARR Media Stack | 8 rows: Pod Status (core + companions), Tdarr Library Stats, qBittorrent Activity, Network, Resources, Restarts, Recent Activity (Loki logs) |
+| `scraparr-dashboard-configmap.yaml` | Scraparr ARR Metrics | Library sizes, queue health, indexer stats, disk usage |
+| `longhorn-dashboard-configmap.yaml` | Longhorn Storage | NVMe S.M.A.R.T. (6 stat panels), TBW history, write rate, disk usage, volume I/O |
+| `version-checker-dashboard-configmap.yaml` | Version Checker | Outdated containers, K8s version drift |
+| `service-health-dashboard-configmap.yaml` | Service Health | 11-service UP/DOWN grid, uptime history, response times |
+
+### Version Checker (`manifests/monitoring/version-checker/`)
+
+| File | Purpose |
+|------|---------|
+| `version-checker-deployment.yaml` | version-checker Deployment + Service |
+| `version-checker-rbac.yaml` | RBAC (ClusterRole, ClusterRoleBinding — pods + apps read) |
+| `version-check-cronjob.yaml` | Nova CronJob (weekly Helm drift → Discord #versions) |
+| `version-check-script.yaml` | Nova CronJob script ConfigMap |
+| `version-check-rbac.yaml` | Nova CronJob RBAC (secrets read for Helm) |
 
 ## Upgrade Prometheus Stack
 

@@ -1,6 +1,6 @@
 # Phase 4.28: Alerting & Observability Improvements
 
-> **Status:** In Progress
+> **Status:** Complete (pending release)
 > **Target:** v0.27.0
 > **Prerequisite:** None (monitoring stack running since Phase 3.9)
 > **Priority:** Medium (operational safety — not urgent, cluster healthy as of Feb 2026)
@@ -128,7 +128,7 @@ Existing Alertmanager routing handles everything — no config changes needed:
 | **critical** | #incidents | Yes (3 addresses) | `discord-incidents-email` |
 | **warning** | #status | No | `discord-status` |
 
-### New Alert Rules (15 total)
+### New Alert Rules (20 total)
 
 #### Service Health — Blackbox Probes (7 alerts)
 
@@ -252,7 +252,7 @@ sum(up{job="cloudflared"}) == 0
 
 ## Changes
 
-### Files Created (18 total)
+### Files Created (23 total)
 
 | File | Type | Purpose | Status |
 |------|------|---------|--------|
@@ -275,6 +275,14 @@ sum(up{job="cloudflared"}) == 0
 | `manifests/monitoring/dashboards/service-health-dashboard-configmap.yaml` | ConfigMap | Grafana Service Health dashboard (11 UP/DOWN stat panels, uptime history, response time) | ✅ |
 | `manifests/monitoring/alerts/apiserver-alerts.yaml` | PrometheusRule | KubeApiserverFrequentRestarts alert (>5 restarts/24h) | ✅ |
 | `helm/smartctl-exporter/values.yaml` | Helm values | smartctl-exporter DaemonSet on all 3 nodes, pinned to /dev/nvme0, ServiceMonitor enabled | ✅ |
+| `manifests/arr-stack/tdarr/tdarr-exporter.yaml` | Deployment | tdarr-exporter Deployment + Service (scrapes Tdarr stats API, exposes Prometheus metrics on :9090) | ✅ |
+| `manifests/arr-stack/qbittorrent/qbittorrent-exporter.yaml` | Deployment | qbittorrent-exporter Deployment + Service (scrapes qBittorrent WebUI API, exposes Prometheus metrics on :8000) | ✅ |
+| `manifests/monitoring/servicemonitors/tdarr-servicemonitor.yaml` | ServiceMonitor | Scrape tdarr-exporter metrics (60s interval) | ✅ |
+| `manifests/monitoring/servicemonitors/qbittorrent-servicemonitor.yaml` | ServiceMonitor | Scrape qbittorrent-exporter metrics (30s interval) | ✅ |
+| `manifests/arr-stack/stall-resolver/configmap.yaml` | ConfigMap | ARR stall resolver script (blocklist dead release, switch to Any quality, re-search) | ✅ |
+| `manifests/arr-stack/stall-resolver/cronjob.yaml` | CronJob | Runs every 30 min, resolves stalled Sonarr/Radarr downloads automatically | ✅ |
+| `manifests/monitoring/grafana/prometheus-httproute.yaml` | HTTPRoute | Expose Prometheus UI at prometheus.k8s.rommelporras.com | ✅ |
+| `manifests/monitoring/grafana/alertmanager-httproute.yaml` | HTTPRoute | Expose Alertmanager UI at alertmanager.k8s.rommelporras.com | ✅ |
 
 ### Files Modified (15 total)
 
@@ -284,17 +292,20 @@ sum(up{job="cloudflared"}) == 0
 | `manifests/monitoring/alerts/arr-alerts.yaml` | Added SeerrDown, TdarrDown, ByparrDown alerts | ✅ |
 | `manifests/monitoring/alerts/logging-alerts.yaml` | Removed `LokiStorageLow` rule (redundant with default `KubePersistentVolumeFillingUp`) | ✅ |
 | `helm/prometheus/values.yaml` | Enable Grafana sidecar folderAnnotation for auto-provisioned dashboard folders | ✅ |
-| `manifests/monitoring/dashboards/arr-stack-dashboard-configmap.yaml` | Added Byparr companion pod status panel; fixed Container Restarts; Homelab folder annotation | ✅ |
+| `manifests/monitoring/dashboards/arr-stack-dashboard-configmap.yaml` | Added Byparr companion pod status panel; fixed Container Restarts; Homelab folder annotation; added Tdarr Library Stats + qBittorrent Download Activity rows (3rd row); added Recent Activity Loki log panels; fixed Configarr textMode (`value_and_name` → `value`); reordered rows to push Network/Resource Usage/Restarts/Activity down | ✅ |
 | `manifests/monitoring/dashboards/longhorn-dashboard-configmap.yaml` | Full NVMe Health section (SMART status, temp, wear, spare, TBW history + write rate); NVMe dashboard redesign (table → stat panels, consolidated layout, Drive Reference section) | ✅ |
 | `manifests/monitoring/dashboards/network-dashboard-configmap.yaml` | Per-node queries (cp1/cp2/cp3), stale series dedup, layout restructure, per-node color overrides, multi-series tooltip + right-side legend | ✅ |
 | `manifests/monitoring/dashboards/scraparr-dashboard-configmap.yaml` | Wider service health panels, fixed Prowlarr indexers query, restructured disk usage panels | ✅ |
-| `manifests/monitoring/dashboards/kube-vip-dashboard-configmap.yaml` | Complete rewrite: remove non-existent Lease Transitions panel, fix all metrics/thresholds/descriptions, switch Container Restarts to raw lifetime counter, standardize layout | ⏳ 4.28.11.12 |
+| `manifests/monitoring/dashboards/kube-vip-dashboard-configmap.yaml` | Complete rewrite: remove non-existent Lease Transitions panel, fix all metrics/thresholds/descriptions, switch Container Restarts to raw lifetime counter, add `hostNetwork: true` awareness note, standardize layout | ✅ |
 | `manifests/monitoring/dashboards/jellyfin-dashboard-configmap.yaml` | Standardize metadata, JSON formatting, Homelab folder annotation | ✅ |
 | `manifests/monitoring/dashboards/tailscale-dashboard-configmap.yaml` | Standardize metadata, JSON formatting, Homelab folder annotation | ✅ |
 | `manifests/monitoring/dashboards/claude-dashboard-configmap.yaml` | Simplify tags, Homelab folder annotation | ✅ |
 | `manifests/monitoring/dashboards/ups-dashboard-configmap.yaml` | Add tags, Homelab folder annotation | ✅ |
 | `manifests/monitoring/dashboards/version-checker-dashboard-configmap.yaml` | Add tags, Homelab folder annotation | ✅ |
 | `manifests/monitoring/dashboards/service-health-dashboard-configmap.yaml` | Improvements to existing dashboard | ✅ |
+| `manifests/monitoring/alerts/arr-alerts.yaml` (2nd pass) | Added ArrQueueWarning (warning, 60m stall) and ArrQueueError (critical, 15m) alongside stall resolver | ✅ |
+| `manifests/home/homepage/` | Added Prometheus targets count and Alertmanager firing count widgets | ✅ |
+| `/etc/kubernetes/manifests/` (all 3 nodes) | Fixed etcd/kube-scheduler/kube-controller-manager bind addresses to 0.0.0.0 so Prometheus can scrape | ✅ |
 
 ---
 
@@ -478,8 +489,8 @@ All probes use the internal Blackbox Exporter at `blackbox-exporter-prometheus-b
 
 ### 4.28.10 Security & Commit
 
-- [ ] 4.28.10.1 `/audit-security`
-- [ ] 4.28.10.2 `/commit` (infrastructure)
+- [x] 4.28.10.1 `/audit-security` — PASS (0 critical; pre-existing: AdGuard bcrypt hash, missing network policies in some namespaces — both acceptable)
+- [x] 4.28.10.2 `/commit` (infrastructure) — committed across multiple sessions (commits ec591c7 through bd3250b)
 
 ### 4.28.11 Dashboard Improvements
 
@@ -494,30 +505,23 @@ All probes use the internal Blackbox Exporter at `blackbox-exporter-prometheus-b
 - [x] 4.28.11.9 Network dashboard overhaul — per-node queries (cp1/cp2/cp3 via `label_replace`), stale series dedup via `sum by ()` + explicit `refId`, full layout restructure, per-node color overrides (cp1=green, cp2=blue, cp3=orange), multi-series tooltip + right-side table legend
 - [x] 4.28.11.10 Scraparr dashboard improvements — widen service health panels (w=4→w=6), fix Prowlarr indexers query (add `sum by` across `type` label), restructure disk usage (Library Size + Media Storage Free)
 - [x] 4.28.11.11 Standardize all 11 dashboard ConfigMaps — `refresh: 30s`, `timezone: Asia/Manila`, tags, panel/row descriptions, `noValue`, `colorMode: "background"` on all stat panels
-- [ ] 4.28.11.12 kube-vip dashboard complete rewrite — remove non-existent Lease Transitions panel (`kube_lease_spec_lease_transitions` returns 0 series), fix Instances Up thresholds, switch Container Restarts from `increase([24h])` to raw lifetime counter (step-function shows exact restart timestamps), add accurate descriptions verified against live Prometheus data (pending commit)
-- [ ] 4.28.11.3 Add Loki log panels to ARR Stack dashboard:
-  - Radarr/Sonarr grab/reject logs (which indexer, quality score, rejection reason)
-  - Prowlarr indexer search activity (queries per indexer, failure rate)
-  - Byparr Cloudflare solve success/failure rate
-- [ ] 4.28.11.4 Add qBittorrent download panels:
-  - Active downloads (count, speed, ETA)
-  - Failed/stalled downloads
-- [ ] 4.28.11.5 Add Tdarr transcoding panels:
-  - Transcode queue size and progress
-  - Space saved by transcoding (original vs transcoded size)
+- [x] 4.28.11.12 kube-vip dashboard complete rewrite — removed non-existent Lease Transitions panel, fixed Instances Up thresholds, switched Container Restarts to raw lifetime counter (step-function shows exact restart timestamps), added `hostNetwork: true` awareness note in descriptions, all metrics verified against live Prometheus data
+- [x] 4.28.11.3 Add Loki log panels to ARR Stack dashboard — "Recent Activity" row with Warnings & Errors panel + ARR App Activity log panel (Loki queries on arr-stack namespace logs)
+- [x] 4.28.11.4 Add qBittorrent download panels — qBittorrent Download Activity row (active torrents, download/upload speed, ratio stats) via qbittorrent-exporter metrics (requires tdarr-exporter + qbittorrent-exporter Deployments deployed in 329e623)
+- [x] 4.28.11.5 Add Tdarr transcoding panels — Tdarr Library Stats row (total files, transcoded count, health check status, space saved, error counts) via tdarr-exporter metrics; repositioned to 3rd row in ARR dashboard (bd3250b)
 
 ### 4.28.12 Documentation & Release
 
 > Second commit: documentation updates and audit.
 
-- [x] 4.28.12.0 Update `docs/reference/CHANGELOG.md` — Phase 4.28 in-progress entry added (Feb 19, 2026)
-- [ ] 4.28.12.1 Update `docs/todo/README.md` — add Phase 4.28 to phase index + release mapping
-- [ ] 4.28.12.2 Update `README.md` (root) — note observability improvements in services list
-- [ ] 4.28.12.3 Update `VERSIONS.md` — note new ServiceMonitors
-- [ ] 4.28.12.4 Update `docs/context/Monitoring.md` — add all new alert files, probes, and ServiceMonitors to inventory
-- [ ] 4.28.12.5 Create `docs/rebuild/v0.27.0-alerting-improvements.md`
-- [ ] 4.28.12.6 `/audit-docs`
-- [ ] 4.28.12.7 `/commit` (documentation)
+- [x] 4.28.12.0 Update `docs/reference/CHANGELOG.md` — Phase 4.28 in-progress entry added (Feb 19, 2026); fully updated Feb 20, 2026 with Tdarr debugging session, worker tuning, Phase 4.29 planning, and Phase 4.28 marked Complete
+- [x] 4.28.12.1 Update `docs/todo/README.md` — v0.27.0 row updated to 🔄 In Progress (Phase 4.28 was already in both tables)
+- [x] 4.28.12.2 Update `README.md` (root) — Observability section expanded (smartctl-exporter, 11 probes, Longhorn/cert-manager ServiceMonitors, tdarr/qbit exporters, Service Health dashboard); Next Steps updated to Phase 4.29; release count updated to 27
+- [x] 4.28.12.3 Update `VERSIONS.md` — added smartctl-exporter to Helm Charts table; added tdarr-exporter/qbittorrent-exporter to Home Services; updated status note and date to Feb 21
+- [x] 4.28.12.4 Update `docs/context/Monitoring.md` — full rewrite of Configuration Files (new subdirectory structure: alerts/, probes/, servicemonitors/, dashboards/, exporters/, grafana/, otel/, version-checker/); added smartctl-exporter/tdarr-exporter/qbittorrent-exporter to Components table; added grafana_folder annotation note; updated date
+- [x] 4.28.12.5 Create `docs/rebuild/v0.27.0-alerting-improvements.md` — 14-step rebuild guide covering all Phase 4.28 changes; updated rebuild/README.md with v0.27.0 entry, new monitoring subdirectory structure in Key Files, and new component versions
+- [x] 4.28.12.6 `/audit-docs`
+- [x] 4.28.12.7 `/commit` (documentation)
 - [ ] 4.28.12.8 `/release v0.27.0 "Alerting & Observability Improvements"`
 - [ ] 4.28.12.9 Move this file to `docs/todo/completed/`
 

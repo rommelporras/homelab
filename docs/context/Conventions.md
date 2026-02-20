@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-02-18
+updated: 2026-02-21
 ---
 
 # Conventions
@@ -96,7 +96,7 @@ homelab/
 │   └── apply-arr-secrets.sh
 ├── docs/
 │   ├── context/             # This knowledge base (RAG source)
-│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.25.0)
+│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.27.0)
 │   ├── todo/                # Active and completed phase plans
 │   └── reference/           # CHANGELOG, historical docs
 └── ansible/                 # Bootstrap automation

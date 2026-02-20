@@ -28,5 +28,5 @@ Hardware setup and initial infrastructure configuration.
 
 ## Related Documents
 
-- [CLUSTER_STATUS.md](../../CLUSTER_STATUS.md) — Node details, IPs, MACs
-- [NETWORK_INTEGRATION.md](../../NETWORK_INTEGRATION.md) — VLANs, switch config
+- [Cluster.md](../../context/Cluster.md) — Node details, IPs, MACs
+- [Networking.md](../../context/Networking.md) — VLANs, switch config

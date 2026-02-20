@@ -34,6 +34,7 @@
 | v0.24.0 | Phase 4.25b | Intel QSV Hardware Transcoding (NFD, GPU Plugin, Jellyfin QSV) | [v0.24.0-intel-qsv.md](v0.24.0-intel-qsv.md) |
 | v0.25.0 | Phase 4.26 | ARR Companions (Seerr, Configarr, Unpackerr, Scraparr, Tdarr, Recommendarr, Byparr) | [v0.25.0-arr-companions.md](v0.25.0-arr-companions.md) |
 | v0.26.0 | Phase 4.27 | Version Automation & Upgrade Runbooks (version-checker, Nova CronJob, Renovate) | [v0.26.0-version-automation.md](v0.26.0-version-automation.md) |
+| v0.27.0 | Phase 4.28 | Alerting & Observability Improvements (15 new alerts, 11 Blackbox probes, smartctl-exporter, Longhorn + cert-manager ServiceMonitors, 11 Grafana dashboards) | [v0.27.0-alerting-improvements.md](v0.27.0-alerting-improvements.md) |
 
 ---
 
@@ -119,6 +120,9 @@ docs/rebuild/v0.25.0-arr-companions.md
 
 # 26. Version Automation - version-checker, Nova CronJob, Renovate Bot
 docs/rebuild/v0.26.0-version-automation.md
+
+# 27. Alerting & Observability - 15 alerts, 11 Blackbox probes, smartctl-exporter
+docs/rebuild/v0.27.0-alerting-improvements.md
 ```
 
 ---
@@ -224,6 +228,9 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | Byparr | latest | v0.25.0 |
 | version-checker | v0.10.0 | v0.26.0 |
 | Nova (CronJob) | v3.11.10 | v0.26.0 |
+| smartctl-exporter | v0.14.0 | v0.27.0 |
+| tdarr-exporter | latest (homeylab) | v0.27.0 |
+| qbittorrent-exporter | latest (esanchezm) | v0.27.0 |
 
 ---
 
@@ -241,7 +248,8 @@ homelab/
 │   ├── gitlab-runner/values.yaml       # v0.8.0
 │   ├── blackbox-exporter/values.yaml   # v0.9.0
 │   ├── tailscale-operator/values.yaml # v0.22.0
-│   └── intel-gpu-plugin/values.yaml  # v0.24.0
+│   ├── intel-gpu-plugin/values.yaml  # v0.24.0
+│   └── smartctl-exporter/values.yaml # v0.27.0
 │
 ├── manifests/
 │   ├── cert-manager/                   # v0.4.0
@@ -330,8 +338,10 @@ homelab/
 │   │   ├── unpackerr/deployment.yaml                       # v0.25.0
 │   │   ├── scraparr/{deployment,service,servicemonitor}.yaml  # v0.25.0
 │   │   ├── tdarr/{deployment,service,httproute}.yaml       # v0.25.0
+│   │   ├── tdarr/tdarr-exporter.yaml                       # v0.27.0
 │   │   ├── recommendarr/{deployment,service,httproute}.yaml  # v0.25.0
-│   │   └── byparr/{deployment,service}.yaml                # v0.25.0
+│   │   ├── byparr/{deployment,service}.yaml                # v0.25.0
+│   │   └── qbittorrent/qbittorrent-exporter.yaml           # v0.27.0
 │   ├── cloudflare/                     # v0.7.0
 │   │   ├── deployment.yaml
 │   │   ├── networkpolicy.yaml
@@ -340,46 +350,78 @@ homelab/
 │   │   ├── longhorn/httproute.yaml
 │   │   └── nfs-immich.yaml
 │   ├── network-policies/               # v0.7.0+
-│   └── monitoring/                     # v0.4.0
-│       ├── grafana-httproute.yaml
-│       ├── loki-datasource.yaml
-│       ├── loki-servicemonitor.yaml
-│       ├── alloy-servicemonitor.yaml
-│       ├── logging-alerts.yaml
-│       ├── nut-exporter.yaml
-│       ├── ups-alerts.yaml
-│       ├── ups-dashboard-configmap.yaml
-│       ├── test-alert.yaml             # v0.5.0
-│       ├── adguard-dns-probe.yaml      # v0.9.0
-│       ├── adguard-dns-alert.yaml      # v0.9.0
-│       ├── uptime-kuma-probe.yaml      # v0.13.0
-│       ├── otel-collector-config.yaml  # v0.15.0
-│       ├── otel-collector.yaml         # v0.15.0
-│       ├── otel-collector-servicemonitor.yaml  # v0.15.0
-│       ├── claude-dashboard-configmap.yaml     # v0.15.0
-│       ├── claude-alerts.yaml          # v0.15.0
-│       ├── kube-vip-monitoring.yaml    # v0.19.0
-│       ├── kube-vip-alerts.yaml        # v0.19.0
-│       ├── kube-vip-dashboard-configmap.yaml   # v0.19.0
-│       ├── ollama-probe.yaml          # v0.20.0
-│       ├── ollama-alerts.yaml         # v0.20.0
-│       ├── karakeep-probe.yaml        # v0.21.0
-│       ├── karakeep-alerts.yaml       # v0.21.0
-│       ├── tailscale-alerts.yaml     # v0.22.0
-│       ├── tailscale-dashboard-configmap.yaml  # v0.22.0
-│       ├── jellyfin-dashboard-configmap.yaml   # v0.24.0
-│       ├── arr-stack-dashboard-configmap.yaml  # v0.24.0
-│       ├── scraparr-dashboard-configmap.yaml  # v0.25.0
-│       ├── network-dashboard-configmap.yaml   # v0.25.0
-│       ├── arr-alerts.yaml                    # v0.25.0
-│       ├── version-checker-rbac.yaml          # v0.26.0
-│       ├── version-checker-deployment.yaml    # v0.26.0
-│       ├── version-checker-servicemonitor.yaml  # v0.26.0
-│       ├── version-checker-alerts.yaml        # v0.26.0
-│       ├── version-checker-dashboard-configmap.yaml  # v0.26.0
-│       ├── version-check-rbac.yaml            # v0.26.0
-│       ├── version-check-script.yaml          # v0.26.0
-│       └── version-check-cronjob.yaml         # v0.26.0
+│   └── monitoring/                     # v0.4.0 (reorganized into subdirs v0.27.0)
+│       ├── alerts/
+│       │   ├── logging-alerts.yaml             # v0.5.0
+│       │   ├── ups-alerts.yaml                 # v0.4.0
+│       │   ├── test-alert.yaml                 # v0.5.0
+│       │   ├── adguard-dns-alert.yaml          # v0.9.0
+│       │   ├── claude-alerts.yaml              # v0.15.0
+│       │   ├── kube-vip-alerts.yaml            # v0.19.0
+│       │   ├── ollama-alerts.yaml              # v0.20.0
+│       │   ├── karakeep-alerts.yaml            # v0.21.0
+│       │   ├── tailscale-alerts.yaml           # v0.22.0
+│       │   ├── arr-alerts.yaml                 # v0.25.0
+│       │   ├── version-checker-alerts.yaml     # v0.26.0
+│       │   ├── uptime-kuma-alerts.yaml         # v0.27.0
+│       │   ├── ghost-alerts.yaml               # v0.27.0
+│       │   ├── invoicetron-alerts.yaml         # v0.27.0
+│       │   ├── portfolio-alerts.yaml           # v0.27.0
+│       │   ├── storage-alerts.yaml             # v0.27.0
+│       │   ├── cert-alerts.yaml                # v0.27.0
+│       │   ├── cloudflare-alerts.yaml          # v0.27.0
+│       │   └── apiserver-alerts.yaml           # v0.27.0
+│       ├── probes/
+│       │   ├── adguard-dns-probe.yaml          # v0.9.0
+│       │   ├── uptime-kuma-probe.yaml          # v0.13.0
+│       │   ├── ollama-probe.yaml               # v0.20.0
+│       │   ├── karakeep-probe.yaml             # v0.21.0
+│       │   ├── jellyfin-probe.yaml             # v0.27.0
+│       │   ├── ghost-probe.yaml                # v0.27.0
+│       │   ├── invoicetron-probe.yaml          # v0.27.0
+│       │   ├── portfolio-probe.yaml            # v0.27.0
+│       │   ├── seerr-probe.yaml                # v0.27.0
+│       │   ├── tdarr-probe.yaml                # v0.27.0
+│       │   └── byparr-probe.yaml               # v0.27.0
+│       ├── servicemonitors/
+│       │   ├── loki-servicemonitor.yaml        # v0.4.0
+│       │   ├── alloy-servicemonitor.yaml       # v0.4.0
+│       │   ├── otel-collector-servicemonitor.yaml  # v0.15.0
+│       │   ├── version-checker-servicemonitor.yaml  # v0.26.0
+│       │   ├── longhorn-servicemonitor.yaml    # v0.27.0
+│       │   ├── certmanager-servicemonitor.yaml # v0.27.0
+│       │   ├── tdarr-servicemonitor.yaml       # v0.27.0 (namespace: arr-stack)
+│       │   └── qbittorrent-servicemonitor.yaml # v0.27.0 (namespace: arr-stack)
+│       ├── dashboards/
+│       │   ├── ups-dashboard-configmap.yaml    # v0.4.0
+│       │   ├── claude-dashboard-configmap.yaml # v0.15.0
+│       │   ├── kube-vip-dashboard-configmap.yaml  # v0.19.0
+│       │   ├── tailscale-dashboard-configmap.yaml  # v0.22.0
+│       │   ├── jellyfin-dashboard-configmap.yaml   # v0.24.0
+│       │   ├── arr-stack-dashboard-configmap.yaml  # v0.24.0
+│       │   ├── scraparr-dashboard-configmap.yaml   # v0.25.0
+│       │   ├── network-dashboard-configmap.yaml    # v0.25.0
+│       │   ├── version-checker-dashboard-configmap.yaml  # v0.26.0
+│       │   ├── longhorn-dashboard-configmap.yaml   # v0.27.0
+│       │   └── service-health-dashboard-configmap.yaml  # v0.27.0
+│       ├── exporters/
+│       │   ├── nut-exporter.yaml               # v0.4.0
+│       │   └── kube-vip-monitoring.yaml        # v0.19.0
+│       ├── grafana/
+│       │   ├── grafana-httproute.yaml          # v0.4.0
+│       │   ├── loki-datasource.yaml            # v0.4.0
+│       │   ├── alertmanager-httproute.yaml     # v0.4.0
+│       │   └── prometheus-httproute.yaml       # v0.4.0
+│       ├── otel/
+│       │   ├── otel-collector.yaml             # v0.15.0
+│       │   ├── otel-collector-config.yaml      # v0.15.0
+│       │   └── otel-collector-servicemonitor.yaml  # v0.15.0
+│       └── version-checker/
+│           ├── version-checker-deployment.yaml # v0.26.0
+│           ├── version-checker-rbac.yaml       # v0.26.0
+│           ├── version-check-cronjob.yaml      # v0.26.0
+│           ├── version-check-script.yaml       # v0.26.0
+│           └── version-check-rbac.yaml         # v0.26.0
 │
 ├── scripts/
 │   ├── upgrade-prometheus.sh           # v0.5.0
