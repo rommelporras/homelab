@@ -73,8 +73,8 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 
 **Observability**
 - Prometheus + Grafana + Loki + Alloy (full metrics, logs, 11 Grafana dashboards in Homelab folder)
-- Alertmanager (Discord + Email, severity routing) — 30+ custom PrometheusRules across 10 alert files
-- Blackbox probes (11 services: Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard)
+- Alertmanager (Discord + Email, severity routing) — 40+ custom PrometheusRules across 20 alert files
+- Blackbox probes (12 services: Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr)
 - Dead Man's Switch (healthchecks.io), UPS monitoring (NUT + nut-exporter)
 - smartctl-exporter DaemonSet (NVMe S.M.A.R.T. health on all 3 nodes — temp, wear, spare, TBW)
 - Longhorn + cert-manager ServiceMonitors (volume robustness alerts + TLS certificate expiry alerts)

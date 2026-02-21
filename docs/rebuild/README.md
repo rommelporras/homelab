@@ -370,7 +370,8 @@ homelab/
 │       │   ├── storage-alerts.yaml             # v0.27.0
 │       │   ├── cert-alerts.yaml                # v0.27.0
 │       │   ├── cloudflare-alerts.yaml          # v0.27.0
-│       │   └── apiserver-alerts.yaml           # v0.27.0
+│       │   ├── apiserver-alerts.yaml           # v0.27.0
+│       │   └── service-health-alerts.yaml      # v0.27.0
 │       ├── probes/
 │       │   ├── adguard-dns-probe.yaml          # v0.9.0
 │       │   ├── uptime-kuma-probe.yaml          # v0.13.0
@@ -382,7 +383,8 @@ homelab/
 │       │   ├── portfolio-probe.yaml            # v0.27.0
 │       │   ├── seerr-probe.yaml                # v0.27.0
 │       │   ├── tdarr-probe.yaml                # v0.27.0
-│       │   └── byparr-probe.yaml               # v0.27.0
+│       │   ├── byparr-probe.yaml               # v0.27.0
+│       │   └── bazarr-probe.yaml               # v0.27.0
 │       ├── servicemonitors/
 │       │   ├── loki-servicemonitor.yaml        # v0.4.0
 │       │   ├── alloy-servicemonitor.yaml       # v0.4.0
