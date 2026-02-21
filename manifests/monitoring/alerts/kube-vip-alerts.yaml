@@ -42,9 +42,12 @@ spec:
             description: "No kube-vip instance is reachable. The API server VIP (10.10.30.10) may be unreachable. Immediate investigation required."
 
         # Leader election lease not renewed (stale lease)
+        # max() collapses pod/instance labels from kube-state-metrics to prevent duplicate
+        # series during kube-state-metrics restarts (e.g. Helm upgrades).
+        # for: 2m absorbs transient API server load spikes during Helm upgrades (~90s blip).
         - alert: KubeVipLeaseStale
-          expr: time() - kube_lease_renew_time{lease="plndr-cp-lock", namespace="kube-system"} > 30
-          for: 1m
+          expr: max(time() - kube_lease_renew_time{lease="plndr-cp-lock", namespace="kube-system"}) > 30
+          for: 2m
           labels:
             severity: critical
           annotations:

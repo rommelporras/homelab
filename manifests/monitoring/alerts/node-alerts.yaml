@@ -1,0 +1,36 @@
+# Custom NodeMemoryMajorPagesFaults — overrides kube-prometheus-stack built-in (disabled via defaultRules)
+#
+# Problem with default: fires on high NFS page cache misses during media transcoding, even when
+# memory is plentiful. Confirmed false positive: k8s-cp1 had 7.5GB free during a 1675/s alert.
+#
+# Fix: compound condition — high page fault rate AND genuinely low memory (< 15% available).
+# This catches real memory pressure while ignoring normal NFS I/O from Tdarr.
+#
+# Built-in disabled via: defaultRules.disabled.NodeMemoryMajorPagesFaults: true
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: node-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: node
+      rules:
+        - alert: NodeMemoryMajorPagesFaults
+          expr: |
+            rate(node_vmstat_pgmajfault[5m]) > 2000
+            and on(instance)
+            (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) < 0.15
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Memory major page faults with genuine memory pressure.
+            description: >-
+              High page fault rate ({{ $value | humanize }}/s) on {{ $labels.instance }}
+              with available memory below 15%. This indicates real memory exhaustion, not
+              routine NFS cache misses. Check what is consuming memory on this node.

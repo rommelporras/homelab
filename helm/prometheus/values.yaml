@@ -28,13 +28,16 @@ kubeProxy:
 defaultRules:
   disabled:
     # InfoInhibitor is a meta-alert for complex info-suppression logic
-    # We don't use this - our routing is simple (info → discord-status)
+    # We don't use this - our routing is simple (info → null)
     InfoInhibitor: true
+    # CPUThrottlingHigh: replaced by manifests/monitoring/alerts/cpu-throttling-alerts.yaml
+    # Changes: threshold 25% → 50%, arr-stack namespace excluded (Tdarr/Byparr are always bursty)
+    CPUThrottlingHigh: true
+    # NodeMemoryMajorPagesFaults: replaced by manifests/monitoring/alerts/node-alerts.yaml
+    # Changes: compound condition (high page faults AND low memory) to avoid NFS false positives
+    NodeMemoryMajorPagesFaults: true
     # Watchdog is enabled - routes to healthchecks.io as dead man's switch
     # If alerting breaks, healthchecks.io detects missing pings and alerts via Discord
-    #
-    # CPUThrottlingHigh is NOT disabled globally - we want alerts for app workloads
-    # Monitoring namespace is silenced via Alertmanager route (see routes section)
 
 # =============================================================================
 # Prometheus
@@ -42,6 +45,10 @@ defaultRules:
 # Time-series database that scrapes and stores all metrics
 prometheus:
   prometheusSpec:
+    # Cluster label on all metrics — fixes "on cluster ." in CPUThrottlingHigh alerts
+    externalLabels:
+      cluster: homelab
+
     # How long to keep data (default: 10d)
     retention: 90d
 
@@ -226,10 +233,10 @@ alertmanager:
           receiver: 'discord-status'
           continue: false
 
-        # Info alerts → #status only (default catches these too)
+        # Info alerts → silenced (non-actionable, visible in Alertmanager UI only)
         - match:
             severity: info
-          receiver: 'discord-status'
+          receiver: 'null'
           continue: false
 
     # Notification receivers
@@ -238,7 +245,7 @@ alertmanager:
       - name: 'discord-incidents-email'
         discord_configs:
           - webhook_url: 'SET_VIA_HELM'  # Injected from 1Password
-            title: '🔴 {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
+            title: '{{ if eq .Status "firing" }}🔴{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
             message: |
               {{ range .Alerts }}
               **{{ .Labels.alertname }}** ({{ .Labels.severity }})

@@ -1,0 +1,36 @@
+# Custom CPUThrottlingHigh — overrides kube-prometheus-stack built-in (disabled via defaultRules)
+#
+# Changes from default:
+#   - Threshold raised from 25% to 50% (default is too sensitive for media/browser workloads)
+#   - arr-stack namespace excluded (Tdarr transcoding + Byparr headless browser are always bursty)
+#
+# Built-in disabled via: defaultRules.disabled.CPUThrottlingHigh: true in helm/prometheus/values.yaml
+# Severity remains info — route to null in Alertmanager (visible in UI, no Discord noise)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cpu-throttling-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: kubernetes-resources
+      rules:
+        - alert: CPUThrottlingHigh
+          expr: |
+            sum(increase(container_cpu_cfs_throttled_periods_total{container!="", namespace!="arr-stack"}[5m])) by (container, pod, namespace, cluster)
+              /
+            sum(increase(container_cpu_cfs_periods_total{container!="", namespace!="arr-stack"}[5m])) by (container, pod, namespace, cluster)
+            > ( 50 / 100 )
+          for: 15m
+          labels:
+            severity: info
+          annotations:
+            summary: Processes experience elevated CPU throttling.
+            description: >-
+              {{ $value | humanizePercentage }} throttling of CPU in namespace
+              {{ $labels.namespace }} for container {{ $labels.container }} in pod
+              {{ $labels.pod }} on cluster homelab.

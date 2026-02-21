@@ -140,7 +140,7 @@ data:
           "type": "stat",
           "targets": [
             {
-              "expr": "time() - kube_lease_renew_time{lease=\"plndr-cp-lock\", namespace=\"kube-system\"}",
+              "expr": "max(time() - kube_lease_renew_time{lease=\"plndr-cp-lock\", namespace=\"kube-system\"})",
               "instant": true,
               "refId": "A"
             }
