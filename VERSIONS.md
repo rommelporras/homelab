@@ -40,7 +40,7 @@
 | longhorn/longhorn | 1.10.1 | v1.10.1 | Installed | longhorn-system |
 | cilium/cilium | 1.18.6 | v1.18.6 | Installed | kube-system |
 | oci://quay.io/jetstack/charts/cert-manager | 1.19.2 | v1.19.2 | Installed | cert-manager |
-| oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 81.6.5 | v0.88.1 | Installed | monitoring |
+| oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 81.0.0 | v0.88.0 | Installed | monitoring |
 | oci://ghcr.io/grafana/helm-charts/loki | 6.49.0 | v3.6.3 | Installed | monitoring |
 | grafana/alloy | 1.5.2 | v1.12.2 | Installed | monitoring |
 | metrics-server/metrics-server | 3.13.0 | v0.8.0 | Installed | kube-system |
@@ -278,7 +278,7 @@ helm-homelab repo update
 |----------|---------|-------|
 | Critical | #incidents | critical@, r3mmel023@, rommelcporras@ |
 | Warning | #status | None |
-| Info | #status | None |
+| Info | (silenced) | None |
 
 **Silenced Alerts (kubeadm false positives):**
 - `KubeProxyDown`, `etcdInsufficientMembers`, `etcdMembersDown`

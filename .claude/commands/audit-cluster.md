@@ -2,13 +2,20 @@
 
 Audit live cluster security posture. Requires cluster access via `kubectl-homelab`.
 
+## When to use this vs /audit-security
+
+| Command | When | Requires cluster? |
+|---------|------|-------------------|
+| `/audit-security` | Before every commit — scans local files for secrets and manifest issues | No (offline) |
+| `/audit-cluster` | After deploying changes — checks what's actually running in the cluster | Yes |
+
+Use `/audit-cluster` when you want to verify the live cluster state: network policies, RBAC bindings, exposed services, running image versions, pod security. Run it on-demand, not on every commit.
+
 ## Usage
 
 ```
 /audit-cluster           → Full cluster security audit
 ```
-
-Run on-demand when you want a deep security check of the running cluster.
 
 ## Instructions
 
@@ -180,18 +187,44 @@ Read `docs/context/Gateway.md` "Exposed Services" table. Parse the table to extr
 
 ### 9. Image Version Drift
 
-**Get running images (deduplicated):**
+**Get running images WITH pod context (deduplicated by namespace+pod+image):**
 ```bash
 jq -r '
   .items[] | select(.status.phase=="Running") |
-  .metadata.namespace + "\t" + (.spec.containers[].image)
+  .metadata.namespace + "/" + .metadata.name + "\t" + (.spec.containers[].image)
 ' /tmp/audit-pods.json | sort -u
 ```
 
 **Compare against VERSIONS.md:**
-Read `VERSIONS.md`. For each component listed, check if the running image version matches the documented version.
-- Version mismatch → ⚠️ WARNING (may indicate untracked upgrade or drift)
-- Image not in VERSIONS.md → ℹ️ INFO (system images don't need tracking)
+Read `VERSIONS.md`. For each tracked component, find the matching image in the pod output.
+
+**Classification rules — apply IN ORDER:**
+
+1. **Helm-bundled sidecar (different chart context)** → ℹ️ INFO, not drift
+   - Some images are bundled independently by multiple Helm charts and legitimately exist at different versions. When the same image name appears at two versions, check which namespace each lives in.
+   - If one is in `monitoring` (kube-prometheus-stack) and another is in the same namespace but different pod (e.g., grafana/alloy DaemonSet), that's expected — each chart bundles its own pinned version.
+   - Known multi-chart sidecar images (expect version diversity across pods):
+     - `prometheus-operator/prometheus-config-reloader` — bundled by kube-prometheus-stack AND grafana/alloy at different versions
+     - `kiwigrid/k8s-sidecar` — bundled by Grafana helm chart
+     - `kube-rbac-proxy` — bundled by various operators independently
+   - To identify which pod/chart owns which version: look at pod name prefix and labels, not just image alone
+
+2. **Image not in VERSIONS.md** → ℹ️ INFO (system/infrastructure images, no tracking needed)
+
+3. **Version mismatch for a tracked image, same chart context** → ⚠️ WARNING (may indicate untracked upgrade)
+
+**When flagging a version mismatch, always include:**
+- Which specific pod(s) have the mismatched version (namespace/pod-name)
+- Which pod(s) have the expected version
+- Whether the pod with the mismatch belongs to a different Helm chart than what VERSIONS.md tracks
+
+**Do NOT recommend deleting a pod** as a remediation step unless you have first verified the replica count:
+```bash
+# Check replicas before recommending any pod deletion
+kubectl-homelab get statefulset -n <namespace> <name> -o jsonpath='{.spec.replicas}{"\n"}'
+kubectl-homelab get deployment -n <namespace> <name> -o jsonpath='{.spec.replicas}{"\n"}'
+```
+If replicas == 1, pod deletion causes a brief outage. State this explicitly. Let the user decide.
 
 ### 10. Cleanup
 
@@ -226,8 +259,8 @@ Result: PASS (0 critical, 1 warning, 1 info)
 
 **Severity levels:**
 - ⛔ CRITICAL — Privileged workload containers (non-system), unexpected cluster-admin SA, undocumented external exposure
-- ⚠️ WARNING — Missing security context, no network policy, root containers (non-system), image drift, workloads in default namespace
-- ℹ️ INFO — System namespace defaults, expected operator bindings, temporarily missing services
+- ⚠️ WARNING — Missing security context, no network policy, root containers (non-system), real image drift, workloads in default namespace
+- ℹ️ INFO — System namespace defaults, expected operator bindings, temporarily missing services, Helm-bundled sidecar version diversity
 
 **Pass/fail logic:**
 - 0 critical = PASS
@@ -238,6 +271,9 @@ Result: PASS (0 critical, 1 warning, 1 info)
 - `kube-system` pods without probes — managed by kubelet
 - System/operator ClusterRoleBindings — expected
 - Gateway controller pods in `default` namespace — that's where the Gateway resource lives
+- Multiple versions of `prometheus-config-reloader` — kube-prometheus-stack and grafana/alloy each bundle their own pinned version; both are correct
+- Multiple versions of `k8s-sidecar` — Grafana helm chart bundles its own; other charts may too
+- Network policies missing on Helm-managed namespaces (gitlab, monitoring, longhorn-system, tailscale, cert-manager) — policies may be configured in Helm values; use live cluster inspection to verify
 
 ## Important Rules
 
@@ -246,5 +282,7 @@ Result: PASS (0 critical, 1 warning, 1 info)
 3. **Fetch once, reuse** — Collect pod/namespace/CRB JSON once, reuse across checks
 4. **Classify by pattern, not hardcoded lists** — System prefixes, operator names, etc.
 5. **System vs workload** — Different expectations for kube-system vs application namespaces
-6. **Evidence-based** — Show the actual data that led to each finding
-7. **Cleanup temp files** — Remove /tmp/audit-*.json when done
+6. **Evidence-based** — Show the actual data that led to each finding (namespace/pod-name for every image finding)
+7. **Verify before recommending destructive actions** — Always check replica count before suggesting pod deletion; if replicas == 1, note the outage risk and let user decide
+8. **Multi-chart sidecars are not drift** — When the same sidecar image exists at two versions across different Helm chart pods, that's expected chart bundling, not version drift
+9. **Cleanup temp files** — Remove /tmp/audit-*.json when done

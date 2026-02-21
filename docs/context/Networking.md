@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, networking, dns, vlan]
-updated: 2026-02-16
+updated: 2026-02-21
 ---
 
 # Networking
@@ -52,6 +52,8 @@ Network configuration for the homelab cluster.
 | Service | URL | Tier |
 |---------|-----|------|
 | Grafana | https://grafana.k8s.rommelporras.com | base |
+| Prometheus | https://prometheus.k8s.rommelporras.com | base |
+| Alertmanager | https://alertmanager.k8s.rommelporras.com | base |
 | Longhorn | https://longhorn.k8s.rommelporras.com | base |
 | AdGuard | https://adguard.k8s.rommelporras.com | base |
 | Homepage | https://portal.k8s.rommelporras.com | base |

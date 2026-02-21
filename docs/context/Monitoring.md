@@ -33,8 +33,8 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 | Service | URL |
 |---------|-----|
 | Grafana | https://grafana.k8s.rommelporras.com |
-| Prometheus | ClusterIP (port-forward: 9090) |
-| Alertmanager | ClusterIP (port-forward: 9093) |
+| Prometheus | https://prometheus.k8s.rommelporras.com |
+| Alertmanager | https://alertmanager.k8s.rommelporras.com |
 | Uptime Kuma | https://uptime.k8s.rommelporras.com |
 | Uptime Kuma (public) | https://status.rommelporras.com/status/homelab |
 
@@ -78,7 +78,7 @@ Query logs:
 | Receiver | Destination | When |
 |----------|-------------|------|
 | discord-incidents-email | Discord #incidents + Email | Critical |
-| discord-status | Discord #status | Warning, Info |
+| discord-status | Discord #status | Warning |
 | healthchecks-heartbeat | healthchecks.io ping | Watchdog (1m) |
 | null | Nowhere | Silenced alerts |
 
@@ -88,7 +88,7 @@ Query logs:
 |----------|---------|-------|
 | Critical | #incidents | 3 recipients |
 | Warning | #status | None |
-| Info | #status | None |
+| Info | (silenced) | None |
 
 ### Email Recipients (Critical)
 
@@ -264,6 +264,7 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 | `seerr-probe.yaml` | Seerr | HTTP (seerr.arr-stack.svc:5055) | 60s |
 | `tdarr-probe.yaml` | Tdarr | HTTP (tdarr.arr-stack.svc:8265) | 60s |
 | `byparr-probe.yaml` | Byparr | HTTP (byparr.arr-stack.svc:8191) | 60s |
+| `bazarr-probe.yaml` | Bazarr | HTTP (bazarr.arr-stack.svc:6767) | 60s |
 
 All probes use the `http_2xx` module (Blackbox Exporter at `blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115`).
 
@@ -295,20 +296,24 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | `ollama-alerts.yaml` | OllamaDown, OllamaMemoryHigh, OllamaHighRestarts | v0.20.0 |
 | `karakeep-alerts.yaml` | KarakeepDown, KarakeepHighRestarts | v0.21.0 |
 | `tailscale-alerts.yaml` | TailscaleConnectorDown, TailscaleOperatorDown | v0.22.0 |
-| `arr-alerts.yaml` | ArrAppDown, SonarrQueueStalled, RadarrQueueStalled, NetworkInterfaceSaturated, NetworkInterfaceCritical, JellyfinDown, SeerrDown, TdarrDown, ByparrDown | v0.25.0 |
+| `arr-alerts.yaml` | ArrAppDown, SonarrQueueStalled, RadarrQueueStalled, NetworkInterfaceSaturated, NetworkInterfaceCritical, JellyfinDown, SeerrDown, TdarrDown, ByparrDown, ArrQueueWarning, ArrQueueError, BazarrDown, JellyfinHighMemory, TdarrTranscodeErrors, TdarrTranscodeErrorsBurst, TdarrHealthCheckErrors, TdarrHealthCheckErrorsBurst, QBittorrentStalledDownloads | v0.25.0–v0.27.0 |
 | `version-checker-alerts.yaml` | ContainerImageOutdated, KubernetesVersionOutdated, VersionCheckerDown | v0.26.0 |
 | `uptime-kuma-alerts.yaml` | UptimeKumaDown (3m, warning) | v0.27.0 |
 | `ghost-alerts.yaml` | GhostDown (5m, warning) | v0.27.0 |
 | `invoicetron-alerts.yaml` | InvoicetronDown (5m, warning) | v0.27.0 |
 | `portfolio-alerts.yaml` | PortfolioDown (5m, warning) | v0.27.0 |
-| `storage-alerts.yaml` | LonghornVolumeDegraded (warning), LonghornVolumeReplicaFailed (critical), NVMeMediaErrors (critical), NVMeSpareWarning (warning), NVMeWearHigh (warning) | v0.27.0 |
+| `storage-alerts.yaml` | LonghornVolumeDegraded (warning), LonghornVolumeReplicaFailed (critical), NVMeMediaErrors (critical), NVMeSpareWarning (warning), NVMeWearHigh (warning), NVMeTemperatureHigh (warning) | v0.27.0 |
 | `cert-alerts.yaml` | CertificateExpiringSoon (30d, warning), CertificateExpiryCritical (7d, critical), CertificateNotReady (critical) | v0.27.0 |
 | `cloudflare-alerts.yaml` | CloudflareTunnelDegraded (warning), CloudflareTunnelDown (critical) | v0.27.0 |
 | `apiserver-alerts.yaml` | KubeApiserverFrequentRestarts (>5 restarts/24h, warning) | v0.27.0 |
+| `service-health-alerts.yaml` | ServiceHighResponseTime (>5s for 5m, warning) | v0.27.0 |
+| `cpu-throttling-alerts.yaml` | CPUThrottlingHigh (>50%, arr-stack excluded, info) | v0.27.0 |
+| `node-alerts.yaml` | NodeMemoryMajorPagesFaults (>2000/s + <15% mem available, warning) | v0.27.0 |
 
 **Severity routing:**
 - `critical` → Discord #incidents + Email (3 recipients)
 - `warning` → Discord #status only
+- `info` → null (silenced — visible in Alertmanager UI only)
 
 ### Grafana Dashboards (`manifests/monitoring/dashboards/`)
 
@@ -326,7 +331,7 @@ All dashboards are auto-provisioned via Grafana sidecar. All have `grafana_folde
 | `scraparr-dashboard-configmap.yaml` | Scraparr ARR Metrics | Library sizes, queue health, indexer stats, disk usage |
 | `longhorn-dashboard-configmap.yaml` | Longhorn Storage | NVMe S.M.A.R.T. (6 stat panels), TBW history, write rate, disk usage, volume I/O |
 | `version-checker-dashboard-configmap.yaml` | Version Checker | Outdated containers, K8s version drift |
-| `service-health-dashboard-configmap.yaml` | Service Health | 11-service UP/DOWN grid, uptime history, response times |
+| `service-health-dashboard-configmap.yaml` | Service Health | 12-service UP/DOWN grid, uptime history, response times |
 
 ### Version Checker (`manifests/monitoring/version-checker/`)
 

@@ -252,7 +252,7 @@ sum(up{job="cloudflared"}) == 0
 
 ## Changes
 
-### Files Created (23 total)
+### Files Created (29 total)
 
 | File | Type | Purpose | Status |
 |------|------|---------|--------|
@@ -272,7 +272,7 @@ sum(up{job="cloudflared"}) == 0
 | `manifests/monitoring/servicemonitors/certmanager-servicemonitor.yaml` | ServiceMonitor | Scrape cert-manager metrics (port 9402) | ✅ |
 | `manifests/monitoring/alerts/cert-alerts.yaml` | PrometheusRule | Certificate expiry + not-ready alerts | ✅ |
 | `manifests/monitoring/alerts/cloudflare-alerts.yaml` | PrometheusRule | Tunnel degraded/down alerts | ✅ |
-| `manifests/monitoring/dashboards/service-health-dashboard-configmap.yaml` | ConfigMap | Grafana Service Health dashboard (11 UP/DOWN stat panels, uptime history, response time) | ✅ |
+| `manifests/monitoring/dashboards/service-health-dashboard-configmap.yaml` | ConfigMap | Grafana Service Health dashboard (12 UP/DOWN stat panels, uptime history, response time) | ✅ |
 | `manifests/monitoring/alerts/apiserver-alerts.yaml` | PrometheusRule | KubeApiserverFrequentRestarts alert (>5 restarts/24h) | ✅ |
 | `helm/smartctl-exporter/values.yaml` | Helm values | smartctl-exporter DaemonSet on all 3 nodes, pinned to /dev/nvme0, ServiceMonitor enabled | ✅ |
 | `manifests/arr-stack/tdarr/tdarr-exporter.yaml` | Deployment | tdarr-exporter Deployment + Service (scrapes Tdarr stats API, exposes Prometheus metrics on :9090) | ✅ |
@@ -283,8 +283,10 @@ sum(up{job="cloudflared"}) == 0
 | `manifests/arr-stack/stall-resolver/cronjob.yaml` | CronJob | Runs every 30 min, resolves stalled Sonarr/Radarr downloads automatically | ✅ |
 | `manifests/monitoring/grafana/prometheus-httproute.yaml` | HTTPRoute | Expose Prometheus UI at prometheus.k8s.rommelporras.com | ✅ |
 | `manifests/monitoring/grafana/alertmanager-httproute.yaml` | HTTPRoute | Expose Alertmanager UI at alertmanager.k8s.rommelporras.com | ✅ |
+| `manifests/monitoring/probes/bazarr-probe.yaml` | Probe | Blackbox HTTP probe for Bazarr subtitle downloader (port 6767), job=`bazarr`, interval=60s | ✅ |
+| `manifests/monitoring/alerts/service-health-alerts.yaml` | PrometheusRule | `ServiceHighResponseTime` alert (>5s for 5m on public-facing services: ghost, invoicetron, portfolio, jellyfin, seerr, karakeep) | ✅ |
 
-### Files Modified (15 total)
+### Files Modified (20 total)
 
 | File | Change | Status |
 |------|--------|--------|
@@ -306,6 +308,8 @@ sum(up{job="cloudflared"}) == 0
 | `manifests/monitoring/alerts/arr-alerts.yaml` (2nd pass) | Added ArrQueueWarning (warning, 60m stall) and ArrQueueError (critical, 15m) alongside stall resolver | ✅ |
 | `manifests/home/homepage/` | Added Prometheus targets count and Alertmanager firing count widgets | ✅ |
 | `/etc/kubernetes/manifests/` (all 3 nodes) | Fixed etcd/kube-scheduler/kube-controller-manager bind addresses to 0.0.0.0 so Prometheus can scrape | ✅ |
+| `manifests/monitoring/alerts/claude-alerts.yaml` | Fixed `ClaudeCodeNoActivity` timezone bug: `hour()>=17 and hour()<=18` → `hour()>=9 and hour()<=11` (was firing at 1-2am Manila instead of 5-7pm) | ✅ |
+| `manifests/monitoring/alerts/arr-alerts.yaml` (3rd pass) | Added JellyfinHighMemory (warning, 3.5Gi, for:10m), BazarrDown (warning, for:5m), TdarrTranscodeErrors/Burst (warning+critical), TdarrHealthCheckErrors/Burst (warning+critical), QBittorrentStalledDownloads (warning, for:45m) | ✅ |
 
 ---
 
@@ -633,9 +637,9 @@ Files needed:
 
 - [x] 4.28.13.7 Add Bazarr panel to Service Health dashboard — stat panel at y=9, x=18, w=6, h=4 (fills empty slot in row 3). Also added bazarr to Uptime History and Response Time time series panels. Apply and reload Grafana.
 
-- [ ] 4.28.13.8 `/audit-security` then `/commit` (infra) — commit all 4.28.13 + 4.28.14 changes together.
+- [x] 4.28.13.8 `/audit-security` then `/commit` (infra) — commit all 4.28.13 + 4.28.14 changes together.
 
-- [ ] 4.28.13.9 Update `docs/rebuild/v0.27.0-alerting-improvements.md` — add Step 18 covering 4.28.13 + 4.28.14 changes. Then `/audit-docs` and `/commit` (docs).
+- [x] 4.28.13.9 Update `docs/rebuild/v0.27.0-alerting-improvements.md` — add Step 18 covering 4.28.13 + 4.28.14 changes. Then `/audit-docs` and `/commit` (docs).
 
 #### PromQL Reference
 
@@ -757,9 +761,9 @@ New groups to add:
 
 - [x] 4.28.14.3 Routing verified via PrometheusRule labels: TdarrTranscodeErrorsBurst + TdarrHealthCheckErrorsBurst have `severity: critical` → #incidents + email. TdarrTranscodeErrors + TdarrHealthCheckErrors + QBittorrentStalledDownloads have `severity: warning` → #status.
 
-- [ ] 4.28.14.4 `/audit-security` then `/commit` (infra) — combined with 4.28.13.8.
+- [x] 4.28.14.4 `/audit-security` then `/commit` (infra) — combined with 4.28.13.8.
 
-- [ ] 4.28.14.5 Update `docs/rebuild/v0.27.0-alerting-improvements.md` — combined with 4.28.13.9.
+- [x] 4.28.14.5 Update `docs/rebuild/v0.27.0-alerting-improvements.md` — combined with 4.28.13.9.
 
 #### PromQL Reference
 
@@ -794,7 +798,7 @@ sum(qbittorrent_torrents_count{status="stalledDL"}) > 0
 - [x] `AdGuardDNSUnreachable` alert has correct labels (`release: prometheus`)
 - [x] `UptimeKumaDown` alert active on existing probe
 
-### New Probes (7 probes)
+### New Probes (8 probes)
 - [x] `probe_success{job="jellyfin"}` metric present — confirmed UP in Service Health dashboard
 - [x] `probe_success{job="ghost"}` metric present — confirmed UP in Service Health dashboard
 - [x] `probe_success{job="invoicetron"}` metric present — confirmed UP in Service Health dashboard
@@ -802,8 +806,9 @@ sum(qbittorrent_torrents_count{status="stalledDL"}) > 0
 - [x] `probe_success{job="seerr"}` metric present — confirmed UP in Service Health dashboard
 - [x] `probe_success{job="tdarr"}` metric present — confirmed UP in Service Health dashboard
 - [x] `probe_success{job="byparr"}` metric present — confirmed UP in Service Health dashboard
+- [x] `probe_success{job="bazarr"}` metric present — confirmed UP (added in 4.28.13.5)
 
-### New Alerts (15 alerts)
+### New Alerts (24 alerts)
 - [x] `GhostDown` rule active (warning)
 - [x] `InvoicetronDown` rule active (warning)
 - [x] `PortfolioDown` rule active (warning)
@@ -819,6 +824,15 @@ sum(qbittorrent_torrents_count{status="stalledDL"}) > 0
 - [x] `CloudflareTunnelDegraded` rule active (warning)
 - [x] `CloudflareTunnelDown` rule active (critical)
 - [x] `KubeApiserverFrequentRestarts` rule active (warning) — confirmed `health: ok`, currently NOT firing (cp1=2, cp2=1, cp3=2 restarts in 24h, all below threshold of >5)
+- [x] `JellyfinHighMemory` rule active (warning) — added 4.28.13.2; `health: ok`, not firing at rest
+- [x] `BazarrDown` rule active (warning) — added 4.28.13.6; `health: ok`, Bazarr probe UP
+- [x] `NVMeTemperatureHigh` rule active (warning) — added 4.28.13.3; `health: ok`, ~46°C on all nodes (threshold 65°C)
+- [x] `ServiceHighResponseTime` rule active (warning) — added 4.28.13.4; `health: ok`, all probes <1s (threshold 5s)
+- [x] `TdarrTranscodeErrors` rule active (warning) — added 4.28.14.1; `health: ok`, not firing
+- [x] `TdarrTranscodeErrorsBurst` rule active (critical) — added 4.28.14.1; `health: ok`, not firing
+- [x] `TdarrHealthCheckErrors` rule active (warning) — added 4.28.14.1; `health: ok`, not firing
+- [x] `TdarrHealthCheckErrorsBurst` rule active (critical) — added 4.28.14.1; `health: ok`, not firing
+- [x] `QBittorrentStalledDownloads` rule active (warning) — added 4.28.14.2; `health: ok`, stalledDL=0
 
 ### ServiceMonitors
 - [x] Longhorn ServiceMonitor created and applied

@@ -371,7 +371,9 @@ homelab/
 │       │   ├── cert-alerts.yaml                # v0.27.0
 │       │   ├── cloudflare-alerts.yaml          # v0.27.0
 │       │   ├── apiserver-alerts.yaml           # v0.27.0
-│       │   └── service-health-alerts.yaml      # v0.27.0
+│       │   ├── service-health-alerts.yaml      # v0.27.0
+│       │   ├── cpu-throttling-alerts.yaml      # v0.27.0
+│       │   └── node-alerts.yaml                # v0.27.0
 │       ├── probes/
 │       │   ├── adguard-dns-probe.yaml          # v0.9.0
 │       │   ├── uptime-kuma-probe.yaml          # v0.13.0

@@ -4,7 +4,7 @@
 
 ---
 
-## February 21, 2026 — Alert Quality Improvements (Post-Release Investigation)
+## February 21, 2026 — Alert Quality Improvements (Pre-Release Fixes)
 
 ### Summary
 
