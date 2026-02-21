@@ -1,0 +1,28 @@
+# Blackbox HTTP probe for Bazarr
+# Phase 4.28.13: Monitor Bazarr subtitle downloader availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://bazarr.arr-stack.svc:6767 -> Bazarr WebUI
+#   If unreachable -> probe_success=0 -> BazarrDown alert fires
+#
+# Target is internal ClusterIP — blackbox exporter reaches it via cluster DNS
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: bazarr
+  namespace: monitoring
+  labels:
+    app: bazarr-probe
+spec:
+  jobName: bazarr
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://bazarr.arr-stack.svc.cluster.local:6767
+      labels:
+        target_name: bazarr

@@ -525,6 +525,266 @@ All probes use the internal Blackbox Exporter at `blackbox-exporter-prometheus-b
 - [ ] 4.28.12.8 `/release v0.27.0 "Alerting & Observability Improvements"`
 - [ ] 4.28.12.9 Move this file to `docs/todo/completed/`
 
+### 4.28.13 Dashboard-Driven Alert Improvements (Pre-Release)
+
+> Systematic audit of all 11 Grafana dashboards against existing alert rules revealed 5 gaps.
+> Each dashboard was checked: what metrics it visualizes vs. what alert rules exist for those metrics.
+> All 5 items are small, self-contained changes suitable for pre-release completion.
+
+#### What Each Dashboard Showed
+
+| Dashboard | Coverage Status | Gap Found |
+|-----------|-----------------|-----------|
+| Claude Code | High spend, no activity, OTel down | **Bug:** `ClaudeCodeNoActivity` fires at 1-2am Manila (17-18 UTC = UTC+8 01-02). Should fire at 5-7pm Manila (09-11 UTC). |
+| Jellyfin | JellyfinDown probe | **Missing:** Memory alert. Dashboard shows 4Gi limit with memory panel — no alert when approaching OOM. |
+| Service Health | UP/DOWN per probe | **Missing:** Response time alert. Dashboard tracks `probe_duration_seconds` but no alert fires for slow responses. |
+| UPS | Fully covered | All power scenarios covered (on battery, low battery, high load, offline). Input voltage sag triggers OB flag which already fires `UPSOnBattery`. |
+| Tailscale | Connector + Operator down | Connector has no memory limit (noted in panel description). Minor risk. No action. |
+| Version Checker | Fully covered | ContainerImageOutdated + VersionCheckerDown cover everything. |
+| Longhorn | Volume degraded/faulted + 5 NVMe SMART alerts | **Missing:** Temperature alert. Dashboard has a prominent Temperature stat panel with per-node values — no alert if temp exceeds 65°C. SK Hynix HFS512GDE9X081N max operating = 70°C. |
+| Scraparr / ARR Stack | ARR queue + service health | **Missing:** Bazarr (subtitle downloader, port 6767) has zero monitoring. Users notice missing subtitles reactively. |
+| Network | NIC saturation at 80%+95% | Fully covered. |
+| kube-vip | All VIP failure modes | Fully covered. |
+
+#### Findings
+
+**1. Bug: `ClaudeCodeNoActivity` fires at wrong time**
+
+The alert fires at 5-6pm UTC which is 1-2am Manila (UTC+8). The intent is end-of-business-day detection.
+
+```yaml
+# Current (WRONG) — fires at 1-2am Manila time
+hour() >= 17 and hour() <= 18
+
+# Fixed — fires at 5-7pm Manila time (9-11am UTC)
+hour() >= 9 and hour() <= 11
+```
+
+File: `manifests/monitoring/alerts/claude-alerts.yaml`
+
+**2. Missing: `JellyfinHighMemory`**
+
+Dashboard shows memory usage vs 4Gi limit. During QSV transcoding, memory spikes ~500Mi per stream. With 2-3 concurrent streams, approaching 4Gi is realistic. No alert exists.
+
+```promql
+# Warning — approaching OOM kill threshold (87% of 4Gi)
+container_memory_working_set_bytes{namespace="arr-stack", pod=~"jellyfin.*", container="jellyfin"}
+> 3758096384  # 3.5Gi = 3.5 * 1024^3
+```
+
+Severity: **warning**, for: 10m, Route: #status only
+
+Add to: `manifests/monitoring/alerts/arr-alerts.yaml` (new `jellyfin-health` group)
+
+**3. Missing: `NVMeTemperatureHigh`**
+
+Dashboard has a Temperature stat panel (one per node) showing current NVMe temperature. No alert fires if it exceeds safe operating range. SK Hynix drives have 70°C max; 65°C threshold gives a buffer.
+
+```promql
+# Metric name from smartctl-exporter — verify in live Prometheus first:
+#   smartctl_device_temperature_celsius (most common from prometheus-community chart)
+# Labels: device="nvme0n1", model_name=..., node=...
+smartctl_device_temperature_celsius > 65
+```
+
+Severity: **warning**, for: 10m, Route: #status only
+
+Add to: `manifests/monitoring/alerts/storage-alerts.yaml` (new `nvme-temperature` rule in `nvme-smart` group)
+
+**4. Missing: `ServiceHighResponseTime`**
+
+Dashboard has a "Response Time" row tracking `probe_duration_seconds` for all 11 probes with 1s (orange) / 3s (red) thresholds visible in the chart — but no alert rule acts on this metric.
+
+A service can be technically UP (probe_success=1) but responding in 5+ seconds, indicating database issues, memory pressure, or cold-start degradation. Alert only for public-facing services (not internal tools like Tdarr/Byparr where slow response is normal).
+
+```promql
+# Only alert for public/user-facing services — internal tools often have slow initial response
+probe_duration_seconds{job=~"ghost|invoicetron|portfolio|jellyfin|seerr|karakeep"} > 5
+```
+
+Severity: **warning**, for: 5m, Route: #status only
+
+Add to: new `manifests/monitoring/alerts/service-health-alerts.yaml` file
+
+**5. Missing: Bazarr probe + alert**
+
+Bazarr is the subtitle downloader in the ARR stack. It runs at port 6767. The ARR Stack dashboard shows all companion pods but Bazarr is completely unmonitored — no Blackbox probe, no PrometheusRule. When Bazarr goes down, Jellyfin stops getting auto-subtitles. Users notice reactively when watching content.
+
+Target: `http://bazarr.arr-stack.svc.cluster.local:6767`
+
+Files needed:
+- `manifests/monitoring/probes/bazarr-probe.yaml` — Blackbox HTTP probe, job=`bazarr`, interval=60s
+- Add `BazarrDown` alert to `manifests/monitoring/alerts/arr-alerts.yaml` (severity: warning, for: 5m)
+- Add `bazarr` panel to Service Health dashboard
+
+#### Tasks
+
+- [x] 4.28.13.1 Fix `ClaudeCodeNoActivity` timezone bug — change `hour() >= 17 and hour() <= 18` to `hour() >= 9 and hour() <= 11` in `manifests/monitoring/alerts/claude-alerts.yaml`. Apply and verify the rule reloads (`health: ok`).
+
+- [x] 4.28.13.2 Add `JellyfinHighMemory` rule to `manifests/monitoring/alerts/arr-alerts.yaml` — added to `jellyfin` group (not a separate group — consistent with JellyfinDown being in the same group). Apply and verify (`health: ok`).
+
+- [x] 4.28.13.3 Add `NVMeTemperatureHigh` rule to `manifests/monitoring/alerts/storage-alerts.yaml` — metric confirmed as `smartctl_device_temperature{temperature_type="current"}` (not `_celsius`). Current values: 46°C on all 3 nodes. Alert at >65°C for 10m. Apply and verify (`health: ok`, not firing).
+
+- [x] 4.28.13.4 Create `manifests/monitoring/alerts/service-health-alerts.yaml` — new PrometheusRule with `ServiceHighResponseTime` alert. Apply and verify (`health: ok`, not firing — all probes responding <1s).
+
+- [x] 4.28.13.5 Create `manifests/monitoring/probes/bazarr-probe.yaml` — Blackbox HTTP probe targeting `http://bazarr.arr-stack.svc.cluster.local:6767`, job=`bazarr`, interval=60s. Apply and verify `probe_success{job="bazarr"} = 1` (UP).
+
+- [x] 4.28.13.6 Add `BazarrDown` alert to `manifests/monitoring/alerts/arr-alerts.yaml` — added to `arr-companions` group. Apply and verify (`health: ok`).
+
+- [x] 4.28.13.7 Add Bazarr panel to Service Health dashboard — stat panel at y=9, x=18, w=6, h=4 (fills empty slot in row 3). Also added bazarr to Uptime History and Response Time time series panels. Apply and reload Grafana.
+
+- [ ] 4.28.13.8 `/audit-security` then `/commit` (infra) — commit all 4.28.13 + 4.28.14 changes together.
+
+- [ ] 4.28.13.9 Update `docs/rebuild/v0.27.0-alerting-improvements.md` — add Step 18 covering 4.28.13 + 4.28.14 changes. Then `/audit-docs` and `/commit` (docs).
+
+#### PromQL Reference
+
+```promql
+# JellyfinHighMemory — 3.5Gi = 3758096384 bytes
+container_memory_working_set_bytes{namespace="arr-stack", pod=~"jellyfin.*", container="jellyfin"} > 3758096384
+
+# NVMeTemperatureHigh — verify metric name first; likely one of:
+smartctl_device_temperature_celsius > 65
+# or
+smartctl_nvme_temperature_celsius > 65
+
+# ServiceHighResponseTime — public-facing services only
+probe_duration_seconds{job=~"ghost|invoicetron|portfolio|jellyfin|seerr|karakeep"} > 5
+```
+
+#### Coverage Impact
+
+After 4.28.13:
+- Total custom alert rules: ~25 (up from 20)
+- Bazarr joins the 11 monitored services in Service Health dashboard → 12 probes
+- All dashboard-visible metrics now have corresponding alert rules where appropriate
+
+---
+
+### 4.28.14 Tdarr & qBittorrent Operational Alerts (Pre-Release)
+
+> Tdarr and qBittorrent metrics are already scraped (exporters deployed in 4.28.11). These alerts add operational awareness: transcode failures, health check errors, and stalled downloads.
+
+#### Design: Why `increase()` Instead of Raw Counter
+
+Both Tdarr metrics are **cumulative counters** — they only go up, never down. The cluster already has:
+- 73 health check errors (Tdarr has processed 73 files with minor issues over its lifetime)
+- Some transcode errors from historical runs
+
+Using `metric > 0` would fire **immediately and permanently** — auto-resolve would never trigger because counters never reset to 0. The fix is `increase(metric[1h])` which measures *new errors in the last hour*, not historical total. When errors stop occurring, `increase()[1h]` drops to 0 → alert auto-resolves ~1h later.
+
+#### Auto-Resolve Behavior
+
+Auto-resolve is **already built into Alertmanager** — no extra config required:
+- When PromQL expr returns 0 results: alert transitions from FIRING → RESOLVED
+- Alertmanager sends resolved notification automatically
+- Discord #status title uses: `{{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }}` — already in config
+- Email `send_resolved: true` on `discord-incidents-email` receiver — already in config
+
+When you manually fix a Tdarr plugin issue or the stall-resolver CronJob clears stuck downloads, the corresponding alert self-resolves with a ✅ Discord notification. No manual intervention needed.
+
+#### Discord Routing Design
+
+| Alert | Severity | Channel | Email | Rationale |
+|-------|----------|---------|-------|-----------|
+| `TdarrTranscodeErrors` | warning | #status | No | New encode failures — needs attention but not urgent |
+| `TdarrHealthCheckErrors` | warning | #status | No | Spike in health check errors — file/NFS issue |
+| `TdarrTranscodeErrorsBurst` | critical | #incidents | Yes | 15+ encode errors/hr → systematic plugin failure, node may be hung |
+| `TdarrHealthCheckErrorsBurst` | critical | #incidents | Yes | 50+ health check errors/hr → NFS corruption or storage failure |
+| `QBittorrentStalledDownloads` | warning | #status | No | Stuck downloads, check seeder availability or port forwarding |
+
+#### Alert Definitions
+
+**Tdarr warning — new transcode errors in last hour:**
+```promql
+increase(tdarr_library_transcodes{library_id="all_libraries", status="error"}[1h]) > 2
+```
+`for: 15m` — sustained new errors, not a one-time blip. Threshold >2 avoids false positives from occasional plugin failures.
+
+**Tdarr warning — new health check errors in last hour:**
+```promql
+increase(tdarr_library_health_checks{library_id="all_libraries", status="error"}[1h]) > 5
+```
+`for: 15m` — threshold >5 filters noise from normal file variance. The existing 73 errors are historical (counter was already at 73 when exporter was deployed); `increase()` only sees new accumulation.
+
+**Tdarr critical — burst of transcode errors (plugin or node failure):**
+```promql
+increase(tdarr_library_transcodes{library_id="all_libraries", status="error"}[1h]) > 15
+```
+`for: 0m` — immediate alert. 15+ encode failures in 1 hour indicates a broken plugin affecting all files (e.g. Boosh-QSV NaN bug from Tdarr debugging session).
+
+**Tdarr critical — burst of health check errors (NFS/storage issue):**
+```promql
+increase(tdarr_library_health_checks{library_id="all_libraries", status="error"}[1h]) > 50
+```
+`for: 0m` — immediate alert. 50+ health check errors in 1 hour may indicate NFS mount failure or storage corruption affecting all files.
+
+**qBittorrent stalled downloads:**
+```promql
+sum(qbittorrent_torrents_count{status="stalledDL"}) > 0
+```
+`for: 45m` — long `for:` duration avoids false positives (peers naturally take time to connect; stall-resolver CronJob runs every 30 min). After 45min of stalledDL status, human review is warranted. Auto-resolves when stall-resolver or user clears the stuck torrents.
+
+#### File Changes
+
+All Tdarr alerts go in `manifests/monitoring/alerts/arr-alerts.yaml` as new groups.
+qBittorrent alert goes in the same file (consistent with existing ARR patterns).
+
+New groups to add:
+```yaml
+- name: tdarr-health
+  rules:
+    - alert: TdarrTranscodeErrors
+      ...
+    - alert: TdarrTranscodeErrorsBurst
+      ...
+    - alert: TdarrHealthCheckErrors
+      ...
+    - alert: TdarrHealthCheckErrorsBurst
+      ...
+
+- name: qbittorrent
+  rules:
+    - alert: QBittorrentStalledDownloads
+      ...
+```
+
+#### Tasks
+
+- [x] 4.28.14.1 Add `tdarr-health` group to `manifests/monitoring/alerts/arr-alerts.yaml` with all 4 Tdarr alerts. All 4 load with `health: ok`. Not firing at rest (increase()[1h] has no data — no new errors in the last hour, which is expected after a quiet period).
+
+- [x] 4.28.14.2 Add `qbittorrent` group to `manifests/monitoring/alerts/arr-alerts.yaml` with `QBittorrentStalledDownloads`. Loads `health: ok`. `sum(qbittorrent_torrents_count{status="stalledDL"}) = 0` — no false positive.
+
+- [x] 4.28.14.3 Routing verified via PrometheusRule labels: TdarrTranscodeErrorsBurst + TdarrHealthCheckErrorsBurst have `severity: critical` → #incidents + email. TdarrTranscodeErrors + TdarrHealthCheckErrors + QBittorrentStalledDownloads have `severity: warning` → #status.
+
+- [ ] 4.28.14.4 `/audit-security` then `/commit` (infra) — combined with 4.28.13.8.
+
+- [ ] 4.28.14.5 Update `docs/rebuild/v0.27.0-alerting-improvements.md` — combined with 4.28.13.9.
+
+#### PromQL Reference
+
+```promql
+# Verify current values before deploying (expect ~0 increase at rest):
+# increase(tdarr_library_transcodes{library_id="all_libraries", status="error"}[1h])
+# increase(tdarr_library_health_checks{library_id="all_libraries", status="error"}[1h])
+# sum(qbittorrent_torrents_count{status="stalledDL"})
+
+# TdarrTranscodeErrors (warning, for: 15m) → #status
+increase(tdarr_library_transcodes{library_id="all_libraries", status="error"}[1h]) > 2
+
+# TdarrTranscodeErrorsBurst (critical, for: 0m) → #incidents + email
+increase(tdarr_library_transcodes{library_id="all_libraries", status="error"}[1h]) > 15
+
+# TdarrHealthCheckErrors (warning, for: 15m) → #status
+increase(tdarr_library_health_checks{library_id="all_libraries", status="error"}[1h]) > 5
+
+# TdarrHealthCheckErrorsBurst (critical, for: 0m) → #incidents + email
+increase(tdarr_library_health_checks{library_id="all_libraries", status="error"}[1h]) > 50
+
+# QBittorrentStalledDownloads (warning, for: 45m) → #status
+sum(qbittorrent_torrents_count{status="stalledDL"}) > 0
+```
+
 ---
 
 ## Verification Checklist

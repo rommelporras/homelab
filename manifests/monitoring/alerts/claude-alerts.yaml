@@ -43,7 +43,7 @@ spec:
         - alert: ClaudeCodeNoActivity
           expr: |
             absent(increase(claude_code_cost_usage_USD_total[8h]) > 0)
-            and ON() (hour() >= 17 and hour() <= 18)
+            and ON() (hour() >= 9 and hour() <= 11)
             and ON() (day_of_week() >= 1 and day_of_week() <= 5)
           for: 5m
           labels:

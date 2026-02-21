@@ -764,6 +764,72 @@ data:
           ]
         },
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "green",
+                      "text": "UP"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 9
+          },
+          "id": 13,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "textMode": "auto"
+          },
+          "description": "HTTP probe to Bazarr subtitle downloader (arr-stack namespace, port 6767). Bazarr auto-downloads subtitles for Jellyfin from OpenSubtitles and other providers.",
+          "title": "Bazarr",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "max(probe_success{job=\"bazarr\"})",
+              "legendFormat": "Bazarr"
+            }
+          ]
+        },
+        {
           "collapsed": false,
           "gridPos": {
             "h": 1,
@@ -891,6 +957,10 @@ data:
             {
               "expr": "max(probe_success{job=\"adguard-dns\"})",
               "legendFormat": "AdGuard DNS"
+            },
+            {
+              "expr": "max(probe_success{job=\"bazarr\"})",
+              "legendFormat": "Bazarr"
             }
           ]
         },
@@ -1010,6 +1080,10 @@ data:
             {
               "expr": "max(probe_duration_seconds{job=\"adguard-dns\"})",
               "legendFormat": "AdGuard DNS"
+            },
+            {
+              "expr": "max(probe_duration_seconds{job=\"bazarr\"})",
+              "legendFormat": "Bazarr"
             }
           ]
         }

@@ -97,6 +97,7 @@ data:
           "targets": [
             {
               "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"prowlarr.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "instant": true,
               "legendFormat": "{{ short_node }}"
             }
           ]
@@ -160,6 +161,7 @@ data:
           "targets": [
             {
               "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"sonarr.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "instant": true,
               "legendFormat": "{{ short_node }}"
             }
           ]
@@ -223,6 +225,7 @@ data:
           "targets": [
             {
               "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"radarr.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "instant": true,
               "legendFormat": "{{ short_node }}"
             }
           ]
@@ -286,6 +289,7 @@ data:
           "targets": [
             {
               "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"qbittorrent.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "instant": true,
               "legendFormat": "{{ short_node }}"
             }
           ]
@@ -349,6 +353,7 @@ data:
           "targets": [
             {
               "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"jellyfin.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "instant": true,
               "legendFormat": "{{ short_node }}"
             }
           ]
@@ -412,6 +417,7 @@ data:
           "targets": [
             {
               "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"bazarr.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "instant": true,
               "legendFormat": "{{ short_node }}"
             }
           ]
@@ -488,6 +494,7 @@ data:
           "targets": [
             {
               "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"seerr.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "instant": true,
               "legendFormat": "{{ short_node }}"
             }
           ]
@@ -550,7 +557,8 @@ data:
           "type": "stat",
           "targets": [
             {
-              "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"tdarr.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"tdarr.*\", pod!~\"tdarr-exporter.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "instant": true,
               "legendFormat": "{{ short_node }}"
             }
           ]
@@ -614,6 +622,7 @@ data:
           "targets": [
             {
               "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"unpackerr.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "instant": true,
               "legendFormat": "{{ short_node }}"
             }
           ]
@@ -677,6 +686,7 @@ data:
           "targets": [
             {
               "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"scraparr.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "instant": true,
               "legendFormat": "{{ short_node }}"
             }
           ]
@@ -740,6 +750,7 @@ data:
           "targets": [
             {
               "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"recommendarr.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "instant": true,
               "legendFormat": "{{ short_node }}"
             }
           ]
@@ -803,6 +814,7 @@ data:
           "targets": [
             {
               "expr": "label_replace(kube_pod_info{namespace=\"arr-stack\", pod=~\"byparr.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "instant": true,
               "legendFormat": "{{ short_node }}"
             }
           ]

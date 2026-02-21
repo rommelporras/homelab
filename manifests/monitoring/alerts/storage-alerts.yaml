@@ -10,6 +10,7 @@
 #   smartctl_device_percentage_used — NVMe endurance used (%)
 #   smartctl_device_critical_warning — NVMe controller critical warning flags
 #   smartctl_device_smart_status — overall SMART health assessment
+#   smartctl_device_temperature — current NVMe temperature in Celsius (temperature_type="current")
 #
 # Note: PVC capacity and node disk are already covered by kube-prometheus-stack defaults:
 #   KubePersistentVolumeFillingUp (warning <15%, critical <3%)
@@ -141,3 +142,26 @@ spec:
               3. Order replacement drive (SK Hynix HFS512GDE9X081N or equivalent M.2 NVMe).
                  Drain node before replacement:
                  kubectl-homelab drain <node> --ignore-daemonsets --delete-emptydir-data
+
+        # NVMe drive temperature above safe operating threshold
+        # SK Hynix HFS512GDE9X081N max operating = 70°C. 65°C = 5°C buffer.
+        # Current baseline: ~46°C at idle on all nodes. Only fires under sustained load.
+        - alert: NVMeTemperatureHigh
+          expr: smartctl_device_temperature{temperature_type="current"} > 65
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "NVMe temperature high on {{ $labels.pod }}: {{ $value }}°C"
+            description: "NVMe {{ $labels.device }} on {{ $labels.pod }} has been above 65°C for 10+ minutes (current: {{ $value }}°C). SK Hynix max operating = 70°C. Check airflow and Tdarr transcode load."
+            runbook: |
+              1. Check temperature trend in Grafana (NVMe Health row → Longhorn Storage dashboard)
+
+              2. Check if Tdarr is running heavy transcode workloads — GPU encoding generates heat:
+                 https://tdarr.k8s.rommelporras.com
+
+              3. Verify chassis airflow on the M80q (tiny form factor, relies on fan curve):
+                 ssh wawashi@<node>.k8s.rommelporras.com
+                 sudo smartctl -a /dev/nvme0  # check all temperature readings
+
+              4. If temperature is approaching 70°C, pause Tdarr immediately and check cooling.

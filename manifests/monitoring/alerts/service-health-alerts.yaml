@@ -1,0 +1,60 @@
+# PrometheusRule for Service Response Time Alerts
+# Phase 4.28.13: Alert when public-facing services respond slowly (probe_duration_seconds)
+#
+# Metrics used:
+#   probe_duration_seconds — HTTP probe round-trip time from Blackbox Exporter
+#
+# Scope: Only public/user-facing services (not internal tools like Tdarr, Byparr, AdGuard).
+# Internal tools often have slow initial responses due to cold start — alerting on them
+# would generate false positives. Services in scope: ghost, invoicetron, portfolio,
+# jellyfin, seerr, karakeep (all with user-visible UIs or public APIs).
+#
+# A service can be technically UP (probe_success=1) but responding in 5+ seconds,
+# indicating database contention, memory pressure, or cold-start degradation.
+#
+# Dashboard: Service Health → Response Time row
+# Apply:
+#   kubectl-homelab apply -f manifests/monitoring/alerts/service-health-alerts.yaml
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: service-health-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: service-response-time
+      rules:
+        # Public-facing service responding too slowly — possible degradation
+        # Threshold: >5s sustained for 5 minutes. Blackbox probes have a 10s timeout.
+        # Green <1s, orange 1-3s, red >3s in Grafana — alert at 5s to avoid noise.
+        - alert: ServiceHighResponseTime
+          expr: |
+            max(probe_duration_seconds{job=~"ghost|invoicetron|portfolio|jellyfin|seerr|karakeep"}) by (job)
+            > 5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.job }} responding slowly: {{ $value | printf \"%.1f\" }}s"
+            description: "HTTP probe for {{ $labels.job }} has been returning responses above 5 seconds for 5+ minutes (current: {{ $value | printf \"%.1f\" }}s). The service is up but slow — check for database load, memory pressure, or cold-start issues."
+            runbook: |
+              1. Check response time trend in Grafana:
+                 Service Health dashboard → Response Time row
+
+              2. Check pod resource usage:
+                 kubectl-homelab top pod -n <namespace> -l app={{ $labels.job }}
+
+              3. Check pod logs for slow queries or errors:
+                 kubectl-homelab logs -n <namespace> deploy/{{ $labels.job }} --tail=100
+
+              4. Check if the issue is database-related:
+                 - Ghost: check ghost-prod PostgreSQL pod health
+                 - Invoicetron: check invoicetron-prod PostgreSQL pod health
+                 - Karakeep: check Meilisearch pod health (search indexing)
+
+              5. If the service just started, slow response may be a cold-start artifact —
+                 wait 5 minutes and check if it resolves automatically.
