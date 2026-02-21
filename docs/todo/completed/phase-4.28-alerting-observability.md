@@ -1,6 +1,6 @@
 # Phase 4.28: Alerting & Observability Improvements
 
-> **Status:** Complete (pending release)
+> **Status:** Complete (v0.27.0 released)
 > **Target:** v0.27.0
 > **Prerequisite:** None (monitoring stack running since Phase 3.9)
 > **Priority:** Medium (operational safety — not urgent, cluster healthy as of Feb 2026)

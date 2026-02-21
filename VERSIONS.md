@@ -95,7 +95,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** Phase 4.28 complete (pending v0.27.0 release). Alerting & Observability improvements deployed.
+> **Status:** v0.27.0 released. v0.27.1 fix in progress: Relaxed WEB quality profile (Sonarr/Radarr/Seerr) + Tdarr resolution filter (skip ≤ 1080p).
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|

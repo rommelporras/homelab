@@ -4,6 +4,47 @@
 
 ---
 
+## February 21, 2026 — ARR Stack Quality Profile & Tdarr Resolution Filter (v0.27.1)
+
+### Summary
+
+Two operational fixes. First: the TRaSH Guide quality profiles in Sonarr (WEB-1080p) and Radarr
+(HD Bluray + WEB) are too restrictive for casual requests — Seerr requests that couldn't find any
+release with the strict profile (WEBDL/WEBRip 1080p only) sat unfulfilled. A new "Relaxed WEB"
+profile was created in both apps that adds HDTV-720p, WEB-720p, and HDTV-1080p as accepted
+qualities, and Seerr was updated to use it as the default. The TRaSH profiles are untouched
+(Configarr continues to manage them). Second: Tdarr's decision maker height filter was raised from
+`min: 0` to `min: 1082`, preventing files at 1080p or below from entering the transcode pipeline.
+1080p and below WEB content is already efficiently encoded and transcoding adds generation loss
+with minimal space savings.
+
+### ARR Stack Changes
+
+| Change | Details |
+|--------|---------|
+| Add `Relaxed WEB` quality profile — Sonarr (id: 8) | Enables: HDTV-720p, WEBDL-720p, WEBRip-720p, HDTV-1080p, WEB 1080p group. Upgrades allowed, cutoff = WEB 1080p. TRaSH `WEB-1080p` profile untouched |
+| Add `Relaxed WEB` quality profile — Radarr (id: 9) | Enables: WEBDL-720p, WEBRip-720p, HDTV-1080p, Bluray-720p, WEB 1080p group, Bluray-1080p. Upgrades allowed, cutoff = WEB 1080p. TRaSH `HD Bluray + WEB` profile untouched |
+| Update Seerr default profile → `Relaxed WEB` | Both Radarr (id: 9) and Sonarr (id: 8) including anime profile. Changed via `settings.json` + pod restart |
+| Backfill 5 stuck Radarr movies to `Relaxed WEB` | Cake, Network, Try Seventeen, Outlander, Parasite — added before profile fix, were on strict TRaSH profile with no grabs. Re-searched |
+| Backfill 2 stuck Sonarr series to `Relaxed WEB` | The Flash (2014), Fallout — same issue. The Flash triggered full series search; Fallout already downloading |
+
+### Tdarr Changes
+
+| Change | Details |
+|--------|---------|
+| Raise `video_height_range_include.min` 0 → 1082 | Decision Maker height filter (API-level). Files with height ≤ 1080px no longer enter the transcode pipeline. 4K (2160p) content unaffected |
+| Add `filterResolutionsSkip`: `480p,576p,720p,1080p` | Filters tab → Resolutions to skip (UI-level). Label-based companion filter — skips files Tdarr identifies as 480p, 576p, 720p, or 1080p from the transcode queue. Double protection alongside the height range filter |
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| New profile instead of editing TRaSH profile | Configarr (TRaSH Guide manager) runs on a schedule and would overwrite any edits to `WEB-1080p` / `HD Bluray + WEB`. Custom profile is invisible to Configarr |
+| HDTV-720p/1080p enabled in Relaxed WEB | Most older broadcast TV (CW, NBC, etc.) only has HDTV rips on public indexers — the WEB release either never existed or is dead. HDTV-1080p from broadcast is comparable quality to WEB-720p |
+| Tdarr height cutoff at 1082 not 2000 | Captures 1440p content (rare but valid) for transcoding while precisely excluding 1080p (height=1080). H264 content is already excluded at the codec level regardless of resolution |
+
+---
+
 ## February 21, 2026 — Alert Quality Improvements (Pre-Release Fixes)
 
 ### Summary
