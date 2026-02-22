@@ -161,24 +161,9 @@ cd ansible && ansible-playbook -i inventory/homelab.yml playbooks/00-preflight.y
 op://Kubernetes/<item>/<field>
 ```
 
-### Usage Patterns
-
-```bash
-# Read a secret
-op read "op://Kubernetes/Grafana/password"
-
-# Use in Helm install (inject at runtime)
-helm-homelab install prometheus prometheus-community/kube-prometheus-stack \
-  --set grafana.adminPassword="$(op read 'op://Kubernetes/Grafana/password')"
-
-# Create K8s secret from 1Password
-kubectl-homelab create secret generic my-secret \
-  --from-literal=password="$(op read 'op://Kubernetes/MyItem/password')"
-```
-
 ### Existing Credentials
 
-See **docs/context/Secrets.md** for the complete 1Password item inventory (20+ items).
+See **docs/context/Secrets.md** for the complete 1Password item inventory (20+ items). Inject secrets at runtime with `$(op read 'op://Kubernetes/<item>/<field>')` — never hardcode.
 
 ### Security Rules
 
@@ -191,6 +176,5 @@ See **docs/context/Secrets.md** for the complete 1Password item inventory (20+ i
 ## Rules
 
 - **Use `kubectl-homelab` and `helm-homelab` for this cluster** - Never use plain `kubectl`/`helm` as they connect to work AWS EKS. Both aliases are defined in ~/.zshrc and use ~/.kube/homelab.yaml.
-- **NO AI attribution** in commits - Do not include "Generated with Claude Code", "Co-Authored-By: Claude", or any AI-related attribution in commit messages, PR descriptions, or code comments.
-- **NO automatic git commits or pushes** - Do not run `git commit` or `git push` unless explicitly requested by the user or invoked via `/commit` or `/release` commands.
+- **`kubectl-homelab` is zsh-only** — Scripts and non-zsh shells must use `kubectl --kubeconfig ~/.kube/homelab.yaml` directly. The alias only works interactively.
 - **Security review before every commit** - This is a PUBLIC repository. Before committing, audit ALL changed and new files for accidentally exposed secrets (passwords, tokens, API keys, webhook URLs, email credentials, SSH keys). Use `op://` references only, never hardcoded values. Once pushed, secrets cannot be revoked by deleting the repo — they are permanently exposed.
