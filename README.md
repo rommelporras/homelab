@@ -152,3 +152,7 @@ Things that bit us and might save you time:
 1. **Vault + External Secrets Operator** — Declarative GitOps secrets management, replaces all `kubectl create secret` (Phase 4.29)
 2. **Production Hardening** — RBAC audit, NetworkPolicy hardening, resource tuning (Phase 5)
 3. **CKA Certification** — September 2026 target
+
+## Claude Code
+
+This project uses [Claude Code](https://claude.ai/code) with a shared global config — see [rommelporras/claude-config](https://github.com/rommelporras/claude-config) for setup instructions before working on a new machine.

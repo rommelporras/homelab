@@ -2,15 +2,6 @@
 
 Audit live cluster security posture. Requires cluster access via `kubectl-homelab`.
 
-## When to use this vs /audit-security
-
-| Command | When | Requires cluster? |
-|---------|------|-------------------|
-| `/audit-security` | Before every commit — scans local files for secrets and manifest issues | No (offline) |
-| `/audit-cluster` | After deploying changes — checks what's actually running in the cluster | Yes |
-
-Use `/audit-cluster` when you want to verify the live cluster state: network policies, RBAC bindings, exposed services, running image versions, pod security. Run it on-demand, not on every commit.
-
 ## Usage
 
 ```

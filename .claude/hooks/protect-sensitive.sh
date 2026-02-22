@@ -1,128 +1,80 @@
-#!/bin/bash
-# PreToolUse hook - Infrastructure security protection
-# Blocks writes to sensitive files and dangerous operations
+#!/usr/bin/env bash
+# PreToolUse hook — Kubernetes-specific security protection.
+# Global hooks already cover: .env files, SSH keys, .pem, destructive commands,
+# force push, and secret content scanning. This hook adds k8s-only patterns.
+#
+# Exit 2 = block the tool call.
 
-# Parse JSON input from stdin
 INPUT=$(cat)
-
-# Extract tool name, file_path, and command
 TOOL=$(echo "$INPUT" | jq -r '.tool_name // empty')
-FILE_PATH=$(echo "$INPUT" | jq -r '.parameters.file_path // empty')
-COMMAND=$(echo "$INPUT" | jq -r '.parameters.command // empty')
+FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .parameters.file_path // empty')
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .parameters.command // empty')
 
 # =============================================================================
-# FILE PROTECTION (Write/Edit operations)
+# FILE PROTECTION — k8s-specific sensitive files (Write/Edit)
 # =============================================================================
 
-if [[ "$TOOL" == "Write" || "$TOOL" == "Edit" ]]; then
+if [[ "$TOOL" == "Write" || "$TOOL" == "Edit" ]] && [[ -n "$FILE_PATH" ]]; then
 
-  # --- Protected file patterns (Infrastructure) ---
-  PROTECTED_PATTERNS=(
-    ".env"
-    ".env.local"
+  K8S_PATTERNS=(
     "kubeconfig"
     ".kube/config"
     "admin.conf"
-    "credentials"
     "secrets.yaml"
     "secrets.yml"
     "secret.yaml"
     "secret.yml"
-    ".pem"
     ".key"
     ".crt"
-    "id_rsa"
-    "id_ed25519"
     "ssh_host"
     "etcd-snapshot"
     "encryption-config"
-    "token"
-    "password"
     "serviceAccountKey"
   )
 
-  for pattern in "${PROTECTED_PATTERNS[@]}"; do
+  for pattern in "${K8S_PATTERNS[@]}"; do
     if [[ "$FILE_PATH" == *"$pattern"* ]]; then
-      echo "BLOCKED: Cannot modify sensitive file: $FILE_PATH"
-      echo "   Pattern matched: '$pattern'"
-      echo "   Security: Credentials and secrets must be modified manually"
-      exit 1
+      echo "BLOCKED: Cannot modify k8s-sensitive file: $FILE_PATH" >&2
+      echo "   Pattern matched: '$pattern'" >&2
+      echo "   Edit this file manually in your terminal." >&2
+      exit 2
     fi
   done
 
-  # --- Warn on manifest changes with secrets ---
-  if [[ "$FILE_PATH" == *".yaml"* ]] || [[ "$FILE_PATH" == *".yml"* ]]; then
+  # Warn on Secret manifest edits (non-blocking)
+  if [[ "$FILE_PATH" == *".yaml"* || "$FILE_PATH" == *".yml"* ]]; then
     if grep -q "kind: Secret" "$FILE_PATH" 2>/dev/null; then
-      echo "WARNING: Modifying file that may contain Kubernetes secrets"
-      echo "   File: $FILE_PATH"
-      echo "   Review carefully before committing"
+      echo "WARNING: Modifying file that may contain Kubernetes secrets: $FILE_PATH" >&2
     fi
   fi
 
 fi
 
 # =============================================================================
-# COMMAND PROTECTION (Bash operations)
+# COMMAND PROTECTION — k8s-specific dangerous operations (Bash)
 # =============================================================================
 
 if [[ "$TOOL" == "Bash" && -n "$COMMAND" ]]; then
 
-  # --- Destructive command patterns ---
-  DANGEROUS_PATTERNS=(
-    "rm -rf /"
-    "rm -rf /*"
-    "rm -rf ~"
-    "> /dev/sd"
-    "mkfs."
-    ":(){:|:&};:"
-    "dd if=/dev"
-    "chmod -R 777"
-  )
-
-  for pattern in "${DANGEROUS_PATTERNS[@]}"; do
-    if [[ "$COMMAND" == *"$pattern"* ]]; then
-      echo "BLOCKED: Dangerous command detected"
-      echo "   Command: $COMMAND"
-      echo "   Pattern: '$pattern'"
-      exit 1
-    fi
-  done
-
-  # --- Git force push protection ---
-  if [[ "$COMMAND" == *"git push"*"--force"* ]] || [[ "$COMMAND" == *"git push"*"-f"* ]]; then
-    if [[ "$COMMAND" == *"main"* ]] || [[ "$COMMAND" == *"master"* ]]; then
-      echo "BLOCKED: Force push to main/master is not allowed"
-      echo "   Command: $COMMAND"
-      echo "   Use regular push or create a PR"
-      exit 1
-    fi
-  fi
-
-  # --- Kubernetes destructive operations ---
+  # Block mass-deletion across namespaces
   if [[ "$COMMAND" == *"kubectl delete"*"--all"* ]]; then
-    if [[ "$COMMAND" == *"namespace"* ]] || [[ "$COMMAND" == *"-A"* ]]; then
-      echo "BLOCKED: Deleting all resources across namespaces"
-      echo "   Command: $COMMAND"
-      echo "   This could destroy the entire cluster"
-      exit 1
+    if [[ "$COMMAND" == *"namespace"* || "$COMMAND" == *"-A"* ]]; then
+      echo "BLOCKED: Deleting all resources across namespaces." >&2
+      echo "   Command: $COMMAND" >&2
+      exit 2
     fi
   fi
 
-  # --- etcd operations warning ---
+  # Warn on etcd operations (non-blocking)
   if [[ "$COMMAND" == *"etcdctl"* ]]; then
-    echo "WARNING: etcd operation detected"
-    echo "   Command: $COMMAND"
-    echo "   Be careful with etcd - it stores all cluster state"
+    echo "WARNING: etcd operation detected — stores all cluster state." >&2
   fi
 
-  # --- kubeadm reset warning ---
+  # Warn on kubeadm reset (non-blocking)
   if [[ "$COMMAND" == *"kubeadm reset"* ]]; then
-    echo "WARNING: kubeadm reset will destroy the cluster node"
-    echo "   Command: $COMMAND"
-    echo "   This cannot be undone. Proceeding..."
+    echo "WARNING: kubeadm reset will destroy this cluster node." >&2
   fi
 
 fi
 
-# Allow operation
 exit 0

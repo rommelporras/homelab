@@ -143,12 +143,15 @@ PATCH: Bug fixes, documentation updates
 
 ## Command Files
 
-All commands are in `.claude/commands/`:
-- `commit.md` - Commit message generation
+Project commands (`.claude/commands/`):
 - `release.md` - Release automation
 - `audit-docs.md` - Documentation audit
 - `audit-security.md` - Pre-commit security scan
 - `audit-cluster.md` - Live cluster security audit
+
+Global skills (`~/.claude/skills/`):
+- `commit/` - Commit message generation
+- `push/` - Push to remote
 
 ---
 

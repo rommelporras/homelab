@@ -16,64 +16,15 @@ Kubernetes homelab learning project for CKA certification prep. 3-node HA cluste
 
 ```
 homelab/
-├── CLAUDE.md                      # This file (Claude Code context)
-├── LICENSE                        # MIT License
-├── README.md                      # GitHub landing page
-├── VERSIONS.md                    # Component version tracking
-│
-├── ansible/                       # Cluster automation
-│   ├── inventory/homelab.yml      # Node inventory
-│   ├── group_vars/all.yml         # Shared variables
-│   └── playbooks/                 # Bootstrap playbooks (00-08)
-│
-├── helm/                          # Helm values files (one dir per chart)
-│   ├── alloy/                     # Grafana Alloy (log collector)
-│   ├── blackbox-exporter/         # Blackbox exporter (probes)
-│   ├── cilium/                    # Cilium CNI
-│   ├── gitlab/                    # GitLab CE
-│   ├── gitlab-runner/             # GitLab Runner
-│   ├── intel-gpu-plugin/          # Intel GPU Plugin (QSV)
-│   ├── loki/                      # Loki (log storage)
-│   ├── longhorn/                  # Longhorn storage
-│   ├── metrics-server/            # Metrics Server
-│   ├── prometheus/                # kube-prometheus-stack
-│   └── tailscale-operator/        # Tailscale Operator
-│
-├── manifests/                     # Raw K8s manifests (non-Helm resources)
-│   ├── ai/                        # Ollama LLM inference server
-│   ├── arr-stack/                 # ARR media stack (core + companions: 13 apps)
-│   ├── browser/                   # Firefox browser (KasmVNC)
-│   ├── cert-manager/              # ClusterIssuer
-│   ├── cilium/                    # IP pool, L2 announcements
-│   ├── cloudflare/                # Cloudflare Tunnel + network policies
-│   ├── gateway/                   # Gateway + HTTPRoutes (routes/ subdir)
-│   ├── ghost-dev/                 # Ghost blog dev environment
-│   ├── ghost-prod/                # Ghost blog prod environment
-│   ├── gitlab/                    # GitLab SSH LoadBalancer
-│   ├── home/                      # AdGuard, Homepage, MySpeed
-│   ├── invoicetron/               # Invoicetron app + PostgreSQL + backup
-│   ├── karakeep/                  # Karakeep bookmark manager
-│   ├── monitoring/                # Grafana, probes, alerts, dashboards
-│   ├── network-policies/          # Namespace network policies
-│   ├── portfolio/                 # Portfolio deployment + RBAC
-│   ├── storage/                   # Longhorn HTTPRoute, NFS PVs
-│   ├── tailscale/                 # Tailscale Operator + Connector
-│   └── uptime-kuma/               # Uptime Kuma StatefulSet
-│
-├── scripts/                       # Operational scripts
-│
-└── docs/
-    ├── context/                   # Knowledge base (11 topic files)
-    │   ├── Cluster.md             # Source of truth (nodes, IPs, hardware)
-    │   ├── Gateway.md             # HTTPRoutes, TLS, cert-manager
-    │   ├── Networking.md          # VIPs, DNS, VLANs
-    │   └── ...                    # Architecture, Monitoring, Storage, etc.
-    ├── rebuild/                   # Step-by-step rebuild guides (v0.1.0–v0.25.0)
-    ├── todo/                      # Active and completed phase plans
-    ├── K8S_v135_NOTES.md          # Kubernetes v1.35 release notes
-    └── reference/                 # Historical reference docs
-        ├── CHANGELOG.md           # Decision history
-        └── PROXMOX_OPNSENSE_GUIDE.md
+├── ansible/          # Cluster automation (inventory, group_vars, playbooks 00-08)
+├── helm/             # Helm values files (one dir per chart: cilium, prometheus, loki, etc.)
+├── manifests/        # Raw K8s manifests (one dir per service: arr-stack, gateway, monitoring, etc.)
+├── scripts/          # Operational scripts
+├── docs/context/     # Knowledge base (Cluster.md = source of truth, + 10 topic files)
+├── docs/rebuild/     # Step-by-step rebuild guides per release
+├── docs/todo/        # Phase plans (active + completed/)
+├── docs/reference/   # CHANGELOG.md, historical docs
+└── VERSIONS.md       # Component version tracking
 ```
 
 ## Cluster Quick Reference
@@ -121,24 +72,17 @@ homelab/
 
 ## Common Commands
 
-**IMPORTANT:** Use `kubectl-homelab` and `helm-homelab` for this cluster. Plain `kubectl`/`helm` use your work AWS EKS config.
-
 ```bash
-# SSH to nodes
-ssh wawashi@cp1.k8s.rommelporras.com
-
 # Homelab Kubernetes (uses ~/.kube/homelab.yaml)
 kubectl-homelab get nodes
 kubectl-homelab -n longhorn-system get pods
-kubectl-homelab get componentstatuses
 
-# Homelab Helm (uses ~/.kube/homelab.yaml)
+# Homelab Helm
 helm-homelab list -A
 helm-homelab -n longhorn-system get values longhorn
 
 # Homelab GitLab (self-hosted, glab v1.85.2)
 glab api projects/0xwsh%2Fportfolio --hostname gitlab.k8s.rommelporras.com
-glab auth status
 
 # Run Ansible playbooks
 cd ansible && ansible-playbook -i inventory/homelab.yml playbooks/00-preflight.yml
@@ -146,35 +90,12 @@ cd ansible && ansible-playbook -i inventory/homelab.yml playbooks/00-preflight.y
 
 ## Secrets Management
 
-**Use 1Password CLI (`op`) for all credentials. Never hardcode secrets.**
-
-### Vault Structure
-
-| Vault | Purpose |
-|-------|---------|
-| `Kubernetes` | K8s cluster credentials (Grafana, NUT, PostgreSQL, etc.) |
-| `Proxmox` | Legacy Proxmox/Dell 3090 services (do not modify) |
-
-### Secret Reference Format
-
-```
-op://Kubernetes/<item>/<field>
-```
-
-### Existing Credentials
-
-See **docs/context/Secrets.md** for the complete 1Password item inventory (20+ items). Inject secrets at runtime with `$(op read 'op://Kubernetes/<item>/<field>')` — never hardcode.
-
-### Security Rules
-
-- **Never hardcode passwords** in values.yaml or manifests
-- **Never commit secrets** to git (use `op read` at runtime)
-- **Kubernetes vault only** - don't modify Proxmox vault items
-- **Sign in first** - run `eval $(op signin)` if session expired
-- **Claude Code cannot run `op` commands** - The 1Password CLI requires interactive authentication that Claude Code cannot provide. Generate the commands and ask the user to run them in their own terminal.
+- **Vault:** `Kubernetes` only (do not modify `Proxmox` vault). Format: `op://Kubernetes/<item>/<field>`
+- **Full inventory:** see `docs/context/Secrets.md` (20+ items)
+- **Never run `op` or secret-bearing `kubectl` commands** — This terminal has no `op` access. Generate the commands and ask the user to run them in their safe terminal. This includes `op read`, `op item create/edit`, and any `kubectl create secret` or `kubectl apply` that embeds secret values.
 
 ## Rules
 
-- **Use `kubectl-homelab` and `helm-homelab` for this cluster** - Never use plain `kubectl`/`helm` as they connect to work AWS EKS. Both aliases are defined in ~/.zshrc and use ~/.kube/homelab.yaml.
+- **Use `kubectl-homelab` and `helm-homelab` for this cluster** — Never use plain `kubectl`/`helm` as they connect to work AWS EKS. Both aliases are defined in ~/.zshrc and use ~/.kube/homelab.yaml.
 - **`kubectl-homelab` is zsh-only** — Scripts and non-zsh shells must use `kubectl --kubeconfig ~/.kube/homelab.yaml` directly. The alias only works interactively.
-- **Security review before every commit** - This is a PUBLIC repository. Before committing, audit ALL changed and new files for accidentally exposed secrets (passwords, tokens, API keys, webhook URLs, email credentials, SSH keys). Use `op://` references only, never hardcoded values. Once pushed, secrets cannot be revoked by deleting the repo — they are permanently exposed.
+- **This is a PUBLIC repository** — the global "security review before every commit" rule applies. Once pushed, secrets cannot be revoked.

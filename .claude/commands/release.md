@@ -269,30 +269,11 @@ Fixes:
 - Updated outdated kubectl commands
 ```
 
-## Quality Checklist
+## Important Rules
 
-Before releasing, verify:
-- [ ] On `main` branch
-- [ ] Working tree is clean (no uncommitted changes)
-- [ ] Remote tags fetched and no version collision
-- [ ] Phase plan checkboxes all checked and status is "Complete"
-- [ ] VERSIONS.md is up to date
-- [ ] All commits are meaningful and well-formatted
-- [ ] Version number follows SemVer
-- [ ] Release notes are categorized and specific
-- [ ] Tag annotation has context sentence
-- [ ] GitHub release has full summary
-- [ ] User confirmed the release plan before execution
-
-## Important Notes
-
-- NEVER release with uncommitted changes
-- NEVER release without meaningful release notes
 - NEVER release without user confirmation of the release plan
 - Always fetch remote tags before creating a new tag
 - Always use annotated tags (`git tag -a`)
-- Follow semantic versioning (MAJOR.MINOR.PATCH)
 - First release defaults to v0.1.0
 - Release notes should explain "what's in this release" not just list commits
-- NO AI attribution in release notes
-- **Title format:** Always `v<VERSION> - <Short Title>` — use a regular hyphen (`-`), NEVER an em dash (`—`). Keep titles concise (2-4 words). Example: `v0.19.0 - Cloudflare Traffic Analytics`
+- **Title format:** Always `v<VERSION> - <Short Title>` — regular hyphen (`-`), NEVER em dash (`—`). Keep titles concise (2-4 words).
