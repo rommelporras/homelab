@@ -1,7 +1,7 @@
 # Phase 5: Production Hardening
 
 > **Status:** ⬜ Planned
-> **Target:** v0.29.0
+> **Target:** v0.30.0
 > **Prerequisite:** Phase 4.29 complete (Vault + ESO secrets management)
 > **DevOps Topics:** Security posture, backup/restore, defense in depth
 > **CKA Topics:** RBAC, NetworkPolicy, Pod Security Standards, Resource Quotas

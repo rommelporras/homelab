@@ -1,7 +1,7 @@
 # Phase 4.29: Vault + External Secrets Operator
 
 > **Status:** ⬜ Planned
-> **Target:** v0.28.0
+> **Target:** v0.29.0
 > **Prerequisite:** Phase 4.28 complete (Alerting & Observability)
 > **Priority:** High (replaces all imperative `kubectl create secret` workflows before hardening)
 > **DevOps Topics:** Secrets management, HashiCorp Vault, External Secrets Operator, GitOps, Kubernetes auth
