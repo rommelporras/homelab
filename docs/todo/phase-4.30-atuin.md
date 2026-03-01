@@ -1,6 +1,6 @@
 # Phase 4.30: Atuin Self-Hosted Shell History
 
-> **Status:** ⬜ Planned
+> **Status:** ✅ Complete
 > **Target:** v0.28.0
 > **Prerequisite:** Phase 4.28 complete (Alerting & Observability)
 > **Priority:** Medium (quality-of-life, not blocking other phases)
@@ -87,24 +87,24 @@ where Distrobox containers have separate HOMEs.
 
 ### 4.30.1 Research & Prepare
 
-- [ ] 4.30.1.1 Verify `ghcr.io/atuinsh/atuin:18.12.0` includes server binary (entrypoint: `/usr/local/bin/atuin-server`, args: `["start"]`; `v18.12.1` was client-only, not published to GHCR)
-- [ ] 4.30.1.2 Check Atuin server health endpoint — determine correct liveness/readiness probe path
-- [ ] 4.30.1.3 Determine PostgreSQL resource usage — Atuin server is lightweight, most load is on Postgres
-- [ ] 4.30.1.4 Plan 1Password item: unified `Atuin` item in Kubernetes vault with `db-*` fields (database), `personal-*`/`eam-*` fields (accounts), and shared `encryption-key`
-- [ ] 4.30.1.5 Decide Deployment vs StatefulSet for PostgreSQL — official docs suggest StatefulSet for production; Deployment+Recreate is simpler and matches other homelab services
+- [x] 4.30.1.1 Verify `ghcr.io/atuinsh/atuin:18.12.0` includes server binary (entrypoint: `/usr/local/bin/atuin-server`, args: `["start"]`; `v18.12.1` was client-only, not published to GHCR)
+- [x] 4.30.1.2 Check Atuin server health endpoint — determine correct liveness/readiness probe path
+- [x] 4.30.1.3 Determine PostgreSQL resource usage — Atuin server is lightweight, most load is on Postgres
+- [x] 4.30.1.4 Plan 1Password item: unified `Atuin` item in Kubernetes vault with `db-*` fields (database), `personal-*`/`eam-*` fields (accounts), and shared `encryption-key`
+- [x] 4.30.1.5 Decide Deployment vs StatefulSet for PostgreSQL — official docs suggest StatefulSet for production; Deployment+Recreate is simpler and matches other homelab services
 
 ### 4.30.2 Create Secrets
 
 > Uses imperative `kubectl create secret` via 1Password. Migrate to ExternalSecret after Phase 4.29 (Vault + ESO).
 
 - [x] 4.30.2.1 Create 1Password item `Atuin` in Kubernetes vault — unified item with `db-*` fields (database), `personal-*`/`eam-*` fields (accounts), and shared `encryption-key` — **db-password must use only `[A-Za-z0-9.~_-]`** (special chars like `@`, `!`, `#` break `ATUIN_DB_URI` parsing)
-- [ ] 4.30.2.2 Generate `kubectl create secret` command for `atuin-secrets` in `atuin` namespace — ask user to run in safe terminal
-- [ ] 4.30.2.3 Verify secret exists: `kubectl-homelab -n atuin get secret atuin-secrets`
+- [x] 4.30.2.2 Generate `kubectl create secret` command for `atuin-secrets` in `atuin` namespace — ask user to run in safe terminal
+- [x] 4.30.2.3 Verify secret exists: `kubectl-homelab -n atuin get secret atuin-secrets`
 
 ### 4.30.3 Create Manifests
 
-- [ ] 4.30.3.1 Create `manifests/atuin/namespace.yaml` — Namespace with PSS labels (`enforce: baseline` for NFS, `audit+warn: restricted`)
-- [ ] 4.30.3.2 Create `manifests/atuin/postgres-deployment.yaml` — PostgreSQL Deployment + PVC
+- [x] 4.30.3.1 Create `manifests/atuin/namespace.yaml` — Namespace with PSS labels (`enforce: baseline` for NFS, `audit+warn: restricted`)
+- [x] 4.30.3.2 Create `manifests/atuin/postgres-deployment.yaml` — PostgreSQL Deployment + PVC
   - `Recreate` strategy (RWO PVC — only one pod can mount at a time)
   - Pinned image `postgres:18.3`
   - `preStop` lifecycle hook for graceful shutdown (`pg_ctl stop -D /var/lib/postgresql/data/pgdata -w -t 60 -m fast`)
@@ -118,8 +118,8 @@ where Distrobox containers have separate HOMEs.
     - `readinessProbe`: `periodSeconds: 10`, `failureThreshold: 2`
   - `automountServiceAccountToken: false`
   - TZ: `Asia/Manila`
-- [ ] 4.30.3.3 Create `manifests/atuin/postgres-service.yaml` — ClusterIP on port 5432
-- [ ] 4.30.3.4 Create `manifests/atuin/server-deployment.yaml` — Atuin server Deployment
+- [x] 4.30.3.3 Create `manifests/atuin/postgres-service.yaml` — ClusterIP on port 5432
+- [x] 4.30.3.4 Create `manifests/atuin/server-deployment.yaml` — Atuin server Deployment
   - Pinned image `ghcr.io/atuinsh/atuin:18.12.0` (entrypoint is `atuin-server`, not `atuin`)
   - Args: `["start"]` (not `["server", "start"]` — entrypoint already is `atuin-server`)
   - Env: `ATUIN_HOST=0.0.0.0`, `ATUIN_PORT=8888`, `ATUIN_OPEN_REGISTRATION=false`, `ATUIN_DB_URI` from secret, `RUST_LOG=info,atuin_server=debug`
@@ -133,16 +133,16 @@ where Distrobox containers have separate HOMEs.
     - `startupProbe`: `failureThreshold: 30`, `periodSeconds: 10` (5 min for initial DB connection)
     - `livenessProbe`: `initialDelaySeconds: 3`, `periodSeconds: 3`
     - `readinessProbe`: `tcpSocket` port 8888, `initialDelaySeconds: 15`, `periodSeconds: 10`
-- [ ] 4.30.3.5 Create `manifests/atuin/server-service.yaml` — ClusterIP on port 8888
-- [ ] 4.30.3.6 Create `manifests/atuin/httproute.yaml` — HTTPRoute for `atuin.k8s.rommelporras.com`
-- [ ] 4.30.3.7 Create `manifests/atuin/networkpolicy-ingress.yaml` — CiliumNetworkPolicy (ingress, per-app selectors)
+- [x] 4.30.3.5 Create `manifests/atuin/server-service.yaml` — ClusterIP on port 8888
+- [x] 4.30.3.6 Create `manifests/atuin/httproute.yaml` — HTTPRoute for `atuin.k8s.rommelporras.com`
+- [x] 4.30.3.7 Create `manifests/atuin/networkpolicy-ingress.yaml` — CiliumNetworkPolicy (ingress, per-app selectors)
   - `atuin-server-ingress`: gateway on 8888, monitoring on 8888+9001 (metrics), kubelet host on 8888
   - `postgres-ingress`: atuin-server on 5432, atuin-backup on 5432, kubelet host on 5432
-- [ ] 4.30.3.8 Create `manifests/atuin/networkpolicy-egress.yaml` — CiliumNetworkPolicy (egress, per-app selectors)
+- [x] 4.30.3.8 Create `manifests/atuin/networkpolicy-egress.yaml` — CiliumNetworkPolicy (egress, per-app selectors)
   - `atuin-server-egress`: DNS (53/UDP) + PostgreSQL (5432)
   - `postgres-egress`: DNS (53/UDP) only (passive listener)
   - `atuin-backup-egress`: DNS (53/UDP) + PostgreSQL (5432) + NAS NFS (10.10.30.4:2049)
-- [ ] 4.30.3.9 Create `manifests/atuin/backup-cronjob.yaml` — Weekly PostgreSQL backup
+- [x] 4.30.3.9 Create `manifests/atuin/backup-cronjob.yaml` — Weekly PostgreSQL backup
   - Schedule: `0 2 * * 0` with `timeZone: "Asia/Manila"` (Sunday 2 AM Manila — requires K8s 1.27+)
   - Image: `postgres:18.3` (same as database)
   - `concurrencyPolicy: Forbid`, `activeDeadlineSeconds: 300`
@@ -153,59 +153,59 @@ where Distrobox containers have separate HOMEs.
 
 ### 4.30.4 Deploy & Verify
 
-- [ ] 4.30.4.1 Apply namespace and secrets first
-- [ ] 4.30.4.2 Deploy PostgreSQL, wait for pod ready
-- [ ] 4.30.4.3 Deploy Atuin server, wait for pod ready
-- [ ] 4.30.4.4 Verify HTTPRoute: `curl -s https://atuin.k8s.rommelporras.com` (should respond)
-- [ ] 4.30.4.5 Test registration: `atuin register -u test-user -e test@test.com` → verify success → delete test user
+- [x] 4.30.4.1 Apply namespace and secrets first
+- [x] 4.30.4.2 Deploy PostgreSQL, wait for pod ready
+- [x] 4.30.4.3 Deploy Atuin server, wait for pod ready
+- [x] 4.30.4.4 Verify HTTPRoute: `curl -s https://atuin.k8s.rommelporras.com` (should respond)
+- [x] 4.30.4.5 Test registration: `atuin register -u test-user -e test@test.com` → verify success → delete test user
 
 ### 4.30.5 Create Accounts & Sync History
 
-- [ ] 4.30.5.1 On WSL2, set `sync_address` in chezmoi data → `chezmoi apply`
-- [ ] 4.30.5.2 Register: `atuin register -u rommel-personal -e <personal-email>`
-- [ ] 4.30.5.3 **Save encryption key to 1Password** — `atuin key` → `op item edit "Atuin" --vault "Kubernetes" 'encryption-key[text]=<key>'` (shared across all personal accounts)
-- [ ] 4.30.5.4 Import existing history: review `~/.zsh_history` for sensitive data, then `atuin import zsh`
-- [ ] 4.30.5.5 Sync: `atuin sync` → verify `atuin status`
-- [ ] 4.30.5.6 Register second account: `atuin logout` → `atuin register -u rommel-eam -e <eam-email>`
-- [ ] 4.30.5.7 Verify EAM uses same encryption key — `atuin key` should match `op://Kubernetes/Atuin/encryption-key`
-- [ ] 4.30.5.8 Switch back to personal: `atuin logout` → `atuin login -u rommel-personal`
-- [ ] 4.30.5.9 Close registration: set `ATUIN_OPEN_REGISTRATION=false` in server deployment, reapply
+- [x] 4.30.5.1 On WSL2, set `sync_address` in chezmoi data → `chezmoi apply`
+- [x] 4.30.5.2 Register: `atuin register -u rommel-personal -e <personal-email>`
+- [x] 4.30.5.3 **Save encryption key to 1Password** — `atuin key` → `op item edit "Atuin" --vault "Kubernetes" 'encryption-key[text]=<key>'` (shared across all personal accounts)
+- [x] 4.30.5.4 Import existing history: review `~/.zsh_history` for sensitive data, then `atuin import zsh`
+- [x] 4.30.5.5 Sync: `atuin sync` → verify `atuin status`
+- [x] 4.30.5.6 Register second account: `atuin logout` → `atuin register -u rommel-eam -e <eam-email>`
+- [x] 4.30.5.7 Verify EAM uses same encryption key — `atuin key` should match `op://Kubernetes/Atuin/encryption-key`
+- [x] 4.30.5.8 Switch back to personal: `atuin logout` → `atuin login -u rommel-personal`
+- [x] 4.30.5.9 Close registration: set `ATUIN_OPEN_REGISTRATION=false` in server deployment, reapply
 
 ### 4.30.6 Cutover
 
-- [ ] 4.30.6.1 Update Homepage widget — add Atuin to infrastructure services
-- [ ] 4.30.6.2 Add Uptime Kuma monitor for `https://atuin.k8s.rommelporras.com`
-- [ ] 4.30.6.3 Add AdGuard DNS rewrite if needed (wildcard may cover it)
-- [ ] 4.30.6.4 Verify sync works: run a command on WSL2, check `atuin search` shows it, then check from another session
+- [x] 4.30.6.1 Update Homepage widget — add Atuin to infrastructure services
+- [x] 4.30.6.2 Add Uptime Kuma monitor for `https://atuin.k8s.rommelporras.com`
+- [x] 4.30.6.3 Add AdGuard DNS rewrite if needed (wildcard may cover it)
+- [x] 4.30.6.4 Verify sync works: run a command on WSL2, check `atuin search` shows it, then check from another session
 
 ### 4.30.7 Observability
 
-- [ ] 4.30.7.1 Create `manifests/monitoring/dashboards/atuin-dashboard-configmap.yaml` — Grafana dashboard
+- [x] 4.30.7.1 Create `manifests/monitoring/dashboards/atuin-dashboard-configmap.yaml` — Grafana dashboard
   - Pod status row (UP/DOWN for both Atuin server and PostgreSQL)
   - Network traffic row
   - Resource usage row (CPU + Memory with request/limit lines)
-- [ ] 4.30.7.2 Create PrometheusRule for Atuin alerts
+- [x] 4.30.7.2 Create PrometheusRule for Atuin alerts
   - `AtuinDown`: Blackbox probe fails for 3m (probe_success==0)
   - `AtuinPostgresDown`: PostgreSQL 0 available replicas for 5m
   - `AtuinHighRestarts`: >3 container restarts in 1h (sustained 5m)
   - `AtuinHighMemory`: >80% memory limit for 10m
-- [ ] 4.30.7.3 Add Blackbox probe for `http://atuin-server.atuin.svc.cluster.local:8888/healthz` (internal ClusterIP, HTTP 200 check — tests pod health only, not gateway/TLS path)
+- [x] 4.30.7.3 Add Blackbox probe for `http://atuin-server.atuin.svc.cluster.local:8888/healthz` (internal ClusterIP, HTTP 200 check — tests pod health only, not gateway/TLS path)
 
 ### 4.30.8 Documentation & Release
 
 > Second commit: documentation updates and audit.
 
-- [ ] 4.30.8.1 Update `docs/context/Cluster.md` — add Atuin to services
-- [ ] 4.30.8.2 Update `docs/context/Gateway.md` — add HTTPRoute
-- [ ] 4.30.8.3 Update `docs/context/Secrets.md` — add Atuin 1Password items
-- [ ] 4.30.8.4 Update `VERSIONS.md` — add Atuin server + PostgreSQL versions
-- [ ] 4.30.8.5 Update `README.md` — add Atuin to services list
-- [ ] 4.30.8.6 Update `docs/reference/CHANGELOG.md`
-- [ ] 4.30.8.7 Create `docs/rebuild/v0.28.0-atuin.md`
-- [ ] 4.30.8.8 `/audit-docs`
-- [ ] 4.30.8.9 `/commit`
-- [ ] 4.30.8.10 `/release v0.28.0 "Atuin Self-Hosted Shell History"`
-- [ ] 4.30.8.11 Move this file to `docs/todo/completed/`
+- [x] 4.30.8.1 Update `docs/context/Cluster.md` — add Atuin to services
+- [x] 4.30.8.2 Update `docs/context/Gateway.md` — add HTTPRoute
+- [x] 4.30.8.3 Update `docs/context/Secrets.md` — add Atuin 1Password items
+- [x] 4.30.8.4 Update `VERSIONS.md` — add Atuin server + PostgreSQL versions
+- [x] 4.30.8.5 Update `README.md` — add Atuin to services list
+- [x] 4.30.8.6 Update `docs/reference/CHANGELOG.md`
+- [x] 4.30.8.7 Create `docs/rebuild/v0.28.0-atuin.md`
+- [x] 4.30.8.8 `/audit-docs`
+- [x] 4.30.8.9 `/commit`
+- [x] 4.30.8.10 `/release v0.28.0 "Atuin Self-Hosted Shell History"`
+- [x] 4.30.8.11 Move this file to `docs/todo/completed/`
 
 ---
 
@@ -300,20 +300,20 @@ atuin login -u rommel-personal -p '<password>' -k "$(op read 'op://Kubernetes/At
 
 ## Verification Checklist
 
-- [ ] Atuin server pod running in `atuin` namespace
-- [ ] PostgreSQL pod running with Longhorn PVC attached
-- [ ] `atuin.k8s.rommelporras.com` responds with HTTPS
-- [ ] Both accounts registered (`rommel-personal`, `rommel-eam`) — naming: `rommel-<dept-or-company>`
-- [ ] Encryption keys saved to 1Password
-- [ ] Registration closed (`ATUIN_OPEN_REGISTRATION=false`)
-- [ ] WSL2 history imported and syncing
-- [ ] `atuin search` returns results across sessions
-- [ ] Homepage widget shows Atuin status
-- [ ] Uptime Kuma monitoring endpoint
-- [ ] Grafana dashboard created
-- [ ] PrometheusRule alerts firing correctly on test
-- [ ] Backup CronJob runs successfully (manual trigger: `kubectl-homelab -n atuin create job --from=cronjob/atuin-backup atuin-backup-test`)
-- [ ] Backup file exists on NAS or PVC
+- [x] Atuin server pod running in `atuin` namespace
+- [x] PostgreSQL pod running with Longhorn PVC attached
+- [x] `atuin.k8s.rommelporras.com` responds with HTTPS
+- [x] Both accounts registered (`rommel-personal`, `rommel-eam`) — naming: `rommel-<dept-or-company>`
+- [x] Encryption keys saved to 1Password
+- [x] Registration closed (`ATUIN_OPEN_REGISTRATION=false`)
+- [x] WSL2 history imported and syncing
+- [x] `atuin search` returns results across sessions
+- [x] Homepage widget shows Atuin status
+- [x] Uptime Kuma monitoring endpoint
+- [x] Grafana dashboard created
+- [x] PrometheusRule alerts firing correctly on test
+- [x] Backup CronJob runs successfully (manual trigger: `kubectl-homelab -n atuin create job --from=cronjob/atuin-backup atuin-backup-test`)
+- [x] Backup file exists on NAS or PVC
 
 ---
 
