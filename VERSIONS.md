@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** February 21, 2026
+> **Last Updated:** March 1, 2026
 
 ---
 
@@ -95,7 +95,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** v0.27.0 released. v0.27.1 fix in progress: Relaxed WEB quality profile (Sonarr/Radarr/Seerr) + Tdarr resolution filter (skip ≤ 1080p).
+> **Status:** v0.28.0 released. Atuin self-hosted shell history sync server + PostgreSQL.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -141,6 +141,8 @@ helm-homelab repo update
 | tdarr-exporter | latest (homeylab) | Running | Prometheus metrics for Tdarr library stats (arr-stack ns) |
 | qbittorrent-exporter | latest (esanchezm) | Running | Prometheus metrics for qBittorrent downloads (arr-stack ns) |
 | smartctl-exporter | v0.14.0 | Running | NVMe S.M.A.R.T. DaemonSet on all 3 nodes (monitoring ns) |
+| Atuin Server | 18.12.0 | Running | Self-hosted shell history sync (E2E encrypted) |
+| PostgreSQL (Atuin) | 18.3 | Running | Atuin dedicated database (atuin namespace) |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -181,6 +183,7 @@ helm-homelab repo update
 | Recommendarr | recommendarr.k8s.rommelporras.com | base | arr-stack |
 | Alertmanager | alertmanager.k8s.rommelporras.com | base | monitoring |
 | Prometheus | prometheus.k8s.rommelporras.com | base | monitoring |
+| Atuin | atuin.k8s.rommelporras.com | base | atuin |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |

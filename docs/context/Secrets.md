@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password]
-updated: 2026-02-19
+updated: 2026-03-01
 ---
 
 # Secrets

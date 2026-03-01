@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, cluster, nodes]
-updated: 2026-02-18
+updated: 2026-03-01
 ---
 
 # Cluster
@@ -77,6 +77,7 @@ ssh wawashi@cp3.k8s.rommelporras.com
 | karakeep | Karakeep bookmark manager (web, Chrome, Meilisearch) |
 | tailscale | Tailscale Operator (subnet router, DNS) |
 | arr-stack | ARR media stack (Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin, Bazarr, Seerr, Configarr, Unpackerr, Scraparr, Tdarr, Recommendarr, Byparr) |
+| atuin | Atuin self-hosted shell history sync (server + PostgreSQL) |
 | node-feature-discovery | NFD (auto-labels GPU nodes) |
 | intel-device-plugins | Intel GPU Plugin Operator + GPU Plugin DaemonSet |
 

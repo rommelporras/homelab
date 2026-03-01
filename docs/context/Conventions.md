@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-02-21
+updated: 2026-03-01
 ---
 
 # Conventions
@@ -67,10 +67,12 @@ homelab/
 │   ├── metrics-server/values.yaml
 │   ├── prometheus/values.yaml
 │   ├── intel-gpu-plugin/values.yaml
+│   ├── smartctl-exporter/values.yaml
 │   └── tailscale-operator/values.yaml
 ├── manifests/               # Raw K8s manifests
 │   ├── ai/                  # Ollama LLM inference server
 │   ├── arr-stack/           # ARR media stack (core + companions: 13 apps)
+│   ├── atuin/               # Atuin self-hosted shell history sync
 │   ├── browser/             # Firefox browser (KasmVNC)
 │   ├── cert-manager/        # ClusterIssuer
 │   ├── cilium/              # IP pool, L2 announcements
@@ -96,7 +98,7 @@ homelab/
 │   └── apply-arr-secrets.sh
 ├── docs/
 │   ├── context/             # This knowledge base (RAG source)
-│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.27.0)
+│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.28.0)
 │   ├── todo/                # Active and completed phase plans
 │   └── reference/           # CHANGELOG, historical docs
 └── ansible/                 # Bootstrap automation

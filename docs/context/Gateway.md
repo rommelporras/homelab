@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, gateway, tls, cert-manager]
-updated: 2026-02-21
+updated: 2026-03-01
 ---
 
 # Gateway API
@@ -40,10 +40,10 @@ Gateway API for HTTPS ingress with automatic TLS certificates.
     +-------+-------+-------+-------+-------+---------+---------+---------+---------+---------+---------+---------+-------+
     v       v       v       v       v       v         v         v         v         v         v         v         v
 +------++------++------++------++------++--------++--------++--------++--------++--------++--------++--------++-------+
-|Grafan||AdGuar||Homepg||Longh.||GitLab||Portfol.||Ghost   ||Invoice-||Uptime  ||MySpeed ||Firefox ||Kara-  ||ARR   |
-| base || base || base || base || base ||dev/stg/ ||dev/prod|| tron   || Kuma   || base   || base   ||keep   ||Stack |
-|      ||      ||      ||      ||      || prod   ||        ||dev/prod|| base   ||        ||        || base  || base |
-+------++------++------++------++------++--------++--------++--------++--------++--------++--------++--------++-------+
+|Grafan||AdGuar||Homepg||Longh.||GitLab||Portfol.||Ghost   ||Invoice-||Uptime  ||MySpeed ||Firefox ||Kara-  ||ARR   ||Atuin |
+| base || base || base || base || base ||dev/stg/ ||dev/prod|| tron   || Kuma   || base   || base   ||keep   ||Stack || base |
+|      ||      ||      ||      ||      || prod   ||        ||dev/prod|| base   ||        ||        || base  || base ||      |
++------++------++------++------++------++--------++--------++--------++--------++--------++--------++--------++-------++------+
 ```
 
 ## Components
@@ -135,6 +135,7 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 | Recommendarr | https://recommendarr.k8s.rommelporras.com | recommendarr | arr-stack | https |
 | Alertmanager | https://alertmanager.k8s.rommelporras.com | alertmanager | monitoring | https |
 | Prometheus | https://prometheus.k8s.rommelporras.com | prometheus | monitoring | https |
+| Atuin | https://atuin.k8s.rommelporras.com | atuin | atuin | https |
 
 ## Adding a New Service
 

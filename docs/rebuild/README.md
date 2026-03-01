@@ -35,6 +35,7 @@
 | v0.25.0 | Phase 4.26 | ARR Companions (Seerr, Configarr, Unpackerr, Scraparr, Tdarr, Recommendarr, Byparr) | [v0.25.0-arr-companions.md](v0.25.0-arr-companions.md) |
 | v0.26.0 | Phase 4.27 | Version Automation & Upgrade Runbooks (version-checker, Nova CronJob, Renovate) | [v0.26.0-version-automation.md](v0.26.0-version-automation.md) |
 | v0.27.0 | Phase 4.28 | Alerting & Observability Improvements (15 new alerts, 11 Blackbox probes, smartctl-exporter, Longhorn + cert-manager ServiceMonitors, 11 Grafana dashboards) | [v0.27.0-alerting-improvements.md](v0.27.0-alerting-improvements.md) |
+| v0.28.0 | Phase 4.30 | Atuin Self-Hosted Shell History (sync server + PostgreSQL, CiliumNetworkPolicies, weekly backup, Grafana dashboard) | [v0.28.0-atuin.md](v0.28.0-atuin.md) |
 
 ---
 
@@ -123,6 +124,9 @@ docs/rebuild/v0.26.0-version-automation.md
 
 # 27. Alerting & Observability - 15 alerts, 11 Blackbox probes, smartctl-exporter
 docs/rebuild/v0.27.0-alerting-improvements.md
+
+# 28. Atuin Shell History - Self-hosted sync server + PostgreSQL
+docs/rebuild/v0.28.0-atuin.md
 ```
 
 ---
@@ -231,6 +235,8 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | smartctl-exporter | v0.14.0 | v0.27.0 |
 | tdarr-exporter | latest (homeylab) | v0.27.0 |
 | qbittorrent-exporter | latest (esanchezm) | v0.27.0 |
+| Atuin Server | 18.12.0 | v0.28.0 |
+| PostgreSQL (Atuin) | 18.3 | v0.28.0 |
 
 ---
 
@@ -342,6 +348,16 @@ homelab/
 │   │   ├── recommendarr/{deployment,service,httproute}.yaml  # v0.25.0
 │   │   ├── byparr/{deployment,service}.yaml                # v0.25.0
 │   │   └── qbittorrent/qbittorrent-exporter.yaml           # v0.27.0
+│   ├── atuin/                          # v0.28.0
+│   │   ├── namespace.yaml
+│   │   ├── postgres-deployment.yaml
+│   │   ├── postgres-service.yaml
+│   │   ├── server-deployment.yaml
+│   │   ├── server-service.yaml
+│   │   ├── httproute.yaml
+│   │   ├── networkpolicy-ingress.yaml
+│   │   ├── networkpolicy-egress.yaml
+│   │   └── backup-cronjob.yaml
 │   ├── cloudflare/                     # v0.7.0
 │   │   ├── deployment.yaml
 │   │   ├── networkpolicy.yaml
@@ -373,7 +389,8 @@ homelab/
 │       │   ├── apiserver-alerts.yaml           # v0.27.0
 │       │   ├── service-health-alerts.yaml      # v0.27.0
 │       │   ├── cpu-throttling-alerts.yaml      # v0.27.0
-│       │   └── node-alerts.yaml                # v0.27.0
+│       │   ├── node-alerts.yaml                # v0.27.0
+│       │   └── atuin-alerts.yaml              # v0.28.0
 │       ├── probes/
 │       │   ├── adguard-dns-probe.yaml          # v0.9.0
 │       │   ├── uptime-kuma-probe.yaml          # v0.13.0
@@ -386,7 +403,8 @@ homelab/
 │       │   ├── seerr-probe.yaml                # v0.27.0
 │       │   ├── tdarr-probe.yaml                # v0.27.0
 │       │   ├── byparr-probe.yaml               # v0.27.0
-│       │   └── bazarr-probe.yaml               # v0.27.0
+│       │   ├── bazarr-probe.yaml               # v0.27.0
+│       │   └── atuin-probe.yaml               # v0.28.0
 │       ├── servicemonitors/
 │       │   ├── loki-servicemonitor.yaml        # v0.4.0
 │       │   ├── alloy-servicemonitor.yaml       # v0.4.0
@@ -407,7 +425,8 @@ homelab/
 │       │   ├── network-dashboard-configmap.yaml    # v0.25.0
 │       │   ├── version-checker-dashboard-configmap.yaml  # v0.26.0
 │       │   ├── longhorn-dashboard-configmap.yaml   # v0.27.0
-│       │   └── service-health-dashboard-configmap.yaml  # v0.27.0
+│       │   ├── service-health-dashboard-configmap.yaml  # v0.27.0
+│       │   └── atuin-dashboard-configmap.yaml        # v0.28.0
 │       ├── exporters/
 │       │   ├── nut-exporter.yaml               # v0.4.0
 │       │   └── kube-vip-monitoring.yaml        # v0.19.0
@@ -470,3 +489,4 @@ homelab/
 | ARR Stack | Kubernetes | v0.23.0 |
 | Opensubtitles | Kubernetes | v0.23.0 |
 | Discord Webhook Versions | Kubernetes | v0.26.0 |
+| Atuin | Kubernetes | v0.28.0 |

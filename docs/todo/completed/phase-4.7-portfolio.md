@@ -3,7 +3,7 @@
 > **Status:** Complete
 > **Target:** v0.8.1
 > **Prerequisite:** Phase 4.6 complete (GitLab + Runner installed)
-> **Design:** [docs/plans/2026-01-25-portfolio-cicd-design.md](../plans/2026-01-25-portfolio-cicd-design.md)
+> **Design:** [docs/plans/2026-01-25-portfolio-cicd-design.md](../../plans/2026-01-25-portfolio-cicd-design.md)
 > **DevOps Topics:** CI/CD pipelines, GitFlow branching, artifact promotion, container builds
 > **CKA Topics:** Deployments, Services, RBAC (ServiceAccount for CI/CD), Namespaces
 
@@ -498,7 +498,7 @@
   ```
 
 - [x] 4.7.8.5 Create .gitlab-ci.yml ✅
-  See [docs/plans/2026-01-25-portfolio-cicd-design.md](../plans/2026-01-25-portfolio-cicd-design.md#gitlab-cicd-configuration) for full configuration.
+  See [docs/plans/2026-01-25-portfolio-cicd-design.md](../../plans/2026-01-25-portfolio-cicd-design.md#gitlab-cicd-configuration) for full configuration.
 
 ---
 

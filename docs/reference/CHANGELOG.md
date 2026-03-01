@@ -4,6 +4,62 @@
 
 ---
 
+## March 1, 2026 — Atuin Self-Hosted Shell History (v0.28.0)
+
+### Summary
+
+Self-hosted Atuin sync server for E2E encrypted shell history synchronization across all machines
+(WSL2, Aurora DX, Distrobox containers). Two accounts (`rommel-personal`, `rommel-eam`) provide
+context isolation between personal and work shell history. Server runs in a dedicated `atuin`
+namespace with its own PostgreSQL instance, CiliumNetworkPolicies (per-pod ingress + egress),
+weekly pg_dump backup to NAS, and full observability stack.
+
+### New Components
+
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| Atuin Server | `ghcr.io/atuinsh/atuin:18.12.0` | Sync server (E2E encrypted, /healthz, metrics on 9001) |
+| PostgreSQL | `docker.io/library/postgres:18.3` | Dedicated database for Atuin |
+| Backup CronJob | `postgres:18.3` | Weekly pg_dump to NAS NFS (Sunday 2AM Manila) |
+
+### Manifests Created (12 files)
+
+| File | Kind | Purpose |
+|------|------|---------|
+| `manifests/atuin/namespace.yaml` | Namespace | PSS enforce:baseline, audit+warn:restricted |
+| `manifests/atuin/postgres-deployment.yaml` | Deployment + PVC | PostgreSQL 18.3, 5Gi Longhorn, Recreate strategy |
+| `manifests/atuin/postgres-service.yaml` | Service | ClusterIP port 5432 |
+| `manifests/atuin/server-deployment.yaml` | Deployment + PVC | Atuin 18.12.0, init container wait-for-db, 10Mi config PVC |
+| `manifests/atuin/server-service.yaml` | Service | ClusterIP port 8888 |
+| `manifests/atuin/httproute.yaml` | HTTPRoute | atuin.k8s.rommelporras.com via homelab-gateway |
+| `manifests/atuin/networkpolicy-ingress.yaml` | CiliumNetworkPolicy (x2) | Per-pod ingress: server (gateway, monitoring, host) + postgres (server, backup, host) |
+| `manifests/atuin/networkpolicy-egress.yaml` | CiliumNetworkPolicy (x3) | Per-pod egress: server (DNS, postgres), postgres (DNS), backup (DNS, postgres, NAS NFS) |
+| `manifests/atuin/backup-cronjob.yaml` | CronJob | Weekly pg_dump, 28-day retention, NFS to NAS |
+| `manifests/monitoring/dashboards/atuin-dashboard-configmap.yaml` | ConfigMap | Grafana dashboard (Pod Status, Network, Resources) |
+| `manifests/monitoring/alerts/atuin-alerts.yaml` | PrometheusRule | 4 alerts: AtuinDown, AtuinPostgresDown, AtuinHighRestarts, AtuinHighMemory |
+| `manifests/monitoring/probes/atuin-probe.yaml` | Probe | Blackbox HTTP probe on internal ClusterIP /healthz |
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| Deployment+Recreate over StatefulSet | Simpler, matches other homelab services. Single replica with RWO PVC — StatefulSet adds complexity with no benefit |
+| `enforce: baseline` PSS (not restricted) | Backup CronJob uses NFS volume which violates restricted PSS profile |
+| Shared encryption key across accounts | `atuin register` reuses `~/.local/share/atuin/key` by design. Server enforces user isolation. Separate key only needed for third-party users |
+| `rommel-eam` naming (not `rommel-work`) | Department/company-specific naming scales to future employers (e.g. `rommel-freelance`, `rommel-acme`) |
+| Internal Blackbox probe URL (not external) | External URL returns 403 from inside cluster (Cilium Gateway hairpin routing). Internal ClusterIP tests pod health directly |
+| Uptime Kuma accepts 403 | In-cluster hairpin through Cilium Gateway returns 403 — same pattern as Karakeep. External URL with accepted status codes `200-299, 403` |
+
+### Gotchas
+
+- **Image tag `v18.12.1` does not exist on GHCR** — `v18.12.1` was a client-only patch. Server image is `18.12.0` (no `v` prefix)
+- **Entrypoint is `atuin-server`, args `["start"]`** — NOT `atuin server start`. The container entrypoint is `/usr/local/bin/atuin-server`
+- **`atuin register` password with special chars** — Wrap in single quotes in zsh. Characters like `*` trigger glob expansion
+- **`atuin sync` requires `$ATUIN_SESSION`** — After `atuin import zsh`, run `exec zsh` to reload shell and set the session variable
+- **Cilium Gateway HTTPRoute stall** — New HTTPRoute may not reconcile until `kubectl rollout restart deployment/cilium-operator -n kube-system`
+
+---
+
 ## February 21, 2026 — ARR Stack Quality Profile & Tdarr Resolution Filter (v0.27.1)
 
 ### Summary
