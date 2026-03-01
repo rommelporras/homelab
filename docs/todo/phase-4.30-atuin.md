@@ -36,7 +36,7 @@
 | Namespace | `atuin` |
 | Server image | `ghcr.io/atuinsh/atuin:v18.12.1` (match client version) |
 | Server port | 8888/TCP |
-| PostgreSQL | `docker.io/library/postgres:16` (dedicated, not shared — docs require 14+) |
+| PostgreSQL | `docker.io/library/postgres:18.3` (dedicated, not shared — docs require 14+, tested with 18) |
 | PostgreSQL port | 5432/TCP (ClusterIP, internal only) |
 | URL | `atuin.k8s.rommelporras.com` (HTTPS via Gateway API) |
 | Storage | Longhorn PVC 5Gi for PostgreSQL data, 10Mi for Atuin config |
@@ -85,7 +85,7 @@ where Distrobox containers have separate HOMEs.
 
 > Uses imperative `kubectl create secret` via 1Password. Migrate to ExternalSecret after Phase 4.29 (Vault + ESO).
 
-- [ ] 4.30.2.1 Create 1Password item `Atuin PostgreSQL` in Kubernetes vault with fields: `username`, `password`, `database`, `uri`
+- [ ] 4.30.2.1 Create 1Password item `Atuin PostgreSQL` in Kubernetes vault with fields: `username`, `password`, `database`, `uri` — **password must use only `[A-Za-z0-9.~_-]`** (special chars break `ATUIN_DB_URI` parsing)
 - [ ] 4.30.2.2 Generate `kubectl create secret` command for `atuin-secrets` in `atuin` namespace — ask user to run in safe terminal
 - [ ] 4.30.2.3 Verify secret exists: `kubectl-homelab -n atuin get secret atuin-secrets`
 
@@ -94,7 +94,7 @@ where Distrobox containers have separate HOMEs.
 - [ ] 4.30.3.1 Create `manifests/atuin/namespace.yaml` — Namespace with PSS labels
 - [ ] 4.30.3.2 Create `manifests/atuin/postgres-deployment.yaml` — PostgreSQL Deployment + PVC
   - `Recreate` strategy (RWO PVC — only one pod can mount at a time)
-  - Pinned image `postgres:16`
+  - Pinned image `postgres:18.3`
   - `preStop` lifecycle hook for graceful shutdown (`pg_ctl stop -D /var/lib/postgresql/data -w -t 60 -m fast`)
   - Security context: `runAsUser: 999`, `fsGroup: 999` (postgres user)
   - Resources: `cpu: 100m/250m`, `memory: 256Mi/512Mi` (official docs recommend 100Mi/600Mi)
@@ -104,23 +104,34 @@ where Distrobox containers have separate HOMEs.
 - [ ] 4.30.3.4 Create `manifests/atuin/server-deployment.yaml` — Atuin server Deployment
   - Pinned image `ghcr.io/atuinsh/atuin:v18.12.1`
   - Args: `["server", "start"]`
-  - Env: `ATUIN_HOST=0.0.0.0`, `ATUIN_PORT=8888`, `ATUIN_OPEN_REGISTRATION=true`, `ATUIN_DB_URI` from secret
-  - Security context: `runAsNonRoot: true`, `allowPrivilegeEscalation: false`, `drop: ALL`
+  - Env: `ATUIN_HOST=0.0.0.0`, `ATUIN_PORT=8888`, `ATUIN_OPEN_REGISTRATION=true`, `ATUIN_DB_URI` from secret, `RUST_LOG=info,atuin_server=debug`
+  - Init container: `wait-for-db` using `busybox:1.37` — `until nc -z postgres 5432; do sleep 2; done`
+  - Security context: `runAsNonRoot: true`, `runAsUser: 1000`, `runAsGroup: 1000`, `fsGroup: 1000`, `allowPrivilegeEscalation: false`, `drop: ALL`, `seccompProfile: RuntimeDefault`
   - Resources: `cpu: 100m/250m`, `memory: 256Mi/1Gi` (official docs recommend 250m/1Gi — tune down later with metrics)
   - PVC: 10Mi Longhorn for `/config` (server config only, data is in PostgreSQL)
-  - Liveness/readiness probe on port 8888
+  - Probes on `/healthz` port 8888:
+    - `startupProbe`: `failureThreshold: 30`, `periodSeconds: 10` (5 min for initial DB connection)
+    - `livenessProbe`: `initialDelaySeconds: 3`, `periodSeconds: 3`
+    - `readinessProbe`: `tcpSocket` port 8888, `initialDelaySeconds: 15`, `periodSeconds: 10`
 - [ ] 4.30.3.5 Create `manifests/atuin/server-service.yaml` — ClusterIP on port 8888
 - [ ] 4.30.3.6 Create `manifests/atuin/httproute.yaml` — HTTPRoute for `atuin.k8s.rommelporras.com`
-- [ ] 4.30.3.7 Create `manifests/atuin/networkpolicy.yaml` — CiliumNetworkPolicy
-  - Atuin server → PostgreSQL on 5432
-  - Ingress to Atuin server from gateway on 8888
-  - Deny all other traffic
-- [ ] 4.30.3.8 Create `manifests/atuin/backup-cronjob.yaml` — Weekly PostgreSQL backup
-  - Schedule: `0 2 * * 0` (Sunday 2 AM Manila time)
-  - Image: `postgres:16` (same as database)
+- [ ] 4.30.3.7 Create `manifests/atuin/networkpolicy-ingress.yaml` — CiliumNetworkPolicy (ingress)
+  - Default deny all ingress
+  - Allow intra-namespace (Atuin ↔ PostgreSQL)
+  - Allow gateway ingress to Atuin server on 8888
+  - Allow monitoring namespace (Prometheus scraping)
+  - Allow kubelet host (health probes)
+- [ ] 4.30.3.8 Create `manifests/atuin/networkpolicy-egress.yaml` — CiliumNetworkPolicy (egress)
+  - Allow DNS (kube-system kube-dns on 53/UDP)
+  - Allow intra-namespace (Atuin server → PostgreSQL on 5432)
+  - Deny all other egress (no internet needed)
+- [ ] 4.30.3.9 Create `manifests/atuin/backup-cronjob.yaml` — Weekly PostgreSQL backup
+  - Schedule: `0 2 * * 0` with `timeZone: "Asia/Manila"` (Sunday 2 AM Manila — requires K8s 1.27+)
+  - Image: `postgres:18.3` (same as database)
+  - `concurrencyPolicy: Forbid`, `activeDeadlineSeconds: 300`
   - Command: `pg_dump --host=postgres --username=atuin --format=c --file=/backup/atuin-backup-$(date +'%Y-%m-%d').pg_dump`
-  - PVC or NFS mount for backup storage (consider NAS at `/export/Kubernetes/Backups/atuin/`)
-  - Retention: keep last 4 backups (cleanup old dumps in the same job)
+  - Retention: `find /backup -name '*.pg_dump' -mtime +28 -delete` (keep ~4 weekly backups)
+  - NFS mount for backup storage: NAS at `/export/Kubernetes/Backups/atuin/`
   - Secret: reuse `atuin-secrets` for `PGPASSWORD`
 
 ### 4.30.4 Deploy & Verify
@@ -185,12 +196,13 @@ where Distrobox containers have separate HOMEs.
 | File | Type | Purpose |
 |------|------|---------|
 | `manifests/atuin/namespace.yaml` | Namespace | `atuin` namespace with PSS labels |
-| `manifests/atuin/postgres-deployment.yaml` | Deployment + PVC | PostgreSQL 16 for Atuin |
+| `manifests/atuin/postgres-deployment.yaml` | Deployment + PVC | PostgreSQL 18.3 for Atuin |
 | `manifests/atuin/postgres-service.yaml` | Service | ClusterIP for PostgreSQL |
 | `manifests/atuin/server-deployment.yaml` | Deployment + PVC | Atuin sync server |
 | `manifests/atuin/server-service.yaml` | Service | ClusterIP for Atuin server |
 | `manifests/atuin/httproute.yaml` | HTTPRoute | `atuin.k8s.rommelporras.com` |
-| `manifests/atuin/networkpolicy.yaml` | CiliumNetworkPolicy | Atuin ↔ PostgreSQL traffic rules |
+| `manifests/atuin/networkpolicy-ingress.yaml` | CiliumNetworkPolicy | Default deny ingress + allow gateway, intra-ns |
+| `manifests/atuin/networkpolicy-egress.yaml` | CiliumNetworkPolicy | Allow DNS + intra-ns, deny internet |
 | `manifests/atuin/backup-cronjob.yaml` | CronJob | Weekly PostgreSQL pg_dump backup |
 | `manifests/monitoring/atuin-dashboard-configmap.yaml` | ConfigMap | Grafana dashboard |
 
@@ -199,7 +211,7 @@ where Distrobox containers have separate HOMEs.
 | File | Change |
 |------|--------|
 | `manifests/home/homepage/config/services.yaml` | Add Atuin widget |
-| `manifests/monitoring/uptime-kuma/` | Add Atuin monitor |
+| Uptime Kuma UI | Add HTTP monitor for `atuin.k8s.rommelporras.com` (configured via web UI, not manifests) |
 
 ---
 
