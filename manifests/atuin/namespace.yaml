@@ -1,0 +1,14 @@
+# Atuin namespace for self-hosted shell history sync server
+# Phase 4.30 - Atuin Self-Hosted Shell History
+#
+# PSS: enforce baseline (backup CronJob uses NFS volume, not allowed under restricted)
+#      audit + warn restricted (guidance for future hardening)
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: atuin
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

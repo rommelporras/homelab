@@ -1,0 +1,146 @@
+# Atuin Sync Server Deployment
+# Phase 4.30: Self-hosted Atuin server for shell history sync
+#
+# Image entrypoint is /usr/local/bin/atuin-server, args: ["start"]
+# Health check: /healthz on port 8888
+# Metrics: port 9001 (enabled via ATUIN_METRICS__ENABLE)
+# Init container waits for PostgreSQL to be ready before starting
+#
+# CKA topics: Deployment, PVC, InitContainer, SecurityContext, Probes
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: atuin-config
+  namespace: atuin
+  labels:
+    app: atuin-server
+    app.kubernetes.io/part-of: atuin
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atuin-server
+  namespace: atuin
+  labels:
+    app: atuin-server
+    app.kubernetes.io/part-of: atuin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: atuin-server
+  template:
+    metadata:
+      labels:
+        app: atuin-server
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      automountServiceAccountToken: false
+      initContainers:
+        - name: wait-for-db
+          image: docker.io/library/busybox:1.37
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - "until nc -z postgres 5432; do echo 'Waiting for PostgreSQL...'; sleep 2; done"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "32Mi"
+      containers:
+        - name: atuin-server
+          image: ghcr.io/atuinsh/atuin:18.12.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - start
+          ports:
+            - name: http
+              containerPort: 8888
+              protocol: TCP
+            - name: metrics
+              containerPort: 9001
+              protocol: TCP
+          env:
+            - name: TZ
+              value: "Asia/Manila"
+            - name: ATUIN_HOST
+              value: "0.0.0.0"
+            - name: ATUIN_PORT
+              value: "8888"
+            - name: ATUIN_OPEN_REGISTRATION
+              value: "false"
+            - name: ATUIN_DB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: atuin-secrets
+                  key: ATUIN_DB_URI
+            - name: ATUIN_METRICS__ENABLE
+              value: "true"
+            - name: ATUIN_METRICS__HOST
+              value: "0.0.0.0"
+            - name: ATUIN_METRICS__PORT
+              value: "9001"
+            - name: RUST_LOG
+              value: "info,atuin_server=debug"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "250m"
+              memory: "1Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 3
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: atuin-config

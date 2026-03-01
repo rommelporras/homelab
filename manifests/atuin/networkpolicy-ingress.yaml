@@ -1,0 +1,91 @@
+# CiliumNetworkPolicy - Atuin namespace ingress rules
+# Phase 4.30: Atuin server + PostgreSQL ingress control
+#
+# Security model:
+#   - Atuin server: accepts traffic from gateway (HTTPRoute), kubelet (probes), monitoring (Blackbox/Prometheus)
+#   - PostgreSQL: accepts connections only from Atuin server pods and kubelet (probes)
+#
+# CKA topics: CiliumNetworkPolicy, ingress filtering, intra-namespace communication
+---
+# Atuin server ingress: Gateway + monitoring + kubelet probes
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: atuin-server-ingress
+  namespace: atuin
+  labels:
+    app: atuin-server
+    app.kubernetes.io/part-of: atuin
+spec:
+  endpointSelector:
+    matchLabels:
+      app: atuin-server
+
+  ingress:
+    # Cilium Gateway API traffic — uses reserved:ingress identity
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "8888"
+              protocol: TCP
+
+    # Kubelet health probes (liveness/readiness from host)
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "8888"
+              protocol: TCP
+
+    # Blackbox Exporter probes + Prometheus metrics scraping (monitoring namespace)
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8888"
+              protocol: TCP
+            - port: "9001"
+              protocol: TCP
+---
+# PostgreSQL ingress: Atuin server + backup CronJob + kubelet probes
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: postgres-ingress
+  namespace: atuin
+  labels:
+    app: postgres
+    app.kubernetes.io/part-of: atuin
+spec:
+  endpointSelector:
+    matchLabels:
+      app: postgres
+
+  ingress:
+    # Atuin server pods (intra-namespace)
+    - fromEndpoints:
+        - matchLabels:
+            app: atuin-server
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # Backup CronJob pods (intra-namespace)
+    - fromEndpoints:
+        - matchLabels:
+            app: atuin-backup
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # Kubelet health probes (liveness/readiness from host)
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP

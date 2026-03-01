@@ -1,0 +1,105 @@
+# PrometheusRule for Atuin Alerts
+# Phase 4.30: Monitor Atuin server + PostgreSQL availability and pod stability
+#
+# Metrics used:
+#   probe_success{job="atuin"} — HTTP probe reachability (from Blackbox Exporter)
+#   kube_pod_container_status_restarts_total — restart count (from kube-state-metrics)
+#   container_memory_working_set_bytes — memory usage (from cAdvisor)
+#   kube_pod_container_resource_limits — resource limits (from kube-state-metrics)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: atuin-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: atuin
+      rules:
+        # Atuin server health endpoint unreachable
+        - alert: AtuinDown
+          expr: probe_success{job="atuin"} == 0
+          for: 3m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Atuin server is unreachable"
+            description: "Blackbox HTTP probe to atuin-server.atuin.svc /healthz has failed for 3+ minutes. Shell history sync is unavailable."
+            runbook: |
+              1. Check pod status:
+                 kubectl-homelab get pods -n atuin
+
+              2. Check Atuin server logs:
+                 kubectl-homelab logs -n atuin deploy/atuin-server --tail=50
+
+              3. Check PostgreSQL status:
+                 kubectl-homelab get pods -n atuin -l app=postgres
+
+              4. Check events:
+                 kubectl-homelab describe pod -n atuin -l app=atuin-server
+
+        # PostgreSQL pod not ready
+        - alert: AtuinPostgresDown
+          expr: kube_deployment_status_replicas_available{namespace="atuin", deployment="postgres"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Atuin PostgreSQL is down"
+            description: "PostgreSQL deployment in atuin namespace has 0 available replicas for 5+ minutes. Atuin server cannot store or retrieve history."
+            runbook: |
+              1. Check pod status:
+                 kubectl-homelab get pods -n atuin -l app=postgres
+
+              2. Check PostgreSQL logs:
+                 kubectl-homelab logs -n atuin deploy/postgres --tail=50
+
+              3. Check PVC status:
+                 kubectl-homelab get pvc -n atuin
+
+              4. Check events:
+                 kubectl-homelab describe pod -n atuin -l app=postgres
+
+        # Atuin server restarting frequently
+        - alert: AtuinHighRestarts
+          expr: increase(kube_pod_container_status_restarts_total{namespace="atuin", container="atuin-server"}[1h]) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Atuin server is restarting frequently"
+            description: "Atuin server has restarted {{ $value | humanize }} times in the last hour. Likely OOMKilled or failing health probes."
+            runbook: |
+              1. Check for OOMKill:
+                 kubectl-homelab get pods -n atuin -l app=atuin-server -o jsonpath='{.items[*].status.containerStatuses[*].lastState}'
+
+              2. Check events:
+                 kubectl-homelab describe pod -n atuin -l app=atuin-server | tail -20
+
+              3. Check memory usage:
+                 kubectl-homelab top pod -n atuin
+
+        # High memory usage on Atuin server (> 80% of limit)
+        - alert: AtuinHighMemory
+          expr: |
+            sum(container_memory_working_set_bytes{namespace="atuin", container="atuin-server"})
+            /
+            sum(kube_pod_container_resource_limits{namespace="atuin", container="atuin-server", resource="memory"})
+            > 0.8
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Atuin server memory usage is high"
+            description: "Atuin server is using more than 80% of its memory limit for 10+ minutes. Risk of OOMKill. Current usage: {{ $value | humanizePercentage }}."
+            runbook: |
+              1. Check current memory usage:
+                 kubectl-homelab top pod -n atuin
+
+              2. Check for memory leaks in logs:
+                 kubectl-homelab logs -n atuin deploy/atuin-server --tail=100
+
+              3. Consider increasing memory limit in server-deployment.yaml

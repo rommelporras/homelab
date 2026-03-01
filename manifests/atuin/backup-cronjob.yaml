@@ -1,0 +1,92 @@
+# Atuin PostgreSQL Backup CronJob
+# Phase 4.30: Weekly pg_dump to NAS via NFS
+#
+# Schedule: 0 2 * * 0 Asia/Manila (Sunday 2 AM Manila time)
+# Retention: 28 days (~4 weekly backups)
+# Backup format: custom (-Fc), includes schema + data, compressed
+#
+# Manual test run:
+#   kubectl-homelab create job --from=cronjob/atuin-backup atuin-backup-test -n atuin
+#   kubectl-homelab logs -n atuin job/atuin-backup-test
+#
+# CKA topics: CronJob, NFS volume, Secret envFrom, timeZone
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: atuin-backup
+  namespace: atuin
+  labels:
+    app: atuin-backup
+    app.kubernetes.io/part-of: atuin
+spec:
+  schedule: "0 2 * * 0"
+  timeZone: "Asia/Manila"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 300
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: atuin-backup
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          automountServiceAccountToken: false
+          containers:
+            - name: backup
+              image: docker.io/library/postgres:18.3
+              imagePullPolicy: IfNotPresent
+              command:
+                - sh
+                - -c
+                - |
+                  echo "Starting Atuin PostgreSQL backup..."
+                  pg_dump \
+                    --host=postgres \
+                    --username=atuin \
+                    --format=c \
+                    --file="/backup/atuin-backup-$(date +'%Y-%m-%d').pg_dump" \
+                    atuin
+                  echo "Backup complete. Cleaning up old backups (>28 days)..."
+                  find /backup -name '*.pg_dump' -mtime +28 -delete
+                  echo "Done. Current backups:"
+                  ls -lh /backup/
+              env:
+                - name: TZ
+                  value: "Asia/Manila"
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: atuin-secrets
+                      key: POSTGRES_PASSWORD
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "250m"
+                  memory: "256Mi"
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: backup
+              nfs:
+                server: 10.10.30.4
+                path: /export/Kubernetes/Backups/atuin

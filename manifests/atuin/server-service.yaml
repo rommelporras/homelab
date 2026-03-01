@@ -1,0 +1,20 @@
+# Atuin Server Service
+# ClusterIP — exposed externally via HTTPRoute through Cilium Gateway
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: atuin-server
+  namespace: atuin
+  labels:
+    app: atuin-server
+    app.kubernetes.io/part-of: atuin
+spec:
+  type: ClusterIP
+  selector:
+    app: atuin-server
+  ports:
+    - name: http
+      port: 8888
+      targetPort: http
+      protocol: TCP

@@ -67,6 +67,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Portfolio | `kube-api-url`, `kube-token-development`, `kube-token-staging`, `kube-token-production` | GitLab CI/CD (portfolio deploy to K8s) |
 | ARR Stack | `username`, `password`, `prowlarr-api-key`, `sonarr-api-key`, `radarr-api-key`, `bazarr-api-key`, `jellyfin-api-key`, `tdarr-api-key`, `discord-webhook-url` | All ARR apps (shared login), Homepage widgets, arr-api-keys Secret, Discord notifications |
 | Opensubtitles | `username`, `user[password_confirmation]` | Bazarr subtitle provider (OpenSubtitles.com) |
+| Atuin | `db-username`, `db-password`, `db-database`, `db-uri`, `personal-email`, `personal-password`, `encryption-key`, `eam-email`, `eam-password` | Atuin server (PostgreSQL + account credentials) |
 | iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
 
 ## 1Password Paths
@@ -176,6 +177,17 @@ op://Kubernetes/ARR Stack/discord-webhook-url
 # Opensubtitles (Bazarr subtitle provider)
 op://Kubernetes/Opensubtitles/username
 op://Kubernetes/Opensubtitles/user[password_confirmation]
+
+# Atuin (PostgreSQL + account credentials)
+op://Kubernetes/Atuin/db-username
+op://Kubernetes/Atuin/db-password
+op://Kubernetes/Atuin/db-database
+op://Kubernetes/Atuin/db-uri
+op://Kubernetes/Atuin/personal-email
+op://Kubernetes/Atuin/personal-password
+op://Kubernetes/Atuin/encryption-key
+op://Kubernetes/Atuin/eam-email
+op://Kubernetes/Atuin/eam-password
 
 # Homepage (widget credentials)
 op://Kubernetes/Homepage/proxmox-pve-user

@@ -1,0 +1,28 @@
+# Blackbox HTTP probe for Atuin
+# Phase 4.30: Monitor Atuin server health endpoint availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://atuin-server.atuin.svc:8888/healthz -> Atuin
+#   If health check fails -> probe_success=0 -> Alert fires
+#
+# Target is internal ClusterIP — blackbox exporter reaches it via cluster DNS
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: atuin
+  namespace: monitoring
+  labels:
+    app: atuin-probe
+spec:
+  jobName: atuin
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://atuin-server.atuin.svc.cluster.local:8888/healthz
+      labels:
+        target_name: atuin

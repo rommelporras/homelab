@@ -1,0 +1,136 @@
+# PostgreSQL Deployment for Atuin
+# Phase 4.30: Dedicated PostgreSQL instance for Atuin sync server
+#
+# Strategy: Recreate (RWO PVC — only one pod can mount at a time)
+# Graceful shutdown: preStop hook runs pg_ctl stop before SIGTERM
+#
+# CKA topics: Deployment, PVC, SecurityContext, preStop lifecycle hook
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: atuin
+  labels:
+    app: postgres
+    app.kubernetes.io/part-of: atuin
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: atuin
+  labels:
+    app: postgres
+    app.kubernetes.io/part-of: atuin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      automountServiceAccountToken: false
+      containers:
+        - name: postgres
+          image: docker.io/library/postgres:18.3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: TZ
+              value: "Asia/Manila"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: atuin-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: atuin-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: atuin-secrets
+                  key: POSTGRES_DB
+            - name: PGDATA
+              value: "/var/lib/postgresql/data/pgdata"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "250m"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          startupProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - atuin
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - atuin
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - atuin
+            periodSeconds: 10
+            failureThreshold: 2
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - pg_ctl
+                  - stop
+                  - -D
+                  - /var/lib/postgresql/data/pgdata
+                  - -w
+                  - -t
+                  - "60"
+                  - -m
+                  - fast
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data

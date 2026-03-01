@@ -1,0 +1,110 @@
+# CiliumNetworkPolicy - Atuin namespace egress rules
+# Phase 4.30: Atuin server + PostgreSQL egress control
+#
+# Security model:
+#   - Atuin server: DNS + PostgreSQL only (no internet needed)
+#   - PostgreSQL: DNS only (passive listener, no outbound connections)
+#   - Backup CronJob: DNS + PostgreSQL + NAS (NFS backup target)
+#
+# CKA topics: CiliumNetworkPolicy, egress filtering, CIDR-based rules
+---
+# Atuin server egress: DNS + PostgreSQL
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: atuin-server-egress
+  namespace: atuin
+  labels:
+    app: atuin-server
+    app.kubernetes.io/part-of: atuin
+spec:
+  endpointSelector:
+    matchLabels:
+      app: atuin-server
+
+  egress:
+    # DNS (required for service discovery)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+
+    # PostgreSQL (intra-namespace)
+    - toEndpoints:
+        - matchLabels:
+            app: postgres
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+---
+# PostgreSQL egress: DNS only (passive listener)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: postgres-egress
+  namespace: atuin
+  labels:
+    app: postgres
+    app.kubernetes.io/part-of: atuin
+spec:
+  endpointSelector:
+    matchLabels:
+      app: postgres
+
+  egress:
+    # DNS (required for internal service resolution)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+---
+# Backup CronJob egress: DNS + PostgreSQL + NAS (NFS)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: atuin-backup-egress
+  namespace: atuin
+  labels:
+    app: atuin-backup
+    app.kubernetes.io/part-of: atuin
+spec:
+  endpointSelector:
+    matchLabels:
+      app: atuin-backup
+
+  egress:
+    # DNS (required for service discovery)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+
+    # PostgreSQL (intra-namespace, for pg_dump)
+    - toEndpoints:
+        - matchLabels:
+            app: postgres
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # NAS (NFS backup target at 10.10.30.4)
+    - toCIDR:
+        - 10.10.30.4/32
+      toPorts:
+        - ports:
+            - port: "2049"
+              protocol: TCP

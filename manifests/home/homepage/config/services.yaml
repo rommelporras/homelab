@@ -193,6 +193,13 @@
         statusStyle: dot
         siteMonitor: https://browser.k8s.rommelporras.com
 
+    - Atuin:
+        icon: mdi-console-line
+        href: https://atuin.k8s.rommelporras.com
+        description: Shell History Sync
+        statusStyle: dot
+        siteMonitor: https://atuin.k8s.rommelporras.com
+
 - Health:
     - Uptime Kuma:
         icon: uptime-kuma.png
