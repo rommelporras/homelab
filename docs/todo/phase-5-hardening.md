@@ -367,6 +367,60 @@ Without RBAC:                    With RBAC:
   - Pod eviction: 300s (default)
   - Total worst-case: ~11 min from reboot to pods running elsewhere
 
+### 5.5.4 Longhorn Crash Recovery Hardening
+
+**Problem:** After a hard node crash (power cycle, OOM-killed kubelet), Longhorn replicas on the crashed node enter `currentState: stopped` with `desiredState: running`. Longhorn logs "failed too long ago to be useful during a rebuild" but does NOT auto-delete these stopped replicas. This blocks volume rebuilds — volumes stay degraded (1/2 replicas) until stopped replicas are manually deleted. Discovered during v0.28.1 when cp3 OOM crash left 16 stopped replicas across 12 volumes.
+
+**Key insight:** `staleReplicaTimeout: 30` (already set in StorageClass) only applies to replicas from node removal/disconnection — it does NOT cover crash-recovery stopped replicas. `replica-auto-balance: best-effort` handles running replica imbalance, not stuck stopped replicas.
+
+- [ ] 5.5.4.1 Change `node-down-pod-deletion-policy` from `do-nothing` to `delete-both-statefulset-and-deployment-pod`
+  ```bash
+  # Current setting
+  kubectl-homelab -n longhorn-system get settings node-down-pod-deletion-policy -o jsonpath='{.value}'
+  # Expected: do-nothing
+
+  # Update via Helm values or direct setting
+  # helm/longhorn/values.yaml: defaultSettings.nodeDrainPolicy or via UI
+  kubectl-homelab -n longhorn-system edit settings node-down-pod-deletion-policy
+  # Set to: delete-both-statefulset-and-deployment-pod
+  ```
+  - Allows Longhorn to force-delete pods using volumes from a down node
+  - Pods reschedule faster, replicas rebuild on healthy nodes
+  - Trade-off: more aggressive — acceptable for homelab where all workloads tolerate restart
+
+- [ ] 5.5.4.2 Enable `orphan-resource-auto-deletion` for replica data
+  ```bash
+  kubectl-homelab -n longhorn-system get settings orphan-auto-deletion -o jsonpath='{.value}'
+  # Set to: true (cleans up orphaned replica data on disk)
+  ```
+  - Prevents orphaned replica directories from accumulating on NVMe after crashes
+  - Only deletes data Longhorn confirms is orphaned (no active volume reference)
+
+- [ ] 5.5.4.3 Document manual recovery procedure for stuck stopped replicas
+  ```bash
+  # 1. Identify stopped replicas
+  kubectl-homelab -n longhorn-system get replicas.longhorn.io \
+    -o custom-columns=NAME:.metadata.name,VOLUME:.spec.volumeName,NODE:.spec.nodeID,STATE:.status.currentState \
+    | grep stopped
+
+  # 2. Verify volume has at least 1 healthy running replica before deleting
+  kubectl-homelab -n longhorn-system get replicas.longhorn.io \
+    -o custom-columns=VOLUME:.spec.volumeName,STATE:.status.currentState \
+    | sort | uniq -c
+
+  # 3. Delete stopped replicas (Longhorn auto-rebuilds on healthy nodes)
+  kubectl-homelab -n longhorn-system delete replicas.longhorn.io <replica-name>
+
+  # 4. Monitor rebuild progress
+  kubectl-homelab -n longhorn-system get volumes.longhorn.io -w
+  ```
+
+- [ ] 5.5.4.4 Verify `replica-soft-anti-affinity` is `false`
+  ```bash
+  kubectl-homelab -n longhorn-system get settings replica-soft-anti-affinity -o jsonpath='{.value}'
+  # Must be: false (replicas MUST be on different nodes — no two on same node)
+  ```
+
 ---
 
 ## 5.6 Backup Strategy (Velero)
@@ -482,6 +536,10 @@ Without RBAC:                    With RBAC:
 - [ ] OPNsense state issue resolved (automated or timeout tuned)
 - [ ] GitLab webservice/registry running 2 replicas with anti-affinity
 - [ ] Pod eviction timing documented and tuned for critical services
+- [ ] Longhorn `node-down-pod-deletion-policy` set to `delete-both-statefulset-and-deployment-pod`
+- [ ] Longhorn `orphan-auto-deletion` enabled
+- [ ] Longhorn `replica-soft-anti-affinity` confirmed `false`
+- [ ] Stopped replica recovery procedure documented in runbook
 - [ ] Velero installed and backup location accessible
 - [ ] Test backup created successfully
 - [ ] Test restore verified working
