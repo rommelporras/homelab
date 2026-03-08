@@ -1,16 +1,51 @@
-# Code Reviewer Agent Memory
+# Code Reviewer Agent Memory -- homelab
 
-## chezmoi Conventions
-- `private_dot_` prefix: 0700 for directories, 0600 for files (NOT just 0600)
-- `executable_` prefix: sets 0755 on files
-- `private_` on parent dir does NOT cascade to children -- children get their own permissions
-- `run_once_before_` scripts run before chezmoi creates any managed files
-- chezmoi handles symlink-to-file replacement correctly during `chezmoi apply`
-- `.chezmoiignore` supports Go template conditionals for per-environment exclusions
+## Project Type
+Kubernetes homelab infrastructure repo (public). 3-node HA cluster (kubeadm, Cilium CNI, Longhorn storage).
 
-## Dotfiles Repo (~/personal/dotfiles)
-- Claude Code config lives in `home/private_dot_claude/`
-- `CLAUDE.md.tmpl` is the only templated file in the Claude config
-- All other Claude files (settings.json, hooks, agents, skills) are plain copies
-- `.chezmoiignore` must cover ALL runtime files in `~/.claude/` to prevent chezmoi from deleting them
-- `aurora` and `distrobox-sandbox` environments exclude entire `.claude/` directory
+## Critical Review Checks
+- **No secrets in code** — repo is PUBLIC. Scan for IPs (10.10.30.x are fine), passwords, tokens, API keys
+- **Use `kubectl-homelab` / `helm-homelab`** — plain `kubectl`/`helm` connects to work AWS EKS
+- **NFS paths must use NFSv4 format** — `/Kubernetes/...` not `/export/Kubernetes/...` (OMV pseudo-root has fsid=0)
+- **Timezone must be `Asia/Manila`** — never UTC or America/Chicago for user-facing configs
+- **Image versions must be pinned** — no `latest` tags in manifests or Helm values
+- **`op://` references only** — never hardcode secret values, use 1Password URI format
+
+## Manifest Conventions
+- One namespace per service (not shared)
+- Deployments use `Recreate` strategy for RWO PVC workloads
+- All containers need `securityContext` (runAsNonRoot, drop ALL capabilities, readOnlyRootFilesystem where possible)
+- `automountServiceAccountToken: false` unless the pod needs API access
+- NFS PVs: `persistentVolumeReclaimPolicy: Retain`, `storageClassName: nfs`, `nfsvers=4.1`
+- Longhorn PVCs: `storageClassName: longhorn` (default, 2x replica)
+
+## Helm Values Conventions
+- Values files live in `helm/<chart-name>/values.yaml`
+- Chart version pinned in header comment AND in install/upgrade commands
+- Resource requests and limits on every workload
+- Helm does NOT resize existing PVCs — must `kubectl patch pvc` manually
+
+## Observability Convention (every new service)
+- PrometheusRule alerts in `manifests/monitoring/alerts/`
+- Grafana dashboard ConfigMap in `manifests/monitoring/dashboards/`
+- Blackbox probe in `manifests/monitoring/probes/` (optional)
+- Dashboard layout: Pod Status row, Network row, Resource Usage row
+- Panel + row descriptions on every element
+
+## Documentation Convention
+- `docs/context/Cluster.md` is single source of truth for IPs, MACs, specs
+- CHANGELOG entries need: Summary, Fixes table, Key Design Decisions table, Gotchas list
+- Phase files: 1 service = 1 file in `docs/todo/`, completed phases move to `docs/todo/completed/`
+- `VERSIONS.md` tracks all component versions and PVC sizes
+
+## Commit Convention
+- Conventional commits: `feat:`, `fix:`, `docs:`, `infra:`, `refactor:`, `chore:`
+- Infra + docs = 2 separate commits per project convention
+- No AI attribution in commits or code
+
+## Common Gotchas to Watch
+- Longhorn RWO PVC + rolling update = new pod can't attach volume (scale down old RS first)
+- DinD builds share one cgroup — total memory (app + docker daemon) must fit within pod limit
+- PostgreSQL PGDATA must use a subdirectory (top-level mount fails on non-empty dir)
+- CronJob NFS volumes need matching UID ownership on NAS directory
+- Cilium Gateway HTTPRoute may need operator restart to reconcile

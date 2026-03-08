@@ -1,43 +1,31 @@
-# Homelab Slash Commands
+# Homelab Claude Code Configuration
 
-Custom slash commands for infrastructure management and git workflow.
+Custom slash commands, hooks, plugins, and agent memory for infrastructure management.
 
 ## Available Commands
 
-### `/commit` - Smart Conventional Commits
-Analyzes changes and creates properly formatted conventional commit.
+### Project Commands (`.claude/commands/`)
 
-**Usage:** `/commit`
-
-**What it does:**
-- Detects commit type (feat/fix/docs/infra/etc.)
-- Scans staged changes for leaked secrets (blocks commit if found)
-- Generates descriptive message
-- Stages all changes
-- Creates commit (NO AI attribution)
-
----
-
-### `/release` - Automated Versioning
+#### `/release` - Automated Versioning
 Creates version tags with changelog and pushes to GitHub.
 
 **Usage:**
 ```
 /release         # Auto-determine version from commits
 /release v1.0.0  # Explicit version
+/release v1.0.0 "Title Here"  # Explicit version AND title
 ```
 
 **What it does:**
 - Analyzes commits since last tag
 - Auto-determines version bump (major/minor/patch)
+- Pre-release checks: phase plan status, VERSIONS.md freshness, remote tag collision
 - Generates changelog from commits
 - Creates annotated git tag
 - Pushes commits and tag to origin
 - Creates GitHub release with gh CLI
 
----
-
-### `/audit-docs` - Documentation Audit
+#### `/audit-docs` - Documentation Audit
 Audit docs/context/ files against current cluster state. Requires cluster access.
 
 **Usage:** `/audit-docs`
@@ -47,9 +35,7 @@ Audit docs/context/ files against current cluster state. Requires cluster access
 - Checks frontmatter dates are current
 - Reports issues, waits for "fix it" approval before changing files
 
----
-
-### `/audit-security` - Pre-Commit Security Scan
+#### `/audit-security` - Pre-Commit Security Scan
 Scan manifests, Helm values, and docs for security issues. No cluster access needed.
 
 **Usage:** `/audit-security`
@@ -61,9 +47,7 @@ Scan manifests, Helm values, and docs for security issues. No cluster access nee
 - Checks Helm values for hardcoded credentials
 - Reports findings with file:line references and severity levels
 
----
-
-### `/audit-cluster` - Live Cluster Security Audit
+#### `/audit-cluster` - Live Cluster Security Audit
 Deep security check of running cluster. Requires cluster access.
 
 **Usage:** `/audit-cluster`
@@ -76,6 +60,34 @@ Deep security check of running cluster. Requires cluster access.
 - Reviews RBAC for unexpected cluster-admin bindings
 - Cross-references exposed services against Gateway.md
 - Detects image version drift against VERSIONS.md
+
+### Global Skills (`~/.claude/skills/`)
+
+#### `/commit` - Smart Conventional Commits
+Analyzes changes and creates properly formatted conventional commit.
+
+**What it does:**
+- Branch safety check (warns on main/master)
+- Scans staged changes for leaked secrets (blocks commit if found)
+- Detects commit type (feat/fix/docs/infra/etc.)
+- Stages files by name (never `git add -A`)
+- Creates commit (NO AI attribution)
+
+#### `/push` - Push to Remote
+Pushes current branch to origin.
+
+#### `/explain-code` - Code Explanation
+Explains code with analogies and visual diagrams.
+
+---
+
+## Which audit command when?
+
+| Situation | Command | Needs cluster? |
+|-----------|---------|----------------|
+| Before committing manifests | `/audit-security` | No |
+| Before a release | `/audit-docs` | Yes |
+| Periodic security review | `/audit-cluster` | Yes |
 
 ---
 
@@ -90,8 +102,6 @@ Deep security check of running cluster. Requires cluster access.
 | `refactor:` | Code cleanup | `refactor: reorganize manifest structure` |
 | `perf:` | Performance | `perf: optimize etcd disk settings` |
 | `chore:` | Tooling | `chore: update .gitignore` |
-
----
 
 ## Semantic Versioning
 
@@ -131,38 +141,44 @@ PATCH: Bug fixes, documentation updates
 /audit-cluster
 ```
 
-## Which audit command when?
+---
 
-| Situation | Command | Needs cluster? |
-|-----------|---------|----------------|
-| Before committing manifests | `/audit-security` | No |
-| Before a release | `/audit-docs` | Yes |
-| Periodic security review | `/audit-cluster` | Yes |
+## Hooks
+
+Project hook (`.claude/hooks/protect-sensitive.sh`):
+
+**Blocks (exit 2):**
+- Edits to k8s-sensitive files: `kubeconfig`, `.kube/config`, `admin.conf`, `secrets.yaml`, `secret.yaml`, `.key`, `.crt`, `ssh_host`, `etcd-snapshot`, `encryption-config`, `serviceAccountKey`
+- Mass kubectl delete across namespaces (`kubectl delete --all` with `-A` or `namespace`)
+
+**Warns (non-blocking):**
+- Editing YAML files containing `kind: Secret`
+- `etcdctl` operations
+- `kubeadm reset`
+
+Global hooks (separate, in `~/.claude/`) handle: `.env` files, SSH keys, `.pem`, force push, destructive git commands, and secret content scanning.
 
 ---
 
-## Command Files
+## Plugins
 
-Project commands (`.claude/commands/`):
-- `release.md` - Release automation
-- `audit-docs.md` - Documentation audit
-- `audit-security.md` - Pre-commit security scan
-- `audit-cluster.md` - Live cluster security audit
+Configured in `.claude/settings.json`:
 
-Global skills (`~/.claude/skills/`):
-- `commit/` - Commit message generation
-- `push/` - Push to remote
+| Plugin | Status | Purpose |
+|--------|--------|---------|
+| episodic-memory | Enabled | Semantic search across past conversations |
+| code-simplifier | Enabled | Code clarity and refactoring suggestions |
+| security-guidance | Enabled | Security best practices |
+| claude-md-management | Enabled | CLAUDE.md maintenance and auditing |
 
 ---
 
-## Security
+## Agent Memory
 
-Commands are protected by hooks:
-- `.claude/hooks/protect-sensitive.sh` - Blocks edits to secrets, credentials
-- Prevents dangerous operations (force push, cluster deletion)
+`.claude/agent-memory/{agent-name}/MEMORY.md` — persistent per-project memory for subagents.
 
-Protected patterns:
-- `kubeconfig`, `.kube/config`
-- `*.pem`, `*.key`, certificates
-- `secrets.yaml`, credentials files
-- etcd backup files
+| Agent | File | Purpose |
+|-------|------|---------|
+| code-reviewer | `agent-memory/code-reviewer/MEMORY.md` | Homelab manifest conventions, review checklist, common gotchas |
+
+Agent memory is committed to the repo so it works across machines.
