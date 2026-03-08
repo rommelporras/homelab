@@ -38,10 +38,12 @@ runners:
         privileged = true
 
         # Resource limits for CI job pods
+        # v0.28.1: raised memory from 2Gi→4Gi after Next.js build OOM killed node
+        # Next.js `bun run build` + TypeScript checking peaks at ~3Gi
         cpu_limit = "2"
         cpu_request = "500m"
-        memory_limit = "2Gi"
-        memory_request = "512Mi"
+        memory_limit = "4Gi"
+        memory_request = "1Gi"
 
         # Helper container resources
         helper_cpu_limit = "500m"

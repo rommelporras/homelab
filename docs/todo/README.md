@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.28.0 (Atuin Self-Hosted Shell History)
+> **Latest Release:** v0.28.1 (GitLab Minio + Atuin Backup Fix)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -40,6 +40,7 @@
 | v0.27.0 | Alerting & Observability Improvements | Phase 4.28 | ✅ Released |
 | v0.27.1 | ARR Quality Profile Fix + Tdarr Resolution Filter | — | ✅ Released |
 | v0.28.0 | Atuin Self-Hosted Shell History | Phase 4.30 | ✅ Released |
+| v0.28.1 | GitLab Minio + Atuin Backup + Runner OOM Fix | — | ✅ Released |
 | v0.29.0 | Vault + External Secrets Operator | Phase 4.29 | ⬜ Planned |
 | v0.30.0 | Production Hardening | Phase 5 | ⬜ Planned |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
@@ -81,13 +82,13 @@
 | 4.26 | ARR Companions | [phase-4.26-arr-companions.md](completed/phase-4.26-arr-companions.md) |
 | 4.27 | Version Automation & Upgrade Runbooks | [phase-4.27-version-automation.md](completed/phase-4.27-version-automation.md) |
 | 4.28 | Alerting & Observability Improvements | [phase-4.28-alerting-observability.md](completed/phase-4.28-alerting-observability.md) |
+| 4.30 | Atuin Self-Hosted Shell History | [phase-4.30-atuin.md](completed/phase-4.30-atuin.md) |
 
 ### Planned
 
 | Phase | Description | File |
 |-------|-------------|------|
 | 4.29 | Vault + External Secrets Operator | [phase-4.29-vault-eso.md](phase-4.29-vault-eso.md) |
-| 4.30 | Atuin Self-Hosted Shell History | [phase-4.30-atuin.md](phase-4.30-atuin.md) |
 | 5 | Production Hardening | [phase-5-hardening.md](phase-5-hardening.md) |
 | 6 | CKA Focused Learning | [phase-6-cka.md](phase-6-cka.md) |
 

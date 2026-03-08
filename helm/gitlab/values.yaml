@@ -137,6 +137,14 @@ redis:
         cpu: 500m
         memory: 512Mi
 
+# Minio (S3-compatible object storage for registry, artifacts, backups, etc.)
+# Default chart size is 10Gi — too small once CI/CD pipelines push container images.
+# v0.28.1: expanded from 10Gi to 20Gi after XMinioStorageFull blocked registry pushes.
+minio:
+  persistence:
+    storageClass: longhorn
+    size: 20Gi
+
 # ─────────────────────────────────────────────────────────────────
 # GITLAB CORE COMPONENTS
 # ─────────────────────────────────────────────────────────────────
@@ -205,15 +213,14 @@ gitlab:
 # ─────────────────────────────────────────────────────────────────
 # CONTAINER REGISTRY
 # ─────────────────────────────────────────────────────────────────
+# NOTE: Registry data is stored in Minio (S3 backend), NOT in a local PVC.
+# When global.minio.enabled=true (default), all registry blobs go through
+# the minio PVC (gitlab-minio). Size the minio section above accordingly.
 
 registry:
   enabled: true
   storage:
     secret: null  # Use filesystem storage
-  persistence:
-    enabled: true
-    storageClass: longhorn
-    size: 20Gi
   resources:
     requests:
       cpu: 100m

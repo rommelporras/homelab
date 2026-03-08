@@ -390,10 +390,11 @@ Without RBAC:                    With RBAC:
 - [ ] 5.6.2 Create NFS backup location on NAS
   ```bash
   # On NAS, create backup directory under the Kubernetes NFS export
-  # /export/Kubernetes/Backups/velero
+  # Filesystem path: /export/Kubernetes/Backups/velero
+  # NFSv4 mount path: /Kubernetes/Backups/velero (OMV has /export with fsid=0)
 
-  # Test NFS mount from a node
-  ssh k8s-cp1 "sudo mount -t nfs 10.10.30.4:/export/Kubernetes/Backups /mnt && ls /mnt && sudo umount /mnt"
+  # Test NFS mount from a node (use NFSv4 path, not /export/...)
+  ssh k8s-cp1 "sudo mount -t nfs 10.10.30.4:/Kubernetes/Backups /mnt && ls /mnt && sudo umount /mnt"
   ```
 
 - [ ] 5.6.3 Install Velero with NFS plugin

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, storage, longhorn, nfs]
-updated: 2026-02-16
+updated: 2026-03-09
 ---
 
 # Storage
@@ -65,6 +65,8 @@ All K8s NFS storage uses a **single export** (`/export/Kubernetes`) with **one s
 ├── Media/                            (ARR stack — PV: arr-data-nfs, Phase 4.25)
 │   ├── torrents/{movies,tv,music}/   (qBittorrent downloads)
 │   └── media/{movies,tv,music}/      (Sonarr/Radarr hardlinked library)
+├── Backups/                          (service database backups)
+│   └── atuin/                        (Atuin PostgreSQL pg_dump, weekly CronJob)
 ├── Documents/                        (future — Nextcloud or Paperless-ngx)
 └── (future services)/
 ```
@@ -73,6 +75,7 @@ All K8s NFS storage uses a **single export** (`/export/Kubernetes`) with **one s
 |-------------|-----------------|--------|-----------|--------|
 | `Immich/` | `/Kubernetes/Immich` | `immich-nfs` | `immich` | Deployed |
 | `Media/` | `/Kubernetes/Media` | `arr-data-nfs` | `arr-stack` | Deployed |
+| `Backups/atuin/` | `/Kubernetes/Backups/atuin` | inline NFS volume | `atuin` | Deployed (v0.28.1) |
 | `Documents/` | `/Kubernetes/Documents` | TBD | TBD | Future (Nextcloud/Paperless-ngx) |
 
 **NFSv4 path note:** OMV has `/export` with `fsid=0` as the pseudo-root. Filesystem path `/export/Kubernetes/Media` becomes NFSv4 mount path `/Kubernetes/Media`.

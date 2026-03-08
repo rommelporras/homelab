@@ -148,7 +148,7 @@ where Distrobox containers have separate HOMEs.
   - `concurrencyPolicy: Forbid`, `activeDeadlineSeconds: 300`
   - Command: `pg_dump --host=postgres --username=atuin --format=c --file=/backup/atuin-backup-$(date +'%Y-%m-%d').pg_dump`
   - Retention: `find /backup -name '*.pg_dump' -mtime +28 -delete` (keep ~4 weekly backups)
-  - NFS mount for backup storage: NAS at `/export/Kubernetes/Backups/atuin/`
+  - NFS mount for backup storage: NAS at `/Kubernetes/Backups/atuin/` (NFSv4 path; fixed in v0.28.1 from `/export/...`)
   - Secret: reuse `atuin-secrets` for `PGPASSWORD`
 
 ### 4.30.4 Deploy & Verify

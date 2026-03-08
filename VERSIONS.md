@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** March 1, 2026
+> **Last Updated:** March 9, 2026
 
 ---
 
@@ -219,7 +219,7 @@ helm-homelab repo update
 | gitlab-gitaly | 50Gi |
 | gitlab-postgresql | 15Gi |
 | gitlab-redis | 5Gi |
-| gitlab-minio | 10Gi |
+| gitlab-minio | 20Gi |
 
 ---
 

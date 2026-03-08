@@ -20,7 +20,7 @@ homelab/
 ├── helm/             # Helm values files (one dir per chart: cilium, prometheus, loki, etc.)
 ├── manifests/        # Raw K8s manifests (one dir per service: arr-stack, gateway, monitoring, etc.)
 ├── scripts/          # Operational scripts
-├── docs/context/     # Knowledge base (Cluster.md = source of truth, + 10 topic files)
+├── docs/context/     # Knowledge base (Cluster.md = source of truth, + 10 topic files + index)
 ├── docs/rebuild/     # Step-by-step rebuild guides per release
 ├── docs/todo/        # Phase plans (active + completed/)
 ├── docs/reference/   # CHANGELOG.md, historical docs

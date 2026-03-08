@@ -89,4 +89,7 @@ spec:
             - name: backup
               nfs:
                 server: 10.10.30.4
-                path: /export/Kubernetes/Backups/atuin
+                # NFSv4 pseudo-root: OMV has /export with fsid=0
+                # Filesystem path: /export/Kubernetes/Backups/atuin
+                # NFSv4 mount path: /Kubernetes/Backups/atuin
+                path: /Kubernetes/Backups/atuin

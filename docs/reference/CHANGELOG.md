@@ -4,6 +4,52 @@
 
 ---
 
+## March 9, 2026 — GitLab Minio + Atuin Backup + Runner OOM Fix (v0.28.1)
+
+### Summary
+
+Patch release fixing three infrastructure issues. (1) The GitLab Minio PVC (`gitlab-minio`,
+10Gi) reached 89% capacity from orphaned container registry blobs (41 revisions, only 6
+active tags for `0xwsh/portfolio`), causing `KubePersistentVolumeFillingUp` alert, registry
+500 errors blocking CI/CD pushes (`XMinioStorageFull`), and runner job completion failures.
+(2) The Atuin backup CronJob used the wrong NFS path format and the backup directory was
+never created on the NAS. (3) A Next.js build OOM-killed k8s-cp3 — the 2Gi runner build pod
+memory limit was insufficient for Docker-in-Docker builds, causing node-level memory pressure
+that froze kubelet and required a power cycle.
+
+### Fixes
+
+| Fix | Details |
+|-----|---------|
+| Registry garbage collection | Ran `registry garbage-collect --delete-untagged` to remove orphaned blobs from 41→6 revisions |
+| Minio PVC 10Gi → 20Gi | Longhorn online expansion. Added `minio.persistence` to `helm/gitlab/values.yaml` |
+| Remove unused `registry.persistence` | Registry data goes through minio (S3 backend), not a local PVC. Config was inert and misleading |
+| Atuin backup NFS path | Fixed `/export/Kubernetes/Backups/atuin` → `/Kubernetes/Backups/atuin` (NFSv4 pseudo-root format) |
+| NAS backup directory | Created `/export/Kubernetes/Backups/atuin` on OMV NAS |
+| Failed job cleanup | Deleted `atuin-backup-29548440` to clear `KubeJobFailed` alert |
+| GitLab runner restart | Restarted runner deployment to drop stale job 872 connection |
+| Runner build pod memory 2Gi → 4Gi | Next.js `bun run build` + TypeScript peaks at ~3Gi, OOM-killed node. Updated `helm/gitlab-runner/values.yaml` |
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| 20Gi for minio (not 15Gi or 30Gi) | 10Gi was too tight once CI/CD started pushing images. 20Gi gives comfortable headroom. Alert fires at ~85% (17Gi) for early warning |
+| Remove `registry.persistence` from values | When `global.minio.enabled=true` (default), registry uses minio as S3 backend. `registry.persistence` created no PVC and was misleading |
+| NFSv4 path format | Matches Immich (`/Kubernetes/Immich`) and arr-stack (`/Kubernetes/Media`). OMV has `/export` with `fsid=0` as NFSv4 pseudo-root |
+| 4Gi runner memory (not 8Gi) | 3Gi peak + docker daemon overhead fits within 4Gi. 8Gi would consume half a 16GB node. Cluster-side limit, not app-side — Invoicetron should also add `NODE_OPTIONS="--max-old-space-size=2048"` as belt-and-suspenders |
+
+### Gotchas
+
+- **Helm does NOT resize existing PVCs** — Must `kubectl patch pvc` manually. Values file update is for future installs only
+- **NFSv4 pseudo-root** — OMV filesystem path `/export/Kubernetes/X` becomes NFSv4 mount path `/Kubernetes/X`. The `/export` prefix must be stripped for K8s NFS volumes
+- **Registry GC requires `--delete-untagged`** — Without this flag, only unreferenced blobs are deleted. Untagged manifests (the main space consumer) are kept
+- **Minio pod restart needed for PVC resize** — Longhorn expands the block device online, but kubelet only triggers the filesystem resize (ext4 `resize2fs`) during the next mount phase. Restart the pod to trigger `FileSystemResizePending` → resize
+- **Runner stuck loop** — Runner submits "job succeeded" but gets "accepted, but not yet completed" when minio is full. Runner restart + pipeline cancel/retry is the fix
+- **DinD builds can OOM-kill nodes** — Docker-in-Docker spawns multiple processes (docker daemon + build + app) sharing one cgroup. A Next.js `bun run build` peaking at ~3Gi combined with docker daemon overhead exceeded the 2Gi pod memory limit, triggering kernel OOM killer (SIGKILL). Node-level memory pressure froze kubelet, requiring power cycle of k8s-cp3. Raised to 4Gi limit with 1Gi request
+
+---
+
 ## March 1, 2026 — Atuin Self-Hosted Shell History (v0.28.0)
 
 ### Summary
