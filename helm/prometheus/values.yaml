@@ -126,7 +126,8 @@ grafana:
 #
 # Notification Routing:
 #   - Critical alerts → Discord #incidents + Email (critical@rommelporras.com)
-#   - Warning/Info alerts → Discord #status only
+#   - Warning (infra) alerts → Discord #infra (Longhorn, NVMe, certs, nodes, UPS, logging)
+#   - Warning (apps) alerts → Discord #apps (catch-all for non-infra warnings)
 #
 # Secrets are injected at install/upgrade time via --set flags (from 1Password)
 # See: scripts/upgrade-prometheus.sh
@@ -167,7 +168,7 @@ alertmanager:
 
     # Default route - all alerts go here unless matched by sub-routes
     route:
-      receiver: 'discord-status'
+      receiver: 'discord-apps'
       group_by: ['alertname', 'namespace', 'job']
       group_wait: 30s        # Wait before sending first notification
       group_interval: 5m     # Wait between notifications for same group
@@ -227,10 +228,18 @@ alertmanager:
           receiver: 'discord-incidents-email'
           continue: false
 
-        # Warning alerts → #status only
+        # Infrastructure warning alerts → #infra
         - match:
             severity: warning
-          receiver: 'discord-status'
+          match_re:
+            alertname: '(Longhorn.*|NVMe.*|etcd.*|KubeVip.*|Certificate.*|Node.*|UPS.*|NetworkInterface.*|KubePersistent.*|SmartCTL.*|KubeApiserver.*|CPUThrottling.*|Alloy.*|Loki.*|ClusterJanitor.*)'
+          receiver: 'discord-infra'
+          continue: false
+
+        # Application warning alerts → #apps (catch-all for non-infra warnings)
+        - match:
+            severity: warning
+          receiver: 'discord-apps'
           continue: false
 
         # Info alerts → silenced (non-actionable, visible in Alertmanager UI only)
@@ -259,8 +268,20 @@ alertmanager:
             headers:
               Subject: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
 
-      # Warning/Info: Discord #status only
-      - name: 'discord-status'
+      # Infrastructure warnings: Discord #infra
+      - name: 'discord-infra'
+        discord_configs:
+          - webhook_url: 'SET_VIA_HELM'  # Injected from 1Password
+            title: '{{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
+            message: |
+              {{ range .Alerts }}
+              **{{ .Labels.alertname }}** ({{ .Labels.severity }})
+              {{ .Annotations.summary }}
+              {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+              {{ end }}
+
+      # Application warnings: Discord #apps (catch-all)
+      - name: 'discord-apps'
         discord_configs:
           - webhook_url: 'SET_VIA_HELM'  # Injected from 1Password
             title: '{{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'

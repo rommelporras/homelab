@@ -63,6 +63,20 @@ defaultSettings:
   # 200 = allow 2x overprovisioning (risky but allows thin provisioning)
   storageOverProvisioningPercentage: 100
 
+  # NODE DOWN POD DELETION POLICY
+  # What happens to pods using Longhorn volumes when a node goes down
+  # delete-both-statefulset-and-deployment-pod: force-delete stuck pods so they
+  # reschedule faster and volumes reattach on healthy nodes
+  # Note: nodeDownPodDeletionPolicy (node goes DOWN) != nodeDrainPolicy (node is DRAINED)
+  nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
+
+  # ORPHAN RESOURCE AUTO DELETION
+  # Automatically clean up orphaned resources after crashes
+  # Semicolon-separated list of resource types:
+  #   replica-data: orphaned replica data directories on NVMe
+  #   instance: orphaned engine/replica runtime instances
+  orphanResourceAutoDeletion: "replica-data;instance"
+
   # REPLICA AUTO-BALANCE
   # Automatically rebalance replicas across nodes
   # Helps when you add a new node to the cluster

@@ -7,7 +7,7 @@
 #
 # Expected Results:
 #   - TestAlertCritical → Discord #incidents + Email (critical@rommelporras.com)
-#   - TestAlertWarning → Discord #status only
+#   - TestAlertWarning → Discord #apps (application alerts) or #infra (infrastructure alerts)
 #
 # Cleanup:
 #   kubectl-homelab delete -f manifests/monitoring/test-alert.yaml
@@ -34,7 +34,7 @@ spec:
             summary: "Test CRITICAL alert - safe to ignore"
             description: "This is a test critical alert to verify Discord #incidents and email routing. Delete with: kubectl-homelab delete prometheusrule test-alert -n monitoring"
 
-        # Warning test alert - should go to #status only
+        # Warning test alert - should go to #apps (catch-all for non-infra warnings)
         - alert: TestAlertWarning
           expr: vector(1)
           for: 1m
@@ -42,4 +42,4 @@ spec:
             severity: warning
           annotations:
             summary: "Test WARNING alert - safe to ignore"
-            description: "This is a test warning alert to verify Discord #status routing. Delete with: kubectl-homelab delete prometheusrule test-alert -n monitoring"
+            description: "This is a test warning alert to verify Discord #apps routing. Delete with: kubectl-homelab delete prometheusrule test-alert -n monitoring"

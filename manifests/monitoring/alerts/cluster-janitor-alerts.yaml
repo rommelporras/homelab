@@ -1,0 +1,25 @@
+# manifests/monitoring/alerts/cluster-janitor-alerts.yaml
+# PrometheusRule for cluster-janitor CronJob failure detection
+#
+# Routes to: #infra (matches ClusterJanitor.* in infra regex)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cluster-janitor-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  groups:
+    - name: cluster-janitor
+      rules:
+        - alert: ClusterJanitorFailing
+          expr: |
+            kube_job_failed{namespace="kube-system", job_name=~"cluster-janitor-.*"} > 0
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Cluster Janitor CronJob has been failing for 30+ minutes"
+            description: "The cluster-janitor CronJob in kube-system has failed jobs. Check logs: kubectl logs -n kube-system -l app=cluster-janitor --tail=50"

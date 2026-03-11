@@ -1,0 +1,123 @@
+# manifests/kube-system/cluster-janitor/cronjob.yaml
+# Automated cluster cleanup — runs every 10 minutes
+#
+# Tasks:
+#   1. Delete Failed pods (UnexpectedAdmissionError, OOMKilled leftovers)
+#   2. Delete stopped Longhorn replicas (only if volume has >=1 healthy replica)
+#   3. Post cleanup summary to Discord #janitor (only when something was cleaned)
+#
+# Safety:
+#   - Never deletes the last replica (data loss prevention)
+#   - Each task is independent (no set -e, partial cleanup is fine)
+#   - concurrencyPolicy: Forbid prevents overlapping runs
+#   - backoffLimit: 0 — don't retry, wait for next scheduled run
+#
+# Discord webhook mounted from Secret:
+#   kubectl-homelab create secret generic discord-janitor-webhook \
+#     -n kube-system --from-literal=webhook-url="$(op read 'op://Kubernetes/Discord Webhooks/janitor')"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cluster-janitor
+  namespace: kube-system
+spec:
+  schedule: "*/10 * * * *"
+  timeZone: "Asia/Manila"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            app: cluster-janitor
+        spec:
+          serviceAccountName: cluster-janitor
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          containers:
+            - name: janitor
+              image: alpine/k8s:1.35.0
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  export TZ=Asia/Manila
+                  echo "=== Cluster Janitor $(date +%Y-%m-%dT%H:%M:%S%z) ==="
+                  FAILED_PODS=0
+                  STOPPED_REPLICAS=0
+
+                  # Task 1: Delete Failed pods (UnexpectedAdmissionError, OOMKilled leftovers, etc.)
+                  FAILED_PODS=$(kubectl get pods -A --field-selector=status.phase=Failed --no-headers 2>/dev/null | wc -l)
+                  FAILED_PODS=${FAILED_PODS:-0}
+                  if [ "$FAILED_PODS" -gt 0 ]; then
+                    echo "[Task 1] Deleting $FAILED_PODS Failed pod(s)..."
+                    kubectl delete pods -A --field-selector=status.phase=Failed || true
+                  else
+                    echo "[Task 1] No Failed pods found."
+                  fi
+
+                  # Task 2: Delete stopped Longhorn replicas (only if volume has >=1 running replica)
+                  echo "[Task 2] Checking for stopped Longhorn replicas..."
+                  STOPPED_LIST=$(kubectl -n longhorn-system get replicas.longhorn.io \
+                    -o jsonpath='{range .items[?(@.status.currentState=="stopped")]}{.metadata.name}{" "}{.spec.volumeName}{"\n"}{end}' 2>/dev/null || echo "")
+
+                  if [ -n "$STOPPED_LIST" ]; then
+                    # Use here-string (not pipe) to avoid subshell — variable updates persist
+                    while read -r REPLICA VOLUME; do
+                      [ -z "$REPLICA" ] && continue
+                      # Count running replicas for this volume
+                      RUNNING=$(kubectl -n longhorn-system get replicas.longhorn.io \
+                        -l longhornvolume="$VOLUME" \
+                        -o jsonpath='{range .items[?(@.status.currentState=="running")]}{.metadata.name}{"\n"}{end}' 2>/dev/null | grep -c . || true)
+                      RUNNING=${RUNNING:-0}
+                      if [ "$RUNNING" -ge 1 ]; then
+                        echo "  Deleting stopped replica $REPLICA (volume $VOLUME has $RUNNING healthy replica(s))"
+                        kubectl -n longhorn-system delete replicas.longhorn.io "$REPLICA" || true
+                        STOPPED_REPLICAS=$((STOPPED_REPLICAS + 1))
+                      else
+                        echo "  SKIPPING $REPLICA — volume $VOLUME has 0 running replicas (last replica with data)"
+                      fi
+                    done <<< "$STOPPED_LIST"
+                  else
+                    echo "[Task 2] No stopped replicas found."
+                  fi
+
+                  # Task 3: Post summary to Discord #janitor (only if something was cleaned)
+                  TOTAL=$((FAILED_PODS + STOPPED_REPLICAS))
+                  if [ "$TOTAL" -gt 0 ] && [ -f /etc/janitor/webhook-url ]; then
+                    WEBHOOK_URL=$(cat /etc/janitor/webhook-url)
+                    SUMMARY="Cluster Janitor cleaned ${FAILED_PODS} failed pod(s), ${STOPPED_REPLICAS} stopped replica(s)"
+                    echo "[Task 3] Posting to Discord: $SUMMARY"
+                    curl -sf -H "Content-Type: application/json" \
+                      -d "{\"content\":\"**$SUMMARY** at $(date +%I:%M%p) PHT\"}" \
+                      "$WEBHOOK_URL" || echo "  Warning: Discord notification failed"
+                  fi
+
+                  echo "=== Janitor complete ==="
+              volumeMounts:
+                - name: discord-webhook
+                  mountPath: /etc/janitor
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+          volumes:
+            - name: discord-webhook
+              secret:
+                secretName: discord-janitor-webhook

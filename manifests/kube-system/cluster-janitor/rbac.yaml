@@ -1,0 +1,43 @@
+# manifests/kube-system/cluster-janitor/rbac.yaml
+# RBAC for the cluster-janitor CronJob
+#
+# Permissions (least privilege):
+#   - pods: get, list, delete (all namespaces) — clean up Failed pods
+#   - replicas.longhorn.io: get, list, delete — clean up stopped replicas
+#   - volumes.longhorn.io: get, list — check healthy replica count before deletion
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-janitor
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-janitor
+rules:
+  # Task 1: Delete Failed pods
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]
+  # Task 2: Get/delete Longhorn replicas, get volumes
+  - apiGroups: ["longhorn.io"]
+    resources: ["replicas"]
+    verbs: ["get", "list", "delete"]
+  - apiGroups: ["longhorn.io"]
+    resources: ["volumes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-janitor
+subjects:
+  - kind: ServiceAccount
+    name: cluster-janitor
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: cluster-janitor
+  apiGroup: rbac.authorization.k8s.io

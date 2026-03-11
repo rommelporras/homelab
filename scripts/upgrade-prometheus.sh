@@ -13,11 +13,12 @@
 #
 # 1Password Items Required:
 #   - op://Kubernetes/Grafana/password
-#   - op://Kubernetes/Discord Webhook Incidents/credential
-#   - op://Kubernetes/Discord Webhook Status/credential
+#   - op://Kubernetes/Discord Webhooks/incidents
+#   - op://Kubernetes/Discord Webhooks/apps
+#   - op://Kubernetes/Discord Webhooks/infra
 #   - op://Kubernetes/iCloud SMTP/username
 #   - op://Kubernetes/iCloud SMTP/password
-#   - op://Kubernetes/Healthchecks Ping URL/password
+#   - op://Kubernetes/Healthchecks Ping URL/website
 # =============================================================================
 
 set -euo pipefail
@@ -57,8 +58,9 @@ echo -e "${GREEN}1Password session active${NC}"
 echo -e "${YELLOW}Reading secrets from 1Password...${NC}"
 
 GRAFANA_PASSWORD=$(op read "op://Kubernetes/Grafana/password")
-DISCORD_INCIDENTS_WEBHOOK=$(op read "op://Kubernetes/Discord Webhook Incidents/credential")
-DISCORD_STATUS_WEBHOOK=$(op read "op://Kubernetes/Discord Webhook Status/credential")
+DISCORD_INCIDENTS_WEBHOOK=$(op read "op://Kubernetes/Discord Webhooks/incidents")
+DISCORD_APPS_WEBHOOK=$(op read "op://Kubernetes/Discord Webhooks/apps")
+DISCORD_INFRA_WEBHOOK=$(op read "op://Kubernetes/Discord Webhooks/infra")
 SMTP_USERNAME=$(op read "op://Kubernetes/iCloud SMTP/username")
 SMTP_PASSWORD=$(op read "op://Kubernetes/iCloud SMTP/password")
 HEALTHCHECKS_PING_URL=$(op read "op://Kubernetes/Healthchecks Ping URL/website")
@@ -66,7 +68,8 @@ HEALTHCHECKS_PING_URL=$(op read "op://Kubernetes/Healthchecks Ping URL/website")
 echo -e "${GREEN}Secrets loaded successfully${NC}"
 echo "  - Grafana password: ****"
 echo "  - Discord incidents webhook: ****"
-echo "  - Discord status webhook: ****"
+echo "  - Discord apps webhook: ****"
+echo "  - Discord infra webhook: ****"
 echo "  - SMTP username: ${SMTP_USERNAME}"
 echo "  - SMTP password: ****"
 echo "  - Healthchecks ping URL: ****"
@@ -87,7 +90,7 @@ alertmanager:
       - name: 'discord-incidents-email'
         discord_configs:
           - webhook_url: "${DISCORD_INCIDENTS_WEBHOOK}"
-            title: '🔴 {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
+            title: '{{ if eq .Status "firing" }}🔴{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
             message: |
               {{ range .Alerts }}
               **{{ .Labels.alertname }}** ({{ .Labels.severity }})
@@ -100,9 +103,19 @@ alertmanager:
             send_resolved: true
             headers:
               Subject: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
-      - name: 'discord-status'
+      - name: 'discord-infra'
         discord_configs:
-          - webhook_url: "${DISCORD_STATUS_WEBHOOK}"
+          - webhook_url: "${DISCORD_INFRA_WEBHOOK}"
+            title: '{{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
+            message: |
+              {{ range .Alerts }}
+              **{{ .Labels.alertname }}** ({{ .Labels.severity }})
+              {{ .Annotations.summary }}
+              {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+              {{ end }}
+      - name: 'discord-apps'
+        discord_configs:
+          - webhook_url: "${DISCORD_APPS_WEBHOOK}"
             title: '{{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
             message: |
               {{ range .Alerts }}
