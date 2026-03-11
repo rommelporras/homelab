@@ -466,8 +466,7 @@ homelab/
 | Cloudflare DNS API Token | Kubernetes | v0.4.0 |
 | NUT Admin | Kubernetes | v0.4.0 |
 | NUT Monitor | Kubernetes | v0.4.0 |
-| Discord Webhook Incidents | Kubernetes | v0.5.0 |
-| Discord Webhook Status | Kubernetes | v0.5.0 |
+| Discord Webhooks | Kubernetes | v0.5.0 |
 | iCloud SMTP | Kubernetes | v0.5.0 |
 | Homepage | Kubernetes | v0.6.0 |
 | Healthchecks Ping URL | Kubernetes | v0.6.0 |
@@ -488,5 +487,4 @@ homelab/
 | Tailscale K8s Operator | Kubernetes | v0.22.0 |
 | ARR Stack | Kubernetes | v0.23.0 |
 | Opensubtitles | Kubernetes | v0.23.0 |
-| Discord Webhook Versions | Kubernetes | v0.26.0 |
 | Atuin | Kubernetes | v0.28.0 |

@@ -4,6 +4,56 @@
 
 ---
 
+## March 11, 2026 — Cluster Janitor + Discord Notification Restructure (v0.28.2)
+
+### Summary
+
+Automated cluster self-healing CronJob and Discord notification restructure for signal over noise.
+The cluster-janitor CronJob runs every 10 minutes, cleaning up Failed pods and stopped Longhorn
+replicas (with a safety guard that never deletes the last replica). Discord notifications were
+restructured from a single noisy `#status` channel into purpose-specific channels: `#infra` for
+infrastructure warnings, `#apps` for application warnings, `#janitor` for cleanup summaries,
+and `#speedtest` for MySpeed results. 1Password Discord webhook items consolidated from 3
+separate items into 1 "Discord Webhooks" item with 6 fields.
+
+### Changes
+
+| Change | Details |
+|--------|---------|
+| Cluster Janitor CronJob | `kube-system/cluster-janitor` every 10 min — deletes Failed pods, cleans stopped Longhorn replicas (safety guard: skips last replica), posts summary to Discord `#janitor` |
+| Image: `alpine/k8s:1.35.0` | `bitnami/kubectl` dropped version tags. `alpine/k8s` provides pinned kubectl + curl + bash |
+| RBAC | ServiceAccount + ClusterRole (pods get/list/delete, replicas.longhorn.io get/list/delete, volumes.longhorn.io get/list) |
+| PrometheusRule | `ClusterJanitorFailing` fires after 30m of CronJob failures (routes to `#infra`) |
+| Discord channel restructure | `#status` renamed to `#apps`, new channels: `#infra`, `#janitor`, `#speedtest` |
+| Alertmanager routing split | Infra warnings (Longhorn, NVMe, certs, nodes, UPS, logging) → `#infra`; app warnings (catch-all) → `#apps` |
+| 1Password consolidation | 3 items → 1 "Discord Webhooks" item with 6 fields: incidents, apps, infra, versions, janitor, speedtest |
+| Longhorn `node-down-pod-deletion-policy` | `do-nothing` → `delete-both-statefulset-and-deployment-pod` (faster pod rescheduling after node crash) |
+| Longhorn `orphan-resource-auto-deletion` | Enabled with `replica-data;instance` (auto-clean orphaned data + runtime instances) |
+| MySpeed webhook | Moved from `#status` to `#speedtest` channel in MySpeed web UI |
+| Upgrade script | `scripts/upgrade-prometheus.sh` updated with consolidated `op://` paths and 5 receivers |
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| `alpine/k8s:1.35.0` over `bitnami/kubectl` | Bitnami only publishes `latest` + SHA digests — can't pin versions. `alpine/k8s` provides version tags matching cluster kubectl |
+| Safety guard (skip last replica) | Never delete a stopped replica if it's the only one for a volume — data loss prevention |
+| No `set -e` in janitor script | Tasks are independent — partial cleanup is better than aborting on first failure |
+| `concurrencyPolicy: Forbid` | Prevents overlapping runs that could race on replica deletion |
+| `timeZone: Asia/Manila` | Discord messages show PHT, matching user's timezone |
+| Infra regex vs catch-all apps | First-match routing: specific infra patterns get `#infra`, everything else falls through to `#apps` |
+| `orphan-resource-auto-deletion: "replica-data;instance"` | Not a boolean — semicolon-separated list of resource types. `replica-data` cleans orphaned data dirs, `instance` cleans orphaned engine/replica processes |
+| Supersedes Phase 5.5.4.1 and 5.5.4.2 | Longhorn settings originally planned for Phase 5 — implemented early as part of crash recovery hardening |
+
+### Gotchas
+
+- **`orphan-resource-auto-deletion` is NOT a boolean** — value is `replica-data;instance` (semicolon-separated), not `true`/`false`
+- **Helm YAML array merge** — `--values` files replace arrays entirely (not merge). The secrets temp file must define all 5 receivers since it replaces the receivers array from `values.yaml`
+- **`bitnami/kubectl` dropped version tags** — only `latest` + SHA digests available. Switched to `alpine/k8s` which maintains version-pinned tags
+- **Detached volumes have stopped replicas** — this is normal Longhorn behavior. The janitor correctly skips these (0 running replicas = last copy)
+
+---
+
 ## March 9, 2026 — GitLab Minio + Atuin Backup + Runner OOM Fix (v0.28.1)
 
 ### Summary
@@ -2324,8 +2374,7 @@ Configured Alertmanager to send notifications via Discord and Email, with intell
 
 | Item | Vault | Purpose |
 |------|-------|---------|
-| Discord Webhook Incidents | Kubernetes | #incidents webhook URL |
-| Discord Webhook Status | Kubernetes | #status webhook URL |
+| Discord Webhooks | Kubernetes | All Discord webhook URLs (incidents, apps, infra, versions, janitor, speedtest) |
 | iCloud SMTP | Kubernetes | SMTP credentials |
 
 ### Lessons Learned

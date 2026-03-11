@@ -113,7 +113,7 @@ homelab/
 | DNS (base) | *.k8s.rommelporras.com | grafana.k8s.rommelporras.com |
 | DNS (dev) | *.dev.k8s.rommelporras.com | portfolio.dev.k8s.rommelporras.com |
 | DNS (stg) | *.stg.k8s.rommelporras.com | portfolio.stg.k8s.rommelporras.com |
-| 1Password items | Title Case with spaces | "Discord Webhook Incidents" |
+| 1Password items | Title Case with spaces | "Discord Webhooks" |
 
 ## Common Commands
 

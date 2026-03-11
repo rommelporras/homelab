@@ -78,7 +78,8 @@ Query logs:
 | Receiver | Destination | When |
 |----------|-------------|------|
 | discord-incidents-email | Discord #incidents + Email | Critical |
-| discord-status | Discord #status | Warning |
+| discord-infra | Discord #infra | Warning (infrastructure: Longhorn, NVMe, etcd, certs, nodes, UPS) |
+| discord-apps | Discord #apps | Warning (application: catch-all for non-infra warnings) |
 | healthchecks-heartbeat | healthchecks.io ping | Watchdog (1m) |
 | null | Nowhere | Silenced alerts |
 
@@ -87,7 +88,8 @@ Query logs:
 | Severity | Discord | Email |
 |----------|---------|-------|
 | Critical | #incidents | 3 recipients |
-| Warning | #status | None |
+| Warning (infra) | #infra | None |
+| Warning (apps) | #apps | None |
 | Info | (silenced) | None |
 
 ### Email Recipients (Critical)
@@ -312,7 +314,8 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 
 **Severity routing:**
 - `critical` → Discord #incidents + Email (3 recipients)
-- `warning` → Discord #status only
+- `warning` (infra regex match) → Discord #infra
+- `warning` (catch-all) → Discord #apps
 - `info` → null (silenced — visible in Alertmanager UI only)
 
 ### Grafana Dashboards (`manifests/monitoring/dashboards/`)

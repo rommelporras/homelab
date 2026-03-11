@@ -124,19 +124,24 @@ Dead man's switch — Alertmanager sends periodic pings to validate the alerting
 
 | Setting | Value |
 |---------|-------|
-| Secret | `op://Kubernetes/Healthchecks Ping URL/password` |
+| Secret | `op://Kubernetes/Healthchecks Ping URL/website` |
 | Sender | Alertmanager Watchdog receiver |
 | Interval | 1 minute |
 | Console | [healthchecks.io](https://healthchecks.io) |
 
 ## Discord
 
-Two webhook channels for alert routing.
+Seven webhook channels for notification routing (single 1Password item: `Discord Webhooks`).
 
-| Channel | Purpose | Secret |
-|---------|---------|--------|
-| #incidents | Critical alerts | `op://Kubernetes/Discord Webhook Incidents/credential` |
-| #status | Info/Warning updates | `op://Kubernetes/Discord Webhook Status/credential` |
+| Channel | Purpose | Secret Field |
+|---------|---------|--------------|
+| #incidents | Critical alerts + email | `op://Kubernetes/Discord Webhooks/incidents` |
+| #apps | Application warnings/info | `op://Kubernetes/Discord Webhooks/apps` |
+| #infra | Infrastructure alerts (nodes, storage, certs) | `op://Kubernetes/Discord Webhooks/infra` |
+| #versions | Helm chart drift (Nova CronJob) | `op://Kubernetes/Discord Webhooks/versions` |
+| #janitor | Cluster Janitor cleanup reports | `op://Kubernetes/Discord Webhooks/janitor` |
+| #speedtest | MySpeed internet speed test alerts | `op://Kubernetes/Discord Webhooks/speedtest` |
+| #arr | ARR media stack notifications | `op://Kubernetes/ARR Stack/discord-webhook-url` |
 
 ## iCloud SMTP
 

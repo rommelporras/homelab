@@ -41,6 +41,7 @@
 | v0.27.1 | ARR Quality Profile Fix + Tdarr Resolution Filter | — | ✅ Released |
 | v0.28.0 | Atuin Self-Hosted Shell History | Phase 4.30 | ✅ Released |
 | v0.28.1 | GitLab Minio + Atuin Backup + Runner OOM Fix | — | ✅ Released |
+| v0.28.2 | Cluster Janitor (Crash Self-Healing) | Phase 4.31 | ⬜ Planned |
 | v0.29.0 | Vault + External Secrets Operator | Phase 4.29 | ⬜ Planned |
 | v0.30.0 | Production Hardening | Phase 5 | ⬜ Planned |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
@@ -89,6 +90,7 @@
 | Phase | Description | File |
 |-------|-------------|------|
 | 4.29 | Vault + External Secrets Operator | [phase-4.29-vault-eso.md](phase-4.29-vault-eso.md) |
+| 4.31 | Cluster Janitor (Crash Self-Healing) | [phase-4.31-cluster-janitor.md](phase-4.31-cluster-janitor.md) |
 | 5 | Production Hardening | [phase-5-hardening.md](phase-5-hardening.md) |
 | 6 | CKA Focused Learning | [phase-6-cka.md](phase-6-cka.md) |
 

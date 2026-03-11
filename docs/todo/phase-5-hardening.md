@@ -373,28 +373,13 @@ Without RBAC:                    With RBAC:
 
 **Key insight:** `staleReplicaTimeout: 30` (already set in StorageClass) only applies to replicas from node removal/disconnection — it does NOT cover crash-recovery stopped replicas. `replica-auto-balance: best-effort` handles running replica imbalance, not stuck stopped replicas.
 
-- [ ] 5.5.4.1 Change `node-down-pod-deletion-policy` from `do-nothing` to `delete-both-statefulset-and-deployment-pod`
-  ```bash
-  # Current setting
-  kubectl-homelab -n longhorn-system get settings node-down-pod-deletion-policy -o jsonpath='{.value}'
-  # Expected: do-nothing
+- [x] 5.5.4.1 ~~Change `node-down-pod-deletion-policy`~~ — **Done in Phase 4.31 (v0.28.2)**
+  - Set to `delete-both-statefulset-and-deployment-pod` in `helm/longhorn/values.yaml`
+  - Applied immediately via `kubectl patch`
 
-  # Update via Helm values or direct setting
-  # helm/longhorn/values.yaml: defaultSettings.nodeDrainPolicy or via UI
-  kubectl-homelab -n longhorn-system edit settings node-down-pod-deletion-policy
-  # Set to: delete-both-statefulset-and-deployment-pod
-  ```
-  - Allows Longhorn to force-delete pods using volumes from a down node
-  - Pods reschedule faster, replicas rebuild on healthy nodes
-  - Trade-off: more aggressive — acceptable for homelab where all workloads tolerate restart
-
-- [ ] 5.5.4.2 Enable `orphan-resource-auto-deletion` for replica data
-  ```bash
-  kubectl-homelab -n longhorn-system get settings orphan-auto-deletion -o jsonpath='{.value}'
-  # Set to: true (cleans up orphaned replica data on disk)
-  ```
-  - Prevents orphaned replica directories from accumulating on NVMe after crashes
-  - Only deletes data Longhorn confirms is orphaned (no active volume reference)
+- [x] 5.5.4.2 ~~Enable `orphan-resource-auto-deletion`~~ — **Done in Phase 4.31 (v0.28.2)**
+  - Set to `replica-data;instance` in `helm/longhorn/values.yaml`
+  - Applied immediately via `kubectl patch`
 
 - [ ] 5.5.4.3 Document manual recovery procedure for stuck stopped replicas
   ```bash

@@ -42,13 +42,11 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 |------|--------|---------|
 | Grafana | `password` | kube-prometheus-stack |
 | Cloudflare DNS API Token | `credential` | cert-manager (Let's Encrypt) |
-| Discord Webhook Incidents | `credential` | Alertmanager |
-| Discord Webhook Status | `credential` | Alertmanager |
-| Discord Webhook Versions | `credential` | Version Check CronJob (Nova → Discord) |
+| Discord Webhooks | `incidents`, `apps`, `infra`, `versions`, `janitor`, `speedtest` | Alertmanager, Version Check CronJob, Cluster Janitor, MySpeed |
 | iCloud SMTP | `username`, `password`, `server`, `port` | Alertmanager, GitLab |
 | GitLab | `username`, `password`, `postgresql-password` | GitLab CE |
 | GitLab Runner | `runner-token` | GitLab Runner |
-| Healthchecks Ping URL | `password` | Alertmanager Watchdog (dead man's switch) |
+| Healthchecks Ping URL | `website` | Alertmanager Watchdog (dead man's switch) |
 | NUT Admin | `username`, `password` | NUT server |
 | NUT Monitor | `username`, `password` | NUT clients, nut-exporter |
 | Homepage | Multiple (see below) | Homepage dashboard widgets |
@@ -79,10 +77,13 @@ op://Kubernetes/Grafana/password
 # Cloudflare (cert-manager)
 op://Kubernetes/Cloudflare DNS API Token/credential
 
-# Discord webhooks
-op://Kubernetes/Discord Webhook Incidents/credential
-op://Kubernetes/Discord Webhook Status/credential
-op://Kubernetes/Discord Webhook Versions/credential
+# Discord webhooks (single consolidated item, 6 fields)
+op://Kubernetes/Discord Webhooks/incidents
+op://Kubernetes/Discord Webhooks/apps
+op://Kubernetes/Discord Webhooks/infra
+op://Kubernetes/Discord Webhooks/versions
+op://Kubernetes/Discord Webhooks/janitor
+op://Kubernetes/Discord Webhooks/speedtest
 
 # SMTP (Alertmanager, GitLab)
 op://Kubernetes/iCloud SMTP/username
@@ -97,7 +98,7 @@ op://Kubernetes/GitLab/postgresql-password
 op://Kubernetes/GitLab Runner/runner-token
 
 # Healthchecks (dead man's switch)
-op://Kubernetes/Healthchecks Ping URL/password
+op://Kubernetes/Healthchecks Ping URL/website
 
 # NUT
 op://Kubernetes/NUT Admin/username

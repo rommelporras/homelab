@@ -143,6 +143,7 @@ helm-homelab repo update
 | smartctl-exporter | v0.14.0 | Running | NVMe S.M.A.R.T. DaemonSet on all 3 nodes (monitoring ns) |
 | Atuin Server | 18.12.0 | Running | Self-hosted shell history sync (E2E encrypted) |
 | PostgreSQL (Atuin) | 18.3 | Running | Atuin dedicated database (atuin namespace) |
+| Cluster Janitor | CronJob (alpine/k8s:1.35.0) | Running | Automated cleanup: Failed pods + stopped Longhorn replicas (kube-system) |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -269,8 +270,11 @@ helm-homelab repo update
 |-----------|-------|--------|
 | Alertmanager | v0.30.1 | Configured |
 | Discord #incidents | Webhook | Configured |
-| Discord #status | Webhook | Configured |
+| Discord #infra | Webhook | Configured |
+| Discord #apps | Webhook | Configured |
 | Discord #versions | Webhook | Configured |
+| Discord #janitor | Webhook | Configured |
+| Discord #speedtest | Webhook | Configured |
 | SMTP Server | smtp.mail.me.com:587 | Configured |
 | SMTP From | noreply@rommelporras.com | Configured |
 | healthchecks.io | K8s Alertmanager check | Configured |
@@ -280,7 +284,8 @@ helm-homelab repo update
 | Severity | Discord | Email |
 |----------|---------|-------|
 | Critical | #incidents | critical@, r3mmel023@, rommelcporras@ |
-| Warning | #status | None |
+| Warning (infra) | #infra | None |
+| Warning (apps) | #apps | None |
 | Info | (silenced) | None |
 
 **Silenced Alerts (kubeadm false positives):**
