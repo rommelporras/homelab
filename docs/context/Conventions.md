@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-03-01
+updated: 2026-03-11
 ---
 
 # Conventions
@@ -84,7 +84,8 @@ homelab/
 │   ├── home/                # Home services (AdGuard, Homepage, MySpeed)
 │   ├── invoicetron/         # Invoicetron app + PostgreSQL + backup
 │   ├── karakeep/            # Karakeep bookmark manager (AIO, Chrome, Meilisearch)
-│   ├── monitoring/          # Grafana, probes, alerts, dashboards
+│   ├── kube-system/          # Cluster Janitor CronJob
+│   ├── monitoring/          # Observability (alerts/, dashboards/, probes/, exporters/, servicemonitors/)
 │   ├── network-policies/    # Namespace network policies
 │   ├── portfolio/           # Portfolio deployment + RBAC
 │   ├── storage/             # Longhorn HTTPRoute, NFS PVs
@@ -95,10 +96,10 @@ homelab/
 │   ├── sync-ghost-prod-to-dev.sh
 │   ├── sync-ghost-prod-to-local.sh
 │   ├── test-cloudflare-networkpolicy.sh
-│   └── apply-arr-secrets.sh
+│   └── apply-arr-secrets.sh   # (deprecated — will be replaced by Vault in Phase 4.29)
 ├── docs/
 │   ├── context/             # This knowledge base (RAG source)
-│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.28.0)
+│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.28.2)
 │   ├── todo/                # Active and completed phase plans
 │   └── reference/           # CHANGELOG, historical docs
 └── ansible/                 # Bootstrap automation

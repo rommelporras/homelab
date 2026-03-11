@@ -1,101 +1,63 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Kubernetes homelab for CKA prep. 3-node HA cluster (kubeadm, Cilium CNI, Longhorn storage, kube-vip ARP) on Ubuntu 24.04 LTS.
 
-## Project Overview
+## Source of Truth
 
-Kubernetes homelab learning project for CKA certification prep. 3-node HA cluster using Lenovo M80q machines (i5-10400T, 16GB RAM, 512GB NVMe each) running Ubuntu 24.04 LTS with kubeadm.
-
-**Current Status:** 3-node HA Kubernetes cluster running (v1.35.0 with Cilium CNI).
-
-## Single Source of Truth
-
-**docs/context/Cluster.md** contains all canonical values (IPs, MACs, hostnames, hardware specs). Other docs reference it, don't duplicate values.
-
-## Repository Structure
-
-```
-homelab/
-├── ansible/          # Cluster automation (inventory, group_vars, playbooks 00-08)
-├── helm/             # Helm values files (one dir per chart: cilium, prometheus, loki, etc.)
-├── manifests/        # Raw K8s manifests (one dir per service: arr-stack, gateway, monitoring, etc.)
-├── scripts/          # Operational scripts
-├── docs/context/     # Knowledge base (Cluster.md = source of truth, + 10 topic files + index)
-├── docs/rebuild/     # Step-by-step rebuild guides per release
-├── docs/todo/        # Phase plans (active + completed/)
-├── docs/reference/   # CHANGELOG.md, historical docs
-└── VERSIONS.md       # Component version tracking
-```
-
-## Cluster Quick Reference
-
-| Item | Value |
-|------|-------|
-| k8s-cp1 | 10.10.30.11 |
-| k8s-cp2 | 10.10.30.12 |
-| k8s-cp3 | 10.10.30.13 |
-| VIP | 10.10.30.10 |
-| NAS | 10.10.30.4 |
-| SSH | wawashi@cp{1,2,3}.k8s.rommelporras.com |
-
-## Architecture Decisions
-
-- **3 nodes** - etcd quorum requires 3 minimum
-- **Longhorn on NVMe** - 2x replication, no extra hardware
-- **kube-vip (ARP)** - VIP without OPNsense changes
-- **Cilium CNI** - NetworkPolicy for CKA
-- **kubeadm** - CKA exam alignment
-
-## Documentation Guide
+**docs/context/Cluster.md** has all canonical values (IPs, MACs, hostnames, hardware). Don't duplicate — reference it.
 
 | When you need... | Read... |
 |------------------|---------|
-| Current values (IPs, MACs) | docs/context/Cluster.md |
+| IPs, MACs, hardware specs | docs/context/Cluster.md |
 | Component versions | VERSIONS.md |
-| Why a decision was made | docs/context/Architecture.md |
-| How to bootstrap cluster | docs/rebuild/v0.2.0-bootstrap.md |
+| Architecture decisions | docs/context/Architecture.md |
 | Network/switch setup | docs/context/Networking.md |
 | Storage setup | docs/context/Storage.md |
 | Gateway, HTTPRoutes, TLS | docs/context/Gateway.md |
-| GA4, GTM, Cloudflare, SMTP | docs/context/ExternalServices.md |
+| Cloudflare, GA4, SMTP | docs/context/ExternalServices.md |
 | 1Password items | docs/context/Secrets.md |
 | Phase plans | docs/todo/ (active) or docs/todo/completed/ (done) |
 | Decision history | docs/reference/CHANGELOG.md |
 | Rebuild from scratch | docs/rebuild/ (one guide per release) |
 
-## Project Conventions
+## Architecture
 
-- **Phase files:** 1 service = 1 phase file in `docs/todo/`. Completed phases move to `docs/todo/completed/`.
-- **Infra + docs = 2 commits:** Infrastructure commit first (`/audit-security` → `/commit`), then documentation commit (`/audit-docs` → `/commit`).
-- **Observability for every new service:** PrometheusRule alerts, Grafana dashboard ConfigMap, optional Blackbox probe. Files go in `manifests/monitoring/`.
-- **Timezone:** `Asia/Manila` — never use America/Chicago or UTC for user-facing configs.
+- **3 nodes** — etcd quorum minimum
+- **Longhorn on NVMe** — 2x replication, no extra hardware
+- **kube-vip (ARP)** — VIP without OPNsense changes
+- **Cilium CNI** — NetworkPolicy for CKA
+- **kubeadm** — CKA exam alignment
 
-## Common Commands
+## Conventions
 
-```bash
-# Homelab Kubernetes (uses ~/.kube/homelab.yaml)
-kubectl-homelab get nodes
-kubectl-homelab -n longhorn-system get pods
+- **Phase files:** 1 service = 1 phase in `docs/todo/`. Done phases move to `docs/todo/completed/`.
+- **Infra + docs = 2 commits:** Infrastructure first (`/audit-security` → `/commit`), then docs (`/audit-docs` → `/commit`).
+- **Observability for every service:** alerts in `manifests/monitoring/alerts/`, dashboards in `manifests/monitoring/dashboards/`, probes in `manifests/monitoring/probes/`.
+- **Timezone:** `Asia/Manila` everywhere — never UTC or America/Chicago.
+- **Grafana dashboards:** Pod Status row → Network Traffic row → Resource Usage row (CPU/Memory with dashed request/limit lines). Descriptions on every panel and row. ConfigMap: `grafana_dashboard: "1"` label, `grafana_folder: "Homelab"` annotation.
 
-# Homelab Helm
-helm-homelab list -A
-helm-homelab -n longhorn-system get values longhorn
+## Secrets
 
-# Homelab GitLab (self-hosted, glab v1.85.2)
-glab api projects/0xwsh%2Fportfolio --hostname gitlab.k8s.rommelporras.com
-
-# Run Ansible playbooks
-cd ansible && ansible-playbook -i inventory/homelab.yml playbooks/00-preflight.yml
-```
-
-## Secrets Management
-
-- **Vault:** `Kubernetes` only (do not modify `Proxmox` vault). Format: `op://Kubernetes/<item>/<field>`
-- **Full inventory:** see `docs/context/Secrets.md` (20+ items)
-- **Never run `op` or secret-bearing `kubectl` commands** — This terminal has no `op` access. Generate the commands and ask the user to run them in their safe terminal. This includes `op read`, `op item create/edit`, and any `kubectl create secret` or `kubectl apply` that embeds secret values.
+- **1Password vault:** `Kubernetes` only. Format: `op://Kubernetes/<item>/<field>`. Full inventory: `docs/context/Secrets.md`.
+- **1Password plan is FAMILY** — Connect is NOT available (requires Business/Teams).
+- **Never run `op` commands** — this terminal has no `op` access. Includes `op read`, `op item create/edit`.
+- **Never write or read secret values** — no `kubectl create secret` with literal values, no `kubectl get secret -o json/yaml`, no `kubectl describe secret`. Values would flow through Anthropic's servers. To check existence: `kubectl-homelab get secret <name> -n <ns>` (no `-o json`).
+- **Safe automation pattern:** generate scripts with `op://` references, user runs in safe terminal. Never design workflows where Claude sees credential values.
 
 ## Rules
 
-- **Use `kubectl-homelab` and `helm-homelab` for this cluster** — Never use plain `kubectl`/`helm` as they connect to work AWS EKS. Both aliases are defined in ~/.zshrc and use ~/.kube/homelab.yaml.
-- **`kubectl-homelab` is zsh-only** — Scripts and non-zsh shells must use `kubectl --kubeconfig ~/.kube/homelab.yaml` directly. The alias only works interactively.
-- **This is a PUBLIC repository** — the global "security review before every commit" rule applies. Once pushed, secrets cannot be revoked.
+- **Use `kubectl-homelab` and `helm-homelab`** — plain `kubectl`/`helm` connect to work AWS EKS. Aliases use `~/.kube/homelab.yaml`.
+- **`kubectl-homelab` is zsh-only** — scripts must use `kubectl --kubeconfig ~/.kube/homelab.yaml`.
+- **Verify container images before deploying** — check the registry for the exact tag. Many images drop version tags without notice.
+- **PUBLIC repository** — security review before every commit. Once pushed, secrets cannot be revoked.
+- **GitLab is the primary remote** — use `glab` CLI with `--hostname gitlab.k8s.rommelporras.com` for API calls.
+
+## Gotchas
+
+- **Homepage uses kustomize** — `kubectl-homelab apply -k manifests/home/homepage/`, NOT `-f`.
+- **qBittorrent CSRF blocks HTTP probes** — use `tcpSocket`, never `httpGet`.
+- **PostgreSQL PGDATA** — set `PGDATA=/var/lib/postgresql/data/pgdata` (subdirectory). Top-level mount breaks initdb.
+- **Longhorn `orphan-resource-auto-deletion`** — NOT a boolean. Semicolon-separated: `replica-data;instance`.
+- **Grafana RWO PVC on Helm upgrade** — new pod can't attach. Scale down old RS, delete old pod first.
+- **Cilium HTTPRoute `<none>` status** — `kubectl-homelab rollout restart deployment/cilium-operator -n kube-system`.
+- **Sonarr/Radarr API** — external HTTPRoute returns 404. Must port-forward from WSL.

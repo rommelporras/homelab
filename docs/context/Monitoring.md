@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-02-21
+updated: 2026-03-11
 ---
 
 # Monitoring
@@ -169,7 +169,7 @@ Events (Loki):
 
 ## Grafana Dashboard Convention
 
-Every new service should include a Grafana dashboard ConfigMap (`manifests/monitoring/<service>-dashboard-configmap.yaml`).
+Every new service should include a Grafana dashboard ConfigMap in `manifests/monitoring/dashboards/`.
 
 **Required labels:**
 - `grafana_dashboard: "1"` — auto-provisioned by Grafana sidecar
@@ -311,6 +311,7 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | `service-health-alerts.yaml` | ServiceHighResponseTime (>5s for 5m, warning) | v0.27.0 |
 | `cpu-throttling-alerts.yaml` | CPUThrottlingHigh (>50%, arr-stack excluded, info) | v0.27.0 |
 | `node-alerts.yaml` | NodeMemoryMajorPagesFaults (>2000/s + <15% mem available, warning) | v0.27.0 |
+| `cluster-janitor-alerts.yaml` | ClusterJanitorFailing (CronJob last result failed, warning) | v0.28.2 |
 
 **Severity routing:**
 - `critical` → Discord #incidents + Email (3 recipients)

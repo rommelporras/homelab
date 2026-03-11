@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, storage, longhorn, nfs]
-updated: 2026-03-09
+updated: 2026-03-11
 ---
 
 # Storage
@@ -33,6 +33,8 @@ Longhorn distributed storage and NFS integration.
 | defaultDataPath | /var/lib/longhorn | Use NVMe |
 | storageMinimalAvailablePercentage | 10 | Keep 10% for OS |
 | dataLocality | best-effort | Schedule near data |
+| nodeDownPodDeletionPolicy | delete-both-statefulset-and-deployment-pod | Auto-delete pods when node goes down (not drain) |
+| orphanResourceAutoDeletion | `replica-data;instance` | Auto-cleanup orphaned replicas and instances |
 
 ### Access UI
 

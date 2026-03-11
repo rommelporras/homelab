@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, upgrades, runbook]
-updated: 2026-02-18
+updated: 2026-03-11
 ---
 
 # Upgrade & Rollback Runbook
