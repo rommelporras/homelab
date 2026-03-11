@@ -16,6 +16,10 @@ Kubernetes homelab for CKA prep. 3-node HA cluster (kubeadm, Cilium CNI, Longhor
 | Gateway, HTTPRoutes, TLS | docs/context/Gateway.md |
 | Cloudflare, GA4, SMTP | docs/context/ExternalServices.md |
 | 1Password items | docs/context/Secrets.md |
+| Prometheus, Grafana, alerts | docs/context/Monitoring.md |
+| UPS, graceful shutdown | docs/context/UPS.md |
+| Commands, rules, repo layout | docs/context/Conventions.md |
+| Upgrade/rollback procedures | docs/context/Upgrades.md |
 | Phase plans | docs/todo/ (active) or docs/todo/completed/ (done) |
 | Decision history | docs/reference/CHANGELOG.md |
 | Rebuild from scratch | docs/rebuild/ (one guide per release) |
