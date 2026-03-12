@@ -25,12 +25,18 @@ spec:
         # No collection from any machine in >30 minutes
         # Uses absent_over_time with 35m window to avoid false positives
         # after OTel Collector restarts (metrics are in-memory only)
+        # Time guard: weekdays 08:00-18:00 PHT (UTC 00:00-10:00)
+        # Machine is expected to be off nights/weekends
         - alert: DotctlCollectionStale
           expr: |
-            (time() - dotctl_collect_timestamp) > 1800
-            or
-            absent_over_time(dotctl_collect_timestamp[35m])
-          for: 5m
+            (
+              (time() - dotctl_collect_timestamp) > 1800
+              or
+              absent_over_time(dotctl_collect_timestamp[35m])
+            )
+            and ON() (hour() >= 0 and hour() <= 10)
+            and ON() (day_of_week() >= 1 and day_of_week() <= 5)
+          for: 10m
           labels:
             severity: warning
           annotations:
@@ -38,11 +44,13 @@ spec:
             description: "No dotctl collection received in over 30 minutes. The systemd timer on the reporting machine may have stopped."
 
         # Drift detected and persisting for >1 hour
+        # Info severity — visible in Alertmanager UI only, no Discord notification
+        # Check drift details in Grafana or via dotctl status
         - alert: DotctlDriftDetected
           expr: dotctl_drift_total > 0
           for: 1h
           labels:
-            severity: warning
+            severity: info
           annotations:
             summary: "Dotfile drift on {{ $labels.hostname }}"
             description: "{{ $labels.hostname }} has {{ $value }} drifted files for over 1 hour. Run `dotctl status --machine {{ $labels.hostname }}` for details."
