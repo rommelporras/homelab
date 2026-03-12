@@ -362,6 +362,109 @@ Currently any namespace can reference `vault-backend`. After this change, only n
   kubectl-homelab get clusterrolebinding longhorn-support-bundle -o yaml
   ```
 
+- [ ] 5.0.6.5 Create restricted kubeconfig for Claude Code
+  > **Why:** CLAUDE.md says "never read secret values" but this is policy, not technical
+  > enforcement. A restricted kubeconfig makes it impossible for Claude Code to read
+  > K8s Secret data, including Vault unseal keys and all ESO-synced secrets.
+
+  ```yaml
+  # ServiceAccount for Claude Code
+  apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: claude-code
+    namespace: kube-system
+  ---
+  # ClusterRole: full read access EXCEPT get on secrets
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+    name: claude-code-role
+  rules:
+    # Read all standard resources
+    - apiGroups: ["", "apps", "batch", "networking.k8s.io", "policy",
+                  "rbac.authorization.k8s.io", "storage.k8s.io"]
+      resources: ["*"]
+      verbs: ["get", "list", "watch"]
+    # Override: secrets — list only (shows names/metadata, not data)
+    - apiGroups: [""]
+      resources: ["secrets"]
+      verbs: ["list"]
+    # CRDs needed for homelab operations
+    - apiGroups: ["external-secrets.io", "cilium.io", "longhorn.io",
+                  "gateway.networking.k8s.io", "monitoring.coreos.com"]
+      resources: ["*"]
+      verbs: ["get", "list", "watch"]
+  ---
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: claude-code-binding
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: claude-code-role
+  subjects:
+    - kind: ServiceAccount
+      name: claude-code
+      namespace: kube-system
+  ```
+
+  ```bash
+  # Generate kubeconfig for the SA
+  # 1. Apply the SA + ClusterRole + Binding
+  kubectl-homelab apply -f manifests/kube-system/claude-code-rbac.yaml
+
+  # 2. Create a long-lived token (SA tokens are not auto-created in K8s 1.24+)
+  kubectl-homelab create token claude-code -n kube-system --duration=8760h > /tmp/cc-token
+
+  # 3. Build kubeconfig
+  kubectl config set-cluster homelab \
+    --server=https://10.10.30.10:6443 \
+    --certificate-authority=/etc/kubernetes/pki/ca.crt \
+    --kubeconfig=~/.kube/homelab.yaml
+  kubectl config set-credentials claude-code \
+    --token=$(cat /tmp/cc-token) \
+    --kubeconfig=~/.kube/homelab.yaml
+  kubectl config set-context homelab \
+    --cluster=homelab --user=claude-code \
+    --kubeconfig=~/.kube/homelab.yaml
+  kubectl config use-context homelab --kubeconfig=~/.kube/homelab.yaml
+  rm /tmp/cc-token
+
+  # 4. Test: should return Forbidden
+  kubectl-homelab get secret vault-unseal-keys -n vault -o json
+  # 5. Test: should work (list shows names only)
+  kubectl-homelab get secrets -n vault
+  ```
+
+- [ ] 5.0.6.6 Add Claude Code hooks to block secret reads
+  > **Defense in depth:** Hooks provide fast feedback even before RBAC rejects the request.
+  > Blocks commands before they reach the cluster.
+
+  Add to `.claude/hooks.json`:
+  ```json
+  {
+    "hooks": [
+      {
+        "event": "before_tool_call",
+        "tool": "Bash",
+        "pattern": "kubectl.*get\\s+secret.*-o\\s+(json|yaml|jsonpath)",
+        "action": "block",
+        "message": "Blocked: reading secret values is not allowed. Use 'kubectl get secrets' (no -o flag) to list names only."
+      }
+    ]
+  }
+  ```
+
+  Verify hook works:
+  ```bash
+  # This should be blocked by hook before reaching cluster:
+  kubectl-homelab get secret vault-unseal-keys -n vault -o json
+  # This should succeed (list mode, no data):
+  kubectl-homelab get secrets -n vault
+  ```
+
 ---
 
 ## 5.0.7 etcd Encryption at Rest
@@ -475,6 +578,8 @@ By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd
 - [ ] Unlabeled namespace cannot sync ExternalSecrets (tested)
 - [ ] RBAC audit complete — no unexpected cluster-admin bindings
 - [ ] longhorn-support-bundle cluster-admin binding reviewed
+- [ ] Restricted kubeconfig for Claude Code deployed (cannot `get secret -o json`)
+- [ ] Claude Code hooks block secret read commands
 - [ ] etcd encryption at rest enabled and verified (via etcd pod exec, not host etcdctl)
 - [ ] Security.md created with all decisions documented
 
