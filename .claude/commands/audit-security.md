@@ -77,6 +77,11 @@ Scan the entire repo for leaked credentials. Use the Grep tool (not bash grep) t
 - `future-migration: "external-secrets-operator"` — annotation on safe secret placeholders
 - `# DATA INTENTIONALLY OMITTED` — comment pattern in secret placeholder files
 - Commented-out `# stringData:` blocks (documentation, not actual secrets)
+- `secretKey:` — ESO ExternalSecret field naming a K8s Secret key (no credential value)
+- `secretStoreRef:` — ESO reference to a SecretStore by name (no credential value)
+- `remoteRef:` — ESO Vault KV path reference (e.g., `key: ghost-prod/mysql`) — path, not value
+- `kind: ExternalSecret` / `kind: ClusterSecretStore` / `kind: SecretStore` — ESO CRD types, never hold credentials
+- `path: "secret"` in ClusterSecretStore — Vault KV mount name, not a credential
 
 **Classification:**
 - ⛔ CRITICAL — Looks like a real credential (actual value, not a reference or field name)
@@ -138,12 +143,15 @@ Check for secret manifest files and .env files in the repo:
 - `**/secret.yaml`, `**/secret*.yaml` (e.g., `secret-db.yaml`)
 - `**/.env`, `**/.env.*`
 
+**Note:** `externalsecret.yaml` files are intentionally tracked — they contain only Vault path references, never credential values. Do NOT flag these as sensitive; they are the ESO source-of-truth for secrets, equivalent to a config file.
+
 **For each found file:**
 1. Check if tracked by git: `git ls-files <path>`
 2. If not tracked (gitignored) → SAFE (note in report as "gitignored, local only")
 3. If tracked, read the file contents and verify it only contains safe patterns:
    - Empty `stringData: {}` or `data: {}`
    - Values using `op://` references
+   - ESO `remoteRef.key:` values (Vault KV path references — not credential values)
    - `# DATA INTENTIONALLY OMITTED` comment with no actual data block
    - Commented-out `# stringData:` / `# data:` blocks
    - `managed-by: "imperative-kubectl"` annotation (imperative creation pattern)

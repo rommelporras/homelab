@@ -135,7 +135,72 @@ jq -r '
 
 Cross-reference: workload namespace without any network policy → ⚠️ WARNING
 
-### 7. RBAC Review
+### 7. Secrets Infrastructure Health
+
+Check that Vault and ESO are operational. A sealed Vault or broken SecretStore means all 30 ExternalSecrets will fail to sync — apps get stale or missing secrets silently.
+
+**Vault pod health (seal status via readiness):**
+
+> **Why not check annotations?** The `vault.hashicorp.com/initialized` / `vault.hashicorp.com/sealed` annotations are only set by the Vault *agent injector* on workload pods that opt into sidecar injection — they are NOT set on the `vault-0` pod itself (which has `annotations: null`). Reading them on the Vault pod always returns "not initialized, SEALED" even when healthy — a false positive.
+>
+> The correct signal: the Vault Helm chart configures an `exec` readiness probe that runs `vault status`. If Vault is sealed or down, the probe fails and `Ready` becomes `False`. Pod `Ready=True` is the authoritative seal check.
+
+```bash
+kubectl-homelab get pods -n vault -l app.kubernetes.io/name=vault -o json | jq -r '
+  .items[] |
+  .metadata.name + " — phase=" + .status.phase +
+  ", ready=" + (
+    (.status.conditions[]? | select(.type=="Ready") | .status) // "Unknown"
+  ) +
+  ", restarts=" + (
+    (.status.containerStatuses[]? | .restartCount | tostring) // "0"
+  )
+'
+```
+- `phase=Running, ready=True` → unsealed ✓
+- `ready=False` → ⛔ CRITICAL — Vault is sealed or crashed (exec probe is failing `vault status`)
+- Pod not found / not Running → ⛔ CRITICAL
+- High restarts (>3) → ⚠️ WARNING (repeated seal/unseal cycling)
+
+**ClusterSecretStore connectivity:**
+```bash
+kubectl-homelab get clustersecretstore -o json | jq -r '
+  .items[] |
+  .metadata.name + " — " +
+  ((.status.conditions[]? | select(.type=="Ready")) | if .status=="True" then "Ready ✓" else "NOT READY: " + (.message // "unknown") end)
+'
+```
+- Not Ready → ⛔ CRITICAL (all ExternalSecrets will fail — Vault unreachable or auth broken)
+
+**ExternalSecret sync status:**
+
+> **Shell escaping note:** Do NOT use `!=` inside jq in zsh — it gets mangled. Use `== "True" | not` instead.
+
+```bash
+kubectl-homelab get externalsecret -A -o json | jq -r '
+  .items[] |
+  select(
+    (.status.conditions[]? | select(.type=="Ready" and (.status == "True" | not))) or
+    (.status.conditions | length == 0)
+  ) |
+  .metadata.namespace + "/" + .metadata.name + " — " +
+  ((.status.conditions[]? | select(.type=="Ready")) | .message // "no status")
+'
+```
+- Any ExternalSecret not Ready → ⚠️ WARNING (secret stale or missing — check Vault path and policy)
+- If no output: all synced ✓
+
+**Report summary line:**
+```
+Secrets Infrastructure ... ✅ Vault unsealed, ClusterSecretStore ready, 30/30 ExternalSecrets synced
+```
+or
+```
+Secrets Infrastructure ... ⛔ Vault sealed (all ExternalSecrets failing)
+Secrets Infrastructure ... ⚠️  2 ExternalSecrets not synced
+```
+
+### 9. RBAC Review
 
 **List all cluster-admin bindings:**
 ```bash
@@ -153,7 +218,7 @@ jq -r '
 
 **Don't maintain a hardcoded "expected" list.** Instead, classify by pattern: system prefixes are expected, operator names are expected, everything else needs review.
 
-### 8. Exposed Services
+### 10. Exposed Services
 
 **List all HTTPRoutes:**
 ```bash
@@ -176,7 +241,7 @@ Read `docs/context/Gateway.md` "Exposed Services" table. Parse the table to extr
 - HTTPRoute in cluster but NOT in Gateway.md table → ⚠️ WARNING (undocumented exposure)
 - HTTPRoute in Gateway.md but NOT in cluster → ℹ️ INFO (may be temporarily down)
 
-### 9. Image Version Drift
+### 11. Image Version Drift
 
 **Get running images WITH pod context (deduplicated by namespace+pod+image):**
 ```bash
@@ -217,13 +282,13 @@ kubectl-homelab get deployment -n <namespace> <name> -o jsonpath='{.spec.replica
 ```
 If replicas == 1, pod deletion causes a brief outage. State this explicitly. Let the user decide.
 
-### 10. Cleanup
+### 12. Cleanup
 
 ```bash
 rm -f /tmp/audit-pods.json /tmp/audit-namespaces.json /tmp/audit-crbs.json
 ```
 
-### 11. Generate Report
+### 13. Generate Report
 
 **Format:**
 
@@ -237,6 +302,7 @@ Pod Security Standards .... ✅ 15/15 workload namespaces enforced
 Running Containers ........ ⚠️  2 warnings
 Default Namespace ......... ✅ No workloads in default
 Network Policies .......... ✅ All workload namespaces covered
+Secrets Infrastructure .... ✅ Vault unsealed, ClusterSecretStore ready, 30/30 synced
 RBAC ...................... ✅ Only expected bindings
 Exposed Services .......... ✅ Matches Gateway.md
 Image Versions ............ ✅ All match VERSIONS.md
@@ -265,6 +331,7 @@ Result: PASS (0 critical, 1 warning, 1 info)
 - Multiple versions of `prometheus-config-reloader` — kube-prometheus-stack and grafana/alloy each bundle their own pinned version; both are correct
 - Multiple versions of `k8s-sidecar` — Grafana helm chart bundles its own; other charts may too
 - Network policies missing on Helm-managed namespaces (gitlab, monitoring, longhorn-system, tailscale, cert-manager) — policies may be configured in Helm values; use live cluster inspection to verify
+- Vault pod `vault-0` may show no readiness probe in pod spec — liveness/readiness handled by Vault Helm chart via `vault status` exec probe; check via `kubectl-homelab describe pod vault-0 -n vault` if flagged
 
 ## Important Rules
 
