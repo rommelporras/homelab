@@ -1,0 +1,456 @@
+# Phase 5.0: Security Posture
+
+> **Status:** ⬜ Planned
+> **Target:** v0.30.0
+> **Prerequisite:** v0.29.0 (Vault + ESO)
+> **DevOps Topics:** Pod Security Standards, secrets hardening, RBAC, etcd encryption
+> **CKA Topics:** PSS, RBAC, EncryptionConfiguration, SecurityContext, ServiceAccount
+
+> **Purpose:** Lock down pods, namespaces, and secrets infrastructure
+>
+> **Learning Goal:** Kubernetes security model — defense in depth from pod to etcd
+
+---
+
+## 5.0.1 Create Namespace Manifests
+
+Foundation task — PSS labels, ESO labels, and NetworkPolicies (Phase 5.1) all depend on declarative namespace manifests.
+
+**7 namespaces lack `namespace.yaml`:**
+
+| Namespace | Has ExternalSecret | Helm-Managed | Needs `eso-enabled` |
+|-----------|--------------------|--------------|---------------------|
+| cert-manager | Yes | Yes (Helm) | Yes |
+| cloudflare | Yes | No | Yes |
+| gitlab | Yes | Yes (Helm) | Yes |
+| gitlab-runner | Yes | Yes (Helm) | Yes |
+| invoicetron-dev | Yes | No | Yes |
+| invoicetron-prod | Yes | No | Yes |
+| portfolio | No | No | No |
+
+**Also need `eso-enabled` label added to existing namespace.yaml files:**
+arr-stack, atuin, browser, ghost-dev, ghost-prod, home, karakeep
+
+**And these Helm-managed namespaces need the label applied imperatively + documented:**
+kube-system, monitoring
+
+- [ ] 5.0.1.1 Create `namespace.yaml` for each of the 7 namespaces above
+  ```yaml
+  # Template — adjust name, PSS level, and eso-enabled per namespace
+  apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: <namespace>
+    labels:
+      pod-security.kubernetes.io/enforce: baseline
+      pod-security.kubernetes.io/enforce-version: latest
+      pod-security.kubernetes.io/warn: restricted
+      pod-security.kubernetes.io/warn-version: latest
+      eso-enabled: "true"  # Only if namespace has ExternalSecrets
+  ```
+
+- [ ] 5.0.1.2 Add `eso-enabled: "true"` label to existing namespace.yaml files
+  - arr-stack, atuin, browser, ghost-dev, ghost-prod, home, karakeep
+
+- [ ] 5.0.1.3 Label Helm-managed namespaces imperatively
+  ```bash
+  # These namespaces are created by Helm, not by manifests
+  for ns in kube-system monitoring; do
+    kubectl-homelab label namespace "$ns" eso-enabled=true
+  done
+  ```
+
+- [ ] 5.0.1.4 Apply all namespace manifests
+  ```bash
+  # Apply new and updated namespace manifests
+  kubectl-homelab apply -f manifests/cert-manager/namespace.yaml
+  kubectl-homelab apply -f manifests/cloudflare/namespace.yaml
+  # ... etc for all 7 new + updated existing
+  ```
+
+---
+
+## 5.0.2 Pod Security Standards
+
+> **CKA Topic:** PSS is the replacement for deprecated PodSecurityPolicy
+
+| Level | Use Case | Namespaces |
+|-------|----------|------------|
+| **Privileged** | System components | monitoring (node-exporter needs hostNetwork/hostPID), longhorn-system |
+| **Baseline** | Most applications | All app namespaces |
+| **Restricted** | Sensitive workloads | vault, external-secrets (already baseline-compliant pods) |
+
+- [ ] 5.0.2.1 Audit all namespaces with `warn=restricted` dry-run
+  ```bash
+  # Check which pods would violate restricted profile
+  for ns in $(kubectl-homelab get ns -o jsonpath='{.items[*].metadata.name}'); do
+    echo "=== $ns ==="
+    kubectl-homelab label namespace "$ns" \
+      pod-security.kubernetes.io/warn=restricted \
+      --dry-run=server -o yaml 2>&1 | grep -A2 "warning"
+  done
+  ```
+
+- [ ] 5.0.2.2 Fix pod security violations
+  - Add `securityContext` to pods that lack it:
+    ```yaml
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+    ```
+  - Identify pods that CANNOT run as non-root (some need writable root FS, etc.)
+  - Document exceptions
+
+- [ ] 5.0.2.3 Enforce baseline on all application namespaces
+  ```bash
+  # All app namespaces — enforce baseline, warn restricted
+  APP_NS="arr-stack atuin browser cloudflare ghost-dev ghost-prod \
+    home invoicetron-dev invoicetron-prod gitlab gitlab-runner \
+    karakeep portfolio uptime-kuma"
+  for ns in $APP_NS; do
+    kubectl-homelab label namespace "$ns" \
+      pod-security.kubernetes.io/enforce=baseline \
+      pod-security.kubernetes.io/warn=restricted \
+      --overwrite
+  done
+  ```
+
+---
+
+## 5.0.3 Disable automountServiceAccountToken
+
+> **CKA Topic:** Limiting service account token exposure reduces blast radius of pod compromise
+
+Most app pods don't need the Kubernetes API. Currently only 10 manifests set `automountServiceAccountToken`.
+
+**Pods that NEED API access (don't disable):**
+- ESO controller, webhook, cert-controller (reads/writes Secrets)
+- Vault (Kubernetes auth backend)
+- Prometheus, kube-state-metrics (scrapes cluster)
+- Alloy (ships logs)
+- node-exporter (host metrics)
+- Cluster Janitor CronJob (deletes pods/replicas)
+- cert-manager (manages certificates)
+- Cilium (CNI)
+
+**Pods that DON'T need API access (disable):**
+- Ghost, MySQL (ghost-dev, ghost-prod)
+- Invoicetron, PostgreSQL (invoicetron-dev, invoicetron-prod)
+- Atuin, PostgreSQL
+- AdGuard, Homepage, MySpeed
+- Firefox browser
+- Karakeep, Meilisearch, Chrome
+- ARR apps (Sonarr, Radarr, Prowlarr, qBittorrent, Jellyfin, Bazarr, Seerr, Tdarr)
+- Uptime Kuma
+- Portfolio
+
+- [ ] 5.0.3.1 Add `automountServiceAccountToken: false` to all app pod specs
+  ```yaml
+  spec:
+    automountServiceAccountToken: false
+    # ... rest of pod spec
+  ```
+
+- [ ] 5.0.3.2 Verify apps still work after disabling
+  ```bash
+  kubectl-homelab get pods -A | grep -v Running
+  # All pods should be Running — none should be CrashLooping from missing token
+  ```
+
+---
+
+## 5.0.4 ESO Helm Hardening
+
+> **Source:** ESO [Security Best Practices](https://external-secrets.io/latest/guides/security-best-practices/), [Threat Model](https://external-secrets.io/latest/guides/threat-model/)
+
+- [ ] 5.0.4.1 Add resource limits to `helm/external-secrets/values.yaml`
+  ```yaml
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  webhook:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+  certController:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+  ```
+
+- [ ] 5.0.4.2 Disable unused CRD reconcilers (ESO threat model C05)
+  ```yaml
+  # Not using ClusterExternalSecret or PushSecret
+  processClusterExternalSecret: false
+  processPushSecret: false
+  ```
+
+- [ ] 5.0.4.3 Restrict webhook TLS ciphers
+  ```yaml
+  webhook:
+    extraArgs:
+      tls-ciphers: "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+  ```
+
+- [ ] 5.0.4.4 Helm upgrade ESO
+  ```bash
+  helm-homelab upgrade external-secrets external-secrets/external-secrets \
+    --namespace external-secrets \
+    --version 2.1.0 \
+    --values helm/external-secrets/values.yaml
+  ```
+
+- [ ] 5.0.4.5 Verify ESO pods have limits after upgrade
+  ```bash
+  kubectl-homelab get pods -n external-secrets -o json | jq -r '
+    .items[] | .metadata.name + ": " +
+    (.spec.containers[0].resources | tostring)
+  '
+  ```
+
+---
+
+## 5.0.5 ClusterSecretStore Namespace Restrictions
+
+> **ESO docs:** Use `namespaceSelector` to restrict which namespaces can reference a ClusterSecretStore
+
+Currently any namespace can reference `vault-backend`. After this change, only namespaces with `eso-enabled: "true"` can sync secrets.
+
+- [ ] 5.0.5.1 Add `namespaceSelector` to `manifests/vault/clustersecretstore.yaml`
+  ```yaml
+  spec:
+    conditions:
+      - namespaceSelector:
+          matchLabels:
+            eso-enabled: "true"
+    provider:
+      vault: ...  # existing config unchanged
+  ```
+
+- [ ] 5.0.5.2 Apply and verify all 30 ExternalSecrets still sync
+  ```bash
+  kubectl-homelab apply -f manifests/vault/clustersecretstore.yaml
+
+  # Check all ExternalSecrets are synced
+  kubectl-homelab get externalsecret -A -o json | jq -r '
+    .items[] |
+    .metadata.namespace + "/" + .metadata.name + " — " +
+    ((.status.conditions[]? | select(.type=="Ready")) | .status)
+  '
+  # All should show "True"
+  ```
+
+- [ ] 5.0.5.3 Verify unlabeled namespace is blocked
+  ```bash
+  kubectl-homelab create namespace eso-test
+  cat <<'EOF' | kubectl-homelab apply -f -
+  apiVersion: external-secrets.io/v1
+  kind: ExternalSecret
+  metadata:
+    name: test-blocked
+    namespace: eso-test
+  spec:
+    refreshInterval: 1h
+    secretStoreRef:
+      name: vault-backend
+      kind: ClusterSecretStore
+    data:
+      - secretKey: test
+        remoteRef:
+          key: ghost-prod/mysql
+          property: root-password
+  EOF
+  # Should fail or show SecretSynced=False
+  kubectl-homelab delete namespace eso-test
+  ```
+
+---
+
+## 5.0.6 RBAC Audit
+
+> **CKA Topic:** RBAC, ServiceAccount, ClusterRoleBinding
+
+- [ ] 5.0.6.1 Audit all ServiceAccounts and their bindings
+  ```bash
+  kubectl-homelab get serviceaccounts -A
+  kubectl-homelab get clusterrolebindings -o json | jq -r '
+    .items[] | select(.roleRef.name == "cluster-admin") |
+    .metadata.name + " -> " + (.subjects[]? | .kind + "/" + .name)
+  '
+  ```
+
+- [ ] 5.0.6.2 Review and tighten GitLab deploy ServiceAccount
+  ```bash
+  kubectl-homelab get rolebinding -n portfolio-prod -o yaml
+  # Ensure only: get, patch, update on deployments
+  ```
+
+- [ ] 5.0.6.3 Verify ESO ServiceAccount is properly scoped
+  ```bash
+  # ESO role should only be bound to external-secrets:external-secrets SA
+  kubectl-homelab auth can-i --list \
+    --as=system:serviceaccount:external-secrets:external-secrets
+  ```
+
+---
+
+## 5.0.7 etcd Encryption at Rest
+
+> **CKA Topic:** EncryptionConfiguration — secrets in etcd are base64 by default, not encrypted
+
+By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd access can read all secrets. `EncryptionConfiguration` encrypts them at rest.
+
+- [ ] 5.0.7.1 Create EncryptionConfiguration on all 3 control plane nodes
+  ```bash
+  # Generate encryption key (run once, use same key on all nodes)
+  ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64)
+  echo "Save this key securely: $ENCRYPTION_KEY"
+
+  # Create config file on each CP node
+  # Path: /etc/kubernetes/encryption-config.yaml
+  cat <<EOF
+  apiVersion: apiserver.config.k8s.io/v1
+  kind: EncryptionConfiguration
+  resources:
+    - resources:
+        - secrets
+      providers:
+        - aescbc:
+            keys:
+              - name: key1
+                secret: ${ENCRYPTION_KEY}
+        - identity: {}  # Fallback: read unencrypted secrets
+  EOF
+  ```
+
+- [ ] 5.0.7.2 Update kube-apiserver on all 3 CP nodes
+  ```bash
+  # Edit /etc/kubernetes/manifests/kube-apiserver.yaml on each node
+  # Add to spec.containers[0].command:
+  #   --encryption-provider-config=/etc/kubernetes/encryption-config.yaml
+  #
+  # Add volume mount for the config file
+  # API server will restart automatically (static pod)
+  ```
+
+- [ ] 5.0.7.3 Re-encrypt all existing secrets
+  ```bash
+  # After API server is back, re-encrypt all secrets
+  kubectl-homelab get secrets -A -o json | kubectl-homelab replace -f -
+  ```
+
+- [ ] 5.0.7.4 Verify encryption works
+  ```bash
+  # Create a test secret
+  kubectl-homelab create secret generic encryption-test \
+    -n default --from-literal=test=encrypted-value
+
+  # Read directly from etcd (from a CP node)
+  # The value should NOT be readable as plaintext
+  sudo ETCDCTL_API=3 etcdctl get /registry/secrets/default/encryption-test \
+    --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+    --cert=/etc/kubernetes/pki/etcd/server.crt \
+    --key=/etc/kubernetes/pki/etcd/server.key | hexdump -C | head
+
+  # Should see "k8s:enc:aescbc:v1:key1" prefix, not plaintext
+
+  kubectl-homelab delete secret encryption-test -n default
+  ```
+
+---
+
+## 5.0.8 Documentation
+
+- [ ] 5.0.8.1 Create `docs/context/Security.md`
+  ```
+  Document:
+  - PSS levels per namespace (table)
+  - RBAC roles and bindings (audit results)
+  - ESO hardening decisions and known trade-offs
+  - Vault + ESO trust boundaries
+  - etcd encryption status
+  ```
+
+  **ESO known trade-offs to document:**
+
+  | Decision | Rationale |
+  |----------|-----------|
+  | HTTP Vault connection (not HTTPS) | In-cluster only, no external exposure. mTLS adds cert overhead for minimal gain. |
+  | Single ClusterSecretStore | Simpler ops. Acceptable for single admin. Revisit if adding untrusted tenants. |
+  | Broad `eso-policy` (`secret/data/*`) | ESO is the only Vault consumer. Per-namespace policies = 15 roles, significant rework. |
+  | No policy engine (Kyverno/OPA) | Overkill for single-admin. `namespaceSelector` provides sufficient restriction. |
+
+- [ ] 5.0.8.2 Update `docs/reference/CHANGELOG.md`
+
+---
+
+## Verification Checklist
+
+- [ ] All namespaces have declarative `namespace.yaml` (or are Helm-managed)
+- [ ] PSS baseline enforced on all application namespaces
+- [ ] PSS warn=restricted on all namespaces (for visibility)
+- [ ] `automountServiceAccountToken: false` on all app pods that don't need API access
+- [ ] ESO pods have resource requests/limits
+- [ ] Unused CRD reconcilers disabled (`ClusterExternalSecret`, `PushSecret`)
+- [ ] Webhook TLS ciphers restricted to modern suites
+- [ ] ClusterSecretStore has `namespaceSelector` restricting to labeled namespaces
+- [ ] All 15 ESO-consuming namespaces labeled `eso-enabled=true`
+- [ ] Unlabeled namespace cannot sync ExternalSecrets (tested)
+- [ ] RBAC audit complete — no unexpected cluster-admin bindings
+- [ ] etcd encryption at rest enabled and verified
+- [ ] Security.md created with all decisions documented
+
+---
+
+## Rollback
+
+**ESO namespaceSelector breaks all ExternalSecrets:**
+```bash
+# Emergency: remove the conditions block and re-apply
+# Edit manifests/vault/clustersecretstore.yaml — remove spec.conditions
+kubectl-homelab apply -f manifests/vault/clustersecretstore.yaml
+```
+
+**PSS blocks pods from starting:**
+```bash
+kubectl-homelab label namespace <ns> \
+  pod-security.kubernetes.io/enforce=privileged \
+  --overwrite
+# Fix pod securityContext, then re-apply baseline
+```
+
+**etcd encryption breaks API server:**
+```bash
+# On CP node: remove --encryption-provider-config from
+# /etc/kubernetes/manifests/kube-apiserver.yaml
+# API server will restart automatically and read unencrypted secrets
+```
+
+---
+
+## Final: Commit and Release
+
+- [ ] `/audit-security` then `/commit`
+- [ ] `/release v0.30.0 "Security Posture"`
+- [ ] `mv docs/todo/phase-5.0-security-posture.md docs/todo/completed/`

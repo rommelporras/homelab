@@ -71,7 +71,7 @@
 | Topic | Practice In |
 |-------|-------------|
 | kubeadm cluster lifecycle | Phase 2, rebuild practice |
-| RBAC (Roles, ClusterRoles) | Phase 5.2 |
+| RBAC (Roles, ClusterRoles) | Phase 5.0 |
 | etcd backup/restore | 6.2.3 below |
 | Upgrade cluster version | 6.2.2 below |
 
@@ -228,6 +228,7 @@
 |-------|-------------|
 | Service types (ClusterIP, NodePort, LB) | All phases |
 | NetworkPolicy | Phase 5.1 |
+| PodDisruptionBudget | Phase 5.2 |
 | DNS (CoreDNS) | Phase 4 (service discovery) |
 | Ingress | Phase 4.9 (Tailscale) |
 
