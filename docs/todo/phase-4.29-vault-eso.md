@@ -112,7 +112,6 @@ Commands marked 🔒 must run in the safe terminal (has `op` access, not Claude 
 |------|---------|
 | `manifests/vault/namespace.yaml` | vault namespace with PSS baseline labels |
 | `manifests/vault/unsealer.yaml` | Auto-unsealer Deployment |
-| `manifests/vault/unseal-keys-secret.yaml` | Placeholder (created imperatively 🔒) |
 | `manifests/vault/clustersecretstore.yaml` | ClusterSecretStore → Vault backend |
 | `manifests/vault/httproute.yaml` | Vault UI at vault.k8s.rommelporras.com |
 | `manifests/vault/snapshot-cronjob.yaml` | Daily Raft snapshot to NFS NAS |
@@ -128,15 +127,15 @@ Commands marked 🔒 must run in the safe terminal (has `op` access, not Claude 
 | `manifests/cloudflare/externalsecret.yaml` | Replaces cloudflare/secret.yaml |
 | `manifests/home/homepage/externalsecret.yaml` | Replaces homepage/secret.yaml |
 | `manifests/karakeep/externalsecret.yaml` | Replaces karakeep/secret.yaml |
-| `manifests/invoicetron-dev/externalsecret.yaml` | Replaces invoicetron/secret.yaml (dev) |
-| `manifests/invoicetron-prod/externalsecret.yaml` | Replaces invoicetron/secret.yaml (prod) |
-| `manifests/ghost-prod/externalsecret.yaml` | Replaces ghost-prod/secret.yaml |
-| `manifests/ghost-dev/externalsecret.yaml` | Replaces ghost-dev/secret.yaml |
+| `manifests/invoicetron-dev/externalsecret.yaml` | 2 ExternalSecrets: invoicetron-db + invoicetron-app |
+| `manifests/invoicetron-prod/externalsecret.yaml` | 2 ExternalSecrets: invoicetron-db + invoicetron-app |
+| `manifests/ghost-prod/externalsecret.yaml` | 3 ExternalSecrets: ghost-mysql + ghost-mail + ghost-tinybird |
+| `manifests/ghost-dev/externalsecret.yaml` | 2 ExternalSecrets: ghost-mysql + ghost-mail |
 | `manifests/cert-manager/externalsecret.yaml` | Migrates cloudflare-api-token |
-| `manifests/monitoring/externalsecret.yaml` | Migrates discord-webhook + nut-credentials |
-| `manifests/atuin/externalsecret.yaml` | Migrates atuin-secrets |
-| `manifests/gitlab/externalsecret.yaml` | Migrates gitlab-root-password + postgresql-password |
-| `manifests/gitlab-runner/externalsecret.yaml` | Migrates gitlab-runner-token |
+| `manifests/monitoring/externalsecret.yaml` | 2 ExternalSecrets: discord-webhook + nut-credentials |
+| `manifests/atuin/externalsecret.yaml` | Migrates atuin-secrets (4 fields) |
+| `manifests/gitlab/externalsecret.yaml` | 2 ExternalSecrets: gitlab-root-password + gitlab-postgresql-password (2 keys) |
+| `manifests/gitlab-runner/externalsecret.yaml` | Migrates gitlab-runner-token (key: runner-token only, skip legacy runner-registration-token) |
 | `manifests/browser/externalsecret.yaml` | Migrates firefox-auth |
 | `manifests/kube-system/cluster-janitor/externalsecret.yaml` | Migrates discord-janitor-webhook |
 
@@ -167,9 +166,7 @@ secret/
                                BAZARR_API_KEY, TDARR_API_KEY
     qbittorrent              → QBITTORRENT_PASS
   atuin/
-    secrets                  → db-username, db-password, db-database, db-uri,
-                               personal-email, personal-password, encryption-key,
-                               eam-email, eam-password
+    secrets                  → POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, ATUIN_DB_URI
   browser/
     firefox-auth             → username, password
   cert-manager/
@@ -185,7 +182,7 @@ secret/
     tinybird                 → api-url, admin-token, workspace-id, tracker-token
   gitlab/
     root-password            → password
-    postgresql-password      → postgresql-password
+    postgresql-password      → postgresql-password, postgresql-postgres-password
   gitlab-runner/
     runner-token             → runner-token
   homepage/
@@ -237,32 +234,33 @@ secret/
 - [ ] **4.29.3** 🔒 Initialize Vault — save keys to `~/.vault-keys` + 1Password "Vault Unseal Keys"
 - [ ] **4.29.4** 🔒 Manually unseal vault-0 (first time only — unsealer handles future restarts)
 - [ ] **4.29.5** 🔒 Run `scripts/configure-vault.sh` (KV v2, Kubernetes auth, ESO policy + role, file audit)
-- [ ] **4.29.6** Create Raft snapshot CronJob + ServiceAccount + Vault snapshot policy
-- [ ] **4.29.7** 🔒 Create auto-unsealer Deployment + `vault-unseal-keys` K8s Secret
-- [ ] **4.29.8** Test auto-unseal: delete vault-0, confirm it recovers Ready within 60s
-- [ ] **4.29.9** Expose Vault UI via HTTPRoute at `vault.k8s.rommelporras.com`
+- [ ] **4.29.6** Create Raft snapshot CronJob + ServiceAccount + NFS PV/PVC
+- [ ] **4.29.7** 🔒 Create `vault-unseal-keys` K8s Secret imperatively (3 unseal keys)
+- [ ] **4.29.8** Create auto-unsealer Deployment (`manifests/vault/unsealer.yaml`)
+- [ ] **4.29.9** Test auto-unseal: delete vault-0, confirm it recovers Ready within 60s
+- [ ] **4.29.10** Expose Vault UI via HTTPRoute at `vault.k8s.rommelporras.com`
 
 ### Phase 2: External Secrets Operator
 
-- [ ] **4.29.10** Deploy ESO via Helm (`external-secrets/external-secrets` chart v1.3.1)
-- [ ] **4.29.11** Create `ClusterSecretStore` pointing to Vault with Kubernetes auth
-- [ ] **4.29.12** Verify `ClusterSecretStore` status is `READY=True`
+- [ ] **4.29.11** Deploy ESO via Helm (`external-secrets/external-secrets` chart v2.1.0)
+- [ ] **4.29.12** Create `ClusterSecretStore` pointing to Vault with Kubernetes auth
+- [ ] **4.29.13** Verify `ClusterSecretStore` status is `READY=True`
 
 ### Phase 3: Seed Vault from 1Password
 
-- [ ] **4.29.13** Claude generates `scripts/seed-vault-from-1password.sh` with all `op://` paths
-- [ ] **4.29.14** 🔒 User runs seed script in safe terminal (populates all Vault KV paths)
-- [ ] **4.29.15** Verify seeded: `vault kv list secret/` shows all expected paths
+- [ ] **4.29.14** Claude generates `scripts/seed-vault-from-1password.sh` with all `op://` paths
+- [ ] **4.29.15** 🔒 User runs seed script in safe terminal (populates all Vault KV paths)
+- [ ] **4.29.16** Verify seeded: `vault kv list secret/` shows all expected paths
 
 ### Phase 4: Observability
 
-- [ ] **4.29.16** Verify Vault Prometheus metrics scraping (`vault_core_unsealed` visible in Prometheus)
-- [ ] **4.29.17** Verify ESO metrics scraping (`externalsecret_sync_calls_total` visible in Prometheus)
-- [ ] **4.29.18** Create `vault-alerts.yaml` (7 alerts — see Observability Reference below)
-- [ ] **4.29.19** Create `vault.yaml` Blackbox probe for Vault UI endpoint
-- [ ] **4.29.20** Create `vault-dashboard.yaml` (see Dashboard Spec below)
-- [ ] **4.29.21** Update Alertmanager infra regex to include `Vault.*|ESO.*` patterns
-- [ ] **4.29.22** Test: seal vault-0 → verify VaultSealed alert fires within 5m → unseal
+- [ ] **4.29.17** Verify Vault Prometheus metrics scraping (`vault_core_unsealed` visible in Prometheus)
+- [ ] **4.29.18** Verify ESO metrics scraping (`externalsecret_sync_calls_total` visible in Prometheus)
+- [ ] **4.29.19** Create `vault-alerts.yaml` (7 alerts — see Observability Reference below)
+- [ ] **4.29.20** Create `vault.yaml` Blackbox probe for Vault UI endpoint
+- [ ] **4.29.21** Create `vault-dashboard.yaml` (see Dashboard Spec below)
+- [ ] **4.29.22** Update Alertmanager infra regex to include `Vault.*|ESO.*` patterns
+- [ ] **4.29.23** Test: seal vault-0 → verify VaultSealed alert fires within 5m → unseal
 
 ### Phase 5: Secret Migration
 
@@ -270,34 +268,39 @@ For each namespace: apply ExternalSecret → verify `STATUS=SecretSynced` → ve
 works → **then** delete old `secret.yaml`. Never delete the old secret before confirming
 the new one synced.
 
+> **Multi-secret namespaces:** Namespaces with multiple K8s Secrets get one `externalsecret.yaml`
+> containing multiple ExternalSecret resources separated by `---`. Each ExternalSecret creates
+> exactly one K8s Secret. For example, `manifests/gitlab/externalsecret.yaml` contains two
+> ExternalSecret resources: one for `gitlab-root-password` and one for `gitlab-postgresql-password`.
+
 **Wave 1 — Low risk (no existing secret.yaml, non-critical services):**
-- [ ] **4.29.23** Migrate `cert-manager` (cloudflare-api-token)
-- [ ] **4.29.24** Migrate `browser` (firefox-auth)
-- [ ] **4.29.25** Migrate `monitoring` (discord-version-webhook, nut-credentials)
-- [ ] **4.29.26** Migrate `kube-system` (discord-janitor-webhook)
+- [ ] **4.29.24** Migrate `cert-manager` (cloudflare-api-token — 1 ExternalSecret)
+- [ ] **4.29.25** Migrate `browser` (firefox-auth — 1 ExternalSecret)
+- [ ] **4.29.26** Migrate `monitoring` (discord-webhook + nut-credentials — 2 ExternalSecrets in 1 file)
+- [ ] **4.29.27** Migrate `kube-system` (discord-janitor-webhook — 1 ExternalSecret)
 
 **Wave 2 — Medium risk (has existing secret.yaml, services restart cleanly):**
-- [ ] **4.29.27** Migrate `cloudflare` (cloudflared-token)
-- [ ] **4.29.28** Migrate `karakeep` (karakeep-secrets)
-- [ ] **4.29.29** Migrate `arr-stack` (arr-api-keys, qbittorrent-exporter-secret)
+- [ ] **4.29.28** Migrate `cloudflare` (cloudflared-token — 1 ExternalSecret)
+- [ ] **4.29.29** Migrate `karakeep` (karakeep-secrets — 1 ExternalSecret)
+- [ ] **4.29.30** Migrate `arr-stack` (arr-api-keys + qbittorrent-exporter-secret — 2 ExternalSecrets in 1 file)
 
 **Wave 3 — Higher risk (databases, complex multi-field secrets):**
-- [ ] **4.29.30** Migrate `atuin` (atuin-secrets — 9 fields, use `dataFrom.extract`)
-- [ ] **4.29.31** Migrate `gitlab` + `gitlab-runner` (root-password, postgresql-password, runner-token)
-- [ ] **4.29.32** Migrate `home` (homepage-secrets — 31 fields, use `dataFrom.extract`)
-- [ ] **4.29.33** Migrate `invoicetron-dev` + `invoicetron-prod` (db + app each)
-- [ ] **4.29.34** Migrate `ghost-prod` + `ghost-dev` (mysql + mail + tinybird)
+- [ ] **4.29.31** Migrate `atuin` (atuin-secrets — 4 fields, `dataFrom.extract`, 1 ExternalSecret)
+- [ ] **4.29.32** Migrate `gitlab` + `gitlab-runner` (root-password + postgresql-password [2 keys] + runner-token — 3 ExternalSecrets in 2 files)
+- [ ] **4.29.33** Migrate `home` (homepage-secrets — 31 fields, `dataFrom.extract`, 1 ExternalSecret)
+- [ ] **4.29.34** Migrate `invoicetron-dev` + `invoicetron-prod` (db + app each — 2 ExternalSecrets per file, 2 files)
+- [ ] **4.29.35** Migrate `ghost-prod` + `ghost-dev` (mysql + mail + tinybird — 3 ExternalSecrets for prod, 2 for dev, 2 files)
 
 **Cleanup:**
-- [ ] **4.29.35** Delete `scripts/apply-arr-secrets.sh`
-- [ ] **4.29.36** Run `scripts/verify-migration.sh` — automated full-cluster verification
+- [ ] **4.29.36** Delete `scripts/apply-arr-secrets.sh`
+- [ ] **4.29.37** Run `scripts/verify-migration.sh` — automated full-cluster verification
 
 ### Phase 6: Cleanup & Docs
 
-- [ ] **4.29.37** Update `VERSIONS.md` with Vault v1.21.2 and ESO v1.3.1
-- [ ] **4.29.38** Update `docs/context/Secrets.md` with new Vault workflow
-- [ ] **4.29.39** Update `MEMORY.md` with Vault/ESO lessons learned
-- [ ] **4.29.40** `/audit-security` → `/commit` → `/release v0.29.0`
+- [ ] **4.29.38** Update `VERSIONS.md` with Vault v1.21.2 and ESO v2.1.0
+- [ ] **4.29.39** Update `docs/context/Secrets.md` with new Vault workflow
+- [ ] **4.29.40** Update `MEMORY.md` with Vault/ESO lessons learned
+- [ ] **4.29.41** `/audit-security` → `/commit` → `/release v0.29.0`
 
 ---
 
@@ -389,7 +392,7 @@ No `kubectl create secret`. No `op read`. No scripts.
 | Component | Helm Chart | Helm Version | App Version |
 |-----------|-----------|--------------|-------------|
 | HashiCorp Vault | `hashicorp/vault` | 0.32.0 | v1.21.2 |
-| External Secrets Operator | `external-secrets/external-secrets` | 1.3.1 | v1.3.1 |
+| External Secrets Operator | `external-secrets/external-secrets` | 2.1.0 | v2.1.0 |
 
 ```bash
 helm-homelab repo add hashicorp https://helm.releases.hashicorp.com
@@ -558,17 +561,12 @@ vault kv put secret/arr-stack/api-keys \
 vault kv put secret/arr-stack/qbittorrent \
   QBITTORRENT_PASS="$(op read 'op://Kubernetes/ARR Stack/password')"
 
-# atuin
+# atuin (Vault field names must match K8s Secret key names — NOT 1Password field names)
 vault kv put secret/atuin/secrets \
-  db-username="$(op read 'op://Kubernetes/Atuin/db-username')" \
-  db-password="$(op read 'op://Kubernetes/Atuin/db-password')" \
-  db-database="$(op read 'op://Kubernetes/Atuin/db-database')" \
-  db-uri="$(op read 'op://Kubernetes/Atuin/db-uri')" \
-  personal-email="$(op read 'op://Kubernetes/Atuin/personal-email')" \
-  personal-password="$(op read 'op://Kubernetes/Atuin/personal-password')" \
-  encryption-key="$(op read 'op://Kubernetes/Atuin/encryption-key')" \
-  eam-email="$(op read 'op://Kubernetes/Atuin/eam-email')" \
-  eam-password="$(op read 'op://Kubernetes/Atuin/eam-password')"
+  POSTGRES_USER="$(op read 'op://Kubernetes/Atuin/db-username')" \
+  POSTGRES_PASSWORD="$(op read 'op://Kubernetes/Atuin/db-password')" \
+  POSTGRES_DB="$(op read 'op://Kubernetes/Atuin/db-database')" \
+  ATUIN_DB_URI="$(op read 'op://Kubernetes/Atuin/db-uri')"
 
 # browser
 vault kv put secret/browser/firefox-auth \
@@ -608,30 +606,46 @@ vault kv put secret/gitlab/root-password \
   password="$(op read 'op://Kubernetes/GitLab/password')"
 
 vault kv put secret/gitlab/postgresql-password \
-  postgresql-password="$(op read 'op://Kubernetes/GitLab/postgresql-password')"
+  postgresql-password="$(op read 'op://Kubernetes/GitLab/postgresql-password')" \
+  postgresql-postgres-password="$(op read 'op://Kubernetes/GitLab/postgresql-postgres-password')"
 
-# gitlab-runner
+# gitlab-runner (runner-token is in the "GitLab" 1P item, not a separate "GitLab Runner" item)
 vault kv put secret/gitlab-runner/runner-token \
-  runner-token="$(op read 'op://Kubernetes/GitLab Runner/runner-token')"
+  runner-token="$(op read 'op://Kubernetes/GitLab/runner-token')"
 
-# homepage (31 fields — widget credentials)
+# homepage (31 fields — widget credentials from Homepage + ARR Stack + Karakeep 1P items)
 vault kv put secret/homepage/secrets \
-  HOMEPAGE_VAR_PROXMOX_PVE_USER="$(op read 'op://Kubernetes/Homepage/proxmox-pve-user')" \
-  HOMEPAGE_VAR_PROXMOX_PVE_TOKEN="$(op read 'op://Kubernetes/Homepage/proxmox-pve-token')" \
-  HOMEPAGE_VAR_PROXMOX_FW_USER="$(op read 'op://Kubernetes/Homepage/proxmox-fw-user')" \
-  HOMEPAGE_VAR_PROXMOX_FW_TOKEN="$(op read 'op://Kubernetes/Homepage/proxmox-fw-token')" \
+  HOMEPAGE_VAR_ADGUARD_FW_PASS="$(op read 'op://Kubernetes/Homepage/adguard-fw-pass')" \
+  HOMEPAGE_VAR_ADGUARD_FW_USER="$(op read 'op://Kubernetes/Homepage/adguard-fw-user')" \
+  HOMEPAGE_VAR_ADGUARD_PASS="$(op read 'op://Kubernetes/Homepage/adguard-pass')" \
+  HOMEPAGE_VAR_ADGUARD_USER="$(op read 'op://Kubernetes/Homepage/adguard-user')" \
+  HOMEPAGE_VAR_BAZARR_API_KEY="$(op read 'op://Kubernetes/ARR Stack/bazarr-api-key')" \
+  HOMEPAGE_VAR_GLANCES_PASS="$(op read 'op://Kubernetes/Homepage/glances-pass')" \
+  HOMEPAGE_VAR_GLANCES_USER="glances" \
+  HOMEPAGE_VAR_GRAFANA_PASS="$(op read 'op://Kubernetes/Homepage/grafana-pass')" \
+  HOMEPAGE_VAR_GRAFANA_USER="$(op read 'op://Kubernetes/Homepage/grafana-user')" \
+  HOMEPAGE_VAR_IMMICH_KEY="$(op read 'op://Kubernetes/Homepage/immich-key')" \
+  HOMEPAGE_VAR_JELLYFIN_KEY="$(op read 'op://Kubernetes/ARR Stack/jellyfin-api-key')" \
+  HOMEPAGE_VAR_KARAKEEP_KEY="$(op read 'op://Kubernetes/Karakeep/api-key')" \
+  HOMEPAGE_VAR_OMV_PASS="$(op read 'op://Kubernetes/Homepage/omv-pass')" \
+  HOMEPAGE_VAR_OMV_USER="$(op read 'op://Kubernetes/Homepage/omv-user')" \
+  HOMEPAGE_VAR_OPENWRT_PASS="$(op read 'op://Kubernetes/Homepage/openwrt-pass')" \
+  HOMEPAGE_VAR_OPENWRT_USER="$(op read 'op://Kubernetes/Homepage/openwrt-user')" \
   HOMEPAGE_VAR_OPNSENSE_KEY="$(op read 'op://Kubernetes/Homepage/opnsense-username')" \
   HOMEPAGE_VAR_OPNSENSE_SECRET="$(op read 'op://Kubernetes/Homepage/opnsense-password')" \
-  HOMEPAGE_VAR_OMV_USER="$(op read 'op://Kubernetes/Homepage/omv-user')" \
-  HOMEPAGE_VAR_OMV_PASS="$(op read 'op://Kubernetes/Homepage/omv-pass')" \
-  HOMEPAGE_VAR_GLANCES_PASS="$(op read 'op://Kubernetes/Homepage/glances-pass')" \
-  HOMEPAGE_VAR_KARAKEEP_KEY="$(op read 'op://Kubernetes/Karakeep/api-key')" \
-  HOMEPAGE_VAR_ADGUARD_USER="$(op read 'op://Kubernetes/Homepage/adguard-user')" \
-  HOMEPAGE_VAR_ADGUARD_PASS="$(op read 'op://Kubernetes/Homepage/adguard-pass')" \
-  HOMEPAGE_VAR_WEATHER_KEY="$(op read 'op://Kubernetes/Homepage/weather-key')" \
-  HOMEPAGE_VAR_GRAFANA_USER="$(op read 'op://Kubernetes/Homepage/grafana-user')" \
-  HOMEPAGE_VAR_GRAFANA_PASS="$(op read 'op://Kubernetes/Homepage/grafana-pass')" \
-  HOMEPAGE_VAR_SEERR_API_KEY="$(op read 'op://Kubernetes/Homepage/seerr-api-key')"
+  HOMEPAGE_VAR_PROWLARR_API_KEY="$(op read 'op://Kubernetes/ARR Stack/prowlarr-api-key')" \
+  HOMEPAGE_VAR_PROXMOX_FW_TOKEN="$(op read 'op://Kubernetes/Homepage/proxmox-fw-token')" \
+  HOMEPAGE_VAR_PROXMOX_FW_USER="$(op read 'op://Kubernetes/Homepage/proxmox-fw-user')" \
+  HOMEPAGE_VAR_PROXMOX_PVE_TOKEN="$(op read 'op://Kubernetes/Homepage/proxmox-pve-token')" \
+  HOMEPAGE_VAR_PROXMOX_PVE_USER="$(op read 'op://Kubernetes/Homepage/proxmox-pve-user')" \
+  HOMEPAGE_VAR_QBIT_PASS="$(op read 'op://Kubernetes/ARR Stack/password')" \
+  HOMEPAGE_VAR_QBIT_USER="$(op read 'op://Kubernetes/ARR Stack/username')" \
+  HOMEPAGE_VAR_RADARR_API_KEY="$(op read 'op://Kubernetes/ARR Stack/radarr-api-key')" \
+  HOMEPAGE_VAR_SEERR_API_KEY="$(op read 'op://Kubernetes/Homepage/seerr-api-key')" \
+  HOMEPAGE_VAR_SONARR_API_KEY="$(op read 'op://Kubernetes/ARR Stack/sonarr-api-key')" \
+  HOMEPAGE_VAR_TAILSCALE_DEVICE="$(op read 'op://Kubernetes/Homepage/tailscale-device')" \
+  HOMEPAGE_VAR_TAILSCALE_KEY="$(op read 'op://Kubernetes/Homepage/tailscale-key')" \
+  HOMEPAGE_VAR_WEATHER_KEY="$(op read 'op://Kubernetes/Homepage/weather-key')"
 
 # invoicetron-dev
 vault kv put secret/invoicetron-dev/db \
@@ -663,7 +677,7 @@ vault kv put secret/monitoring/discord-version-webhook \
   webhook-url="$(op read 'op://Kubernetes/Discord Webhooks/versions')"
 
 vault kv put secret/monitoring/nut-credentials \
-  username="$(op read 'op://Kubernetes/NUT Monitor/username')" \
+  username="upsmon" \
   password="$(op read 'op://Kubernetes/NUT Monitor/password')"
 
 vault kv put secret/monitoring/grafana \
@@ -676,16 +690,20 @@ vault kv put secret/monitoring/smtp \
   username="$(op read 'op://Kubernetes/iCloud SMTP/username')" \
   password="$(op read 'op://Kubernetes/iCloud SMTP/password')"
 
+# monitoring/discord-webhooks (Alertmanager channels — seeded now, ExternalSecret migration in Phase 5)
+vault kv put secret/monitoring/discord-webhooks \
+  incidents="$(op read 'op://Kubernetes/Discord Webhooks/incidents')" \
+  apps="$(op read 'op://Kubernetes/Discord Webhooks/apps')" \
+  infra="$(op read 'op://Kubernetes/Discord Webhooks/infra')" \
+  versions="$(op read 'op://Kubernetes/Discord Webhooks/versions')" \
+  speedtest="$(op read 'op://Kubernetes/Discord Webhooks/speedtest')"
+
 echo ""
 echo "=== Verification ==="
 vault kv list secret/
 echo ""
 echo "Seed complete. Verify paths above match expected structure."
 ```
-
-> **Note:** The Homepage section shows 16 fields above (not 31). The actual field count will be
-> determined during implementation by reading the existing `homepage-secrets` K8s Secret. The
-> seed script will be regenerated with the exact fields at that time.
 
 ### Raft Snapshot CronJob
 
@@ -698,9 +716,9 @@ Key design:
 - Retention: 7 files maximum
 
 Requires:
-- `ServiceAccount` + `ClusterRoleBinding` (vault namespace)
+- `ServiceAccount` in vault namespace (no K8s RBAC needed — Vault policy handles authorization)
 - Vault `snapshot-policy` + role binding (configured in Task 4.29.5 above)
-- NFS PVC pointing to `10.10.30.4:/export/Kubernetes/vault-snapshots`
+- NFS PV + PVC pointing to `10.10.30.4:/export/Kubernetes/vault-snapshots`
 
 ### ClusterSecretStore (`manifests/vault/clustersecretstore.yaml`)
 
@@ -726,7 +744,7 @@ spec:
 
 ### ExternalSecret Patterns
 
-**All ExternalSecrets use `apiVersion: external-secrets.io/v1` (stable, ESO 1.x)**
+**All ExternalSecrets use `apiVersion: external-secrets.io/v1` (stable, unchanged in ESO 2.x)**
 
 **Single field:**
 ```yaml
@@ -746,8 +764,16 @@ spec:
         key: homepage/secrets   # pulls ALL fields as K8s Secret keys
 ```
 
-Use `dataFrom.extract` for homepage (31 fields), karakeep, invoicetron, atuin, ghost.
-Use `data` for cloudflare (1 field) and arr-stack (explicit field naming).
+Use `dataFrom.extract` for homepage (31 fields), karakeep, atuin — where all Vault fields
+map 1:1 to K8s Secret keys.
+Use `data` with explicit field mapping for cloudflare, arr-stack, cert-manager, browser,
+monitoring, kube-system, gitlab, gitlab-runner, invoicetron, and ghost — where field naming
+needs control or multiple K8s Secrets are created from separate Vault paths.
+
+> **Atuin note:** Vault field names must match K8s Secret key names exactly (`POSTGRES_USER`,
+> `POSTGRES_PASSWORD`, `POSTGRES_DB`, `ATUIN_DB_URI`) because `dataFrom.extract` maps Vault
+> field names 1:1 to K8s Secret keys. The 1Password field names differ (e.g., `db-username`)
+> so the seed script translates them.
 
 ### Migration Sequence (per namespace)
 
