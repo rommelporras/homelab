@@ -586,17 +586,6 @@ kubectl-homelab -n longhorn-system patch settings orphan-resource-auto-deletion 
 
 ## Final: Commit and Release
 
-- [ ] Commit changes
-  ```bash
-  /commit
-  ```
-
-- [ ] Release v0.28.2
-  ```bash
-  /release v0.28.2 'Cluster Janitor + Discord Notification Restructure'
-  ```
-
-- [ ] Move this file to completed folder
-  ```bash
-  mv docs/todo/phase-4.31-cluster-janitor.md docs/todo/completed/
-  ```
+- [x] Commit changes — committed `157f6e5` + follow-up fixes
+- [x] Release v0.28.2 — tagged and released
+- [x] Move this file to completed folder
