@@ -4,11 +4,71 @@
 > **Target:** v0.32.0
 > **Prerequisite:** Phase 5.1 (v0.31.0 — network policies in place)
 > **DevOps Topics:** Resource management, disaster recovery, operational resilience
-> **CKA Topics:** ResourceQuota, LimitRange, PodDisruptionBudget, Velero, tolerations
+> **CKA Topics:** ResourceQuota, LimitRange, PodDisruptionBudget, Velero, tolerations, etcd backup
 
 > **Purpose:** Survive node failures, recover from disasters, prevent resource exhaustion
 >
 > **Learning Goal:** Kubernetes resource management and backup/restore strategies
+
+---
+
+## Pre-Work: Cluster Health Baseline
+
+> **Why:** Start from a clean state. Stale pods and existing configurations affect planning.
+
+- [ ] 5.2.0.1 Fix existing warning events (clean baseline before hardening)
+  **Current Headlamp warnings (high event counts):**
+  | Pod | Namespace | Issue | Root Cause |
+  |-----|-----------|-------|------------|
+  | `gitlab-runner-*` | gitlab-runner | FailedMount: "non-existent secret key: runner-secret, runner-token" | ESO ExternalSecret has wrong `remoteRef` paths, or Vault item missing fields |
+  | `ghost-*` | ghost-dev | Readiness probe: 301 Moved Permanently (77 events) | Probe hits HTTP but Ghost redirects to HTTPS. Fix: `scheme: HTTPS` or path that doesn't redirect |
+  | `ghost-*` | ghost-prod | Same readiness probe 301 redirect (77 events) | Same fix as ghost-dev |
+  | `prometheus-*` | monitoring | Readiness/liveness probe timeout | `timeoutSeconds` too short or resource pressure |
+  | `grafana-*` | monitoring | Stuck in Init:0/1 for hours | Stale pod from failed rollout — delete and let ReplicaSet recreate |
+
+  Fix each before proceeding — these mask real issues in event logs.
+
+- [ ] 5.2.0.2 Clean up stale pods
+  ```bash
+  # Check for stuck pods (Init, CrashLoopBackOff, etc.)
+  kubectl-homelab get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded
+  # Resolve any stuck pods before starting resilience work
+  ```
+
+- [ ] 5.2.0.2 Inventory existing PodDisruptionBudgets
+  ```bash
+  kubectl-homelab get pdb -A
+  ```
+  **Current state (13 PDBs already exist):**
+  | Namespace | PDBs | Details |
+  |-----------|------|---------|
+  | gitlab | 7 | gitaly, gitlab-pages, kas, minio, redis, webservice, sidekiq |
+  | longhorn-system | 5 | csi-attacher, csi-provisioner, csi-resizer, csi-snapshotter, admission-webhook |
+  | cloudflare | 1 | cloudflared |
+
+- [ ] 5.2.0.3 Inventory existing resource limits
+  ```bash
+  # Pods WITHOUT limits (the actual gaps)
+  kubectl-homelab get pods -A -o json | jq -r '
+    .items[] | select(.status.phase=="Running") |
+    select(.spec.containers[] | .resources.limits == null) |
+    .metadata.namespace + "/" + .metadata.name
+  '
+  ```
+  **Known gaps (most manifest workloads already have limits):**
+  | Category | Without Limits |
+  |----------|---------------|
+  | Helm-managed | cert-manager (3 pods), external-secrets (3 pods), GitLab sidecars (config-reloader, exporter, etc.) |
+  | System | All kube-system pods, all longhorn-system pods, cilium agent/operator |
+  | Manifest | Minimal gaps — most already set in prior phases |
+
+- [ ] 5.2.0.4 Check node memory overcommit
+  ```bash
+  kubectl-homelab describe nodes | grep -A5 "Allocated resources"
+  ```
+  **Known issue:** Nodes are at 115-175% memory overcommit on limits. This means under
+  full load, OOMKiller will intervene. Adding limits to currently-unlimited pods will
+  increase overcommit further. Plan limit values carefully.
 
 ---
 
@@ -17,7 +77,25 @@
 > **Why:** Without limits, one misbehaving pod can starve an entire node.
 > Pods without limits also can't be evicted by priority — kubelet kills them randomly under pressure.
 
-- [ ] 5.2.1.1 Audit current resource usage
+> **IMPORTANT:** Most manifest workloads already have resource limits from prior phases.
+> This section focuses on the actual gaps: Helm-managed sidecars, system components,
+> and fixing incorrectly-sized limits.
+
+### Limit Sizing Strategy
+
+| Workload Type | Memory Limit | CPU Limit | QoS Class |
+|--------------|-------------|-----------|-----------|
+| Stateless apps (Ghost, Portfolio, Homepage) | 1.5-2x observed usage | 2x observed usage | Burstable |
+| Databases (PostgreSQL, MySQL) | 4x shared_buffers/buffer_pool_size | requests == limits | **Guaranteed** |
+| Sidecars (config-reloader, exporter) | 128-256Mi | 100-200m | Burstable |
+| Queue/cache (Redis, Sidekiq) | 2x observed + headroom for spikes | requests == limits | **Guaranteed** |
+
+> **Why Guaranteed QoS for databases:** Databases allocate memory upfront (shared_buffers).
+> Burstable QoS means kubelet can reclaim memory under pressure, causing OOMKill during
+> query spikes. With Guaranteed (requests == limits), the scheduler accounts for the full
+> allocation and kubelet won't reclaim it.
+
+- [ ] 5.2.1.1 Audit current resource usage and gaps
   ```bash
   kubectl-homelab top nodes
   kubectl-homelab top pods -A --sort-by=memory
@@ -28,71 +106,82 @@
     select(.spec.containers[] | .resources.limits == null) |
     .metadata.namespace + "/" + .metadata.name
   '
+
+  # Check current OOMKilled pods
+  kubectl-homelab get pods -A -o json | jq -r '
+    .items[] |
+    select(.status.containerStatuses[]?.lastState.terminated.reason == "OOMKilled") |
+    .metadata.namespace + "/" + .metadata.name +
+    " (limit: " + (.spec.containers[0].resources.limits.memory // "none") + ")"
+  '
   ```
 
-- [ ] 5.2.1.2 Set resource requests/limits on all manifest workloads
-  - Review actual usage from `kubectl top` and set limits at ~2x observed usage
-  - Every Deployment/StatefulSet in `manifests/` should have `resources` block
-  - Include: adguard, homepage, myspeed, ghost (dev+prod), invoicetron (dev+prod),
-    portfolio, browser, uptime-kuma, karakeep, cloudflared, arr-stack apps, atuin
-
-- [ ] 5.2.1.3 Set resource limits in Helm values for Helm-managed workloads
-  - Review `helm/*/values.yaml` for any components missing limits
-  - ESO limits already set in Phase 5.0
-
-- [ ] 5.2.1.4 Verify no pods are OOMKilled or throttled after applying limits
+- [ ] 5.2.1.2 Fix known OOMKill: bazarr limit too tight
   ```bash
-  # Check for OOMKilled
+  # bazarr: 256Mi limit, observed 227Mi (88% utilization) → OOMKilled
+  # Increase to 512Mi to give proper headroom
+  ```
+  - Update `manifests/arr-stack/bazarr/deployment.yaml` memory limit: 256Mi → 512Mi
+  - This is a **live issue** — fix before proceeding with other limit changes
+
+- [ ] 5.2.1.3 Set resource limits on Helm-managed workloads missing limits
+  - cert-manager: set in `helm/cert-manager/values.yaml`
+    ```yaml
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits: { cpu: 200m, memory: 256Mi }
+    # Also set for cainjector and webhook sub-components
+    ```
+  - external-secrets: limits already set in Phase 5.0 — verify they're applied
+  - GitLab sidecars: review `helm/gitlab/values.yaml` for config-reloader, exporter containers
+  - Review `helm/*/values.yaml` for any other components missing limits
+
+- [ ] 5.2.1.4 Set resource limits on remaining manifest workloads without limits
+  - Cross-reference the audit from 5.2.1.1 against manifests
+  - Only modify workloads that actually lack limits (don't re-set existing ones)
+  - Use the sizing strategy table above (stateless vs database vs sidecar)
+
+- [ ] 5.2.1.5 Verify no pods are OOMKilled or throttled after applying limits
+  ```bash
+  # Check for OOMKilled (wait 24-48h after applying)
   kubectl-homelab get pods -A -o json | jq -r '
     .items[] |
     select(.status.containerStatuses[]?.lastState.terminated.reason == "OOMKilled") |
     .metadata.namespace + "/" + .metadata.name
   '
 
-  # Check for CPU throttling
-  # (CPUThrottlingHigh alert should not fire for non-excluded namespaces)
+  # Check for CPU throttling via Prometheus
+  # Query: rate(container_cpu_cfs_throttled_periods_total[5m]) / rate(container_cpu_cfs_periods_total[5m]) > 0.25
+  # If >25% throttled, increase CPU limit
   ```
 
----
-
-## 5.2.2 Resource Quotas
-
-> **CKA Topic:** ResourceQuota prevents namespace-level resource exhaustion
-
-- [ ] 5.2.2.1 Create ResourceQuota for invoicetron namespaces (template)
-  ```yaml
-  apiVersion: v1
-  kind: ResourceQuota
-  metadata:
-    name: resource-quota
-    namespace: invoicetron-prod
-  spec:
-    hard:
-      requests.cpu: "2"
-      requests.memory: 4Gi
-      limits.cpu: "4"
-      limits.memory: 8Gi
-      pods: "10"
-      persistentvolumeclaims: "5"
-  ```
-
-- [ ] 5.2.2.2 Apply quotas to other application namespaces
-  - Adapt limits based on actual usage per namespace
-  - Start with app namespaces (ghost, invoicetron, portfolio)
-  - Don't quota system namespaces (monitoring, kube-system)
-
-- [ ] 5.2.2.3 Verify quotas are enforced
+- [ ] 5.2.1.6 Assess node overcommit after all limits applied
   ```bash
-  kubectl-homelab describe resourcequota -A
+  kubectl-homelab describe nodes | grep -A5 "Allocated resources"
+  # If any node exceeds 150% memory overcommit, reduce non-critical limits
+  # Priority order for reduction: dev namespaces > sidecars > stateless apps
   ```
+
+> **Note on system namespaces:** kube-system, longhorn-system, and cilium pods are managed
+> by kubeadm/Helm operators. Setting limits on these requires careful testing — a
+> kube-apiserver OOMKill takes down the control plane. Defer system namespace limits
+> to a separate evaluation after all application limits are stable.
 
 ---
 
-## 5.2.3 LimitRange Defaults
+## 5.2.2 LimitRange Defaults
 
 > **CKA Topic:** LimitRange sets default requests/limits for pods that don't specify them — safety net for missed workloads
 
-- [ ] 5.2.3.1 Create LimitRange for application namespaces
+> **CRITICAL: Deploy LimitRange BEFORE or AT THE SAME TIME as ResourceQuota.**
+> Once a ResourceQuota exists, ALL new pods MUST have resource requests/limits.
+> Without LimitRange, any pod missing explicit limits will fail to schedule.
+> LimitRange provides the defaults that satisfy the quota requirement.
+
+> **Note:** LimitRange only applies to NEW pods. Existing pods are NOT retroactively updated.
+> Restart existing pods after applying LimitRange if they need the defaults.
+
+- [ ] 5.2.2.1 Create LimitRange for application namespaces
   ```yaml
   apiVersion: v1
   kind: LimitRange
@@ -110,12 +199,17 @@
         type: Container
   ```
 
-- [ ] 5.2.3.2 Apply LimitRange to all application namespaces
-  - Same namespaces as ResourceQuotas (ghost, invoicetron, portfolio, arr-stack, etc.)
-  - Adjust defaults based on namespace workload profile
-  - Don't apply to system namespaces (monitoring, kube-system)
+- [ ] 5.2.2.2 Apply LimitRange to all application namespaces
+  - Namespaces to cover: ghost-prod, ghost-dev, invoicetron-prod, invoicetron-dev,
+    portfolio-prod, portfolio-dev, portfolio-staging, arr-stack, home, atuin,
+    karakeep, ai, uptime-kuma
+  - Adjust defaults based on namespace workload profile:
+    - arr-stack: higher defaults (media apps use more memory)
+    - portfolio-dev/staging: lower defaults (dev workloads)
+  - Don't apply to: monitoring, kube-system, longhorn-system, vault,
+    external-secrets, cert-manager, gitlab (Helm-managed — limits set in values)
 
-- [ ] 5.2.3.3 Verify defaults are applied to new pods
+- [ ] 5.2.2.3 Verify defaults are applied to new pods
   ```bash
   # Deploy a pod without resource specs and check it gets defaults
   kubectl-homelab run test --rm -it --image=busybox -n invoicetron-prod -- sh -c "exit 0"
@@ -124,77 +218,476 @@
 
 ---
 
-## 5.2.4 Velero Backup & Restore
+## 5.2.3 Resource Quotas
+
+> **CKA Topic:** ResourceQuota prevents namespace-level resource exhaustion
+
+> **Prerequisite:** LimitRange (5.2.2) must be deployed first. Without LimitRange defaults,
+> pods without explicit resource specs will be rejected by the quota admission controller.
+
+- [ ] 5.2.3.1 Audit actual namespace resource usage
+  ```bash
+  # Per-namespace resource consumption
+  for ns in ghost-prod invoicetron-prod portfolio-prod arr-stack home atuin karakeep; do
+    echo "=== $ns ==="
+    kubectl-homelab top pods -n $ns --no-headers 2>/dev/null | awk '{cpu+=$2; mem+=$3} END {print "CPU: "cpu"m, Memory: "mem"Mi"}'
+  done
+  ```
+  Validate quota values against actual usage — don't use arbitrary numbers.
+
+- [ ] 5.2.3.2 Create ResourceQuota for application namespaces
+  ```yaml
+  # Template — adjust per namespace based on audit results
+  apiVersion: v1
+  kind: ResourceQuota
+  metadata:
+    name: resource-quota
+    namespace: invoicetron-prod
+  spec:
+    hard:
+      requests.cpu: "2"
+      requests.memory: 4Gi
+      limits.cpu: "4"
+      limits.memory: 8Gi
+      pods: "10"
+      persistentvolumeclaims: "5"
+  ```
+  - Set quota at ~1.5x current namespace total usage to allow headroom for scaling
+  - Start with: ghost-prod, invoicetron-prod, portfolio-prod, arr-stack
+  - Then: home, atuin, karakeep, ai, uptime-kuma
+  - Don't quota: monitoring, kube-system, longhorn-system, vault, external-secrets,
+    cert-manager, gitlab (system/infra namespaces need flexibility)
+
+- [ ] 5.2.3.3 Verify quotas are enforced
+  ```bash
+  kubectl-homelab describe resourcequota -A
+  # Check that "Used" values don't exceed "Hard" limits
+  # If any namespace is >80% of quota, increase the quota
+  ```
+
+---
+
+## 5.2.4 Backup Strategy
 
 > **Purpose:** Recover from accidental deletion, corruption, or node failure
 
-### What Velero Backs Up
+### Backup Architecture Decision
 
-| Resource | Included | Notes |
-|----------|----------|-------|
-| K8s manifests | Yes | Deployments, Services, ConfigMaps, Secrets |
-| PVC data | Yes (with restic/kopia) | Requires annotation |
-| etcd | No | Use kubeadm snapshot for etcd |
+| Layer | Tool | What it backs up | Target |
+|-------|------|-----------------|--------|
+| **Volume data** | Longhorn native backup | PVC data (efficient block-level) | NFS on NAS |
+| **K8s resources** | Velero + MinIO | Deployments, Services, ConfigMaps, Secrets, CRDs | MinIO on NFS PVC |
+| **etcd** | CronJob + etcdctl | Cluster state (the most critical backup) | NFS on NAS |
 
-- [ ] 5.2.4.1 Add Velero Helm repo
+> **Why this split?**
+> - Velero does NOT natively support NFS as a BackupStorageLocation — it requires an
+>   S3-compatible API. MinIO provides that API backed by NFS storage.
+> - Longhorn native backup is more efficient than Velero FSB for volume data —
+>   block-level incremental vs file-level copy.
+> - etcd is NOT backed up by Velero — it requires separate `etcdctl snapshot save`.
+> - Kopia is the only FSB engine (restic was deprecated in Velero v1.14, removed in v1.15).
+
+### 5.2.4a Longhorn Volume Backups
+
+- [ ] 5.2.4.1 Create NFS backup target directory on NAS
+  ```bash
+  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
+    sudo mkdir -p /tmp/nfs/longhorn && sudo umount /tmp/nfs"
+  ```
+
+- [ ] 5.2.4.2 Configure Longhorn backup target
+  ```bash
+  # Set backup target in Longhorn settings
+  kubectl-homelab -n longhorn-system edit settings backup-target
+  # Set to: nfs://10.10.30.4:/Kubernetes/Backups/longhorn
+  ```
+
+- [ ] 5.2.4.3 Create Longhorn RecurringJob for automated backups
+  ```yaml
+  apiVersion: longhorn.io/v1beta2
+  kind: RecurringJob
+  metadata:
+    name: daily-backup
+    namespace: longhorn-system
+  spec:
+    cron: "0 19 * * *"     # 03:00 Manila time (UTC+8)
+    task: backup
+    retain: 30              # 30 daily backups
+    concurrency: 2
+    groups:
+      - default             # Applies to all volumes in default group
+  ```
+
+- [ ] 5.2.4.4 Create weekly RecurringJob for longer retention
+  ```yaml
+  apiVersion: longhorn.io/v1beta2
+  kind: RecurringJob
+  metadata:
+    name: weekly-backup
+    namespace: longhorn-system
+  spec:
+    cron: "0 19 * * 0"     # Sunday 03:00 Manila time
+    task: backup
+    retain: 12              # 12 weekly backups (~3 months)
+    concurrency: 2
+    groups:
+      - default
+  ```
+
+- [ ] 5.2.4.5 Test Longhorn backup and restore
+  ```bash
+  # Trigger manual backup of a non-critical volume
+  # Via Longhorn UI or CLI: create backup of portfolio-prod PVC
+
+  # Test restore:
+  # 1. Create a new PVC from backup
+  # 2. Mount it in a test pod
+  # 3. Verify data integrity
+  # 4. Clean up test resources
+  ```
+
+### 5.2.4b Velero for K8s Resource Backup
+
+- [ ] 5.2.4.6 Deploy MinIO as S3 backend for Velero
+  ```bash
+  # Create NFS PV/PVC for MinIO storage
+  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
+    sudo mkdir -p /tmp/nfs/velero-minio && sudo umount /tmp/nfs"
+
+  kubectl-homelab create namespace velero
+  # Deploy MinIO (Helm or manifest) with NFS-backed PVC
+  # MinIO provides the S3 API that Velero requires
+  ```
+
+- [ ] 5.2.4.7 Add Velero Helm repo and create values
   ```bash
   helm-homelab repo add vmware-tanzu https://vmware-tanzu.github.io/helm-charts --force-update
   helm-homelab repo update
   ```
-
-- [ ] 5.2.4.2 Create NFS backup location on NAS
-  ```bash
-  # Create backup directory via NFS mount from a k8s node
-  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
-    sudo mkdir -p /tmp/nfs/velero && sudo umount /tmp/nfs"
-  ```
-
-- [ ] 5.2.4.3 Create `helm/velero/values.yaml`
   ```yaml
-  # Configure: NFS filesystem provider, node agent for PVC backup,
-  # backup storage location pointing to NAS, snapshots disabled
-  # (Longhorn handles volume snapshots separately)
+  # helm/velero/values.yaml
+  configuration:
+    backupStorageLocation:
+      - name: default
+        provider: aws           # MinIO is S3-compatible
+        bucket: velero
+        config:
+          region: minio
+          s3ForcePathStyle: true
+          s3Url: http://minio.velero.svc:9000
+    volumeSnapshotLocation: []  # Longhorn handles volume snapshots
+    defaultSnapshotsEnabled: false
+    uploaderType: kopia          # Kopia only — restic is deprecated
+
+  initContainers:
+    - name: velero-plugin-for-aws
+      image: velero/velero-plugin-for-aws:v1.11.0  # Pin version
+      volumeMounts:
+        - mountPath: /target
+          name: plugins
+
+  deployNodeAgent: true          # Required for Kopia FSB
+  nodeAgent:
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { cpu: 500m, memory: 1Gi }
+
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
   ```
 
-- [ ] 5.2.4.4 Install Velero with NFS backend
+- [ ] 5.2.4.8 Install Velero
   ```bash
-  kubectl-homelab create namespace velero
-
   helm-homelab install velero vmware-tanzu/velero \
     --namespace velero \
     --values helm/velero/values.yaml
   ```
 
-- [ ] 5.2.4.5 Create scheduled backup
+- [ ] 5.2.4.9 Create scheduled backup for K8s resources
   ```bash
-  # Daily backup at 03:00 Manila time, retain 7 days
-  velero schedule create daily-backup \
+  # Daily backup at 03:30 Manila time (staggered from Longhorn at 03:00)
+  # Retain 30 days (not 7 — corruption may not be noticed for weeks)
+  velero schedule create daily-k8s-backup \
     --schedule="0 19 * * *" \
-    --ttl 168h \
-    --include-namespaces portfolio-prod,invoicetron-prod,ghost-prod,home,monitoring,arr-stack,atuin,karakeep
+    --ttl 720h \
+    --include-namespaces portfolio-prod,portfolio-dev,portfolio-staging,invoicetron-prod,invoicetron-dev,ghost-prod,ghost-dev,home,monitoring,arr-stack,atuin,karakeep,ai,uptime-kuma,vault,cloudflare,external-secrets \
+    --default-volumes-to-fs-backup=false
   ```
+  > **Note:** `--default-volumes-to-fs-backup=false` because Longhorn handles volume
+  > backup natively. Velero only backs up K8s resource manifests here.
 
-- [ ] 5.2.4.6 Test backup
+- [ ] 5.2.4.10 Test Velero backup and restore
   ```bash
-  velero backup create test-backup --include-namespaces portfolio-prod
-  velero backup describe test-backup
+  velero backup create test-backup --include-namespaces portfolio-dev
+  velero backup describe test-backup --details
   velero backup logs test-backup
   ```
 
-- [ ] 5.2.4.7 Test restore
+### 5.2.4c etcd Backup
+
+> **CRITICAL:** etcd contains ALL cluster state. Losing etcd = rebuild from scratch.
+> Neither Velero nor Longhorn backs up etcd. This needs a separate solution.
+
+- [ ] 5.2.4.11 Create NFS directory for etcd backups
   ```bash
-  # Backup first, then delete and restore
-  velero restore create --from-backup test-backup
-  kubectl-homelab get deployment -n portfolio-prod
+  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
+    sudo mkdir -p /tmp/nfs/etcd && sudo umount /tmp/nfs"
+  ```
+
+- [ ] 5.2.4.12 Create etcd backup CronJob
+  ```yaml
+  # The etcd backup must run ON the control plane node (needs access to etcd certs)
+  # Option A: CronJob with hostPath mount to etcd PKI
+  # Option B: Ansible cron task on cp1 running etcdctl snapshot save
+  #
+  # CronJob approach (runs in-cluster):
+  apiVersion: batch/v1
+  kind: CronJob
+  metadata:
+    name: etcd-backup
+    namespace: kube-system
+  spec:
+    schedule: "30 19 * * *"       # 03:30 Manila time
+    jobTemplate:
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              node-role.kubernetes.io/control-plane: ""
+            tolerations:
+              - key: node-role.kubernetes.io/control-plane
+                effect: NoSchedule
+            containers:
+              - name: etcd-backup
+                image: registry.k8s.io/etcd:3.5.16-0  # Match cluster etcd version
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    BACKUP_FILE="/backup/etcd-$(date +%Y%m%d-%H%M%S).db"
+                    etcdctl snapshot save "$BACKUP_FILE" \
+                      --endpoints=https://127.0.0.1:2379 \
+                      --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+                      --cert=/etc/kubernetes/pki/etcd/server.crt \
+                      --key=/etc/kubernetes/pki/etcd/server.key
+                    etcdctl snapshot status "$BACKUP_FILE" --write-table
+                    # Prune backups older than 30 days
+                    find /backup -name "etcd-*.db" -mtime +30 -delete
+                volumeMounts:
+                  - name: etcd-certs
+                    mountPath: /etc/kubernetes/pki/etcd
+                    readOnly: true
+                  - name: backup
+                    mountPath: /backup
+            volumes:
+              - name: etcd-certs
+                hostPath:
+                  path: /etc/kubernetes/pki/etcd
+              - name: backup
+                nfs:
+                  server: 10.10.30.4
+                  path: /Kubernetes/Backups/etcd
+            restartPolicy: OnFailure
+  ```
+
+- [ ] 5.2.4.13 Test etcd backup and document restore procedure
+  ```bash
+  # Verify backup was created
+  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
+    ls -la /tmp/nfs/etcd/ && sudo umount /tmp/nfs"
+
+  # Document restore procedure (DO NOT test on live cluster):
+  # 1. Stop kube-apiserver (move manifest from /etc/kubernetes/manifests/)
+  # 2. etcdctl snapshot restore <backup-file> --data-dir=/var/lib/etcd-restored
+  # 3. Replace /var/lib/etcd with restored data
+  # 4. Restart etcd and kube-apiserver
+  # 5. Verify cluster state: kubectl get nodes, kubectl get pods -A
+  ```
+
+### 5.2.4d Restore Drill Procedure
+
+> **Why:** A backup that hasn't been tested is not a backup. Run this drill quarterly.
+
+- [ ] 5.2.4.14 Document full restore drill
+  ```
+  Drill Procedure (use portfolio-dev as test target):
+
+  1. Pre-drill: Verify backup exists and is recent
+     velero backup describe daily-k8s-backup-<latest>
+     # Check Longhorn backup status in UI
+
+  2. Simulate disaster: Delete the namespace
+     kubectl-homelab delete namespace portfolio-dev
+     # Wait for all resources to be removed
+
+  3. Restore K8s resources from Velero
+     velero restore create drill-restore --from-backup daily-k8s-backup-<latest> \
+       --include-namespaces portfolio-dev
+     velero restore describe drill-restore --details
+
+  4. Restore volume data from Longhorn backup
+     # Via Longhorn UI: restore PVC from latest backup
+     # Verify the PVC is bound and data is present
+
+  5. Verify application health
+     kubectl-homelab get pods -n portfolio-dev
+     kubectl-homelab get pvc -n portfolio-dev
+     # Access the application and verify data integrity
+
+  6. Document results
+     - Restore time (K8s resources + volume data)
+     - Any manual steps required
+     - Data integrity check results
+
+  Expected restore time: 5-15 minutes for small namespaces
   ```
 
 ---
 
-## 5.2.5 Pod Eviction Timing
+## 5.2.5 Backup Monitoring & Alerting
+
+> **Why:** A backup that silently fails is worse than no backup — false sense of security.
+
+- [ ] 5.2.5.1 Add Prometheus alerts for backup health
+  ```yaml
+  # manifests/monitoring/alerts/backup-alerts.yaml
+  apiVersion: monitoring.coreos.com/v1
+  kind: PrometheusRule
+  metadata:
+    name: backup-alerts
+    namespace: monitoring
+  spec:
+    groups:
+      - name: backup.rules
+        rules:
+          - alert: VeleroBackupFailed
+            expr: velero_backup_failure_total > velero_backup_success_total
+            for: 1h
+            labels:
+              severity: critical
+            annotations:
+              summary: "Velero backup failures exceed successes"
+
+          - alert: VeleroBackupStale
+            expr: time() - velero_backup_last_successful_timestamp > 129600
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "No successful Velero backup in 36 hours"
+
+          - alert: LonghornBackupFailed
+            expr: longhorn_backup_state{state="Error"} > 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Longhorn volume backup in error state"
+
+          - alert: ResourceQuotaNearLimit
+            expr: |
+              kube_resourcequota{type="used"} / kube_resourcequota{type="hard"} > 0.85
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Namespace {{ $labels.namespace }} using >85% of resource quota"
+  ```
+
+- [ ] 5.2.5.2 Add etcd backup age alert
+  ```yaml
+  # Check via file age on NFS or a custom exporter
+  # If etcd backup CronJob hasn't succeeded in 36 hours → critical
+  - alert: EtcdBackupStale
+    expr: |
+      time() - kube_cronjob_status_last_successful_time{cronjob="etcd-backup",namespace="kube-system"} > 129600
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: "No successful etcd backup in 36 hours"
+  ```
+
+- [ ] 5.2.5.3 Add stuck pod alerts
+  ```yaml
+  # manifests/monitoring/alerts/stuck-pod-alerts.yaml
+  # Catches pods the cluster-janitor doesn't handle (it only cleans Failed pods)
+  apiVersion: monitoring.coreos.com/v1
+  kind: PrometheusRule
+  metadata:
+    name: stuck-pod-alerts
+    namespace: monitoring
+    labels:
+      release: prometheus
+  spec:
+    groups:
+      - name: stuck-pods
+        rules:
+          # Pod stuck in Init for >30 minutes (e.g., Grafana Init:0/1 stale pod)
+          - alert: PodStuckInInit
+            expr: |
+              sum by (namespace, pod) (
+                kube_pod_init_container_status_waiting{reason="CrashLoopBackOff"} == 1
+                or
+                (kube_pod_init_container_status_running == 1
+                 and on(namespace, pod) kube_pod_status_phase{phase="Pending"} == 1)
+              ) > 0
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} stuck in Init for >30m"
+              description: "Init container is not completing. Check events: kubectl describe pod {{ $labels.pod }} -n {{ $labels.namespace }}"
+
+          # Pod stuck Pending for >15 minutes (scheduling failure, PVC not bound, etc.)
+          - alert: PodStuckPending
+            expr: |
+              kube_pod_status_phase{phase="Pending"} == 1
+              unless on(namespace, pod) kube_pod_init_container_status_running == 1
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} stuck Pending for >15m"
+              description: "Pod cannot be scheduled. Check events and resource availability."
+
+          # CrashLoopBackOff for >1 hour (escalation beyond kube-prometheus-stack's 15m alert)
+          - alert: PodCrashLoopingExtended
+            expr: |
+              max_over_time(kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff"}[5m]) == 1
+            for: 1h
+            labels:
+              severity: critical
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} crash-looping for >1h"
+              description: "Container {{ $labels.container }} has been in CrashLoopBackOff for over 1 hour. This will not self-heal — investigate root cause."
+
+          # ImagePullBackOff for >15 minutes
+          - alert: PodImagePullBackOff
+            expr: |
+              kube_pod_container_status_waiting_reason{reason="ImagePullBackOff"} == 1
+              or
+              kube_pod_container_status_waiting_reason{reason="ErrImagePull"} == 1
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} ImagePullBackOff for >15m"
+              description: "Image pull failing for container {{ $labels.container }}. Check image name, tag, and registry accessibility."
+  ```
+  > **Why alerts, not janitor cleanup?** Auto-deleting CrashLoop/ImagePull/Pending pods
+  > doesn't fix anything — the controller recreates them and they get stuck again.
+  > These states need human investigation. The janitor correctly handles only `Failed`
+  > pods (terminal state, no controller retry).
+
+---
+
+## 5.2.6 Pod Eviction Timing
 
 > **Problem:** When a node goes down, pods take ~5-6 min to reschedule (300s default toleration).
 
-- [ ] 5.2.5.1 Evaluate reducing tolerationSeconds for stateless services
+- [ ] 5.2.6.1 Set tolerationSeconds for stateless services
   ```yaml
   # Add to stateless Deployments (Ghost, Portfolio, Homepage, etc.):
   spec:
@@ -204,56 +697,70 @@
           - key: "node.kubernetes.io/not-ready"
             operator: "Exists"
             effect: "NoExecute"
-            tolerationSeconds: 30
+            tolerationSeconds: 60
           - key: "node.kubernetes.io/unreachable"
             operator: "Exists"
             effect: "NoExecute"
-            tolerationSeconds: 30
+            tolerationSeconds: 60
   ```
-  - Trade-off: faster failover vs. more pod migrations on transient blips
-  - Only for stateless services — databases should keep 300s (data consistency)
+  > **Why 60s, not 30s:** Your M80q BIOS POST takes 5-7 minutes. A 30s toleration
+  > causes pods to evict on every transient network blip (switch reboot, VLAN
+  > reconfiguration, brief connectivity loss). 60s balances fast failover against
+  > unnecessary pod migrations. The node won't recover in 60s anyway (POST is 5-7min),
+  > so you still get fast rescheduling.
 
-- [ ] 5.2.5.2 Document expected recovery times
+  > **Keep 300s for:** Databases (PostgreSQL, MySQL, Redis), StatefulSets with PVCs,
+  > Vault (seal/unseal is expensive). Data consistency > speed for stateful workloads.
+
+- [ ] 5.2.6.2 Document expected recovery times
   | Phase | Duration |
   |-------|----------|
   | M80q BIOS POST | ~5-7 min |
   | Kubernetes node NotReady detection | ~40s |
   | Pod eviction (default) | 300s |
-  | Pod eviction (tuned) | 30s |
-  | Total worst-case (default) | ~11 min |
-  | Total worst-case (tuned) | ~6.5 min |
+  | Pod eviction (tuned stateless) | 60s |
+  | Pod eviction (databases — keep default) | 300s |
+  | Total worst-case stateless (default) | ~11 min |
+  | Total worst-case stateless (tuned) | ~7 min |
+  | Total worst-case database | ~11 min |
 
 ---
 
-## 5.2.6 OPNsense Stale Firewall States
+## 5.2.7 OPNsense Stale Firewall States
 
 > **Problem:** After node reboot, OPNsense keeps stale TCP states. Cross-VLAN SSH times out
 > until states are manually cleared. Happened on every node reboot.
 
-- [ ] 5.2.6.1 Investigate OPNsense state timeout tuning for K8s VLAN
+- [ ] 5.2.7.1 Investigate OPNsense state timeout tuning for K8s VLAN
   - Current behavior: stale states persist for minutes after node comes back
   - Options: reduce state timeout for VLAN 30, or use adaptive timeouts
 
-- [ ] 5.2.6.2 Evaluate OPNsense API for automated state clearing
+- [ ] 5.2.7.2 Evaluate OPNsense API for automated state clearing
   - Ansible pre/post-reboot task to clear states via OPNsense REST API
   - Would eliminate manual intervention during rolling reboots
 
 ---
 
-## 5.2.7 GitLab HA Evaluation
+## 5.2.8 GitLab HA Evaluation
 
 > **Problem:** GitLab webservice is single-replica. Node reboot takes down container registry,
 > causing ImagePullBackOff cascade for invoicetron and portfolio.
 
-- [ ] 5.2.7.1 Assess memory budget for 2 replicas
+- [ ] 5.2.8.1 Assess memory budget for 2 replicas
   ```bash
   kubectl-homelab top pods -n gitlab --sort-by=memory
-  # Each webservice replica uses ~2-3GB RAM
-  # Total cluster RAM: 3 x 16GB = 48GB
-  # Current usage: check if headroom exists
+  # Actual: webservice pod uses ~2214Mi
+  # Adding a second replica = +2.2GB memory allocation
+  # With nodes already at 115-175% memory overcommit on limits,
+  # this needs careful evaluation
   ```
+  **Decision criteria:**
+  - If any node has <4GB allocatable memory remaining → don't scale
+  - If scaling would push overcommit >200% → don't scale
+  - Alternative: pre-pull images to local containerd cache (mitigates ImagePullBackOff
+    without adding memory pressure)
 
-- [ ] 5.2.7.2 If feasible: scale webservice + registry to 2 replicas
+- [ ] 5.2.8.2 If feasible: scale webservice + registry to 2 replicas
   ```yaml
   # helm/gitlab/values.yaml
   gitlab:
@@ -263,15 +770,16 @@
       replicas: 2
   ```
   - Add podAntiAffinity to spread replicas across nodes
+  - Monitor memory pressure for 48h after scaling
 
 ---
 
-## 5.2.8 Longhorn Remaining Items
+## 5.2.9 Longhorn Remaining Items
 
-- [x] 5.2.8.1 ~~`node-down-pod-deletion-policy`~~ — **Done in v0.28.2**
-- [x] 5.2.8.2 ~~`orphan-resource-auto-deletion`~~ — **Done in v0.28.2**
+- [x] 5.2.9.1 ~~`node-down-pod-deletion-policy`~~ — **Done in v0.28.2**
+- [x] 5.2.9.2 ~~`orphan-resource-auto-deletion`~~ — **Done in v0.28.2**
 
-- [ ] 5.2.8.3 Document manual recovery procedure for stuck stopped replicas
+- [ ] 5.2.9.3 Document manual recovery procedure for stuck stopped replicas
   ```bash
   # 1. Identify stopped replicas
   kubectl-homelab -n longhorn-system get replicas.longhorn.io \
@@ -290,7 +798,7 @@
   kubectl-homelab -n longhorn-system get volumes.longhorn.io -w
   ```
 
-- [ ] 5.2.8.4 Verify `replica-soft-anti-affinity` is `false`
+- [ ] 5.2.9.4 Verify `replica-soft-anti-affinity` is `false`
   ```bash
   kubectl-homelab -n longhorn-system get settings replica-soft-anti-affinity -o jsonpath='{.value}'
   # Must be: false
@@ -298,13 +806,16 @@
 
 ---
 
-## 5.2.9 PodDisruptionBudgets
+## 5.2.10 PodDisruptionBudgets
 
 > **CKA Topic:** PDBs prevent voluntary disruptions (drain, upgrade) from killing too many pods at once
 
 Without PDBs, `kubectl drain` or a rolling upgrade can terminate all replicas of a service simultaneously. PDBs enforce a minimum availability guarantee during voluntary disruptions.
 
-- [ ] 5.2.9.1 Add PDBs for services with 2+ replicas
+> **Existing PDBs (13 total):** GitLab (7), Longhorn (5), Cloudflare (1) — already created
+> by their Helm charts. This section adds PDBs for namespaces that don't have them.
+
+- [ ] 5.2.10.1 Add PDBs for services with 2+ replicas
   ```yaml
   apiVersion: policy/v1
   kind: PodDisruptionBudget
@@ -317,28 +828,36 @@ Without PDBs, `kubectl drain` or a rolling upgrade can terminate all replicas of
       matchLabels:
         app: ghost
   ```
-  - Apply to: any Deployment/StatefulSet with replicas >= 2
-  - If GitLab HA is enabled (5.2.7), add PDBs for webservice and registry
+  - Apply to: any Deployment/StatefulSet with replicas >= 2 that doesn't already have a PDB
+  - Check existing PDBs first: `kubectl-homelab get pdb -A`
 
-- [ ] 5.2.9.2 Add PDBs for critical single-replica services
+- [ ] 5.2.10.2 Add PDBs for critical single-replica services
   ```yaml
-  # For single-replica services, use maxUnavailable: 0 during maintenance
-  # This prevents accidental eviction — drain will block until you scale up or remove PDB
+  # For single-replica services, use maxUnavailable: 1 (NOT 0)
+  # maxUnavailable: 0 permanently blocks kubectl drain — operational footgun
+  # maxUnavailable: 1 allows drain while still preventing accidental double-eviction
   apiVersion: policy/v1
   kind: PodDisruptionBudget
   metadata:
     name: vault-pdb
     namespace: vault
   spec:
-    maxUnavailable: 0
+    maxUnavailable: 1
     selector:
       matchLabels:
         app.kubernetes.io/name: vault
   ```
-  - Evaluate for: Vault, Prometheus, Grafana (services where downtime causes cascading alerts)
-  - Trade-off: `maxUnavailable: 0` blocks `kubectl drain` — must remove PDB before maintenance
+  > **Why NOT `maxUnavailable: 0`?** It blocks ALL voluntary disruptions including
+  > `kubectl drain`. During node maintenance, you'd have to delete the PDB first,
+  > then recreate it after — defeating the purpose. `maxUnavailable: 1` on a
+  > single-replica service still prevents eviction during normal operations
+  > (PDB won't allow going below 0 available pods in the case of accidental
+  > concurrent disruptions), but allows planned maintenance via drain.
 
-- [ ] 5.2.9.3 Verify PDBs are respected during drain
+  - Evaluate for: Vault, Prometheus, Grafana, AdGuard
+  - Services that already have Helm-managed PDBs: skip (check with `kubectl-homelab get pdb -A`)
+
+- [ ] 5.2.10.3 Verify PDBs are respected during drain
   ```bash
   kubectl-homelab get pdb -A
   # Test: cordon a node and attempt drain — PDB should block if it would violate budget
@@ -349,34 +868,51 @@ Without PDBs, `kubectl drain` or a rolling upgrade can terminate all replicas of
 
 ---
 
-## 5.2.10 Documentation
+## 5.2.11 Documentation
 
-- [ ] 5.2.10.1 Update VERSIONS.md
+- [ ] 5.2.11.1 Update VERSIONS.md
   ```
-  | Velero | X.X.X | Backup and restore |
+  | Velero | X.X.X | K8s resource backup and restore |
+  | MinIO  | X.X.X | S3-compatible storage for Velero |
   ```
 
-- [ ] 5.2.10.2 Update `docs/context/Security.md` with:
-  - Resource quota strategy
-  - Backup schedule and retention policy
+- [ ] 5.2.11.2 Update `docs/context/Security.md` with:
+  - Resource quota strategy and namespace coverage
+  - Backup architecture (3-layer: Longhorn, Velero, etcd)
+  - Backup schedule, retention policy, and storage locations
   - Recovery time documentation
+  - Restore drill procedure and schedule (quarterly)
 
-- [ ] 5.2.10.3 Update `docs/reference/CHANGELOG.md`
+- [ ] 5.2.11.3 Update `docs/reference/CHANGELOG.md`
 
 ---
 
 ## Verification Checklist
 
+- [ ] Pre-work: existing warning events fixed (GitLab runner mount, Ghost probes, Prometheus probes)
+- [ ] Pre-work: stale pods cleaned up
+- [ ] Pre-work: existing PDBs and resource limits inventoried
+- [ ] bazarr OOMKill fixed (256Mi → 512Mi)
 - [ ] All workload pods have resource requests and limits
-- [ ] ResourceQuotas on application namespaces
-- [ ] LimitRange defaults on application namespaces
-- [ ] Velero installed, NFS backup location accessible
-- [ ] Scheduled backup running daily (includes arr-stack, atuin, karakeep)
-- [ ] Test backup created and restore verified
-- [ ] Pod eviction timing documented and tuned for stateless services
-- [ ] PodDisruptionBudgets on multi-replica and critical services
+- [ ] Node memory overcommit assessed and documented
+- [ ] LimitRange defaults on application namespaces (deployed BEFORE quotas)
+- [ ] ResourceQuotas on application namespaces (validated against actual usage)
+- [ ] Longhorn backup target configured (NFS)
+- [ ] Longhorn RecurringJobs: daily (30 retention) + weekly (12 retention)
+- [ ] Longhorn backup tested and restore verified
+- [ ] MinIO deployed for Velero S3 backend
+- [ ] Velero installed with Kopia FSB engine
+- [ ] Velero scheduled backup running daily (30-day retention, all namespaces)
+- [ ] Velero backup tested and restore verified
+- [ ] etcd backup CronJob running daily
+- [ ] etcd backup tested and restore procedure documented
+- [ ] Restore drill completed on non-prod namespace
+- [ ] Backup health alerts in Prometheus (Velero, Longhorn, etcd, quota)
+- [ ] Stuck pod alerts deployed (Init, Pending, CrashLoop, ImagePull)
+- [ ] Pod eviction timing tuned (60s stateless, 300s databases)
+- [ ] PodDisruptionBudgets on services without existing PDBs
 - [ ] OPNsense state issue investigated (automated or timeout tuned)
-- [ ] GitLab HA evaluated (scaled if memory permits)
+- [ ] GitLab HA evaluated (scaled if memory permits, or image pre-pull alternative)
 - [ ] Longhorn `replica-soft-anti-affinity` confirmed `false`
 - [ ] Stopped replica recovery procedure documented
 
@@ -392,11 +928,36 @@ kubectl-homelab patch deployment <name> -n <ns> \
   --type=json -p='[{"op": "remove", "path": "/spec/template/spec/containers/0/resources/limits"}]'
 ```
 
+**LimitRange/ResourceQuota causing pod scheduling failures:**
+```bash
+# If pods fail to schedule after quota is applied:
+# 1. Check which pods are missing resource specs
+kubectl-homelab get events -n <ns> --sort-by='.lastTimestamp' | grep "forbidden"
+# 2. Either add resource specs to the pod OR temporarily remove the quota
+kubectl-homelab delete resourcequota resource-quota -n <ns>
+# 3. Fix the pod spec, then re-apply quota
+```
+
 **Velero backup fails:**
 ```bash
 kubectl-homelab logs -n velero -l app.kubernetes.io/name=velero
 velero backup describe <name> --details
-# Common: NFS mount permissions, node agent not running
+# Common causes: MinIO unreachable, Kopia node agent not running,
+# insufficient disk space on NFS
+```
+
+**Longhorn backup fails:**
+```bash
+kubectl-homelab -n longhorn-system logs -l app=longhorn-manager --tail=100
+# Common causes: NFS target unreachable, backup target not configured,
+# insufficient space on NAS
+```
+
+**etcd backup CronJob fails:**
+```bash
+kubectl-homelab logs -n kube-system -l job-name=etcd-backup-<timestamp>
+# Common causes: etcd cert path changed, NFS mount failed,
+# etcd version mismatch with etcdctl image
 ```
 
 ---
