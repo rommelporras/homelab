@@ -1,14 +1,14 @@
 # PrometheusRule for Vault + ESO Alerts
 # Phase 4.29: Monitor Vault seal status, audit, latency, ESO sync, snapshot health
 #
-# Metrics used:
-#   vault_core_unsealed — Vault seal state (from /v1/sys/metrics)
-#   vault_audit_log_request_failure — audit device failures
-#   vault_core_handle_request — request handling latency
-#   probe_success{job="vault"} — Blackbox HTTP probe (from Blackbox Exporter)
-#   externalsecret_status_condition — ESO sync state (from ESO /metrics via ServiceMonitor)
-#   externalsecret_sync_calls_error — ESO sync errors
-#   kube_job_status_failed — CronJob failure (from kube-state-metrics)
+# Metrics sources:
+#   vault_core_unsealed — Vault seal state (ServiceMonitor: vault-metrics, job="vault")
+#   vault_audit_log_request_failure — audit device failures (same source)
+#   vault_core_handle_request — request handling latency (same source)
+#   probe_success{job="vault"} — Blackbox HTTP probe (/v1/sys/health — returns 503 when sealed)
+#   externalsecret_status_condition — ESO sync state (ESO ServiceMonitor)
+#   externalsecret_sync_calls_error — ESO sync errors (ESO ServiceMonitor)
+#   kube_job_status_failed — CronJob failure (kube-state-metrics)
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -23,8 +23,20 @@ spec:
     - name: vault
       rules:
         # CRITICAL: Vault is sealed — all ESO syncs will fail, no new secrets
+        # Two detection methods:
+        #   1. vault_core_unsealed == 0 — direct metric says sealed
+        #   2. absent() + probe failing — metrics missing AND /v1/sys/health returns 503 (sealed)
+        # The absent() clause requires probe_success==0 to avoid false positives when
+        # metrics are temporarily unavailable but Vault is actually healthy.
         - alert: VaultSealed
-          expr: vault_core_unsealed == 0 or absent(vault_core_unsealed{job="vault"})
+          expr: |
+            vault_core_unsealed == 0
+            or
+            (
+              absent(vault_core_unsealed{job="vault"})
+              and
+              probe_success{job="vault"} == 0
+            )
           for: 2m
           labels:
             severity: critical
@@ -37,6 +49,23 @@ spec:
               3. Check vault seal status: kubectl-homelab exec -n vault vault-0 -- vault status
               4. If unsealer is CrashLooping: check vault-unseal-keys secret exists
               5. Manual unseal (break-glass): get keys from 1Password "Vault Unseal Keys"
+
+        # WARNING: Vault metrics are not being scraped
+        # Fires when no vault_core_unsealed metric exists but Vault is up (probe succeeds).
+        # Indicates ServiceMonitor or metrics endpoint misconfiguration.
+        - alert: VaultMetricsMissing
+          expr: absent(vault_core_unsealed{job="vault"}) and probe_success{job="vault"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vault metrics not being scraped — alerting is degraded"
+            description: "Vault is healthy (probe succeeds) but no vault_* metrics exist. VaultSealed, VaultAuditFailure, and VaultHighLatency alerts cannot fire without metrics."
+            runbook: |
+              1. Check ServiceMonitor: kubectl-homelab get servicemonitor -n vault
+              2. Check Prometheus targets: port-forward prometheus:9090, check /targets for vault-metrics
+              3. Test metrics endpoint: kubectl-homelab exec -n vault vault-0 -- wget -qO- 'http://127.0.0.1:8200/v1/sys/metrics?format=prometheus' | head
+              4. Verify listener.telemetry.unauthenticated_metrics_access = true in Vault HCL config
 
         # CRITICAL: Vault audit log is failing — compliance violation
         - alert: VaultAuditFailure
@@ -127,4 +156,4 @@ spec:
               1. Check CronJob: kubectl-homelab get cronjobs -n vault
               2. Check latest job: kubectl-homelab get jobs -n vault --sort-by=.metadata.creationTimestamp
               3. Check pod logs: kubectl-homelab logs -n vault -l job-name=vault-snapshot-<date>
-              4. Check NFS mount: verify 10.10.30.4:/export/Kubernetes/vault-snapshots is accessible
+              4. Check NFS mount: verify 10.10.30.4:/Kubernetes/Backups/vault is accessible from k8s nodes

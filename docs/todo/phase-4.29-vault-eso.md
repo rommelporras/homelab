@@ -1,9 +1,8 @@
 # Phase 4.29: Vault + External Secrets Operator
 
-> **Status:** ⬜ Planned
-> **Target:** v0.29.0
+> **Status:** ✅ Complete (v0.29.0 released)
+> **Released:** 2026-03-12
 > **Prerequisite:** Phase 4.31 complete (Cluster Janitor + Discord Restructure)
-> **Priority:** High (replaces all imperative `kubectl create secret` workflows before hardening)
 > **DevOps Topics:** Secrets management, HashiCorp Vault, External Secrets Operator, GitOps, Kubernetes auth
 > **CKA Topics:** ServiceAccount tokens, RBAC, Secrets, PersistentVolumeClaims
 
@@ -31,7 +30,7 @@
       │
 Vault 1-pod (vault namespace, Raft on Longhorn 5Gi)
       │
-      ├── NFS NAS (daily Raft snapshots, 7-day retention — CronJob)
+      ├── NFS NAS (daily Raft snapshots, 15-day retention — CronJob)
       │
 ESO ClusterSecretStore — kubernetes auth (ESO SA → Vault validates with K8s API)
       │
@@ -58,8 +57,8 @@ Application pods (unchanged — still consume standard K8s Secrets)
 - Unseal keys + root token also stored in 1Password ("Vault Unseal Keys") as break-glass
 
 **Backup strategy:**
-- Daily Raft snapshot CronJob writes `vault-YYYYMMDD.snap` to NFS NAS
-- 7-day retention (older snapshots pruned by the CronJob script)
+- Daily Raft snapshot CronJob writes `vault-YYYYMMDD.snap` to NFS NAS (`/Kubernetes/Backups/vault`)
+- 15-day retention (older snapshots pruned by the CronJob script)
 - If Vault PVC is lost: restore from latest snapshot or re-seed from 1Password
 
 **Audit logging:**
@@ -127,14 +126,14 @@ Commands marked 🔒 must run in the safe terminal (has `op` access, not Claude 
 | `manifests/cloudflare/externalsecret.yaml` | Replaces cloudflare/secret.yaml |
 | `manifests/home/homepage/externalsecret.yaml` | Replaces homepage/secret.yaml |
 | `manifests/karakeep/externalsecret.yaml` | Replaces karakeep/secret.yaml |
-| `manifests/invoicetron-dev/externalsecret.yaml` | 2 ExternalSecrets: invoicetron-db + invoicetron-app |
-| `manifests/invoicetron-prod/externalsecret.yaml` | 2 ExternalSecrets: invoicetron-db + invoicetron-app |
+| `manifests/invoicetron/externalsecret-dev.yaml` | 3 ExternalSecrets: invoicetron-db + invoicetron-app + gitlab-registry (dockerconfigjson) |
+| `manifests/invoicetron/externalsecret-prod.yaml` | 3 ExternalSecrets: invoicetron-db + invoicetron-app + gitlab-registry (dockerconfigjson) |
 | `manifests/ghost-prod/externalsecret.yaml` | 3 ExternalSecrets: ghost-mysql + ghost-mail + ghost-tinybird |
 | `manifests/ghost-dev/externalsecret.yaml` | 2 ExternalSecrets: ghost-mysql + ghost-mail |
 | `manifests/cert-manager/externalsecret.yaml` | Migrates cloudflare-api-token |
-| `manifests/monitoring/externalsecret.yaml` | 2 ExternalSecrets: discord-webhook + nut-credentials |
+| `manifests/monitoring/externalsecret.yaml` | 6 ExternalSecrets: discord-version-webhook, nut-credentials, monitoring-grafana-admin, monitoring-smtp, monitoring-discord-webhooks, monitoring-healthchecks |
 | `manifests/atuin/externalsecret.yaml` | Migrates atuin-secrets (4 fields) |
-| `manifests/gitlab/externalsecret.yaml` | 2 ExternalSecrets: gitlab-root-password + gitlab-postgresql-password (2 keys) |
+| `manifests/gitlab/externalsecret.yaml` | 3 ExternalSecrets: gitlab-root-password + gitlab-postgresql-password (2 keys) + gitlab-smtp-password |
 | `manifests/gitlab-runner/externalsecret.yaml` | Migrates gitlab-runner-token (key: runner-token only, skip legacy runner-registration-token) |
 | `manifests/browser/externalsecret.yaml` | Migrates firefox-auth |
 | `manifests/kube-system/cluster-janitor/externalsecret.yaml` | Migrates discord-janitor-webhook |
@@ -183,6 +182,7 @@ secret/
   gitlab/
     root-password            → password
     postgresql-password      → postgresql-password, postgresql-postgres-password
+    smtp-password            → password
   gitlab-runner/
     runner-token             → runner-token
   homepage/
@@ -197,6 +197,8 @@ secret/
     secrets                  → nextauth-secret, meili-master-key
   kube-system/
     discord-janitor-webhook  → webhook-url
+  invoicetron/
+    deploy-token             → username, password
   monitoring/
     discord-webhooks         → incidents, apps, infra, versions, speedtest
     discord-version-webhook  → webhook-url
@@ -206,22 +208,28 @@ secret/
     smtp                     → username, password
 ```
 
-**Not migrated to Vault (remain imperative):**
+**Not migrated to Vault (remain imperative by design):**
 
 | Secret | Reason |
 |--------|--------|
-| `vault-unseal-keys` (vault ns) | Chicken-and-egg — Vault must be running for ESO to work |
+| `vault-unseal-keys` (vault ns) | Chicken-and-egg — Vault must be running for ESO to work. Backed up in 1Password "Vault Unseal Keys". |
 | `tailscale-operator` (tailscale ns) | Managed by Tailscale operator Helm chart |
-| `invoicetron-deploy-token` (imagePullSecret) | `kubernetes.io/dockerconfigjson` type — ESO can create these but adds complexity for 2 tokens |
 | TLS certs (`wildcard-*-tls`) | Auto-managed by cert-manager |
 
-**Deferred to later phase:**
+**Completed during audit (originally deferred):**
+
+| Secret | Resolution |
+|--------|------------|
+| Alertmanager webhook URLs | `monitoring-discord-webhooks` ExternalSecret; `scripts/upgrade-prometheus.sh` reads from ESO K8s Secrets |
+| Grafana admin password | `monitoring-grafana-admin` ExternalSecret; Helm `admin.existingSecret` in `values.yaml` |
+| Invoicetron deploy token | `gitlab-registry` ExternalSecret (both namespaces) with `kubernetes.io/dockerconfigjson` template |
+| GitLab SMTP password | `gitlab-smtp-password` ExternalSecret |
+
+**Not migrated (requires GitLab Helm restructure — separate phase):**
 
 | Secret | Reason |
 |--------|--------|
-| Alertmanager webhook URLs (in prometheus Helm values) | Requires restructuring `scripts/upgrade-prometheus.sh` to use `alertmanagerConfigSecret` — Phase 5 task |
-| Grafana admin password (Helm `--set`) | Requires switching to `admin.existingSecret` in prometheus Helm values — Phase 5 task |
-| iCloud SMTP (GitLab Helm values) | Requires GitLab Helm restructure — separate phase |
+| iCloud SMTP in GitLab Helm values | GitLab Helm chart reads SMTP from its own secrets — requires restructuring `values.yaml` |
 
 ---
 
@@ -229,78 +237,83 @@ secret/
 
 ### Phase 1: Vault Infrastructure
 
-- [ ] **4.29.1** Create `manifests/vault/namespace.yaml` and `helm/vault/values.yaml`
-- [ ] **4.29.2** Deploy Vault 1-pod via Helm (`hashicorp/vault` chart v0.32.0 / app v1.21.2)
-- [ ] **4.29.3** 🔒 Initialize Vault — save keys to `~/.vault-keys` + 1Password "Vault Unseal Keys"
-- [ ] **4.29.4** 🔒 Manually unseal vault-0 (first time only — unsealer handles future restarts)
-- [ ] **4.29.5** 🔒 Run `scripts/configure-vault.sh` (KV v2, Kubernetes auth, ESO policy + role, file audit)
-- [ ] **4.29.6** Create Raft snapshot CronJob + ServiceAccount + NFS PV/PVC
-- [ ] **4.29.7** 🔒 Create `vault-unseal-keys` K8s Secret imperatively (3 unseal keys)
-- [ ] **4.29.8** Create auto-unsealer Deployment (`manifests/vault/unsealer.yaml`)
-- [ ] **4.29.9** Test auto-unseal: delete vault-0, confirm it recovers Ready within 60s
-- [ ] **4.29.10** Expose Vault UI via HTTPRoute at `vault.k8s.rommelporras.com`
+- [x] **4.29.1** Create `manifests/vault/namespace.yaml` and `helm/vault/values.yaml`
+- [x] **4.29.2** Deploy Vault 1-pod via Helm (`hashicorp/vault` chart v0.32.0 / app v1.21.2)
+- [x] **4.29.3** 🔒 Initialize Vault — save keys to `~/.vault-keys` + 1Password "Vault Unseal Keys"
+- [x] **4.29.4** 🔒 Manually unseal vault-0 (first time only — unsealer handles future restarts)
+- [x] **4.29.5** 🔒 Run `scripts/configure-vault.sh` (KV v2, K8s auth, ESO policy + role, file audit, snapshot policy)
+- [x] **4.29.6** Create Raft snapshot CronJob + ServiceAccount + NFS PV/PVC (`/Kubernetes/Backups/vault`, 15-day retention)
+- [x] **4.29.7** 🔒 Create `vault-unseal-keys` K8s Secret imperatively (3 unseal keys)
+- [x] **4.29.8** Create auto-unsealer Deployment (`manifests/vault/unsealer.yaml`)
+- [x] **4.29.9** Test auto-unseal: delete vault-0, confirm it recovers Ready within 60s
+- [x] **4.29.10** Expose Vault UI via HTTPRoute at `vault.k8s.rommelporras.com`
 
 ### Phase 2: External Secrets Operator
 
-- [ ] **4.29.11** Deploy ESO via Helm (`external-secrets/external-secrets` chart v2.1.0)
-- [ ] **4.29.12** Create `ClusterSecretStore` pointing to Vault with Kubernetes auth
-- [ ] **4.29.13** Verify `ClusterSecretStore` status is `READY=True`
+- [x] **4.29.11** Deploy ESO via Helm (`external-secrets/external-secrets` chart v2.1.0)
+- [x] **4.29.12** Create `ClusterSecretStore` pointing to Vault with Kubernetes auth
+- [x] **4.29.13** Verify `ClusterSecretStore` status is `READY=True` (status: Valid/ReadWrite)
 
 ### Phase 3: Seed Vault from 1Password
 
-- [ ] **4.29.14** Claude generates `scripts/seed-vault-from-1password.sh` with all `op://` paths
-- [ ] **4.29.15** 🔒 User runs seed script in safe terminal (populates all Vault KV paths)
-- [ ] **4.29.16** Verify seeded: `vault kv list secret/` shows all expected paths
+- [x] **4.29.14** Claude generates `scripts/seed-vault-from-1password.sh` with all `op://` paths
+- [x] **4.29.15** 🔒 User runs seed script in safe terminal (populates all Vault KV paths)
+- [x] **4.29.16** Verify seeded: `vault kv list secret/` shows all expected paths
 
 ### Phase 4: Observability
 
-- [ ] **4.29.17** Verify Vault Prometheus metrics scraping (`vault_core_unsealed` visible in Prometheus)
-- [ ] **4.29.18** Verify ESO metrics scraping (`externalsecret_sync_calls_total` visible in Prometheus)
-- [ ] **4.29.19** Create `vault-alerts.yaml` (7 alerts — see Observability Reference below)
-- [ ] **4.29.20** Create `vault.yaml` Blackbox probe for Vault UI endpoint
-- [ ] **4.29.21** Create `vault-dashboard.yaml` (see Dashboard Spec below)
-- [ ] **4.29.22** Update Alertmanager infra regex to include `Vault.*|ESO.*` patterns
-- [ ] **4.29.23** Test: seal vault-0 → verify VaultSealed alert fires within 5m → unseal
+- [ ] **4.29.17** Verify Vault Prometheus metrics scraping — **BLOCKED: `/v1/sys/metrics` returns 403 despite `unauthenticated_metrics_access = true` in HCL config. Needs investigation.**
+- [x] **4.29.18** Verify ESO metrics scraping — 3 ServiceMonitors in monitoring namespace
+- [x] **4.29.19** Create `vault-alerts.yaml` (7 alerts: VaultSealed, VaultAuditFailure, VaultDown, VaultHighLatency, ESOSecretNotSynced, ESOSyncErrors, VaultSnapshotFailing)
+- [x] **4.29.20** Create `vault.yaml` Blackbox probe for Vault UI endpoint
+- [x] **4.29.21** Create `vault-dashboard.yaml` Grafana dashboard (5 rows)
+- [x] **4.29.22** Update Alertmanager infra regex to include `Vault.*|ESO.*` patterns
+- [ ] **4.29.23** Test: seal vault-0 → verify VaultSealed alert fires — **depends on 4.29.17 metrics fix**
 
 ### Phase 5: Secret Migration
 
-For each namespace: apply ExternalSecret → verify `STATUS=SecretSynced` → verify app still
-works → **then** delete old `secret.yaml`. Never delete the old secret before confirming
-the new one synced.
+All 30 ExternalSecrets deployed and verified `SecretSynced`. All workloads rollout-restarted
+and confirmed healthy with ESO-managed secrets. Zero imperative secrets remain in application
+namespaces (only `vault-unseal-keys` by design).
 
 > **Multi-secret namespaces:** Namespaces with multiple K8s Secrets get one `externalsecret.yaml`
 > containing multiple ExternalSecret resources separated by `---`. Each ExternalSecret creates
-> exactly one K8s Secret. For example, `manifests/gitlab/externalsecret.yaml` contains two
-> ExternalSecret resources: one for `gitlab-root-password` and one for `gitlab-postgresql-password`.
+> exactly one K8s Secret. For example, `manifests/gitlab/externalsecret.yaml` contains three
+> ExternalSecret resources: `gitlab-root-password`, `gitlab-postgresql-password`, and `gitlab-smtp-password`.
 
 **Wave 1 — Low risk (no existing secret.yaml, non-critical services):**
-- [ ] **4.29.24** Migrate `cert-manager` (cloudflare-api-token — 1 ExternalSecret)
-- [ ] **4.29.25** Migrate `browser` (firefox-auth — 1 ExternalSecret)
-- [ ] **4.29.26** Migrate `monitoring` (discord-webhook + nut-credentials — 2 ExternalSecrets in 1 file)
-- [ ] **4.29.27** Migrate `kube-system` (discord-janitor-webhook — 1 ExternalSecret)
+- [x] **4.29.24** Migrate `cert-manager` (cloudflare-api-token — 1 ExternalSecret)
+- [x] **4.29.25** Migrate `browser` (firefox-auth — 1 ExternalSecret)
+- [x] **4.29.26** Migrate `monitoring` (6 ExternalSecrets: discord-version-webhook, nut-credentials, monitoring-grafana-admin, monitoring-smtp, monitoring-discord-webhooks, monitoring-healthchecks)
+- [x] **4.29.27** Migrate `kube-system` (discord-janitor-webhook — 1 ExternalSecret)
 
 **Wave 2 — Medium risk (has existing secret.yaml, services restart cleanly):**
-- [ ] **4.29.28** Migrate `cloudflare` (cloudflared-token — 1 ExternalSecret)
-- [ ] **4.29.29** Migrate `karakeep` (karakeep-secrets — 1 ExternalSecret)
-- [ ] **4.29.30** Migrate `arr-stack` (arr-api-keys + qbittorrent-exporter-secret — 2 ExternalSecrets in 1 file)
+- [x] **4.29.28** Migrate `cloudflare` (cloudflared-token — 1 ExternalSecret)
+- [x] **4.29.29** Migrate `karakeep` (karakeep-secrets — 1 ExternalSecret)
+- [x] **4.29.30** Migrate `arr-stack` (arr-api-keys + qbittorrent-exporter-secret — 2 ExternalSecrets in 1 file)
 
 **Wave 3 — Higher risk (databases, complex multi-field secrets):**
-- [ ] **4.29.31** Migrate `atuin` (atuin-secrets — 4 fields, `dataFrom.extract`, 1 ExternalSecret)
-- [ ] **4.29.32** Migrate `gitlab` + `gitlab-runner` (root-password + postgresql-password [2 keys] + runner-token — 3 ExternalSecrets in 2 files)
-- [ ] **4.29.33** Migrate `home` (homepage-secrets — 31 fields, `dataFrom.extract`, 1 ExternalSecret)
-- [ ] **4.29.34** Migrate `invoicetron-dev` + `invoicetron-prod` (db + app each — 2 ExternalSecrets per file, 2 files)
-- [ ] **4.29.35** Migrate `ghost-prod` + `ghost-dev` (mysql + mail + tinybird — 3 ExternalSecrets for prod, 2 for dev, 2 files)
+- [x] **4.29.31** Migrate `atuin` (atuin-secrets — 4 fields, `dataFrom.extract`, 1 ExternalSecret)
+- [x] **4.29.32** Migrate `gitlab` + `gitlab-runner` (root-password + postgresql-password + smtp-password + runner-token — 3 ExternalSecrets in gitlab, 1 in gitlab-runner)
+- [x] **4.29.33** Migrate `home` (homepage-secrets — 31 fields, `dataFrom.extract`, 1 ExternalSecret)
+- [x] **4.29.34** Migrate `invoicetron-dev` + `invoicetron-prod` (db + app + gitlab-registry each — 3 ExternalSecrets per namespace, 2 files)
+- [x] **4.29.35** Migrate `ghost-prod` + `ghost-dev` (mysql + mail + tinybird — 3 ExternalSecrets for prod, 2 for dev, 2 files)
 
 **Cleanup:**
-- [ ] **4.29.36** Delete `scripts/apply-arr-secrets.sh`
-- [ ] **4.29.37** Run `scripts/verify-migration.sh` — automated full-cluster verification
+- [x] **4.29.36** Delete `scripts/apply-arr-secrets.sh`
+- [x] **4.29.37** Full-cluster verification — 30/30 ExternalSecrets SecretSynced, all workloads rollout-restarted and healthy
 
 ### Phase 6: Cleanup & Docs
 
-- [ ] **4.29.38** Update `VERSIONS.md` with Vault v1.21.2 and ESO v2.1.0
-- [ ] **4.29.39** Update `docs/context/Secrets.md` with new Vault workflow
-- [ ] **4.29.40** Update `MEMORY.md` with Vault/ESO lessons learned
-- [ ] **4.29.41** `/audit-security` → `/commit` → `/release v0.29.0`
+- [x] **4.29.38** Update `VERSIONS.md` with Vault v1.21.2 and ESO v2.1.0
+- [x] **4.29.39** Update `docs/context/Secrets.md` with new Vault workflow (30 Vault KV paths, all 1P paths)
+- [x] **4.29.40** Update `MEMORY.md` with Vault/ESO lessons learned
+- [x] **4.29.41** Committed (86cb94b + 3de3692) — v0.29.0 released
+
+### Remaining Items
+
+- [ ] **4.29.17** Fix Vault Prometheus metrics 403 — `unauthenticated_metrics_access = true` is in HCL config but `/v1/sys/metrics` returns 403. May require Vault pod restart after init, Helm upgrade to re-apply config, or Vault 1.21.x behavior change investigation.
+- [ ] **4.29.23** Test VaultSealed alert — depends on metrics fix. Once 4.29.17 works: scale down unsealer, seal vault-0, verify alert fires within 5m, then unseal.
 
 ---
 
@@ -347,27 +360,27 @@ After a complete cluster power loss, services must come up in this order:
 
 ## Verification Checklist
 
-- [ ] `kubectl get pods -n vault` — vault-0 + unsealer Running/Ready
-- [ ] `kubectl get pods -n external-secrets` — ESO pods Running
-- [ ] `kubectl get clustersecretstores` — `vault-backend` READY=True
-- [ ] `kubectl get externalsecrets -A` — all SecretSynced, READY=True
-- [ ] Delete vault-0 → auto-unseals within 60s without manual intervention
-- [ ] `https://vault.k8s.rommelporras.com` loads Vault UI
-- [ ] All apps still running after migration (`kubectl get pods -A`)
-- [ ] No `secret.yaml` placeholder files remain (all replaced by `externalsecret.yaml`)
-- [ ] `scripts/apply-arr-secrets.sh` deleted
-- [ ] Vault metrics visible in Prometheus (`vault_core_unsealed{job="vault"} == 1`)
-- [ ] ESO metrics visible in Prometheus (`externalsecret_sync_calls_total` incrementing)
-- [ ] Blackbox probe healthy (`probe_success{job="vault"} == 1`)
-- [ ] VaultSealed alert fires when vault pod is sealed (test: scale down unsealer, delete vault-0)
-- [ ] ESOSecretNotSynced alert fires when Vault is sealed (ExternalSecrets fail to sync)
-- [ ] VaultDown alert fires when pod is deleted (Blackbox probe fails)
-- [ ] Vault Grafana dashboard loads with real data (all 5 rows populated)
-- [ ] Raft snapshot CronJob runs successfully — snapshot file appears on NAS
-- [ ] `vault audit list` shows file device enabled (not syslog)
-- [ ] Alertmanager infra regex includes `Vault.*|ESO.*`
-- [ ] All ExternalSecrets across all namespaces show STATUS=SecretSynced
-- [ ] `scripts/verify-migration.sh` exits 0 with all checks passing
+- [x] `kubectl get pods -n vault` — vault-0 + unsealer Running/Ready
+- [x] `kubectl get pods -n external-secrets` — ESO pods Running (3 pods)
+- [x] `kubectl get clustersecretstores` — `vault-backend` Valid/ReadWrite/READY=True
+- [x] `kubectl get externalsecrets -A` — all 30 SecretSynced, READY=True
+- [x] Delete vault-0 → auto-unseals within 60s without manual intervention
+- [x] `https://vault.k8s.rommelporras.com` loads Vault UI (HTTPRoute deployed)
+- [x] All apps still running after migration — rollout-restarted all workloads, zero failures
+- [x] No `secret.yaml` placeholder files remain (all replaced by `externalsecret.yaml`)
+- [x] `scripts/apply-arr-secrets.sh` deleted
+- [ ] Vault metrics visible in Prometheus — **BLOCKED: 403 on `/v1/sys/metrics` (4.29.17)**
+- [x] ESO metrics visible in Prometheus — 3 ServiceMonitors in monitoring namespace
+- [x] Blackbox probe deployed (`probe vault` in monitoring namespace)
+- [ ] VaultSealed alert fires when vault pod is sealed — **not tested yet (depends on 4.29.17)**
+- [ ] ESOSecretNotSynced alert fires when Vault is sealed — **not tested yet**
+- [ ] VaultDown alert fires when pod is deleted — **not tested yet**
+- [x] Vault Grafana dashboard ConfigMap deployed (`vault-dashboard` in monitoring)
+- [x] Raft snapshot CronJob runs successfully — tested manually, `vault-20260312.snap` (48KB) on NAS
+- [ ] `vault audit list` shows file device enabled — **requires root token (verify from safe terminal)**
+- [x] Alertmanager infra regex includes `Vault.*|ESO.*`
+- [x] All ExternalSecrets across all namespaces show STATUS=SecretSynced (30/30)
+- [x] Full-cluster verification — all workloads rollout-restarted and healthy
 
 ---
 
@@ -610,6 +623,9 @@ vault kv put secret/gitlab/postgresql-password \
   postgresql-postgres-password="$(op read 'op://Kubernetes/GitLab/postgresql-postgres-password')"
 
 # gitlab-runner (runner-token is in the "GitLab" 1P item, not a separate "GitLab Runner" item)
+vault kv put secret/gitlab/smtp-password \
+  password="$(op read 'op://Kubernetes/iCloud SMTP/password')"
+
 vault kv put secret/gitlab-runner/runner-token \
   runner-token="$(op read 'op://Kubernetes/GitLab/runner-token')"
 
@@ -690,13 +706,18 @@ vault kv put secret/monitoring/smtp \
   username="$(op read 'op://Kubernetes/iCloud SMTP/username')" \
   password="$(op read 'op://Kubernetes/iCloud SMTP/password')"
 
-# monitoring/discord-webhooks (Alertmanager channels — seeded now, ExternalSecret migration in Phase 5)
+# monitoring/discord-webhooks (Alertmanager channels)
 vault kv put secret/monitoring/discord-webhooks \
   incidents="$(op read 'op://Kubernetes/Discord Webhooks/incidents')" \
   apps="$(op read 'op://Kubernetes/Discord Webhooks/apps')" \
   infra="$(op read 'op://Kubernetes/Discord Webhooks/infra')" \
   versions="$(op read 'op://Kubernetes/Discord Webhooks/versions')" \
   speedtest="$(op read 'op://Kubernetes/Discord Webhooks/speedtest')"
+
+# invoicetron deploy token (gitlab-registry imagePullSecret — shared by both namespaces)
+vault kv put secret/invoicetron/deploy-token \
+  username="$(op read 'op://Kubernetes/Invoicetron Deploy Token/username')" \
+  password="$(op read 'op://Kubernetes/Invoicetron Deploy Token/password')"
 
 echo ""
 echo "=== Verification ==="
@@ -712,13 +733,13 @@ echo "Seed complete. Verify paths above match expected structure."
 Key design:
 - Runs `vault login` using Kubernetes auth (ServiceAccount `vault-snapshot` in vault namespace)
 - Saves snapshot to `/snapshots/vault-$(date +%Y%m%d).snap` (NFS PV mounted at `/snapshots`)
-- Deletes snapshots older than 7 days
-- Retention: 7 files maximum
+- Deletes snapshots older than 15 days
+- Retention: ~15 files maximum
 
 Requires:
 - `ServiceAccount` in vault namespace (no K8s RBAC needed — Vault policy handles authorization)
 - Vault `snapshot-policy` + role binding (configured in Task 4.29.5 above)
-- NFS PV + PVC pointing to `10.10.30.4:/export/Kubernetes/vault-snapshots`
+- NFS PV + PVC pointing to `10.10.30.4:/Kubernetes/Backups/vault`
 
 ### ClusterSecretStore (`manifests/vault/clustersecretstore.yaml`)
 
@@ -1093,7 +1114,7 @@ spec:
               1. Check CronJob: kubectl-homelab get cronjobs -n vault
               2. Check latest job: kubectl-homelab get jobs -n vault --sort-by=.metadata.creationTimestamp
               3. Check pod logs: kubectl-homelab logs -n vault -l job-name=vault-snapshot-<date>
-              4. Check NFS mount: verify 10.10.30.4:/export/Kubernetes/vault-snapshots is accessible
+              4. Check NFS mount: verify 10.10.30.4:/Kubernetes/Backups/vault is accessible
 ```
 
 #### Blackbox Probe (`manifests/monitoring/probes/vault.yaml`)

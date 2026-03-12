@@ -44,6 +44,10 @@ server:
         tls_disable     = 1
         address         = "[::]:8200"
         cluster_address = "[::]:8201"
+        # Vault 1.16+ moved unauthenticated_metrics_access into the listener block
+        telemetry {
+          unauthenticated_metrics_access = true
+        }
       }
 
       storage "raft" {
@@ -53,9 +57,8 @@ server:
       service_registration "kubernetes" {}
 
       telemetry {
-        prometheus_retention_time       = "24h"
-        disable_hostname                = true
-        unauthenticated_metrics_access  = true
+        prometheus_retention_time = "24h"
+        disable_hostname         = true
       }
 
   ha:

@@ -1,12 +1,12 @@
 # manifests/vault/snapshot-cronjob.yaml
-# Daily Raft snapshot to NFS NAS — 7-day retention
+# Daily Raft snapshot to NFS NAS — 15-day retention
 #
 # Schedule: 02:00 Asia/Manila daily
 # Auth: Kubernetes auth via vault-snapshot ServiceAccount + snapshot-policy
-# Storage: NFS PV/PVC pointing to OMV NAS vault-snapshots directory
+# Storage: NFS PV/PVC pointing to OMV NAS Backups/vault directory
 #
 # Prerequisite: NFS directory must exist on NAS
-#   ssh admin@10.10.30.4 "mkdir -p /export/Kubernetes/vault-snapshots"
+#   ssh wawashi@omv.home.rommelporras.com "sudo mkdir -p /export/Kubernetes/Backups/vault && sudo chown -R 65534:65534 /export/Kubernetes/Backups/vault"
 #
 # CKA topics: CronJob, ServiceAccount, PV/PVC (NFS), securityContext
 ---
@@ -38,7 +38,7 @@ spec:
     - timeo=600
   nfs:
     server: 10.10.30.4
-    path: /Kubernetes/vault-snapshots
+    path: /Kubernetes/Backups/vault
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -114,9 +114,9 @@ spec:
                   vault operator raft snapshot save "$SNAPSHOT_FILE"
                   echo "  Saved: $SNAPSHOT_FILE ($(du -h "$SNAPSHOT_FILE" | cut -f1))"
 
-                  # Prune snapshots older than 7 days
-                  echo "  Pruning snapshots older than 7 days..."
-                  find /snapshots -name "vault-*.snap" -mtime +7 -delete -print | \
+                  # Prune snapshots older than 15 days
+                  echo "  Pruning snapshots older than 15 days..."
+                  find /snapshots -name "vault-*.snap" -mtime +15 -delete -print | \
                     while read f; do echo "  Deleted: $f"; done
 
                   # Cleanup token

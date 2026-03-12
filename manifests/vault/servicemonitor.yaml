@@ -1,0 +1,29 @@
+# ServiceMonitor for Vault Prometheus metrics
+# Scrapes /v1/sys/metrics from the vault service (port 8200)
+#
+# Requires: unauthenticated_metrics_access = true in listener.telemetry HCL block
+# Job label: vault-metrics (distinct from blackbox probe job "vault")
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vault-metrics
+  namespace: vault
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  endpoints:
+    - port: http
+      path: /v1/sys/metrics
+      params:
+        format: ["prometheus"]
+      interval: 30s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+      - vault
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+      app.kubernetes.io/instance: vault

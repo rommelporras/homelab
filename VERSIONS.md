@@ -151,7 +151,7 @@ helm-homelab repo update
 | HashiCorp Vault | 1.21.2 | Running | Secrets management (standalone, Raft on Longhorn 5Gi) |
 | Vault Auto-Unsealer | 1.21.2 | Running | Polls vault-0 every 30s, auto-unseals with 3 Shamir keys |
 | External Secrets Operator | v2.1.0 | Running | Syncs K8s Secrets from Vault via ExternalSecret CRDs |
-| Vault Snapshot CronJob | 1.21.2 | Running | Daily Raft backup to NFS NAS (02:00 PHT, 7-day retention) |
+| Vault Snapshot CronJob | 1.21.2 | Running | Daily Raft backup to NFS NAS (02:00 PHT, 15-day retention) |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)

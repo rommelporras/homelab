@@ -56,6 +56,13 @@ Kubernetes homelab for CKA prep. 3-node HA cluster (kubeadm, Cilium CNI, Longhor
 - **PUBLIC repository** — security review before every commit. Once pushed, secrets cannot be revoked.
 - **GitLab is the primary remote** — use `glab` CLI with `--hostname gitlab.k8s.rommelporras.com` for API calls.
 
+## NAS Access
+
+- **SSH user:** `wawashi` (not `admin`). Hostname: `omv.home.rommelporras.com` (10.10.30.4).
+- **No direct SSH from WSL** — SSH to a k8s node first (`ssh wawashi@10.10.30.11`), then NFS mount from there.
+- **Create NFS directories via mount:** `sudo mount -t nfs4 10.10.30.4:/Kubernetes /tmp/nfs && sudo mkdir -p /tmp/nfs/<path> && sudo umount /tmp/nfs`
+- **No SSH keys from k8s nodes to NAS** — use NFS mount approach, not `ssh wawashi@10.10.30.4`.
+
 ## Gotchas
 
 - **Homepage uses kustomize** — `kubectl-homelab apply -k manifests/home/homepage/`, NOT `-f`.
