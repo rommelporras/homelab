@@ -50,8 +50,8 @@ spec:
               3. Verify ARR apps are running (Scraparr depends on their APIs):
                  kubectl-homelab get pods -n arr-stack
 
-              4. If API key issues, re-run:
-                 ./scripts/apply-arr-secrets.sh
+              4. If API key issues, check the ExternalSecret:
+                 kubectl-homelab describe externalsecret arr-api-keys -n arr-stack
 
         # Sonarr download queue stuck — items queued but nothing completing
         - alert: SonarrQueueStalled

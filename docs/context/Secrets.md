@@ -70,6 +70,7 @@ Local backup: `~/.vault-keys` (chmod 600). Delete after confirming 1Password bac
 | ghost-prod/tinybird | ghost-tinybird | ghost-prod | manifests/ghost-prod/externalsecret.yaml |
 | gitlab/root-password | gitlab-root-password | gitlab | manifests/gitlab/externalsecret.yaml |
 | gitlab/postgresql-password | gitlab-postgresql-password | gitlab | manifests/gitlab/externalsecret.yaml |
+| gitlab/smtp-password | gitlab-smtp-password | gitlab | manifests/gitlab/externalsecret.yaml |
 | gitlab-runner/runner-token | gitlab-runner-token | gitlab-runner | manifests/gitlab-runner/externalsecret.yaml |
 | homepage/secrets | homepage-secrets | home | manifests/home/homepage/externalsecret.yaml |
 | invoicetron-dev/db | invoicetron-db | invoicetron-dev | manifests/invoicetron/externalsecret-dev.yaml |
@@ -80,13 +81,16 @@ Local backup: `~/.vault-keys` (chmod 600). Delete after confirming 1Password bac
 | kube-system/discord-janitor-webhook | discord-janitor-webhook | kube-system | manifests/kube-system/cluster-janitor/externalsecret.yaml |
 | monitoring/discord-version-webhook | discord-version-webhook | monitoring | manifests/monitoring/externalsecret.yaml |
 | monitoring/nut-credentials | nut-credentials | monitoring | manifests/monitoring/externalsecret.yaml |
+| invoicetron/deploy-token | gitlab-registry | invoicetron-dev | manifests/invoicetron/externalsecret-dev.yaml |
+| invoicetron/deploy-token | gitlab-registry | invoicetron-prod | manifests/invoicetron/externalsecret-prod.yaml |
+| monitoring/grafana | monitoring-grafana-admin | monitoring | manifests/monitoring/externalsecret.yaml |
+| monitoring/smtp | monitoring-smtp | monitoring | manifests/monitoring/externalsecret.yaml |
+| monitoring/discord-webhooks | monitoring-discord-webhooks | monitoring | manifests/monitoring/externalsecret.yaml |
+| monitoring/healthchecks | monitoring-healthchecks | monitoring | manifests/monitoring/externalsecret.yaml |
 
-**Deferred to later phase:**
-- Alertmanager webhook URLs (embedded in prometheus Helm values)
-- Grafana admin password (embedded in prometheus Helm values)
-- Healthchecks ping URL (embedded in prometheus Helm values)
-- SMTP credentials (embedded in prometheus Helm values)
-- Monitoring discord-webhooks (5 Alertmanager channels — seeded but not yet migrated to ExternalSecret)
+**Note:** Grafana uses `existingSecret` (fully declarative). Alertmanager SMTP/webhooks/healthchecks
+are ESO-managed K8s Secrets read by `scripts/upgrade-prometheus.sh` at Helm upgrade time
+(Alertmanager raw config format requires literal values — can't reference K8s secrets directly).
 
 ## 1Password Vault
 
@@ -102,8 +106,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Cloudflare DNS API Token | `credential` | cert-manager (Let's Encrypt) |
 | Discord Webhooks | `incidents`, `apps`, `infra`, `versions`, `janitor`, `speedtest` | Alertmanager, Version Check CronJob, Cluster Janitor, MySpeed |
 | iCloud SMTP | `username`, `password`, `server`, `port` | Alertmanager, GitLab |
-| GitLab | `username`, `password`, `postgresql-password` | GitLab CE |
-| GitLab Runner | `runner-token` | GitLab Runner |
+| GitLab | `username`, `password`, `postgresql-password`, `postgresql-postgres-password`, `runner-token` | GitLab CE, GitLab Runner |
 | Healthchecks Ping URL | `website` | Alertmanager Watchdog (dead man's switch) |
 | NUT Admin | `username`, `password` | NUT server |
 | NUT Monitor | `username`, `password` | NUT clients, nut-exporter |
@@ -154,8 +157,9 @@ op://Kubernetes/GitLab/username
 op://Kubernetes/GitLab/password
 op://Kubernetes/GitLab/postgresql-password
 
-# GitLab Runner
-op://Kubernetes/GitLab Runner/runner-token
+# GitLab (runner-token is in the GitLab item, not a separate item)
+op://Kubernetes/GitLab/runner-token
+op://Kubernetes/GitLab/postgresql-postgres-password
 
 # Healthchecks (dead man's switch)
 op://Kubernetes/Healthchecks Ping URL/website
@@ -250,7 +254,7 @@ op://Kubernetes/Atuin/encryption-key
 op://Kubernetes/Atuin/eam-email
 op://Kubernetes/Atuin/eam-password
 
-# Homepage (widget credentials)
+# Homepage (widget credentials — 24 fields)
 op://Kubernetes/Homepage/proxmox-pve-user
 op://Kubernetes/Homepage/proxmox-pve-token
 op://Kubernetes/Homepage/proxmox-fw-user
@@ -262,10 +266,17 @@ op://Kubernetes/Homepage/omv-pass
 op://Kubernetes/Homepage/glances-pass
 op://Kubernetes/Homepage/adguard-user
 op://Kubernetes/Homepage/adguard-pass
+op://Kubernetes/Homepage/adguard-fw-user
+op://Kubernetes/Homepage/adguard-fw-pass
 op://Kubernetes/Homepage/weather-key
 op://Kubernetes/Homepage/grafana-user
 op://Kubernetes/Homepage/grafana-pass
 op://Kubernetes/Homepage/seerr-api-key
+op://Kubernetes/Homepage/immich-key
+op://Kubernetes/Homepage/openwrt-user
+op://Kubernetes/Homepage/openwrt-pass
+op://Kubernetes/Homepage/tailscale-device
+op://Kubernetes/Homepage/tailscale-key
 ```
 
 ## Usage

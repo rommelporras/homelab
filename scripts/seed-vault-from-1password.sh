@@ -98,6 +98,10 @@ vault kv put secret/gitlab/postgresql-password \
   postgresql-password="$(op read 'op://Kubernetes/GitLab/postgresql-password')" \
   postgresql-postgres-password="$(op read 'op://Kubernetes/GitLab/postgresql-postgres-password')"
 
+echo "  gitlab/smtp-password"
+vault kv put secret/gitlab/smtp-password \
+  password="$(op read 'op://Kubernetes/iCloud SMTP/password')"
+
 # gitlab-runner (runner-token is in the "GitLab" 1P item, not a separate item)
 echo "  gitlab-runner/runner-token"
 vault kv put secret/gitlab-runner/runner-token \
@@ -200,6 +204,12 @@ vault kv put secret/monitoring/discord-webhooks \
   infra="$(op read 'op://Kubernetes/Discord Webhooks/infra')" \
   versions="$(op read 'op://Kubernetes/Discord Webhooks/versions')" \
   speedtest="$(op read 'op://Kubernetes/Discord Webhooks/speedtest')"
+
+# invoicetron deploy token (gitlab-registry imagePullSecret — shared by both namespaces)
+echo "  invoicetron/deploy-token"
+vault kv put secret/invoicetron/deploy-token \
+  username="$(op read 'op://Kubernetes/Invoicetron Deploy Token/username')" \
+  password="$(op read 'op://Kubernetes/Invoicetron Deploy Token/password')"
 
 echo ""
 echo "=== Verification ==="

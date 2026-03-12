@@ -10,8 +10,11 @@
 #   helm-homelab install prometheus oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack \
 #     --namespace monitoring \
 #     --version 81.0.0 \
-#     --values helm/prometheus/values.yaml \
-#     --set grafana.adminPassword="$(op read 'op://Kubernetes/Grafana/password')"
+#     --values helm/prometheus/values.yaml
+#
+# Secrets: Grafana admin password is via existingSecret (ESO-managed).
+#   Alertmanager SMTP/webhooks are injected via scripts/upgrade-prometheus.sh
+#   which reads from ESO-created K8s Secrets (no 1Password needed).
 
 # =============================================================================
 # kube-proxy
@@ -83,8 +86,10 @@ prometheus:
 # =============================================================================
 # Visualization dashboards
 grafana:
-  # Admin password set via --set at install time (from 1Password)
-  # adminPassword: set at install time
+  # Admin password from ESO-managed K8s Secret (Vault: monitoring/grafana)
+  admin:
+    existingSecret: monitoring-grafana-admin
+    passwordKey: admin-password
 
   # Persistence - dashboards survive pod restarts
   persistence:
@@ -129,8 +134,8 @@ grafana:
 #   - Warning (infra) alerts → Discord #infra (Longhorn, NVMe, certs, nodes, UPS, logging)
 #   - Warning (apps) alerts → Discord #apps (catch-all for non-infra warnings)
 #
-# Secrets are injected at install/upgrade time via --set flags (from 1Password)
-# See: scripts/upgrade-prometheus.sh
+# Alertmanager secrets (SMTP, webhooks, healthchecks) are injected at upgrade time
+# from ESO-created K8s Secrets. See: scripts/upgrade-prometheus.sh
 #
 alertmanager:
   alertmanagerSpec:

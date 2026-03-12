@@ -95,7 +95,7 @@ where Distrobox containers have separate HOMEs.
 
 ### 4.30.2 Create Secrets
 
-> Uses imperative `kubectl create secret` via 1Password. Migrate to ExternalSecret after Phase 4.29 (Vault + ESO).
+> Originally used imperative `kubectl create secret`. Migrated to ExternalSecret in Phase 4.29 (Vault + ESO) — see `manifests/atuin/externalsecret.yaml`.
 
 - [x] 4.30.2.1 Create 1Password item `Atuin` in Kubernetes vault — unified item with `db-*` fields (database), `personal-*`/`eam-*` fields (accounts), and shared `encryption-key` — **db-password must use only `[A-Za-z0-9.~_-]`** (special chars like `@`, `!`, `#` break `ATUIN_DB_URI` parsing)
 - [x] 4.30.2.2 Generate `kubectl create secret` command for `atuin-secrets` in `atuin` namespace — ask user to run in safe terminal

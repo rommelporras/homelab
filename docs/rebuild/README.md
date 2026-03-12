@@ -300,7 +300,8 @@ homelab/
 │   │   ├── deployment.yaml
 │   │   ├── postgresql.yaml
 │   │   ├── rbac.yaml
-│   │   ├── secret.yaml
+│   │   ├── externalsecret-dev.yaml
+│   │   ├── externalsecret-prod.yaml
 │   │   └── backup-cronjob.yaml
 │   ├── ai/                             # v0.20.0
 │   │   ├── namespace.yaml
@@ -315,7 +316,7 @@ homelab/
 │   │   └── httproute.yaml
 │   ├── karakeep/                       # v0.21.0
 │   │   ├── namespace.yaml
-│   │   ├── secret.yaml
+│   │   ├── externalsecret.yaml
 │   │   ├── karakeep-deployment.yaml
 │   │   ├── karakeep-service.yaml
 │   │   ├── chrome-deployment.yaml
@@ -332,7 +333,7 @@ homelab/
 │   │   ├── namespace.yaml
 │   │   ├── nfs-pv-pvc.yaml
 │   │   ├── networkpolicy.yaml
-│   │   ├── arr-api-keys-secret.yaml
+│   │   ├── externalsecret.yaml
 │   │   ├── prowlarr/{deployment,service,httproute}.yaml
 │   │   ├── sonarr/{deployment,service,httproute}.yaml
 │   │   ├── radarr/{deployment,service,httproute}.yaml
