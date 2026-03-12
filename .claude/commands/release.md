@@ -88,18 +88,32 @@ Create version tag, push commits and tag, and create GitHub release.
    **VERSIONS.md check** — read `VERSIONS.md` and check if the `Last Updated` date is older than 7 days:
    - If stale: **WARN** "VERSIONS.md last updated on <date>. Should it be updated before release?"
 
+   **CHANGELOG check** — this project's changelog is at `docs/reference/CHANGELOG.md` (not a root CHANGELOG.md).
+   The format is: `## Month DD, YYYY — Title (vX.X.X)`
+   ```bash
+   grep "v<VERSION>" docs/reference/CHANGELOG.md
+   ```
+   - If an entry is found: ✓ — use its `### Summary` and `### Changes` sections as the basis for GitHub release notes
+   - If no entry found: **WARN** "No CHANGELOG entry found for v<VERSION> in docs/reference/CHANGELOG.md. This should be written as part of the docs commit before releasing."
+   - **Do NOT auto-create a CHANGELOG entry** — the project CHANGELOG uses a custom format and is written manually as part of the release documentation commit.
+
    If any warnings are raised, present them all at once and ask for confirmation to proceed or fix first.
 
 5. **Analyze Changes for Release Notes**
 
-   Group commits by category:
-   - Documentation changes
-   - Infrastructure/configuration
-   - Features
-   - Bug fixes
-   - Chores
+   Always do **both** — read the CHANGELOG entry AND analyze the commits. Cross-reference them.
 
-   Understand the PURPOSE, not just list commits.
+   **Step A — Read `docs/reference/CHANGELOG.md`** for the matching version entry:
+   - Read the `### Summary` section — use this as the basis for the GitHub `## Summary` paragraph
+   - Read the `### Changes` table — use these rows to populate `## What's Included` bullets
+   - Read `### Key Design Decisions` and `### Gotchas` — surface important ones in release notes
+
+   **Step B — Analyze commits** (`git log <last-tag>..HEAD --oneline`):
+   - Group by type: `infra:`, `fix:`, `docs:`, `feat:`, `chore:`
+   - Identify anything in commits NOT covered in the CHANGELOG entry (post-release fixes, tooling changes, doc-only work)
+   - These gaps should be included in `## What's Included` even if not in the CHANGELOG
+
+   **Combine both sources** — the CHANGELOG captures the planned work; commits capture everything including fixes and polish applied after the initial implementation. Release notes should reflect both.
 
 6. **Write Release Notes**
 
@@ -117,25 +131,32 @@ Create version tag, push commits and tag, and create GitHub release.
    - Specific item
    ```
 
-   **GitHub release format:**
+   **GitHub release format** — use the CHANGELOG entry when available. Categories should reflect
+   what was actually built (e.g. `### Infrastructure`, `### Observability`, `### Documentation`),
+   NOT generic commit types. Write bullets that describe what was built, not what commits said.
+
    ```markdown
    ## Summary
-   <One paragraph describing what this release contains>
+   <From docs/reference/CHANGELOG.md ### Summary section — one paragraph with context and outcome.
+   If no CHANGELOG entry, write a paragraph explaining what this release contains and why it matters.>
 
    ## What's Included
 
-   ### <Category 1>
-   - Item 1
-   - Item 2
+   ### <Meaningful Category — e.g. "HashiCorp Vault", "Observability", "Bug Fixes">
+   - **Feature name** — what it does and why it matters
+   - **Another item** — brief description
 
-   ### <Category 2>
-   - Item 1
-   - Item 2
+   ### <Another Category>
+   - Item with context
 
-   ## Commits
-   - `abc1234` commit message 1
-   - `def5678` commit message 2
+   Full details: [CHANGELOG](https://github.com/rommelporras/homelab/blob/main/docs/reference/CHANGELOG.md)
    ```
+
+   **Rules:**
+   - `## Summary` is required — always a paragraph, never a bullet list
+   - `## What's Included` categories are project-specific, not generic (`feat/fix/docs`)
+   - Do NOT include a `## Commits` section — GitHub shows the diff automatically, and commit lists are noise at scale
+   - The CHANGELOG link is required at the bottom
 
 7. **Show Release Plan and Confirm**
 
@@ -153,6 +174,7 @@ Create version tag, push commits and tag, and create GitHub release.
    - Remote tag collision: ✓ No conflict
    - Phase plan status: ✓ All complete (or ⚠ warnings listed)
    - VERSIONS.md: ✓ Up to date (or ⚠ stale)
+   - CHANGELOG: ✓ Entry found in docs/reference/CHANGELOG.md (or ⚠ missing)
 
    Proceed with release? (waiting for confirmation)
    ```
@@ -186,87 +208,85 @@ Create version tag, push commits and tag, and create GitHub release.
 
 ## Examples
 
-### First Release (v0.1.0)
+### Infrastructure Release (v0.18.0)
 
 **Tag annotation:**
 ```
-v0.1.0 - Project Setup and Planning
+v0.18.0 - Containerized Firefox Browser
 
-Initial documentation for 3-node HA Kubernetes homelab.
+Deploys a persistent Firefox browser via KasmVNC on Longhorn PVC.
+
+Infrastructure:
+- Firefox Deployment with KasmVNC web UI (lscr.io/linuxserver/firefox)
+- Longhorn PVC (2Gi) for browser profile persistence
+- Basic auth via K8s Secret, AdGuard DNS routing, TCP probes
+- HTTPRoute at browser.k8s.rommelporras.com (LAN-only)
 
 Documentation:
-- kubeadm bootstrap guide for Ubuntu 24.04
-- Architecture decisions and network planning
-- CKA learning materials and K8s v1.35 notes
-- Storage setup with Longhorn
-
-Configuration:
-- Claude Code commands, agents, and skills
-- Security hooks for sensitive file protection
-
-Project:
-- MIT License and conventional commit workflow
+- Rebuild guide, context docs, CHANGELOG, phase plan completed
 ```
 
 **GitHub release notes:**
 ```markdown
 ## Summary
 
-Initial release containing documentation and planning for a 3-node HA
-Kubernetes cluster on Lenovo M80q bare-metal nodes. This release establishes
-the foundation for CKA certification prep and production homelab workloads.
+Deploys a persistent Firefox browser via KasmVNC, accessible at
+`browser.k8s.rommelporras.com`. Close the tab on one device, open the URL
+on another — same session, same tabs. Firefox profile (bookmarks, cookies,
+extensions, open tabs) persists on a Longhorn PVC. LAN-only access with
+basic auth.
 
 ## What's Included
 
+### Infrastructure
+- **Firefox + KasmVNC** — `lscr.io/linuxserver/firefox` Deployment with 4Gi memory, 2Gi /dev/shm
+- **Longhorn PVC** — 2Gi for browser profile persistence (bookmarks, cookies, extensions)
+- **Basic auth** — CUSTOM_USER + PASSWORD injected from K8s Secret (1Password-backed)
+- **AdGuard DNS routing** — `dnsPolicy: None` for ad-blocking inside the browser
+- **TCP probes** — HTTP probes return 401 on unauthenticated requests; TCP avoids false unhealthy
+- **HTTPRoute** — `browser.k8s.rommelporras.com` (LAN-only, not Cloudflare Tunnel)
+
+### Integration
+- Homepage dashboard entry in Apps section
+- Uptime Kuma TCP monitor for availability tracking
+
 ### Documentation
-- kubeadm bootstrap guide for Ubuntu 24.04
-- Architecture decisions and network planning
-- CKA learning materials and K8s v1.35 notes
-- Storage setup with Longhorn
-- Changelog with node preparation progress
+- Rebuild guide: `docs/rebuild/v0.18.0-firefox-browser.md`
+- Updated context files: Gateway, Cluster, Networking, Secrets
 
-### Claude Code Configuration
-- Custom commands (commit, release, audit-security, audit-docs, audit-cluster)
-- Security hooks for sensitive file protection
-
-### Project Setup
-- README, LICENSE (MIT), and version tracking
-- Rules for no AI attribution and no auto-commits
-
-## Commits
-- `abc1234` docs: project setup and planning documentation
+Full details: [CHANGELOG](https://github.com/rommelporras/homelab/blob/main/docs/reference/CHANGELOG.md)
 ```
 
-### Feature Release (v0.2.0)
+### Patch / Fix Release (v0.28.1)
 
 **Tag annotation:**
 ```
-v0.2.0 - Kubernetes Cluster Bootstrap
+v0.28.1 - GitLab Minio + Atuin Backup + Runner OOM Fix
 
-Cluster successfully bootstrapped with HA control plane.
+Post-release fixes and improvements from Phase 4.30.
 
-Infrastructure:
-- 3-node control plane with stacked etcd
-- kube-vip providing API server VIP
-- Cilium CNI with eBPF datapath
-
-Documentation:
-- Updated bootstrap guide with troubleshooting
-- Added post-installation verification steps
+Bug Fixes:
+- GitLab Minio storage reconfigured
+- Atuin backup CronJob added
+- GitLab Runner OOM limits increased
 ```
 
-### Patch Release (v0.1.1)
+**GitHub release notes:**
+```markdown
+## Summary
 
-**Tag annotation:**
-```
-v0.1.1 - Documentation Fixes
+Post-release fixes from Phase 4.30: GitLab Minio storage reconfiguration,
+Atuin weekly backup CronJob, and GitLab Runner OOM kill fix from memory
+limits that were too low.
 
-Minor corrections and improvements to documentation.
+## What's Included
 
-Fixes:
-- Corrected IP addresses in cluster status
-- Fixed broken links in bootstrap guide
-- Updated outdated kubectl commands
+### Bug Fixes
+- **GitLab Runner OOM** — memory limits increased to prevent OOMKill under load
+- **Atuin backup** — weekly CronJob added for PostgreSQL backup to NFS NAS
+- **GitLab Minio** — object storage path reconfigured to resolve registry errors
+
+Full details: [CHANGELOG](https://github.com/rommelporras/homelab/blob/main/docs/reference/CHANGELOG.md)
 ```
 
 ## Important Rules
