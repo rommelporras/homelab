@@ -9,7 +9,7 @@
 ### Summary
 
 Replaced all imperative `kubectl create secret` commands with declarative `ExternalSecret` CRDs
-backed by self-hosted HashiCorp Vault. 30 ExternalSecrets deployed across 13 namespaces. All
+backed by self-hosted HashiCorp Vault. 30 ExternalSecrets deployed across 15 namespaces. All
 workloads rollout-restarted and confirmed healthy. Vault runs as a single pod with Raft storage
 on Longhorn 5Gi, an auto-unsealer Deployment, and daily Raft snapshots to NFS NAS (15-day
 retention). `vault-unseal-keys` is the only remaining imperative secret (bootstrap requirement).
@@ -27,7 +27,7 @@ ServiceMonitor for kube-prometheus-stack scraping, VaultSealed alert false-posit
 | HashiCorp Vault 1.21.2 | Standalone, Raft on Longhorn 5Gi, `helm/vault/values.yaml` |
 | Auto-unsealer Deployment | Polls vault-0 every 30s, unseals with 3 Shamir keys from `vault-unseal-keys` secret |
 | ESO v2.1.0 | `ClusterSecretStore` via Kubernetes auth, `serviceMonitor.enabled: true` |
-| 30 ExternalSecrets | Covers all 13 app namespaces — all STATUS=SecretSynced |
+| 30 ExternalSecrets | Covers all 15 namespaces — all STATUS=SecretSynced |
 | Vault HTTPRoute | `vault.k8s.rommelporras.com` via homelab-gateway |
 | Vault ServiceMonitor | Prometheus scraping via ServiceMonitor CRD (pod annotations don't work with kube-prometheus-stack) |
 | Snapshot CronJob | Daily 02:00 PHT to NFS `/Kubernetes/Backups/vault`, 15-day retention |
@@ -36,6 +36,8 @@ ServiceMonitor for kube-prometheus-stack scraping, VaultSealed alert false-posit
 | Blackbox probe | Probes `/v1/sys/health` — returns 503 when sealed (triggers VaultDown) |
 | `VAULT_ADDR` in `.zshrc` | No more manual export or port-forward needed for vault CLI |
 | `send_resolved: true` on Discord | All 3 Discord receivers now explicitly send resolved notifications |
+| Alertmanager infra routing | `Vault.*` and `ESO.*` patterns added to `#infra` regex — ensures all 8 Vault/ESO alerts route to `#infra` instead of catch-all `#apps` |
+| dotctl Observability | Loki HTTPRoute (`loki.k8s.rommelporras.com`), PrometheusRule for dotctl drift/staleness, Grafana dashboard |
 | Scripts deleted | `scripts/apply-arr-secrets.sh` replaced by ExternalSecret CRDs |
 | 8 secret.yaml files deleted | Replaced by `externalsecret.yaml` in each namespace |
 
