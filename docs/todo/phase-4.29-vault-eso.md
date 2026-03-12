@@ -120,8 +120,8 @@ Commands marked 🔒 must run in the safe terminal (has `op` access, not Claude 
 | `scripts/configure-vault.sh` | Vault post-init config: KV v2, K8s auth, policies, audit (🔒 safe terminal) |
 | `scripts/verify-migration.sh` | Post-migration verification (ExternalSecret sync + pod health) |
 | `manifests/monitoring/alerts/vault-alerts.yaml` | Vault + ESO PrometheusRule alerts |
-| `manifests/monitoring/dashboards/vault-dashboard.yaml` | Grafana dashboard ConfigMap |
-| `manifests/monitoring/probes/vault.yaml` | Blackbox HTTP probe for Vault UI |
+| `manifests/monitoring/dashboards/vault-dashboard-configmap.yaml` | Grafana dashboard ConfigMap |
+| `manifests/monitoring/probes/vault-probe.yaml` | Blackbox HTTP probe for Vault UI |
 | `manifests/arr-stack/externalsecret.yaml` | Replaces arr-api-keys-secret.yaml |
 | `manifests/cloudflare/externalsecret.yaml` | Replaces cloudflare/secret.yaml |
 | `manifests/home/homepage/externalsecret.yaml` | Replaces homepage/secret.yaml |
@@ -264,9 +264,9 @@ secret/
 
 - [x] **4.29.17** Verify Vault Prometheus metrics scraping — Fixed: moved `unauthenticated_metrics_access` into `listener.telemetry{}` block (Vault 1.16+ deprecation), created ServiceMonitor (`manifests/vault/servicemonitor.yaml`), verified 264 metrics in Prometheus
 - [x] **4.29.18** Verify ESO metrics scraping — 3 ServiceMonitors in monitoring namespace
-- [x] **4.29.19** Create `vault-alerts.yaml` (7 alerts: VaultSealed, VaultAuditFailure, VaultDown, VaultHighLatency, ESOSecretNotSynced, ESOSyncErrors, VaultSnapshotFailing)
-- [x] **4.29.20** Create `vault.yaml` Blackbox probe for Vault UI endpoint
-- [x] **4.29.21** Create `vault-dashboard.yaml` Grafana dashboard (5 rows)
+- [x] **4.29.19** Create `vault-alerts.yaml` (8 alerts: VaultSealed, VaultMetricsMissing, VaultAuditFailure, VaultDown, VaultHighLatency, ESOSecretNotSynced, ESOSyncErrors, VaultSnapshotFailing)
+- [x] **4.29.20** Create `vault-probe.yaml` Blackbox probe for Vault UI endpoint
+- [x] **4.29.21** Create `vault-dashboard-configmap.yaml` Grafana dashboard (5 rows)
 - [x] **4.29.22** Update Alertmanager infra regex to include `Vault.*|ESO.*` patterns
 - [x] **4.29.23** Test: seal vault-0 → verify VaultSealed alert fires — confirmed VaultSealed fired (critical) in Prometheus + Alertmanager within 2m. Auto-unseal recovered in ~30s after scaling unsealer back up. Alert resolved automatically.
 
@@ -1135,7 +1135,7 @@ spec:
               4. Check NFS mount: verify 10.10.30.4:/Kubernetes/Backups/vault is accessible
 ```
 
-#### Blackbox Probe (`manifests/monitoring/probes/vault.yaml`)
+#### Blackbox Probe (`manifests/monitoring/probes/vault-probe.yaml`)
 
 ```yaml
 apiVersion: monitoring.coreos.com/v1
@@ -1179,7 +1179,7 @@ match_re:
   alertname: '(Longhorn.*|NVMe.*|etcd.*|KubeVip.*|Certificate.*|Node.*|UPS.*|NetworkInterface.*|KubePersistent.*|SmartCTL.*|KubeApiserver.*|CPUThrottling.*|Alloy.*|Loki.*|ClusterJanitor.*|Vault.*|ESO.*)'
 ```
 
-#### Grafana Dashboard Spec (`manifests/monitoring/dashboards/vault-dashboard.yaml`)
+#### Grafana Dashboard Spec (`manifests/monitoring/dashboards/vault-dashboard-configmap.yaml`)
 
 Follows project dashboard convention. ConfigMap with `grafana_dashboard: "1"` label.
 

@@ -36,6 +36,7 @@
 | v0.26.0 | Phase 4.27 | Version Automation & Upgrade Runbooks (version-checker, Nova CronJob, Renovate) | [v0.26.0-version-automation.md](v0.26.0-version-automation.md) |
 | v0.27.0 | Phase 4.28 | Alerting & Observability Improvements (15 new alerts, 11 Blackbox probes, smartctl-exporter, Longhorn + cert-manager ServiceMonitors, 11 Grafana dashboards) | [v0.27.0-alerting-improvements.md](v0.27.0-alerting-improvements.md) |
 | v0.28.0 | Phase 4.30 | Atuin Self-Hosted Shell History (sync server + PostgreSQL, CiliumNetworkPolicies, weekly backup, Grafana dashboard) | [v0.28.0-atuin.md](v0.28.0-atuin.md) |
+| v0.29.0 | Phase 4.29 | Vault + External Secrets Operator (HashiCorp Vault, ESO, 30 ExternalSecrets, auto-unseal, NFS snapshots) | [v0.29.0-vault-eso.md](v0.29.0-vault-eso.md) |
 
 ---
 
@@ -127,6 +128,9 @@ docs/rebuild/v0.27.0-alerting-improvements.md
 
 # 28. Atuin Shell History - Self-hosted sync server + PostgreSQL
 docs/rebuild/v0.28.0-atuin.md
+
+# 29. Vault + External Secrets Operator - Declarative GitOps secrets management
+docs/rebuild/v0.29.0-vault-eso.md
 ```
 
 ---
@@ -237,6 +241,8 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | qbittorrent-exporter | latest (esanchezm) | v0.27.0 |
 | Atuin Server | 18.12.0 | v0.28.0 |
 | PostgreSQL (Atuin) | 18.3 | v0.28.0 |
+| HashiCorp Vault | 1.21.2 | v0.29.0 |
+| External Secrets Operator | v2.1.0 | v0.29.0 |
 
 ---
 
@@ -452,7 +458,8 @@ homelab/
 │   ├── sync-ghost-prod-to-dev.sh      # v0.11.0
 │   ├── sync-ghost-prod-to-local.sh    # v0.11.0
 │   ├── test-cloudflare-networkpolicy.sh  # v0.7.0
-│   └── apply-arr-secrets.sh           # v0.23.0
+│   ├── configure-vault.sh             # v0.29.0 (🔒 safe terminal)
+│   └── seed-vault-from-1password.sh   # v0.29.0 (🔒 safe terminal)
 │
 ├── renovate.json                      # v0.26.0
 ```

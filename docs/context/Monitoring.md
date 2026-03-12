@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-03-11
+updated: 2026-03-12
 ---
 
 # Monitoring
@@ -83,6 +83,8 @@ Query logs:
 | discord-apps | Discord #apps | Warning (application: catch-all for non-infra warnings) |
 | healthchecks-heartbeat | healthchecks.io ping | Watchdog (1m) |
 | null | Nowhere | Silenced alerts |
+
+**Note:** All Discord receivers have `send_resolved: true`. RESOLVED notifications are delayed up to `group_interval: 5m` after the alert clears — this is normal Alertmanager behavior, not a bug. Config lives in both `helm/prometheus/values.yaml` and `scripts/upgrade-prometheus.sh` (the script's temp file fully overrides receivers during Helm upgrade).
 
 ### Alert Routing
 
@@ -269,6 +271,9 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 | `tdarr-probe.yaml` | Tdarr | HTTP (tdarr.arr-stack.svc:8265) | 60s |
 | `byparr-probe.yaml` | Byparr | HTTP (byparr.arr-stack.svc:8191) | 60s |
 | `bazarr-probe.yaml` | Bazarr | HTTP (bazarr.arr-stack.svc:6767) | 60s |
+| `vault-probe.yaml` | Vault | HTTP /v1/sys/health (vault.vault.svc:8200) | 60s |
+
+**Vault probe note:** `/v1/sys/health` returns 200=active, 503=sealed. `http_2xx` treats sealed as probe failure — used by VaultSealed alert's `absent()` guard to prevent false positives when metrics are temporarily unavailable.
 
 All probes use the `http_2xx` module (Blackbox Exporter at `blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115`).
 
@@ -284,8 +289,11 @@ All probes use the `http_2xx` module (Blackbox Exporter at `blackbox-exporter-pr
 | `certmanager-servicemonitor.yaml` | cert-manager (port 9402) | cert-manager | 300s |
 | `tdarr-servicemonitor.yaml` | tdarr-exporter (:9090) | arr-stack | 60s |
 | `qbittorrent-servicemonitor.yaml` | qbittorrent-exporter (:8000) | arr-stack | 30s |
+| `manifests/vault/servicemonitor.yaml` | Vault /v1/sys/metrics (:8200) | vault | 30s |
 
 All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kube-prometheus-stack` labels for Prometheus Operator discovery.
+
+**Vault ServiceMonitor note:** Requires `unauthenticated_metrics_access = true` in the `listener.telemetry {}` HCL block (Vault 1.16+ — top-level `telemetry {}` block no longer works).
 
 ### Alert Rules (`manifests/monitoring/alerts/`)
 
@@ -315,6 +323,7 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | `node-alerts.yaml` | NodeMemoryMajorPagesFaults (>2000/s + <15% mem available, warning) | v0.27.0 |
 | `cluster-janitor-alerts.yaml` | ClusterJanitorFailing (CronJob last result failed, warning) | v0.28.2 |
 | `dotctl-alerts.yaml` | DotctlCollectionStale (>30min, warning), DotctlDriftDetected (>1hr, warning) | — |
+| `vault-alerts.yaml` | VaultSealed (critical, 2m), VaultMetricsMissing (warning, 15m), VaultAuditFailure (critical, 1m), VaultDown (warning, 5m), VaultHighLatency (warning, 10m), ESOSecretNotSynced (critical, 10m), ESOSyncErrors (warning, 5m), VaultSnapshotFailing (warning, 30m) | v0.29.0 |
 
 **Severity routing:**
 - `critical` → Discord #incidents + Email (3 recipients)
@@ -340,6 +349,7 @@ All dashboards are auto-provisioned via Grafana sidecar. All have `grafana_folde
 | `version-checker-dashboard-configmap.yaml` | Version Checker | Outdated containers, K8s version drift |
 | `service-health-dashboard-configmap.yaml` | Service Health | 12-service UP/DOWN grid, uptime history, response times |
 | `dotctl-dashboard-configmap.yaml` | Dotfiles Status | Machine status, drift tracking, tool inventory, collection health |
+| `vault-dashboard-configmap.yaml` | Vault + ESO | Seal status, ESO sync state, Raft storage, resource usage, snapshot health |
 
 ### Version Checker (`manifests/monitoring/version-checker/`)
 

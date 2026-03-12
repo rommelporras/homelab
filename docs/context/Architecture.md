@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, architecture, decisions]
-updated: 2026-02-17
+updated: 2026-03-12
 ---
 
 # Architecture
@@ -113,8 +113,21 @@ CiliumNetworkPolicy restricts ingress to only authorized namespaces (`monitoring
 | NAS should be independent of K8s state |
 | K8s mounts NFS shares from it |
 
+## Why Vault + ESO (Not Direct K8s Secrets)
+
+| Approach | Problem |
+|----------|---------|
+| `kubectl create secret` | Secrets in shell history, CI logs, or git |
+| Sealed Secrets | Asymmetric key tied to cluster — rebuild requires key backup |
+| **HashiCorp Vault + ESO** | **Centralized store, declarative ExternalSecret CRDs, K8s auth** |
+
+1Password is the human-readable seed source — `scripts/seed-vault-from-1password.sh` is run manually once. Vault serves secrets to ESO via Kubernetes auth (no credentials in automation). ESO creates K8s Secrets from ExternalSecret CRDs committed to git (no secret values, just references). Apps consume K8s Secrets unchanged — zero application changes needed.
+
+**Only imperative secret:** `vault-unseal-keys` (bootstrap — Vault must exist before ESO can create secrets from it).
+
 ## Related
 
 - [[Cluster]] - Current nodes
 - [[Storage]] - Longhorn details
 - [[Networking]] - kube-vip, Gateway
+- [[Secrets]] - Vault KV paths, ESO ExternalSecrets, 1Password items

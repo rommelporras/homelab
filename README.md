@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
-3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 28 releases, each with a [complete rebuild guide](docs/rebuild/README.md).
+3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 29 releases, each with a [complete rebuild guide](docs/rebuild/README.md).
 
 > **Owner:** Rommel Porras  |  **CKA Target:** September 2026
 
@@ -103,6 +103,10 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Atuin (self-hosted shell history sync, E2E encrypted, PostgreSQL)
 - Homepage dashboard, MySpeed, Firefox browser (KasmVNC)
 
+**Secrets Management**
+- HashiCorp Vault 1.21.2 (standalone, Raft on Longhorn, auto-unsealer, daily NFS snapshots)
+- External Secrets Operator v2.1.0 (30 ExternalSecrets, Kubernetes auth, all namespaces)
+
 ---
 
 ## Key Decisions
@@ -115,7 +119,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 | **VIP** | kube-vip (ARP mode) | No OPNsense changes needed |
 | **Ingress** | Gateway API (not NGINX) | Ingress API is feature-frozen, Cilium has native Gateway API support |
 | **Remote access** | Tailscale Connector (not per-service Ingress) | 1 pod routes entire subnet, zero per-service manifests |
-| **Secrets** | 1Password CLI (`op read`) | Runtime injection, never committed to git |
+| **Secrets** | HashiCorp Vault + ESO | Declarative ExternalSecret CRDs backed by Vault KV v2; 1Password is seed source only |
 
 ---
 
@@ -140,7 +144,7 @@ Things that bit us and might save you time:
 | Document | Purpose |
 |----------|---------|
 | [docs/context/Cluster.md](docs/context/Cluster.md) | **Source of truth** — nodes, IPs, hardware |
-| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (28 releases, v0.1.0 to v0.28.0) |
+| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (29 releases, v0.1.0 to v0.29.0) |
 | [docs/context/](docs/context/) | Knowledge base (11 topic files: Architecture, Gateway, Networking, etc.) |
 | [docs/todo/](docs/todo/README.md) | Phase plans (active + [completed](docs/todo/completed/)) |
 | [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md) | Decision history and project timeline |
@@ -150,9 +154,8 @@ Things that bit us and might save you time:
 
 ## Next Steps
 
-1. **Vault + External Secrets Operator** — Declarative GitOps secrets management, replaces all `kubectl create secret` (Phase 4.29)
-2. **Production Hardening** — RBAC audit, NetworkPolicy hardening, resource tuning (Phase 5)
-3. **CKA Certification** — September 2026 target
+1. **Production Hardening** — RBAC audit, NetworkPolicy hardening, Vault policy tightening (Phase 5)
+2. **CKA Certification** — September 2026 target
 
 ## Claude Code
 
