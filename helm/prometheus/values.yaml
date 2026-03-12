@@ -259,6 +259,7 @@ alertmanager:
       - name: 'discord-incidents-email'
         discord_configs:
           - webhook_url: 'SET_VIA_HELM'  # Injected from 1Password
+            send_resolved: true
             title: '{{ if eq .Status "firing" }}🔴{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
             message: |
               {{ range .Alerts }}
@@ -277,6 +278,7 @@ alertmanager:
       - name: 'discord-infra'
         discord_configs:
           - webhook_url: 'SET_VIA_HELM'  # Injected from 1Password
+            send_resolved: true
             title: '{{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
             message: |
               {{ range .Alerts }}
@@ -289,6 +291,7 @@ alertmanager:
       - name: 'discord-apps'
         discord_configs:
           - webhook_url: 'SET_VIA_HELM'  # Injected from 1Password
+            send_resolved: true
             title: '{{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
             message: |
               {{ range .Alerts }}
