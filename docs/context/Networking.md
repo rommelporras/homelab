@@ -83,6 +83,7 @@ Network configuration for the homelab cluster.
 | Seerr | https://seerr.k8s.rommelporras.com | base |
 | Tdarr | https://tdarr.k8s.rommelporras.com | base |
 | Recommendarr | https://recommendarr.k8s.rommelporras.com | base |
+| Loki | https://loki.k8s.rommelporras.com | base |
 
 ## Tailscale (Remote Access)
 

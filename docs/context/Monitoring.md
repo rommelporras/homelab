@@ -37,6 +37,7 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 | Alertmanager | https://alertmanager.k8s.rommelporras.com |
 | Uptime Kuma | https://uptime.k8s.rommelporras.com |
 | Uptime Kuma (public) | https://status.rommelporras.com/status/homelab |
+| Loki | https://loki.k8s.rommelporras.com |
 
 ## Grafana
 
@@ -249,6 +250,7 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 | `grafana-httproute.yaml` | Grafana HTTPRoute (grafana.k8s.rommelporras.com) |
 | `alertmanager-httproute.yaml` | Alertmanager HTTPRoute (internal) |
 | `prometheus-httproute.yaml` | Prometheus HTTPRoute (internal) |
+| `loki-httproute.yaml` | Loki HTTPRoute (loki.k8s.rommelporras.com) |
 | `loki-datasource.yaml` | Loki datasource ConfigMap |
 
 ### Blackbox Probes (`manifests/monitoring/probes/`)
@@ -312,6 +314,7 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | `cpu-throttling-alerts.yaml` | CPUThrottlingHigh (>50%, arr-stack excluded, info) | v0.27.0 |
 | `node-alerts.yaml` | NodeMemoryMajorPagesFaults (>2000/s + <15% mem available, warning) | v0.27.0 |
 | `cluster-janitor-alerts.yaml` | ClusterJanitorFailing (CronJob last result failed, warning) | v0.28.2 |
+| `dotctl-alerts.yaml` | DotctlCollectionStale (>30min, warning), DotctlDriftDetected (>1hr, warning) | — |
 
 **Severity routing:**
 - `critical` → Discord #incidents + Email (3 recipients)
@@ -336,6 +339,7 @@ All dashboards are auto-provisioned via Grafana sidecar. All have `grafana_folde
 | `longhorn-dashboard-configmap.yaml` | Longhorn Storage | NVMe S.M.A.R.T. (6 stat panels), TBW history, write rate, disk usage, volume I/O |
 | `version-checker-dashboard-configmap.yaml` | Version Checker | Outdated containers, K8s version drift |
 | `service-health-dashboard-configmap.yaml` | Service Health | 12-service UP/DOWN grid, uptime history, response times |
+| `dotctl-dashboard-configmap.yaml` | Dotfiles Status | Machine status, drift tracking, tool inventory, collection health |
 
 ### Version Checker (`manifests/monitoring/version-checker/`)
 

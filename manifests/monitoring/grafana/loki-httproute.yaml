@@ -1,0 +1,29 @@
+# Loki HTTPRoute — exposes Loki HTTP API for external queries
+# Used by dotctl CLI to query LogQL via https://loki.k8s.rommelporras.com
+#
+# Security: auth_enabled=false, same posture as Prometheus.
+# Access restricted to VLAN 30 + Tailscale (network boundary).
+#
+# Apply:
+#   kubectl-homelab apply -f manifests/monitoring/grafana/loki-httproute.yaml
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: loki
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: homelab-gateway
+      namespace: default
+      sectionName: https
+  hostnames:
+    - loki.k8s.rommelporras.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: loki
+          port: 3100

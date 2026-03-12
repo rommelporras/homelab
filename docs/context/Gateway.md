@@ -136,6 +136,7 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 | Alertmanager | https://alertmanager.k8s.rommelporras.com | alertmanager | monitoring | https |
 | Prometheus | https://prometheus.k8s.rommelporras.com | prometheus | monitoring | https |
 | Atuin | https://atuin.k8s.rommelporras.com | atuin | atuin | https |
+| Loki | https://loki.k8s.rommelporras.com | loki | monitoring | https |
 
 ## Adding a New Service
 
