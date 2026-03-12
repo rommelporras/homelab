@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** March 9, 2026
+> **Last Updated:** March 12, 2026
 
 ---
 
@@ -52,6 +52,8 @@
 | intel/intel-device-plugins-operator | 0.34.1 | v0.34.1 | Installed | intel-device-plugins |
 | intel/intel-device-plugins-gpu | 0.34.1 | v0.34.1 | Installed | intel-device-plugins |
 | prometheus-community/prometheus-smartctl-exporter | 0.16.0 | v0.14.0 | Installed | monitoring |
+| hashicorp/vault | 0.32.0 | v1.21.2 | Installed | vault |
+| external-secrets/external-secrets | 2.1.0 | v2.1.0 | Installed | external-secrets |
 
 > **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
 > Use `grafana/loki` + `grafana/alloy` instead.
@@ -71,6 +73,8 @@ helm-homelab repo add gitlab https://charts.gitlab.io
 helm-homelab repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm-homelab repo add tailscale https://pkgs.tailscale.com/helmcharts
 helm-homelab repo add intel https://intel.github.io/helm-charts/
+helm-homelab repo add hashicorp https://helm.releases.hashicorp.com
+helm-homelab repo add external-secrets https://charts.external-secrets.io
 helm-homelab repo update
 # Note: cert-manager, kube-prometheus-stack, Loki, and NFD use OCI - no repo add needed
 ```
@@ -95,7 +99,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** v0.28.0 released. Atuin self-hosted shell history sync server + PostgreSQL.
+> **Status:** v0.29.0 released. Vault + External Secrets Operator for centralized secret management.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -144,6 +148,10 @@ helm-homelab repo update
 | Atuin Server | 18.12.0 | Running | Self-hosted shell history sync (E2E encrypted) |
 | PostgreSQL (Atuin) | 18.3 | Running | Atuin dedicated database (atuin namespace) |
 | Cluster Janitor | CronJob (alpine/k8s:1.35.0) | Running | Automated cleanup: Failed pods + stopped Longhorn replicas (kube-system) |
+| HashiCorp Vault | 1.21.2 | Running | Secrets management (standalone, Raft on Longhorn 5Gi) |
+| Vault Auto-Unsealer | 1.21.2 | Running | Polls vault-0 every 30s, auto-unseals with 3 Shamir keys |
+| External Secrets Operator | v2.1.0 | Running | Syncs K8s Secrets from Vault via ExternalSecret CRDs |
+| Vault Snapshot CronJob | 1.21.2 | Running | Daily Raft backup to NFS NAS (02:00 PHT, 7-day retention) |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -185,6 +193,7 @@ helm-homelab repo update
 | Alertmanager | alertmanager.k8s.rommelporras.com | base | monitoring |
 | Prometheus | prometheus.k8s.rommelporras.com | base | monitoring |
 | Atuin | atuin.k8s.rommelporras.com | base | atuin |
+| Vault UI | vault.k8s.rommelporras.com | base | vault |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |

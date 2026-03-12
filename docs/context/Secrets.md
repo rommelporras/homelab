@@ -1,34 +1,92 @@
 ---
-tags: [homelab, kubernetes, secrets, 1password]
-updated: 2026-03-11
+tags: [homelab, kubernetes, secrets, 1password, vault, external-secrets]
+updated: 2026-03-12
 ---
 
 # Secrets
 
-All secrets are stored in 1Password. Never hardcode credentials.
+All secrets originate in 1Password and are delivered to Kubernetes via **HashiCorp Vault + External Secrets Operator (ESO)**.
+
+## Architecture
+
+```
+1Password (source of truth)
+    ↓ manual seed (scripts/seed-vault-from-1password.sh)
+Vault KV v2 (secret/*)
+    ↓ Kubernetes auth (ESO ServiceAccount)
+External Secrets Operator
+    ↓ ExternalSecret CRDs (per namespace)
+K8s Secrets (auto-created, 1h refresh)
+```
+
+**Components:**
+| Component | Namespace | Purpose |
+|-----------|-----------|---------|
+| Vault (standalone, Raft on Longhorn) | vault | Centralized secret store |
+| Vault Auto-Unsealer | vault | Polls every 30s, unseals with 3 Shamir keys |
+| ESO Controller + Webhook | external-secrets | Reconciles ExternalSecret → K8s Secret |
+| ClusterSecretStore `vault-backend` | cluster-wide | Connects ESO to Vault via K8s auth |
 
 ## Security Boundary
 
-**1Password is never accessed by automation.** All `op read` commands are run manually from a separate trusted terminal — never from Claude Code, CI/CD pipelines, or any automated process.
+**1Password is never accessed by automation.** The seed script (`scripts/seed-vault-from-1password.sh`) is run manually from a trusted terminal. Vault then serves secrets to ESO via Kubernetes auth — no `op` commands in any automated process.
 
-**Why:** The 1Password personal account has access to all vaults (Kubernetes, Private, etc.). There is no way to scope CLI access to a single vault on an Individual plan. Running `op` from automation risks exposing personal credentials.
+**Why:** The 1Password personal account (Family plan) has access to all vaults. Running `op` from automation risks exposing personal credentials.
 
 **Workflow:**
-1. Run `eval $(op signin)` in a separate terminal
-2. Copy-paste the `kubectl-homelab create secret` commands from the secret.yaml documentation files
-3. The commands use `$(op read 'op://...')` to inject values at runtime
-4. Secrets are created directly in the cluster — never written to disk or git
-
-**GitOps exception:** Secrets are the one intentional imperative step. All other resources (Deployments, Services, ConfigMaps, etc.) are declarative and managed via git.
+1. Run `eval $(op signin)` in a trusted terminal
+2. Run `scripts/seed-vault-from-1password.sh` to populate Vault KV paths
+3. ESO syncs Vault → K8s Secrets automatically (1h refresh)
+4. Pods reference K8s Secrets as before — no application changes needed
 
 ## Secret File Convention
 
-All `manifests/**/secret.yaml` files are **documentation placeholders** committed to git. They contain:
-- Commented `kubectl create secret` commands with `op://` references
-- Empty Secret manifests with `managed-by: "imperative-kubectl"` annotation
+All `manifests/**/externalsecret.yaml` files are **ExternalSecret CRDs** committed to git. They contain:
+- Vault KV path references (e.g., `key: cert-manager/cloudflare-api-token`)
+- Target K8s Secret name and key mappings
 - No real credential values
 
-These files serve as the "recipe" for recreating secrets during a cluster rebuild.
+These files are the declarative "recipe" — ESO creates the actual K8s Secrets.
+
+## Vault Break-Glass
+
+Unseal keys and root token are stored in 1Password item **"Vault Unseal Keys"** (Kubernetes vault).
+Local backup: `~/.vault-keys` (chmod 600). Delete after confirming 1Password backup.
+
+## Vault KV Paths → ExternalSecrets
+
+| Vault KV Path | K8s Secret Name | Namespace | ExternalSecret File |
+|---------------|----------------|-----------|---------------------|
+| cert-manager/cloudflare-api-token | cloudflare-api-token | cert-manager | manifests/cert-manager/externalsecret.yaml |
+| cloudflare/cloudflared-token | cloudflared-token | cloudflare | manifests/cloudflare/externalsecret.yaml |
+| arr-stack/api-keys | arr-api-keys | arr-stack | manifests/arr-stack/externalsecret.yaml |
+| arr-stack/qbittorrent | qbittorrent-exporter-secret | arr-stack | manifests/arr-stack/externalsecret.yaml |
+| atuin/secrets | atuin-secrets | atuin | manifests/atuin/externalsecret.yaml |
+| browser/firefox-auth | firefox-auth | browser | manifests/browser/externalsecret.yaml |
+| ghost-dev/mysql | ghost-mysql | ghost-dev | manifests/ghost-dev/externalsecret.yaml |
+| ghost-dev/mail | ghost-mail | ghost-dev | manifests/ghost-dev/externalsecret.yaml |
+| ghost-prod/mysql | ghost-mysql | ghost-prod | manifests/ghost-prod/externalsecret.yaml |
+| ghost-prod/mail | ghost-mail | ghost-prod | manifests/ghost-prod/externalsecret.yaml |
+| ghost-prod/tinybird | ghost-tinybird | ghost-prod | manifests/ghost-prod/externalsecret.yaml |
+| gitlab/root-password | gitlab-root-password | gitlab | manifests/gitlab/externalsecret.yaml |
+| gitlab/postgresql-password | gitlab-postgresql-password | gitlab | manifests/gitlab/externalsecret.yaml |
+| gitlab-runner/runner-token | gitlab-runner-token | gitlab-runner | manifests/gitlab-runner/externalsecret.yaml |
+| homepage/secrets | homepage-secrets | home | manifests/home/homepage/externalsecret.yaml |
+| invoicetron-dev/db | invoicetron-db | invoicetron-dev | manifests/invoicetron/externalsecret-dev.yaml |
+| invoicetron-dev/app | invoicetron-app | invoicetron-dev | manifests/invoicetron/externalsecret-dev.yaml |
+| invoicetron-prod/db | invoicetron-db | invoicetron-prod | manifests/invoicetron/externalsecret-prod.yaml |
+| invoicetron-prod/app | invoicetron-app | invoicetron-prod | manifests/invoicetron/externalsecret-prod.yaml |
+| karakeep/secrets | karakeep-secrets | karakeep | manifests/karakeep/externalsecret.yaml |
+| kube-system/discord-janitor-webhook | discord-janitor-webhook | kube-system | manifests/kube-system/cluster-janitor/externalsecret.yaml |
+| monitoring/discord-version-webhook | discord-version-webhook | monitoring | manifests/monitoring/externalsecret.yaml |
+| monitoring/nut-credentials | nut-credentials | monitoring | manifests/monitoring/externalsecret.yaml |
+
+**Deferred to later phase:**
+- Alertmanager webhook URLs (embedded in prometheus Helm values)
+- Grafana admin password (embedded in prometheus Helm values)
+- Healthchecks ping URL (embedded in prometheus Helm values)
+- SMTP credentials (embedded in prometheus Helm values)
+- Monitoring discord-webhooks (5 Alertmanager channels — seeded but not yet migrated to ExternalSecret)
 
 ## 1Password Vault
 
@@ -66,6 +124,8 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | ARR Stack | `username`, `password`, `prowlarr-api-key`, `sonarr-api-key`, `radarr-api-key`, `bazarr-api-key`, `jellyfin-api-key`, `tdarr-api-key`, `discord-webhook-url` | All ARR apps (shared login), Homepage widgets, arr-api-keys Secret, Discord notifications |
 | Opensubtitles | `username`, `user[password_confirmation]` | Bazarr subtitle provider (OpenSubtitles.com) |
 | Atuin | `db-username`, `db-password`, `db-database`, `db-uri`, `personal-email`, `personal-password`, `encryption-key`, `eam-email`, `eam-password` | Atuin server (PostgreSQL + account credentials) |
+| Vault Unseal Keys | `unseal-key-1` thru `unseal-key-5`, `root-token` | Vault init break-glass (3 of 5 keys needed to unseal) |
+| Cloudflare Tunnel | `token` | cloudflared Deployment (cloudflare namespace) |
 | iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
 
 ## 1Password Paths

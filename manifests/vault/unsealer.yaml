@@ -1,0 +1,89 @@
+# manifests/vault/unsealer.yaml
+# Auto-unsealer for Vault — polls every 30s, unseals if sealed
+#
+# Reads 3 Shamir unseal keys from vault-unseal-keys K8s Secret
+# Uses vault CLI to check seal status and unseal vault-0
+#
+# Prerequisite:
+#   kubectl --kubeconfig ~/.kube/homelab.yaml create secret generic vault-unseal-keys \
+#     -n vault --from-literal=key1="..." --from-literal=key2="..." --from-literal=key3="..."
+#
+# CKA topics: Deployment, secretKeyRef, securityContext, readOnlyRootFilesystem
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault-unsealer
+  namespace: vault
+  labels:
+    app: vault-unsealer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vault-unsealer
+  template:
+    metadata:
+      labels:
+        app: vault-unsealer
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: unsealer
+          image: hashicorp/vault:1.21.2
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: VAULT_ADDR
+              value: "http://vault-0.vault-internal.vault.svc.cluster.local:8200"
+            - name: UNSEAL_KEY_1
+              valueFrom:
+                secretKeyRef:
+                  name: vault-unseal-keys
+                  key: key1
+            - name: UNSEAL_KEY_2
+              valueFrom:
+                secretKeyRef:
+                  name: vault-unseal-keys
+                  key: key2
+            - name: UNSEAL_KEY_3
+              valueFrom:
+                secretKeyRef:
+                  name: vault-unseal-keys
+                  key: key3
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Vault unsealer starting — polling every 30s"
+              while true; do
+                # vault status exit codes: 0=unsealed, 1=error, 2=sealed
+                vault status -format=json > /dev/null 2>&1
+                RC=$?
+                if [ "$RC" -eq 2 ]; then
+                  echo "$(date +%H:%M:%S) Vault is sealed — unsealing..."
+                  vault operator unseal "$UNSEAL_KEY_1" >/dev/null 2>&1
+                  vault operator unseal "$UNSEAL_KEY_2" >/dev/null 2>&1
+                  vault operator unseal "$UNSEAL_KEY_3" >/dev/null 2>&1
+                  echo "$(date +%H:%M:%S) Unseal commands sent"
+                elif [ "$RC" -eq 0 ]; then
+                  : # unsealed, nothing to do
+                else
+                  echo "$(date +%H:%M:%S) Vault not reachable (exit $RC) — waiting..."
+                fi
+                sleep 30
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi

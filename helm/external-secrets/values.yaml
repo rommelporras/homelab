@@ -1,0 +1,37 @@
+# helm/external-secrets/values.yaml
+# External Secrets Operator — syncs secrets from Vault into K8s Secrets
+#
+# Chart: external-secrets/external-secrets v2.1.0 (app v2.1.0)
+# Docs: https://external-secrets.io/latest/
+#
+# Architecture:
+#   - ClusterSecretStore connects to Vault via Kubernetes auth
+#   - ExternalSecret CRDs (per namespace) define which Vault paths to sync
+#   - ESO creates/updates K8s Secrets automatically (1h sync interval)
+#   - ServiceMonitor enabled for Prometheus scraping of ESO metrics
+#
+# INSTALL:
+#   helm-homelab install external-secrets external-secrets/external-secrets \
+#     --namespace external-secrets \
+#     --create-namespace \
+#     --version 2.1.0 \
+#     --values helm/external-secrets/values.yaml
+#
+# UPGRADE:
+#   helm-homelab upgrade external-secrets external-secrets/external-secrets \
+#     --namespace external-secrets \
+#     --version 2.1.0 \
+#     --values helm/external-secrets/values.yaml
+
+installCRDs: true
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  namespace: monitoring
+
+webhook:
+  create: true
+
+certController:
+  create: true

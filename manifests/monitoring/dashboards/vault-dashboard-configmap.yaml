@@ -1,0 +1,526 @@
+# Grafana Dashboard - Vault + External Secrets Operator
+# Phase 4.29: Seal status, ESO sync, Raft storage, resource usage, backup health
+# Auto-provisioned via grafana_dashboard label
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-dashboard
+  namespace: monitoring
+  annotations:
+    grafana_folder: "Homelab"
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus-stack
+data:
+  vault.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "title": "Pod Status",
+          "description": "Health status of Vault server, auto-unsealer, and ESO controller. Vault must be unsealed and active for ExternalSecrets to sync.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 5, "x": 0, "y": 1 },
+          "id": 2,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Vault server pod (StatefulSet vault-0). Runs HashiCorp Vault with Raft integrated storage on Longhorn PVC.",
+          "title": "Vault Server",
+          "type": "stat",
+          "targets": [
+            { "expr": "kube_pod_status_ready{namespace=\"vault\", pod=~\"vault-0\"}", "legendFormat": "Ready" }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 5, "x": 5, "y": 1 },
+          "id": 3,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Auto-unsealer Deployment. Polls vault-0 every 30s and automatically unseals if sealed using 3 Shamir keys.",
+          "title": "Vault Unsealer",
+          "type": "stat",
+          "targets": [
+            { "expr": "kube_deployment_status_replicas_available{namespace=\"vault\", deployment=\"vault-unsealer\"}", "legendFormat": "Available" }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 5, "x": 10, "y": 1 },
+          "id": 4,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "External Secrets Operator controller. Reconciles ExternalSecret CRDs and syncs K8s Secrets from Vault.",
+          "title": "ESO Controller",
+          "type": "stat",
+          "targets": [
+            { "expr": "kube_deployment_status_replicas_available{namespace=\"external-secrets\", deployment=~\"external-secrets.*\"}", "legendFormat": "Available" }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "0": { "color": "red", "text": "SEALED" }, "1": { "color": "green", "text": "UNSEALED" } }, "type": "value" }
+              ],
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] },
+              "noValue": "SEALED"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 5, "x": 15, "y": 1 },
+          "id": 5,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Vault seal status from telemetry. UNSEALED = operational. SEALED = ESO cannot sync secrets. Metric disappears when sealed too long.",
+          "title": "Seal Status",
+          "type": "stat",
+          "targets": [
+            { "expr": "vault_core_unsealed", "legendFormat": "Unsealed" }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "0": { "color": "orange", "text": "STANDBY" }, "1": { "color": "green", "text": "ACTIVE" } }, "type": "value" }
+              ],
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "orange", "value": null }, { "color": "green", "value": 1 } ] },
+              "noValue": "N/A"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+          "id": 6,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Active leader status. Always ACTIVE for standalone (non-HA) deployment.",
+          "title": "Leader",
+          "type": "stat",
+          "targets": [
+            { "expr": "vault_core_active", "legendFormat": "Active" }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "id": 10,
+          "title": "ExternalSecret Sync Status",
+          "description": "ESO reconciliation health. Shows sync success/failure rates and per-ExternalSecret status. All secrets should show SecretSynced=True.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 6, "w": 6, "x": 0, "y": 6 },
+          "id": 11,
+          "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Total number of ExternalSecret resources across all namespaces.",
+          "title": "Total ExternalSecrets",
+          "type": "stat",
+          "targets": [
+            { "expr": "count(externalsecret_status_condition{condition=\"SecretSynced\"})", "legendFormat": "Total" }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "hideFrom": { "tooltip": false, "viz": false, "legend": false } }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Synced" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Not Synced" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } } ]
+              }
+            ]
+          },
+          "gridPos": { "h": 6, "w": 6, "x": 6, "y": 6 },
+          "id": 12,
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "pieType": "donut",
+            "tooltip": { "mode": "multi" },
+            "legend": { "displayMode": "list", "placement": "right" }
+          },
+          "description": "Breakdown of ExternalSecrets by sync state. All should be Synced (green). Any Not Synced (red) indicates a problem.",
+          "title": "Synced vs Not Synced",
+          "type": "piechart",
+          "targets": [
+            { "expr": "count(externalsecret_status_condition{condition=\"SecretSynced\", status=\"True\"} == 1)", "legendFormat": "Synced" },
+            { "expr": "count(externalsecret_status_condition{condition=\"SecretSynced\", status=\"False\"} == 1)", "legendFormat": "Not Synced" }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 6, "w": 12, "x": 12, "y": 6 },
+          "id": 13,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Rate of ESO sync errors per 5m window. Should be zero in steady state. Spikes during Vault restarts are normal and should resolve within minutes.",
+          "title": "Sync Error Rate",
+          "type": "timeseries",
+          "targets": [
+            { "expr": "sum(rate(externalsecret_sync_calls_error[5m]))", "legendFormat": "Errors/s" },
+            { "expr": "sum(rate(externalsecret_sync_calls_total[5m]))", "legendFormat": "Total/s" }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 12 },
+          "id": 20,
+          "title": "Vault Storage & Performance",
+          "description": "Raft integrated storage health, request latency, and audit compliance. High Raft commit latency may indicate Longhorn volume issues.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "ms"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 6, "x": 0, "y": 13 },
+          "id": 21,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Raft storage commit latency. Measures time to persist data to Longhorn PVC. High latency indicates storage I/O issues.",
+          "title": "Raft Commit Latency",
+          "type": "timeseries",
+          "targets": [
+            { "expr": "vault_raft_commitTime{quantile=\"0.5\"}", "legendFormat": "p50" },
+            { "expr": "vault_raft_commitTime{quantile=\"0.99\"}", "legendFormat": "p99" }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "ms"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 6, "x": 6, "y": 13 },
+          "id": 22,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Vault API request handling latency. Includes KV reads, auth, and sys operations. p50 > 500ms triggers VaultHighLatency alert.",
+          "title": "Request Latency",
+          "type": "timeseries",
+          "targets": [
+            { "expr": "vault_core_handle_request{quantile=\"0.5\"}", "legendFormat": "p50" },
+            { "expr": "vault_core_handle_request{quantile=\"0.99\"}", "legendFormat": "p99" }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 100 }, { "color": "red", "value": 500 } ] }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 6, "x": 12, "y": 13 },
+          "id": 23,
+          "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Active Vault leases. ESO creates leases for each K8s auth login. High lease count may indicate a leak (clients not renewing/revoking).",
+          "title": "Active Leases",
+          "type": "stat",
+          "targets": [
+            { "expr": "vault_expire_num_leases", "legendFormat": "Leases" }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 6, "x": 18, "y": 13 },
+          "id": 24,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Vault audit log failure rate. Any non-zero value is a compliance violation — all Vault operations must be audited. Triggers VaultAuditFailure alert.",
+          "title": "Audit Failures",
+          "type": "timeseries",
+          "targets": [
+            { "expr": "rate(vault_audit_log_request_failure[5m])", "legendFormat": "Failures/s" }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 },
+          "id": 30,
+          "title": "Resource Usage",
+          "description": "CPU, memory, and storage consumption for vault-0 and unsealer pods. Dashed lines show Kubernetes resource requests and limits.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 22 },
+          "id": 31,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "CPU cores used by Vault server and unsealer. Dashed lines show resource requests (guaranteed minimum) and limits (throttle ceiling).",
+          "title": "CPU Usage (cores)",
+          "type": "timeseries",
+          "targets": [
+            { "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"vault\", pod=~\"vault-0\", container!=\"\"}[5m]))", "legendFormat": "Vault Server" },
+            { "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"vault\", pod=~\"vault-unsealer.*\", container!=\"\"}[5m]))", "legendFormat": "Unsealer" },
+            { "expr": "sum(kube_pod_container_resource_requests{namespace=\"vault\", container=\"vault\", resource=\"cpu\"})", "legendFormat": "Server Request" },
+            { "expr": "sum(kube_pod_container_resource_limits{namespace=\"vault\", container=\"vault\", resource=\"cpu\"})", "legendFormat": "Server Limit" }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Server Request" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Server Limit" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [4, 4] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 22 },
+          "id": 32,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Memory (working set) used by Vault server and unsealer. Dashed lines show resource requests (guaranteed minimum) and limits (OOM kill ceiling).",
+          "title": "Memory Usage",
+          "type": "timeseries",
+          "targets": [
+            { "expr": "sum(container_memory_working_set_bytes{namespace=\"vault\", pod=~\"vault-0\", container!=\"\"})", "legendFormat": "Vault Server" },
+            { "expr": "sum(container_memory_working_set_bytes{namespace=\"vault\", pod=~\"vault-unsealer.*\", container!=\"\"})", "legendFormat": "Unsealer" },
+            { "expr": "sum(kube_pod_container_resource_requests{namespace=\"vault\", container=\"vault\", resource=\"memory\"})", "legendFormat": "Server Request" },
+            { "expr": "sum(kube_pod_container_resource_limits{namespace=\"vault\", container=\"vault\", resource=\"memory\"})", "legendFormat": "Server Limit" }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "bytes"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Server Request" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Server Limit" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [4, 4] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "bytes"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Capacity" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [4, 4] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 22 },
+          "id": 33,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Longhorn volume usage for Vault PVC (data-vault-0). Dashed line shows total capacity (5Gi). Raft storage grows slowly with secret writes.",
+          "title": "Vault PVC Storage",
+          "type": "timeseries",
+          "targets": [
+            { "expr": "kubelet_volume_stats_used_bytes{namespace=\"vault\", persistentvolumeclaim=\"data-vault-0\"}", "legendFormat": "Used" },
+            { "expr": "kubelet_volume_stats_capacity_bytes{namespace=\"vault\", persistentvolumeclaim=\"data-vault-0\"}", "legendFormat": "Capacity" }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
+          "id": 40,
+          "title": "Backup Status",
+          "description": "Raft snapshot CronJob health. Daily snapshots at 02:00 PHT to NFS NAS with 7-day retention.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "dateTimeAsIso",
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 0 }, { "color": "green", "value": 0 } ] }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 6, "w": 8, "x": 0, "y": 31 },
+          "id": 41,
+          "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Timestamp of the most recent successful Vault snapshot CronJob completion. Should update daily at ~02:00 PHT.",
+          "title": "Last Snapshot Success",
+          "type": "stat",
+          "targets": [
+            { "expr": "max(kube_job_status_completion_time{namespace=\"vault\", job_name=~\"vault-snapshot.*\"}) * 1000", "legendFormat": "Last Success" }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "bars", "fillOpacity": 80, "lineWidth": 0, "showPoints": "never" },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Succeeded" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Failed" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } } ]
+              }
+            ]
+          },
+          "gridPos": { "h": 6, "w": 16, "x": 8, "y": 31 },
+          "id": 42,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "History of Vault snapshot CronJob outcomes. Green bars = successful snapshots, red bars = failures. Persistent failures may indicate NFS NAS unreachable.",
+          "title": "Snapshot Job History",
+          "type": "timeseries",
+          "targets": [
+            { "expr": "sum(kube_job_status_succeeded{namespace=\"vault\", job_name=~\"vault-snapshot.*\"})", "legendFormat": "Succeeded" },
+            { "expr": "sum(kube_job_status_failed{namespace=\"vault\", job_name=~\"vault-snapshot.*\"})", "legendFormat": "Failed" }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": [
+        "vault",
+        "external-secrets",
+        "secrets-management",
+        "infrastructure"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-24h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "Asia/Manila",
+      "title": "Vault + External Secrets Operator",
+      "uid": "vault-eso",
+      "version": 1
+    }

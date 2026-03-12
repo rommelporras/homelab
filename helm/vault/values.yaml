@@ -1,0 +1,86 @@
+# helm/vault/values.yaml
+# HashiCorp Vault — 1-pod standalone with Raft storage on Longhorn
+#
+# Chart: hashicorp/vault v0.32.0 (app v1.21.2)
+# Docs: https://developer.hashicorp.com/vault/docs
+#
+# Architecture:
+#   - Single pod (not HA) — matches homelab pattern, Longhorn handles replication
+#   - Raft integrated storage on Longhorn 5Gi PVC
+#   - Injector disabled — ESO handles secret delivery via ExternalSecret CRDs
+#   - Prometheus metrics via pod annotations (unauthenticated)
+#   - Auto-unseal via separate unsealer Deployment (manifests/vault/unsealer.yaml)
+#
+# INSTALL:
+#   helm-homelab install vault hashicorp/vault \
+#     --namespace vault \
+#     --version 0.32.0 \
+#     --values helm/vault/values.yaml
+#
+# UPGRADE:
+#   helm-homelab upgrade vault hashicorp/vault \
+#     --namespace vault \
+#     --version 0.32.0 \
+#     --values helm/vault/values.yaml
+
+server:
+  image:
+    repository: hashicorp/vault
+    tag: "1.21.2"
+
+  # Prometheus scraping — requires unauthenticated_metrics_access in telemetry HCL
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8200"
+    prometheus.io/path: "/v1/sys/metrics"
+    prometheus.io/scheme: "http"
+
+  standalone:
+    enabled: true
+    config: |
+      ui = true
+
+      listener "tcp" {
+        tls_disable     = 1
+        address         = "[::]:8200"
+        cluster_address = "[::]:8201"
+      }
+
+      storage "raft" {
+        path = "/vault/data"
+      }
+
+      service_registration "kubernetes" {}
+
+      telemetry {
+        prometheus_retention_time       = "24h"
+        disable_hostname                = true
+        unauthenticated_metrics_access  = true
+      }
+
+  ha:
+    enabled: false
+
+  dataStorage:
+    enabled: true
+    size: 5Gi
+    storageClass: longhorn
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+# Vault UI — exposed via HTTPRoute at vault.k8s.rommelporras.com
+ui:
+  enabled: true
+  serviceType: ClusterIP
+  externalPort: 8200
+  targetPort: 8200
+
+# Injector disabled — ESO handles all secret delivery
+injector:
+  enabled: false

@@ -1,0 +1,34 @@
+# Blackbox HTTP probe for Vault
+# Phase 4.29: Monitor Vault API health endpoint availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://vault.vault.svc:8200/v1/sys/health -> Vault
+#   If health check fails -> probe_success=0 -> VaultDown alert fires
+#
+# /v1/sys/health returns:
+#   200 = initialized + unsealed + active
+#   429 = standby, 472 = DR secondary, 473 = perf standby
+#   501 = not initialized, 503 = sealed
+# http_2xx module catches sealed/uninitialized as probe failures
+#
+# Target is internal ClusterIP — blackbox exporter reaches it via cluster DNS
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: vault
+  namespace: monitoring
+  labels:
+    app: vault-probe
+spec:
+  jobName: vault
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://vault.vault.svc.cluster.local:8200/v1/sys/health
+      labels:
+        target_name: vault
