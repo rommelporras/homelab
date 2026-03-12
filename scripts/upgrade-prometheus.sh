@@ -95,6 +95,7 @@ alertmanager:
       - name: 'discord-incidents-email'
         discord_configs:
           - webhook_url: "${DISCORD_INCIDENTS_WEBHOOK}"
+            send_resolved: true
             title: '{{ if eq .Status "firing" }}🔴{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
             message: |
               {{ range .Alerts }}
@@ -111,6 +112,7 @@ alertmanager:
       - name: 'discord-infra'
         discord_configs:
           - webhook_url: "${DISCORD_INFRA_WEBHOOK}"
+            send_resolved: true
             title: '{{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
             message: |
               {{ range .Alerts }}
@@ -121,6 +123,7 @@ alertmanager:
       - name: 'discord-apps'
         discord_configs:
           - webhook_url: "${DISCORD_APPS_WEBHOOK}"
+            send_resolved: true
             title: '{{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
             message: |
               {{ range .Alerts }}
