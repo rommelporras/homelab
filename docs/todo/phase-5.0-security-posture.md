@@ -16,7 +16,7 @@
 
 Foundation task — PSS labels, ESO labels, and NetworkPolicies (Phase 5.1) all depend on declarative namespace manifests.
 
-**7 namespaces lack `namespace.yaml`:**
+**8 namespaces lack `namespace.yaml`:**
 
 | Namespace | Has ExternalSecret | Helm-Managed | Needs `eso-enabled` |
 |-----------|--------------------|--------------|---------------------|
@@ -26,15 +26,23 @@ Foundation task — PSS labels, ESO labels, and NetworkPolicies (Phase 5.1) all 
 | gitlab-runner | Yes | Yes (Helm) | Yes |
 | invoicetron-dev | Yes | No | Yes |
 | invoicetron-prod | Yes | No | Yes |
-| portfolio | No | No | No |
+| portfolio-dev | No | No | No |
+| portfolio-staging | No | No | No |
+
+> **Note:** `portfolio-prod` already has `namespace.yaml`. There is no `portfolio` namespace —
+> actual namespaces are `portfolio-dev`, `portfolio-prod`, `portfolio-staging`.
+
+> **Note:** `invoicetron-dev` and `invoicetron-prod` manifests live in a single `manifests/invoicetron/`
+> directory (not separate `manifests/invoicetron-dev/` and `manifests/invoicetron-prod/` directories).
+> Namespace manifests for both envs go into `manifests/invoicetron/`.
 
 **Also need `eso-enabled` label added to existing namespace.yaml files:**
-arr-stack, atuin, browser, ghost-dev, ghost-prod, home, karakeep
+ai, arr-stack, atuin, browser, ghost-dev, ghost-prod, home, karakeep
 
 **And these Helm-managed namespaces need the label applied imperatively + documented:**
-kube-system, monitoring
+intel-device-plugins, kube-system, monitoring, node-feature-discovery
 
-- [ ] 5.0.1.1 Create `namespace.yaml` for each of the 7 namespaces above
+- [ ] 5.0.1.1 Create `namespace.yaml` for each of the 8 namespaces above
   ```yaml
   # Template — adjust name, PSS level, and eso-enabled per namespace
   apiVersion: v1
@@ -49,13 +57,17 @@ kube-system, monitoring
       eso-enabled: "true"  # Only if namespace has ExternalSecrets
   ```
 
+  > **Exception:** `cloudflare` namespace currently has `enforce: restricted` (set during
+  > v0.29.0). Keep it at `restricted` — do NOT downgrade to `baseline`. cloudflared pods
+  > already comply with restricted profile.
+
 - [ ] 5.0.1.2 Add `eso-enabled: "true"` label to existing namespace.yaml files
-  - arr-stack, atuin, browser, ghost-dev, ghost-prod, home, karakeep
+  - ai, arr-stack, atuin, browser, ghost-dev, ghost-prod, home, karakeep
 
 - [ ] 5.0.1.3 Label Helm-managed namespaces imperatively
   ```bash
   # These namespaces are created by Helm, not by manifests
-  for ns in kube-system monitoring; do
+  for ns in intel-device-plugins kube-system monitoring node-feature-discovery; do
     kubectl-homelab label namespace "$ns" eso-enabled=true
   done
   ```
@@ -65,7 +77,9 @@ kube-system, monitoring
   # Apply new and updated namespace manifests
   kubectl-homelab apply -f manifests/cert-manager/namespace.yaml
   kubectl-homelab apply -f manifests/cloudflare/namespace.yaml
-  # ... etc for all 7 new + updated existing
+  kubectl-homelab apply -f manifests/invoicetron/namespace-dev.yaml
+  kubectl-homelab apply -f manifests/invoicetron/namespace-prod.yaml
+  # ... etc for all 8 new + updated existing
   ```
 
 ---
@@ -78,7 +92,14 @@ kube-system, monitoring
 |-------|----------|------------|
 | **Privileged** | System components | monitoring (node-exporter needs hostNetwork/hostPID), longhorn-system |
 | **Baseline** | Most applications | All app namespaces |
-| **Restricted** | Sensitive workloads | vault, external-secrets (already baseline-compliant pods) |
+| **Restricted** | Sensitive workloads | cloudflare (already restricted), vault, external-secrets |
+
+> **Current state:** `external-secrets` has NO PSS labels at all. `vault` has `enforce: baseline`.
+> Before setting `restricted` on vault and external-secrets, run the 5.0.2.1 audit to confirm
+> their pods actually pass restricted validation. If they don't, keep baseline and document why.
+
+> **Also missing PSS labels entirely:** intel-device-plugins, node-feature-discovery (Helm-managed).
+> These need at least `enforce: baseline` + `warn: restricted` applied imperatively.
 
 - [ ] 5.0.2.1 Audit all namespaces with `warn=restricted` dry-run
   ```bash
@@ -111,10 +132,21 @@ kube-system, monitoring
 - [ ] 5.0.2.3 Enforce baseline on all application namespaces
   ```bash
   # All app namespaces — enforce baseline, warn restricted
-  APP_NS="arr-stack atuin browser cloudflare ghost-dev ghost-prod \
+  APP_NS="ai arr-stack atuin browser ghost-dev ghost-prod \
     home invoicetron-dev invoicetron-prod gitlab gitlab-runner \
-    karakeep portfolio uptime-kuma"
+    karakeep portfolio-dev portfolio-prod portfolio-staging uptime-kuma"
   for ns in $APP_NS; do
+    kubectl-homelab label namespace "$ns" \
+      pod-security.kubernetes.io/enforce=baseline \
+      pod-security.kubernetes.io/warn=restricted \
+      --overwrite
+  done
+
+  # cloudflare already has enforce=restricted — skip (don't downgrade)
+  # Verify: kubectl-homelab get ns cloudflare --show-labels
+
+  # Helm-managed namespaces without PSS labels
+  for ns in intel-device-plugins node-feature-discovery; do
     kubectl-homelab label namespace "$ns" \
       pod-security.kubernetes.io/enforce=baseline \
       pod-security.kubernetes.io/warn=restricted \
@@ -141,15 +173,18 @@ Most app pods don't need the Kubernetes API. Currently only 10 manifests set `au
 - Cilium (CNI)
 
 **Pods that DON'T need API access (disable):**
-- Ghost, MySQL (ghost-dev, ghost-prod)
+- Ghost, Ghost Analytics, MySQL (ghost-dev, ghost-prod)
 - Invoicetron, PostgreSQL (invoicetron-dev, invoicetron-prod)
 - Atuin, PostgreSQL
 - AdGuard, Homepage, MySpeed
 - Firefox browser
-- Karakeep, Meilisearch, Chrome
-- ARR apps (Sonarr, Radarr, Prowlarr, qBittorrent, Jellyfin, Bazarr, Seerr, Tdarr)
+- Cloudflared (cloudflare namespace — 2 pods)
+- Karakeep, Meilisearch, Chrome, Byparr
+- ARR apps (Sonarr, Radarr, Prowlarr, qBittorrent, Jellyfin, Bazarr, Seerr, Tdarr,
+  Recommendarr, Unpackerr, qBittorrent-Exporter, Scraparr)
 - Uptime Kuma
 - Portfolio
+- Ollama (ai namespace)
 
 - [ ] 5.0.3.1 Add `automountServiceAccountToken: false` to all app pod specs
   ```yaml
@@ -300,10 +335,16 @@ Currently any namespace can reference `vault-backend`. After this change, only n
   '
   ```
 
-- [ ] 5.0.6.2 Review and tighten GitLab deploy ServiceAccount
+- [ ] 5.0.6.2 Review GitLab deploy ServiceAccount
   ```bash
-  kubectl-homelab get rolebinding -n portfolio-prod -o yaml
-  # Ensure only: get, patch, update on deployments
+  # Already well-scoped: deployments(get/list/watch/patch/update),
+  # replicasets(get/list/watch), pods(get/list/watch).
+  # Exists in 5 namespaces (portfolio-prod, invoicetron-prod, etc.)
+  # Verify bindings haven't drifted:
+  for ns in portfolio-prod portfolio-dev portfolio-staging invoicetron-prod invoicetron-dev; do
+    echo "=== $ns ==="
+    kubectl-homelab get rolebinding -n "$ns" -o yaml 2>/dev/null | grep -A5 "roleRef"
+  done
   ```
 
 - [ ] 5.0.6.3 Verify ESO ServiceAccount is properly scoped
@@ -311,6 +352,14 @@ Currently any namespace can reference `vault-backend`. After this change, only n
   # ESO role should only be bound to external-secrets:external-secrets SA
   kubectl-homelab auth can-i --list \
     --as=system:serviceaccount:external-secrets:external-secrets
+  ```
+
+- [ ] 5.0.6.4 Review longhorn-support-bundle cluster-admin binding
+  ```bash
+  # longhorn-support-bundle has a cluster-admin ClusterRoleBinding.
+  # This is auto-created by Longhorn for support bundle generation.
+  # Evaluate: is this acceptable, or should the binding be removed/scoped down?
+  kubectl-homelab get clusterrolebinding longhorn-support-bundle -o yaml
   ```
 
 ---
@@ -366,12 +415,16 @@ By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd
   kubectl-homelab create secret generic encryption-test \
     -n default --from-literal=test=encrypted-value
 
-  # Read directly from etcd (from a CP node)
-  # The value should NOT be readable as plaintext
-  sudo ETCDCTL_API=3 etcdctl get /registry/secrets/default/encryption-test \
-    --cacert=/etc/kubernetes/pki/etcd/ca.crt \
-    --cert=/etc/kubernetes/pki/etcd/server.crt \
-    --key=/etc/kubernetes/pki/etcd/server.key | hexdump -C | head
+  # IMPORTANT: etcdctl is NOT installed on nodes — must exec into the etcd pod.
+  # Find etcd pod on any CP node:
+  ETCD_POD=$(kubectl-homelab get pods -n kube-system -l component=etcd -o jsonpath='{.items[0].metadata.name}')
+
+  # Read directly from etcd — the value should NOT be readable as plaintext
+  kubectl-homelab exec -n kube-system "$ETCD_POD" -- sh -c \
+    "ETCDCTL_API=3 etcdctl get /registry/secrets/default/encryption-test \
+      --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+      --cert=/etc/kubernetes/pki/etcd/server.crt \
+      --key=/etc/kubernetes/pki/etcd/server.key" | hexdump -C | head
 
   # Should see "k8s:enc:aescbc:v1:key1" prefix, not plaintext
 
@@ -408,8 +461,11 @@ By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd
 ## Verification Checklist
 
 - [ ] All namespaces have declarative `namespace.yaml` (or are Helm-managed)
-- [ ] PSS baseline enforced on all application namespaces
+- [ ] PSS baseline enforced on all application namespaces (including ai, portfolio-dev/staging)
 - [ ] PSS warn=restricted on all namespaces (for visibility)
+- [ ] cloudflare namespace kept at `enforce: restricted` (not downgraded)
+- [ ] Helm-managed namespaces (intel-device-plugins, node-feature-discovery) have PSS labels
+- [ ] vault and external-secrets PSS level validated (restricted if compliant, baseline if not)
 - [ ] `automountServiceAccountToken: false` on all app pods that don't need API access
 - [ ] ESO pods have resource requests/limits
 - [ ] Unused CRD reconcilers disabled (`ClusterExternalSecret`, `PushSecret`)
@@ -418,7 +474,8 @@ By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd
 - [ ] All 15 ESO-consuming namespaces labeled `eso-enabled=true`
 - [ ] Unlabeled namespace cannot sync ExternalSecrets (tested)
 - [ ] RBAC audit complete — no unexpected cluster-admin bindings
-- [ ] etcd encryption at rest enabled and verified
+- [ ] longhorn-support-bundle cluster-admin binding reviewed
+- [ ] etcd encryption at rest enabled and verified (via etcd pod exec, not host etcdctl)
 - [ ] Security.md created with all decisions documented
 
 ---
