@@ -46,6 +46,7 @@ spec:
       annotations:
         match-regex.version-checker.io/radarr: "^\\d+\\.\\d+\\.\\d+\\.\\d+-ls\\d+$"
     spec:
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000
         seccompProfile:

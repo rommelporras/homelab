@@ -23,6 +23,7 @@ spec:
       labels:
         app: myspeed
     spec:
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000
         seccompProfile:

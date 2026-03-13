@@ -2,7 +2,7 @@
 # Phase 4.29 - Vault + External Secrets Operator
 #
 # PSS: enforce baseline (Vault Helm chart doesn't fully satisfy restricted — vault-helm#1035)
-#      warn restricted (guidance for Phase 5 hardening)
+#      audit + warn restricted (guidance for future hardening)
 ---
 apiVersion: v1
 kind: Namespace
@@ -10,6 +10,5 @@ metadata:
   name: vault
   labels:
     pod-security.kubernetes.io/enforce: baseline
-    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
-    pod-security.kubernetes.io/warn-version: latest

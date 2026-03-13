@@ -1,13 +1,13 @@
-# Atuin namespace for self-hosted shell history sync server
-# Phase 4.30 - Atuin Self-Hosted Shell History
+# cert-manager namespace for TLS certificate management
+# Phase 5.0 - Namespace & Pod Security
 #
-# PSS: enforce baseline (backup CronJob uses NFS volume, not allowed under restricted)
+# PSS: enforce baseline (cert-manager controller needs baseline capabilities)
 #      audit + warn restricted (guidance for future hardening)
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: atuin
+  name: cert-manager
   labels:
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/audit: restricted

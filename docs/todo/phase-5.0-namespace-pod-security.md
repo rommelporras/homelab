@@ -1,6 +1,6 @@
 # Phase 5.0: Namespace & Pod Security
 
-> **Status:** Planned
+> **Status:** In Progress
 > **Target:** v0.30.0
 > **Prerequisite:** v0.29.0 (Vault + ESO)
 > **DevOps Topics:** Pod Security Standards, secrets hardening, SecurityContext, service account tokens
@@ -50,7 +50,7 @@ kube-system, monitoring
 > **Note:** `intel-device-plugins` and `node-feature-discovery` are Helm-managed but have
 > NO ExternalSecrets — they do NOT get the `eso-enabled` label.
 
-- [ ] 5.0.1.1 Create `namespace.yaml` for each of the 9 namespaces above
+- [x] 5.0.1.1 Create `namespace.yaml` for each of the 9 namespaces above
   ```yaml
   # Template — adjust name, PSS level, and eso-enabled per namespace
   apiVersion: v1
@@ -77,11 +77,11 @@ kube-system, monitoring
   > when version labels are absent, which matches our intent. Existing `vault` namespace
   > has explicit version labels — normalize it to match the majority pattern (remove them).
 
-- [ ] 5.0.1.2 Add `eso-enabled: "true"` label to existing namespace.yaml files
+- [x] 5.0.1.2 Add `eso-enabled: "true"` label to existing namespace.yaml files
   - arr-stack, atuin, browser, ghost-dev, ghost-prod, home, karakeep
   - Also normalize vault namespace.yaml: remove `-version: latest` labels, add `audit: restricted`
 
-- [ ] 5.0.1.3 Label Helm-managed namespaces imperatively (eso-enabled only)
+- [x] 5.0.1.3 Label Helm-managed namespaces imperatively (eso-enabled only)
   ```bash
   # Only kube-system and monitoring have ExternalSecrets
   for ns in kube-system monitoring; do
@@ -89,7 +89,7 @@ kube-system, monitoring
   done
   ```
 
-- [ ] 5.0.1.4 Apply all namespace manifests
+- [x] 5.0.1.4 Apply all namespace manifests
   ```bash
   # Apply new namespace manifests (9 new)
   kubectl-homelab apply -f manifests/cert-manager/namespace.yaml
@@ -121,8 +121,8 @@ kube-system, monitoring
 
 | Level | Use Case | Namespaces |
 |-------|----------|------------|
-| **Privileged** | System components | monitoring (node-exporter needs hostNetwork/hostPID), longhorn-system, tailscale, kube-system |
-| **Baseline** | Most applications | All app namespaces (see below) |
+| **Privileged** | System components | monitoring, longhorn-system, tailscale, kube-system, intel-device-plugins, node-feature-discovery, gitlab-runner |
+| **Baseline** | Most applications | All app namespaces including gitlab, external-secrets (see below) |
 | **Restricted** | Sensitive workloads | cloudflare (already restricted) |
 
 > **Current cluster state (audit):**
@@ -143,7 +143,7 @@ kube-system, monitoring
 > has NO PSS labels at all. Run 5.0.2.1 audit to determine actual compliance. If restricted
 > fails, keep baseline and document why.
 
-- [ ] 5.0.2.1 Audit all namespaces with `warn=restricted` dry-run
+- [x] 5.0.2.1 Audit all namespaces with `warn=restricted` dry-run
   ```bash
   # Check which pods would violate restricted profile
   for ns in $(kubectl-homelab get ns -o jsonpath='{.items[*].metadata.name}'); do
@@ -154,7 +154,7 @@ kube-system, monitoring
   done
   ```
 
-- [ ] 5.0.2.2 Fix pod security violations
+- [x] 5.0.2.2 Fix pod security violations
   - Add `securityContext` to pods that lack it:
     ```yaml
     spec:
@@ -182,7 +182,7 @@ kube-system, monitoring
   > - Ollama: upstream PR #8259 not merged
   > - Tdarr: expects root init then drops privileges
 
-- [ ] 5.0.2.3 Enforce PSS on all namespaces
+- [x] 5.0.2.3 Enforce PSS on all namespaces
 
   ```bash
   # App namespaces — enforce baseline, audit + warn restricted
@@ -294,7 +294,7 @@ Most app pods don't need the Kubernetes API.
 | ghost-dev | ghost-deployment.yaml, mysql-statefulset.yaml |
 | ghost-prod | analytics-deployment.yaml, ghost-deployment.yaml, mysql-statefulset.yaml |
 | home | adguard/deployment.yaml, homepage/deployment.yaml, myspeed/deployment.yaml |
-| invoicetron | deployment.yaml, postgresql.yaml (StatefulSet), backup-cronjob.yaml |
+| invoicetron | ~~deployment.yaml~~ (deferred), postgresql.yaml (StatefulSet), backup-cronjob.yaml |
 | monitoring | exporters/nut-exporter.yaml, version-checker/version-check-cronjob.yaml |
 | portfolio | deployment.yaml |
 | uptime-kuma | statefulset.yaml |
@@ -303,16 +303,20 @@ Most app pods don't need the Kubernetes API.
 > **Note:** Vault unsealer calls Vault's HTTP API (not K8s API). Vault snapshot CronJob
 > calls `vault operator raft snapshot` via HTTP. Neither needs a K8s service account token.
 
-- [ ] 5.0.3.1 Add `automountServiceAccountToken: false` to all pod specs listed above
+- [x] 5.0.3.1 Add `automountServiceAccountToken: false` to all pod specs listed above
   ```yaml
   spec:
     automountServiceAccountToken: false
     # ... rest of pod spec
   ```
 
-- [ ] 5.0.3.2 Add `automountServiceAccountToken: true` to cluster-janitor CronJob (explicit)
+  > **Deferred:** `invoicetron/deployment.yaml` — image `registry.k8s.rommelporras.com/0xwsh/invoicetron:latest`
+  > not found in registry. Adding automountServiceAccountToken triggers a rollout which causes
+  > ImagePullBackOff. Change commented out in manifest. Apply when image registry is fixed.
 
-- [ ] 5.0.3.3 Verify apps still work after disabling
+- [x] 5.0.3.2 Add `automountServiceAccountToken: true` to cluster-janitor CronJob (explicit)
+
+- [x] 5.0.3.3 Verify apps still work after disabling
   ```bash
   kubectl-homelab get pods -A | grep -v Running | grep -v Completed
   # Should show only header — no CrashLooping pods from missing token
@@ -327,7 +331,7 @@ Most app pods don't need the Kubernetes API.
 > **Current state:** ESO pods have NO resource requests/limits. All 3 pods (controller,
 > webhook, cert-controller) run with empty `resources: {}`.
 
-- [ ] 5.0.4.1 Add resource limits to `helm/external-secrets/values.yaml`
+- [x] 5.0.4.1 Add resource limits to `helm/external-secrets/values.yaml`
   ```yaml
   resources:
     requests:
@@ -356,21 +360,21 @@ Most app pods don't need the Kubernetes API.
         memory: 128Mi
   ```
 
-- [ ] 5.0.4.2 Disable unused CRD reconcilers (ESO threat model C05)
+- [x] 5.0.4.2 Disable unused CRD reconcilers (ESO threat model C05)
   ```yaml
   # Not using ClusterExternalSecret or PushSecret (confirmed: 0 references in codebase)
   processClusterExternalSecret: false
   processPushSecret: false
   ```
 
-- [ ] 5.0.4.3 Restrict webhook TLS ciphers
+- [x] 5.0.4.3 Restrict webhook TLS ciphers
   ```yaml
   webhook:
     extraArgs:
       tls-ciphers: "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
   ```
 
-- [ ] 5.0.4.4 Helm upgrade ESO
+- [x] 5.0.4.4 Helm upgrade ESO
   ```bash
   helm-homelab upgrade external-secrets external-secrets/external-secrets \
     --namespace external-secrets \
@@ -378,7 +382,7 @@ Most app pods don't need the Kubernetes API.
     --values helm/external-secrets/values.yaml
   ```
 
-- [ ] 5.0.4.5 Verify ESO pods have limits after upgrade
+- [x] 5.0.4.5 Verify ESO pods have limits after upgrade
   ```bash
   kubectl-homelab get pods -n external-secrets -o json | jq -r '
     .items[] | .metadata.name + ": " +
@@ -398,7 +402,7 @@ Currently any namespace can reference `vault-backend`. After this change, only n
 arr-stack, atuin, browser, cert-manager, cloudflare, ghost-dev, ghost-prod, gitlab,
 gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring
 
-- [ ] 5.0.5.1 Add `namespaceSelector` to `manifests/vault/clustersecretstore.yaml`
+- [x] 5.0.5.1 Add `namespaceSelector` to `manifests/vault/clustersecretstore.yaml`
   ```yaml
   spec:
     conditions:
@@ -409,7 +413,7 @@ gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, m
       vault: ...  # existing config unchanged
   ```
 
-- [ ] 5.0.5.2 Verify all eso-enabled labels are applied before restricting
+- [x] 5.0.5.2 Verify all eso-enabled labels are applied before restricting
   ```bash
   # Confirm all 15 ESO namespaces have the label
   for ns in arr-stack atuin browser cert-manager cloudflare ghost-dev ghost-prod \
@@ -421,7 +425,7 @@ gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, m
   # All should show "true"
   ```
 
-- [ ] 5.0.5.3 Apply and verify all 30 ExternalSecrets still sync
+- [x] 5.0.5.3 Apply and verify all 30 ExternalSecrets still sync
   ```bash
   kubectl-homelab apply -f manifests/vault/clustersecretstore.yaml
 
@@ -434,7 +438,7 @@ gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, m
   # All should show "True"
   ```
 
-- [ ] 5.0.5.4 Verify unlabeled namespace is blocked
+- [x] 5.0.5.4 Verify unlabeled namespace is blocked
   ```bash
   kubectl-homelab create namespace eso-test
   cat <<'EOF' | kubectl-homelab apply -f -
@@ -469,7 +473,7 @@ gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, m
 > **No new secrets needed.** Vault's `/v1/sys/health` endpoint is unauthenticated by design
 > (returns seal status, version, cluster info). Same endpoint Prometheus already scrapes.
 
-- [ ] 5.0.6.1 Add Vault to `manifests/home/homepage/config/services.yaml`
+- [x] 5.0.6.1 Add Vault to `manifests/home/homepage/config/services.yaml`
 
   Add to **Infrastructure tab → Kubernetes group** (alongside Grafana, Prometheus, Alertmanager):
 
@@ -498,11 +502,12 @@ gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, m
   > The health endpoint returns `200` when unsealed, `503` when sealed — siteMonitor will
   > show red/green status accordingly.
 
-- [ ] 5.0.6.2 Update Homepage layout in `manifests/home/homepage/config/settings.yaml`
+- [x] 5.0.6.2 Update Homepage layout in `manifests/home/homepage/config/settings.yaml`
+  > No change needed — columns: 4 handles 7 items (2 rows) cleanly
 
   Adjust the Kubernetes group column count if needed to accommodate the new Vault tile.
 
-- [ ] 5.0.6.3 Apply and verify
+- [x] 5.0.6.3 Apply and verify
   ```bash
   kubectl-homelab apply -k manifests/home/homepage/
   # Wait for rollout (ConfigMap hash change triggers restart)
@@ -514,7 +519,7 @@ gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, m
 
 ## 5.0.7 Documentation
 
-- [ ] 5.0.7.1 Create `docs/context/Security.md`
+- [x] 5.0.7.1 Create `docs/context/Security.md`
   ```
   Document:
   - PSS levels per namespace (table — all 30 namespaces)
@@ -533,7 +538,7 @@ gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, m
   | Broad `eso-policy` (`secret/data/*`) | ESO is the only Vault consumer. Per-namespace policies = 15 roles, significant rework. |
   | No policy engine (Kyverno/OPA) | Overkill for single-admin. `namespaceSelector` provides sufficient restriction. |
 
-- [ ] 5.0.7.2 Update `docs/reference/CHANGELOG.md`
+- [x] 5.0.7.2 Update `docs/reference/CHANGELOG.md`
 
 ---
 

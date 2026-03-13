@@ -27,6 +27,7 @@ spec:
       labels:
         app: vault-unsealer
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534

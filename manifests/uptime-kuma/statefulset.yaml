@@ -22,6 +22,7 @@ spec:
       labels:
         app: uptime-kuma
     spec:
+      automountServiceAccountToken: false
       # Security: Run as non-root (matches rootless image UID 1000)
       securityContext:
         runAsNonRoot: true

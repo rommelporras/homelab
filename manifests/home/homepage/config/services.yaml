@@ -415,6 +415,26 @@
                 options:
                   maximumFractionDigits: 0
 
+    - Vault:
+        icon: vault
+        href: https://vault.k8s.rommelporras.com
+        description: Secrets Management
+        statusStyle: dot
+        siteMonitor: http://vault.vault.svc.cluster.local:8200/v1/sys/health
+        widget:
+          type: customapi
+          url: http://vault.vault.svc.cluster.local:8200/v1/sys/health
+          mappings:
+            - field: sealed
+              label: Sealed
+              format: text
+            - field: version
+              label: Version
+              format: text
+            - field: cluster_name
+              label: Cluster
+              format: text
+
     - Longhorn:
         icon: longhorn.png
         href: https://longhorn.k8s.rommelporras.com

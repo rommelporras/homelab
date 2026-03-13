@@ -1,12 +1,13 @@
-# Home namespace for stateless home services
-# Phase 4.1 - AdGuard Home, Homepage Dashboard
+# Portfolio prod namespace for production environment
+# Phase 5.0 - Namespace & Pod Security
+#
+# PSS: enforce baseline, audit + warn restricted
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: home
+  name: portfolio-prod
   labels:
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
-    eso-enabled: "true"

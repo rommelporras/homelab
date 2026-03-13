@@ -36,12 +36,15 @@ spec:
           labels:
             app: cluster-janitor
         spec:
+          automountServiceAccountToken: true
           serviceAccountName: cluster-janitor
           restartPolicy: Never
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
             runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: janitor
               image: alpine/k8s:1.35.0

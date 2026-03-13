@@ -1,0 +1,15 @@
+# GitLab Runner namespace for CI/CD job execution
+# Phase 5.0 - Namespace & Pod Security
+#
+# PSS: enforce privileged (runner spawns build pods with elevated permissions)
+#      audit + warn restricted (visibility into violations for future hardening)
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitlab-runner
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    eso-enabled: "true"

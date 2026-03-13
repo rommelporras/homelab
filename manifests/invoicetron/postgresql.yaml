@@ -25,6 +25,7 @@ spec:
       labels:
         app: invoicetron-db
     spec:
+      automountServiceAccountToken: false
       securityContext:
         seccompProfile:
           type: RuntimeDefault

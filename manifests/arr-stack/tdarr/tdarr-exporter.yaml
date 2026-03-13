@@ -19,6 +19,7 @@ spec:
       labels:
         app: tdarr-exporter
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -27,7 +28,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: tdarr-exporter
-          image: homeylab/tdarr-exporter:latest
+          image: homeylab/tdarr-exporter:1.4.3
           env:
             - name: TDARR_URL
               value: "http://tdarr.arr-stack.svc.cluster.local:8265"

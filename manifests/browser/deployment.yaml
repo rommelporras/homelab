@@ -25,6 +25,7 @@ spec:
       annotations:
         match-regex.version-checker.io/firefox: "^\\d+.*-ls\\d+$"
     spec:
+      automountServiceAccountToken: false
       dnsPolicy: None  # bypass cluster DNS — use AdGuard for ad-blocking + privacy
       dnsConfig:
         nameservers:

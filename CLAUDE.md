@@ -17,6 +17,7 @@ Kubernetes homelab for CKA prep. 3-node HA cluster (kubeadm, Cilium CNI, Longhor
 | Cloudflare, GA4, SMTP | docs/context/ExternalServices.md |
 | 1Password items | docs/context/Secrets.md |
 | Prometheus, Grafana, alerts | docs/context/Monitoring.md |
+| PSS, ESO hardening, SA tokens | docs/context/Security.md |
 | UPS, graceful shutdown | docs/context/UPS.md |
 | Commands, rules, repo layout | docs/context/Conventions.md |
 | Upgrade/rollback procedures | docs/context/Upgrades.md |

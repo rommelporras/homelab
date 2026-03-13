@@ -29,6 +29,7 @@ spec:
       labels:
         app: homepage
     spec:
+      automountServiceAccountToken: false
       serviceAccountName: homepage
       securityContext:
         # Note: Homepage image runs as root, cannot use runAsNonRoot
@@ -39,6 +40,13 @@ spec:
       initContainers:
         - name: substitute-env
           image: busybox:1.36
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

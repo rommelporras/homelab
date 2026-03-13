@@ -78,6 +78,7 @@ spec:
           labels:
             app: vault-snapshot
         spec:
+          automountServiceAccountToken: true  # Needed: script reads SA token for Vault Kubernetes auth
           serviceAccountName: vault-snapshot
           restartPolicy: Never
           securityContext:

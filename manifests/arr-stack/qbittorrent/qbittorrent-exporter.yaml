@@ -21,6 +21,7 @@ spec:
       labels:
         app: qbittorrent-exporter
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -29,7 +30,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: qbittorrent-exporter
-          image: esanchezm/prometheus-qbittorrent-exporter:latest
+          image: esanchezm/prometheus-qbittorrent-exporter:sha-2fcca94
           env:
             - name: QBITTORRENT_HOST
               value: "qbittorrent.arr-stack.svc.cluster.local"

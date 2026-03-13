@@ -25,6 +25,21 @@
 
 installCRDs: true
 
+# Phase 5.0: Disable unused CRD reconcilers (ESO threat model C05)
+# Not using ClusterExternalSecret or PushSecret (0 references in codebase)
+processClusterExternalSecret: false
+processClusterPushSecret: false
+processPushSecret: false
+
+# Phase 5.0: Resource limits for all ESO pods
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
 serviceMonitor:
   enabled: true
   interval: 30s
@@ -32,6 +47,23 @@ serviceMonitor:
 
 webhook:
   create: true
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  # Phase 5.0: Restrict TLS ciphers to modern suites
+  extraArgs:
+    tls-ciphers: "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
 
 certController:
   create: true
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi

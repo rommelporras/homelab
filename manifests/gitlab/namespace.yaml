@@ -1,0 +1,15 @@
+# GitLab namespace for self-hosted GitLab instance
+# Phase 5.0 - Namespace & Pod Security
+#
+# PSS: enforce baseline (5.0.2 audit confirmed no baseline violations)
+#      audit + warn restricted (visibility into violations for future hardening)
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitlab
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    eso-enabled: "true"

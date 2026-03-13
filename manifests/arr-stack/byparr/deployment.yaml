@@ -32,6 +32,7 @@ spec:
       labels:
         app: byparr
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000

@@ -26,6 +26,7 @@ spec:
       labels:
         app: ghost-mysql
     spec:
+      automountServiceAccountToken: false
       securityContext:
         seccompProfile:
           type: RuntimeDefault

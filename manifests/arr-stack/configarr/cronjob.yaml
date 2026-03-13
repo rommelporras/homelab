@@ -33,6 +33,7 @@ spec:
           labels:
             app: configarr
         spec:
+          automountServiceAccountToken: false
           restartPolicy: OnFailure
           securityContext:
             runAsUser: 1000

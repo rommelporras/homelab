@@ -31,6 +31,7 @@ spec:
           labels:
             app: version-check
         spec:
+          automountServiceAccountToken: false
           serviceAccountName: version-check-cronjob
           restartPolicy: OnFailure
           securityContext:

@@ -79,6 +79,16 @@ spec:
       - port: "2368"
         protocol: TCP
 
+  # Gateway VIP (for monitoring services via external URLs like *.k8s.rommelporras.com)
+  - toCIDR:
+    - 10.10.30.20/32
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "80"
+        protocol: TCP
+
   # Home network services (outside cluster)
   # AdGuard failover (10.10.30.80), OPNsense (10.10.10.1), NAS Glances (10.10.30.4)
   - toCIDR:

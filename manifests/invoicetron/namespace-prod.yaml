@@ -1,10 +1,12 @@
-# Home namespace for stateless home services
-# Phase 4.1 - AdGuard Home, Homepage Dashboard
+# Invoicetron prod namespace for production environment
+# Phase 5.0 - Namespace & Pod Security
+#
+# PSS: enforce baseline, audit + warn restricted
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: home
+  name: invoicetron-prod
   labels:
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/audit: restricted

@@ -16,18 +16,29 @@ metadata:
     app.kubernetes.io/part-of: invoicetron
 spec:
   schedule: "0 9 * * *"  # Daily at 9 AM
+  timeZone: "Asia/Manila"
+  concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
       template:
         spec:
+          automountServiceAccountToken: false
           securityContext:
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
             seccompProfile:
               type: RuntimeDefault
           containers:
           - name: backup
             image: postgres:18-alpine
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                  - ALL
             command:
             - /bin/sh
             - -c

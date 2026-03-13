@@ -31,6 +31,7 @@ spec:
       labels:
         app: adguard-home
     spec:
+      automountServiceAccountToken: false
       # Pin to k8s-cp2 where Cilium advertises the LoadBalancer IP
       # Required for externalTrafficPolicy: Local to work
       nodeSelector:
@@ -56,6 +57,13 @@ spec:
                 echo "Config exists at /data/conf/AdGuardHome.yaml"
                 echo "Preserving existing runtime configuration"
               fi
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

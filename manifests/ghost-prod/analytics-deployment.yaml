@@ -22,6 +22,7 @@ spec:
       labels:
         app: ghost-analytics
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000

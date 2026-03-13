@@ -29,6 +29,7 @@ spec:
       labels:
         app: ghost
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -41,6 +42,13 @@ spec:
       - name: wait-for-mysql
         image: busybox:1.36
         command: ['sh', '-c', 'until nc -z ghost-mysql 3306; do echo "Waiting for MySQL..."; sleep 2; done; echo "MySQL is ready!"']
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

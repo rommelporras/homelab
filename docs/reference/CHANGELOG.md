@@ -4,6 +4,54 @@
 
 ---
 
+## March 13, 2026 — Namespace & Pod Security (v0.30.0)
+
+### Summary
+
+Hardened all namespaces with Pod Security Standards, disabled unnecessary service account tokens,
+locked down ESO infrastructure, and restricted ClusterSecretStore access to labeled namespaces.
+9 new namespace manifests created, PSS labels applied to all namespaces, `automountServiceAccountToken: false`
+on 34 workloads, ESO Helm hardening (resource limits, disabled CRD reconcilers, TLS cipher restriction),
+and ClusterSecretStore namespaceSelector restricting Vault access to 15 labeled namespaces.
+
+### Changes
+
+| Change | Details |
+|--------|---------|
+| 9 namespace manifests | cert-manager, cloudflare, gitlab, gitlab-runner, invoicetron-dev, invoicetron-prod, portfolio-dev, portfolio-prod, portfolio-staging |
+| PSS enforce labels | baseline (18 ns), privileged (7 ns), restricted (1 ns — cloudflare) |
+| PSS audit/warn | `audit: restricted` + `warn: restricted` on all labeled namespaces |
+| eso-enabled labels | 15 namespaces labeled for ClusterSecretStore access |
+| automountServiceAccountToken | `false` on 34 workloads, explicit `true` on cluster-janitor |
+| ESO resource limits | Controller 50m–200m CPU, 128Mi–256Mi mem; webhook/cert-controller 25m–100m, 64Mi–128Mi |
+| ESO CRD reconcilers | Disabled ClusterExternalSecret, PushSecret, ClusterPushSecret (unused) |
+| ESO webhook TLS | Restricted to ChaCha20-Poly1305 cipher suites |
+| ClusterSecretStore restriction | namespaceSelector requires `eso-enabled: "true"` |
+| Vault on Homepage | customapi widget showing seal status, version, cluster name |
+| SecurityContext fixes | portfolio (capabilities), nut-exporter (runAsNonRoot), invoicetron backup (capabilities) |
+| Uptime Kuma NetworkPolicy | Added gateway VIP 10.10.30.20 to CiliumNetworkPolicy egress (was blocked by 10.0.0.0/8 exclusion) |
+| Security.md | New context doc: PSS levels, ESO hardening, trust boundaries, SA token decisions |
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| baseline over restricted for most apps | Many images run as root (ARR stack, databases). Restricted would require upstream changes. Baseline + audit/warn=restricted gives visibility without breaking workloads. |
+| privileged for intel-device-plugins, NFD | hostPath volumes violate baseline. Plan originally said baseline but cluster audit showed violations. |
+| gitlab at baseline (downgraded from privileged) | Audit showed no baseline violations in running pods. gitlab-runner stays privileged for build pods. |
+| namespaceSelector over Kyverno/OPA | Single-admin cluster. Label-based restriction is sufficient without a full policy engine. |
+| HTTP Vault connection kept | In-cluster only. mTLS adds cert management overhead for minimal security gain. |
+
+### Gotchas
+
+- **Portfolio nginx needs CHOWN, SETUID, SETGID, NET_BIND_SERVICE capabilities** — dropping ALL capabilities without adding these back causes CrashLoopBackOff (chown fails, then bind port 80 fails).
+- **NUT exporter CreateContainerConfigError** — image runs as root but `runAsNonRoot: true` was set. Fixed by adding `runAsUser: 65534` at container level.
+- **PSS dry-run doesn't audit existing pods** — `kubectl label --dry-run=server` only checks the label change, not pod compliance. Must audit securityContext directly via `kubectl get pods -o json | jq`.
+- **ESO disabling PushSecret requires also disabling ClusterPushSecret** — Helm upgrade fails if only `processPushSecret: false` is set without `processClusterPushSecret: false`.
+- **Uptime Kuma 403 from CiliumNetworkPolicy** — egress rule excluded 10.0.0.0/8 but gateway VIP is 10.10.30.20. Envoy returns "Access denied" (not connection refused), making it look like an app-level issue.
+
+---
+
 ## March 13, 2026 — Warning Event Fixes + Doc Sync (v0.29.1)
 
 ### Summary

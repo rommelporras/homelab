@@ -60,6 +60,7 @@ Scan the entire repo for leaked credentials. Use the Grep tool (not bash grep) t
 - `whsec_` — Webhook signing secrets
 - `discord.com/api/webhooks` — Discord webhook URLs
 - `hooks.slack.com` — Slack webhook URLs
+- `bearer [A-Za-z0-9_-]{20,}` — Bearer tokens (scan all directories)
 
 **Known safe patterns (skip these):**
 - `op://` — 1Password reference URIs
@@ -77,6 +78,7 @@ Scan the entire repo for leaked credentials. Use the Grep tool (not bash grep) t
 - `future-migration: "external-secrets-operator"` — annotation on safe secret placeholders
 - `# DATA INTENTIONALLY OMITTED` — comment pattern in secret placeholder files
 - Commented-out `# stringData:` blocks (documentation, not actual secrets)
+- Bcrypt hashes (`$2a$`, `$2b$`, `$2y$` prefixes) — one-way hashes, not plaintext credentials
 - `secretKey:` — ESO ExternalSecret field naming a K8s Secret key (no credential value)
 - `secretStoreRef:` — ESO reference to a SecretStore by name (no credential value)
 - `remoteRef:` — ESO Vault KV path reference (e.g., `key: ghost-prod/mysql`) — path, not value
@@ -129,6 +131,28 @@ Read each workload manifest in `manifests/` (files containing Deployment, Statef
 | image pinning | Image tag is not `:latest` and is not missing | ⚠️ WARNING if `:latest` or no tag |
 | automountServiceAccountToken | Set to `false` if pod doesn't need K8s API access | ℹ️ INFO if missing |
 
+**Accepted risks — read `docs/context/Security.md` to classify known exceptions:**
+
+Before flagging, check if `docs/context/Security.md` documents the issue as an accepted risk. If it does:
+
+- **Known non-root exceptions** (listed in Security.md "Known Non-Root Exceptions" table):
+  Downgrade missing `runAsNonRoot` from WARNING to ℹ️ ACCEPTED for these workloads.
+  Still flag missing `capabilities.drop`/`allowPrivilegeEscalation`/`seccompProfile` as WARNING.
+- **Database containers without container securityContext** (gosu/su-exec breaks `allowPrivilegeEscalation: false`):
+  If documented in Security.md, report as ℹ️ ACCEPTED instead of WARNING.
+- **CI/CD placeholder images** (`:latest` with a comment like `# CI/CD will patch this`):
+  Report as ℹ️ ACCEPTED instead of WARNING.
+
+In the report, separate accepted risks from new/actionable warnings:
+```
+Findings:
+  ⚠️  manifests/foo/deployment.yaml:25 — Missing runAsNonRoot (NEW)
+
+Accepted risks (documented in Security.md):
+  ℹ️  manifests/ghost-dev/mysql-statefulset.yaml:34 — No container securityContext (gosu/su-exec)
+  ℹ️  manifests/portfolio/deployment.yaml:39 — Image :latest (CI/CD placeholder)
+```
+
 **Also check for hardcoded secrets in manifests:**
 - `stringData:` blocks with actual values (not `op://` references or placeholders) → ⛔ CRITICAL
 - `data:` blocks with base64-encoded values → ⚠️ WARNING (review manually)
@@ -167,6 +191,15 @@ For each namespace directory under `manifests/` that contains a workload:
 1. Read the directory listing
 2. Check if a `networkpolicy.yaml` or file containing `CiliumNetworkPolicy` exists
 3. If no network policy → ⚠️ WARNING
+
+**Deferred scope:** If a future phase plan (e.g., `docs/todo/phase-5.3*` for NetworkPolicies)
+exists and covers the missing namespaces, report those as ℹ️ DEFERRED instead of WARNING:
+```
+Deferred (covered by Phase 5.3):
+  ℹ️  manifests/ghost-dev/ — No CiliumNetworkPolicy (Phase 5.3 scope)
+```
+Check for the phase file with Glob: `docs/todo/phase-5.3*` or `docs/todo/*network*`.
+If no phase plan covers them, report as ⚠️ WARNING.
 
 **Note:** Helm-managed namespaces (gitlab, monitoring, cert-manager, longhorn-system, tailscale) may have network policies configured in Helm values, not in `manifests/`. This step only covers manifest-based namespaces. Helm namespace coverage is checked via `/audit-cluster` (live cluster audit).
 
@@ -216,9 +249,9 @@ Mode: full (infrastructure files changed)
 
 Secrets Scan .............. ✅ PASS (0 findings)
 Sensitive File Types ...... ✅ PASS (0 sensitive files tracked)
-Committed Secret Files .... ✅ PASS (6 secret files found, all gitignored)
-Manifest Security ......... ⚠️  2 warnings
-Network Policies .......... ✅ All manifest namespaces covered
+Committed Secret Files .... ✅ PASS (0 secret files found)
+Manifest Security ......... ⚠️  1 warning, 3 accepted
+Network Policies .......... ✅ 6 covered, 5 deferred (Phase 5.3)
 PSS Labels ................ ✅ All manifest namespaces labeled
 Helm Values ............... ✅ PASS
 Docs Secrets .............. ✅ PASS
@@ -226,11 +259,17 @@ Docs Secrets .............. ✅ PASS
 Note: Helm-managed namespaces (gitlab, monitoring, etc.) checked via /audit-cluster
 
 Findings:
-  ⚠️  manifests/foo/statefulset.yaml:25 — Missing resource limits
-  ⚠️  manifests/foo/statefulset.yaml:37 — Image uses :latest tag
-  ℹ️  manifests/foo/statefulset.yaml:42 — readOnlyRootFilesystem not set
+  ⚠️  manifests/foo/deployment.yaml:25 — Missing runAsNonRoot (NEW)
 
-Result: PASS (0 critical, 2 warnings, 1 info)
+Accepted risks (documented in Security.md):
+  ℹ️  manifests/ghost-dev/mysql-statefulset.yaml:34 — No container securityContext (gosu)
+  ℹ️  manifests/portfolio/deployment.yaml:39 — Image :latest (CI/CD placeholder)
+  ℹ️  manifests/karakeep/karakeep-deployment.yaml:122 — runAsNonRoot=false (s6-overlay)
+
+Deferred (covered by future phase plan):
+  ℹ️  manifests/ghost-dev/ — No CiliumNetworkPolicy (Phase 5.3)
+
+Result: PASS (0 critical, 1 warning, 3 accepted, 5 deferred)
 ```
 
 **Docs-only mode:**
@@ -259,10 +298,12 @@ Result: ⛔ FAIL (1 critical, 2 warnings)
 **Severity levels:**
 - ⛔ CRITICAL — Real secrets, privileged containers, host namespace access. Blocks commit.
 - ⚠️ WARNING — Missing security context, unpinned images, missing network policy. Should fix.
+- ℹ️ ACCEPTED — Documented in `docs/context/Security.md` as a known trade-off. Not actionable.
+- ℹ️ DEFERRED — Covered by a future phase plan in `docs/todo/`. Not actionable now.
 - ℹ️ INFO — Best practice suggestions (readOnlyRootFilesystem, automountServiceAccountToken).
 
 **Pass/fail logic:**
-- 0 critical = PASS (warnings are informational)
+- 0 critical = PASS (warnings are informational, accepted/deferred don't count)
 - 1+ critical = FAIL (do not commit)
 
 ## Important Rules
