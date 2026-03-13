@@ -267,6 +267,78 @@ Scheduler (`/etc/kubernetes/manifests/kube-scheduler.yaml`):
 
 ---
 
+## 5.1.4a Control Plane Metrics Scraping
+
+> **Moved from:** [deferred.md](../deferred.md) (originally deferred in Phase 3.9, 2026-01-20)
+
+Prometheus cannot scrape metrics from kubeadm-managed control plane components because they bind to `127.0.0.1`. This step exposes metrics and removes the Alertmanager silences that were masking the missing targets.
+
+**Rolling: CP1 → verify → CP2 → verify → CP3**
+
+**Note:** kube-proxy is not running — Cilium replaces it (`kubeProxyReplacement: true`). The `KubeProxyDown` silence stays permanently.
+
+### Bind-address changes
+
+Apply to the same static pod manifests touched in 5.1.4. Can be done in the same edit pass.
+
+Controller-manager (`/etc/kubernetes/manifests/kube-controller-manager.yaml`):
+```
+--bind-address=0.0.0.0    # Expose metrics on all interfaces (default: 127.0.0.1)
+```
+
+Scheduler (`/etc/kubernetes/manifests/kube-scheduler.yaml`):
+```
+--bind-address=0.0.0.0    # Expose metrics on all interfaces (default: 127.0.0.1)
+```
+
+etcd (`/etc/kubernetes/manifests/etcd.yaml`):
+```
+--listen-metrics-urls=http://0.0.0.0:2381    # Expose etcd metrics (default: 127.0.0.1:2381)
+```
+
+- [ ] 5.1.4a.1 Add `--bind-address=0.0.0.0` to controller-manager on CP1 (combine with 5.1.4.2 if doing same session)
+
+- [ ] 5.1.4a.2 Add `--bind-address=0.0.0.0` to scheduler on CP1 (combine with 5.1.4.3 if doing same session)
+
+- [ ] 5.1.4a.3 Add `--listen-metrics-urls=http://0.0.0.0:2381` to etcd on CP1
+
+- [ ] 5.1.4a.4 Verify metrics endpoints respond from WSL:
+  ```bash
+  ssh wawashi@10.10.30.11 "curl -s http://localhost:10257/metrics --insecure | head -5"   # controller-manager
+  ssh wawashi@10.10.30.11 "curl -s http://localhost:10259/metrics --insecure | head -5"   # scheduler
+  ssh wawashi@10.10.30.11 "curl -s http://localhost:2381/metrics | head -5"               # etcd
+  ```
+
+- [ ] 5.1.4a.5 Apply same changes to CP2, verify
+
+- [ ] 5.1.4a.6 Apply same changes to CP3, verify
+
+### ServiceMonitors
+
+- [ ] 5.1.4a.7 Verify kube-prometheus-stack ServiceMonitors exist for controller-manager, scheduler, and etcd
+  ```bash
+  kubectl-homelab get servicemonitor -n monitoring | grep -E 'controller-manager|scheduler|etcd'
+  ```
+  > kube-prometheus-stack includes these by default. They may just need the endpoint addresses to be reachable (which the bind-address fix provides).
+
+- [ ] 5.1.4a.8 Confirm Prometheus targets are UP in Grafana → Status → Targets
+
+### Alertmanager silence removal
+
+- [ ] 5.1.4a.9 Remove silence routes from `helm/prometheus/values.yaml` (alertmanager.config.route.routes):
+  - Remove `etcdInsufficientMembers` silence
+  - Remove `etcdMembersDown` silence
+  - Remove `TargetDown` silence for kube-scheduler, kube-controller-manager, kube-etcd
+  - **Keep** `KubeProxyDown` silence (Cilium replaces kube-proxy — this is permanent)
+
+- [ ] 5.1.4a.10 Upgrade Prometheus Helm release with updated values
+
+- [ ] 5.1.4a.11 Verify silenced alerts no longer fire (targets are now scraped successfully)
+
+**Rollback:** Revert bind-address to `127.0.0.1`, re-add silence routes.
+
+---
+
 ## 5.1.5 API Server Audit Policy
 
 The audit policy file referenced in 5.1.3. Create BEFORE adding the API server flags.
@@ -584,6 +656,11 @@ Run kube-bench again after all changes. Compare against baseline from 5.1.1.
 - [ ] API server `--profiling=false` on all 3 nodes
 - [ ] Controller-manager `--profiling=false` on all 3 nodes
 - [ ] Scheduler `--profiling=false` on all 3 nodes
+- [ ] Controller-manager `--bind-address=0.0.0.0` on all 3 nodes
+- [ ] Scheduler `--bind-address=0.0.0.0` on all 3 nodes
+- [ ] etcd `--listen-metrics-urls=http://0.0.0.0:2381` on all 3 nodes
+- [ ] Prometheus scraping controller-manager, scheduler, and etcd targets successfully
+- [ ] Alertmanager silence routes removed (except KubeProxyDown)
 - [ ] Audit policy file deployed to all 3 nodes
 - [ ] Audit logs being written to `/var/log/kubernetes/audit/`
 - [ ] Audit logs shipped to Loki via Alloy

@@ -104,7 +104,7 @@
 
 | Description | File |
 |-------------|------|
-| Immich, Firmware, Control Plane Metrics, NVMe S.M.A.R.T. | [deferred.md](deferred.md) |
+| Immich, Firmware Updates | [deferred.md](deferred.md) |
 
 ---
 
@@ -195,4 +195,4 @@ After each phase, you should be able to:
 | 4 | Deploy Deployments, configure Services, manage ConfigMaps, create Ingress |
 | 5 | Write NetworkPolicies, configure RBAC, enforce Pod Security |
 | 6 | Pass CKA with confidence |
-| Deferred | Configure Immich (PostgreSQL + Redis + ML), expose control plane metrics |
+| Deferred | Configure Immich (PostgreSQL + Redis + ML) |
