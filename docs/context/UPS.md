@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, ups, nut, power]
-updated: 2026-02-21
+updated: 2026-03-13
 ---
 
 # UPS

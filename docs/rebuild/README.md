@@ -233,7 +233,7 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | Scraparr | 3.0.3 | v0.25.0 |
 | Tdarr | 2.58.02 | v0.25.0 |
 | Recommendarr | v1.4.4 | v0.25.0 |
-| Byparr | latest | v0.25.0 |
+| Byparr | 2.1.0 | v0.25.0 |
 | version-checker | v0.10.0 | v0.26.0 |
 | Nova (CronJob) | v3.11.10 | v0.26.0 |
 | smartctl-exporter | v0.14.0 | v0.27.0 |
@@ -261,7 +261,9 @@ homelab/
 │   ├── blackbox-exporter/values.yaml   # v0.9.0
 │   ├── tailscale-operator/values.yaml # v0.22.0
 │   ├── intel-gpu-plugin/values.yaml  # v0.24.0
-│   └── smartctl-exporter/values.yaml # v0.27.0
+│   ├── smartctl-exporter/values.yaml # v0.27.0
+│   ├── vault/values.yaml            # v0.29.0
+│   └── external-secrets/values.yaml # v0.29.0
 │
 ├── manifests/
 │   ├── cert-manager/                   # v0.4.0
@@ -296,6 +298,8 @@ homelab/
 │   │   └── httproute.yaml
 │   ├── ghost-prod/                     # v0.11.0
 │   │   └── (same structure as ghost-dev)
+│   ├── gitlab-runner/                  # v0.29.0
+│   │   └── externalsecret.yaml
 │   ├── uptime-kuma/                    # v0.13.0
 │   │   ├── namespace.yaml
 │   │   ├── statefulset.yaml
@@ -355,6 +359,13 @@ homelab/
 │   │   ├── recommendarr/{deployment,service,httproute}.yaml  # v0.25.0
 │   │   ├── byparr/{deployment,service}.yaml                # v0.25.0
 │   │   └── qbittorrent/qbittorrent-exporter.yaml           # v0.27.0
+│   ├── vault/                          # v0.29.0
+│   │   ├── namespace.yaml
+│   │   ├── clustersecretstore.yaml
+│   │   ├── unsealer.yaml
+│   │   ├── snapshot-cronjob.yaml
+│   │   ├── servicemonitor.yaml
+│   │   └── httproute.yaml
 │   ├── atuin/                          # v0.28.0
 │   │   ├── namespace.yaml
 │   │   ├── postgres-deployment.yaml
@@ -496,3 +507,4 @@ homelab/
 | ARR Stack | Kubernetes | v0.23.0 |
 | Opensubtitles | Kubernetes | v0.23.0 |
 | Atuin | Kubernetes | v0.28.0 |
+| Vault Unseal Keys | Kubernetes | v0.29.0 |

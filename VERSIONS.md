@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** March 12, 2026
+> **Last Updated:** March 13, 2026
 
 ---
 
@@ -141,7 +141,7 @@ helm-homelab repo update
 | Scraparr | 3.0.3 | Running | Prometheus metrics exporter for *ARR apps |
 | Tdarr | 2.58.02 | Running | Library transcoding server (Intel QSV, internal node) |
 | Recommendarr | v1.4.4 | Running | AI media recommendations (Ollama qwen2.5:3b) |
-| Byparr | latest (v2.1.0) | Running | Cloudflare bypass proxy for Prowlarr indexers |
+| Byparr | 2.1.0 | Running | Cloudflare bypass proxy for Prowlarr indexers |
 | tdarr-exporter | latest (homeylab) | Running | Prometheus metrics for Tdarr library stats (arr-stack ns) |
 | qbittorrent-exporter | latest (esanchezm) | Running | Prometheus metrics for qBittorrent downloads (arr-stack ns) |
 | smartctl-exporter | v0.14.0 | Running | NVMe S.M.A.R.T. DaemonSet on all 3 nodes (monitoring ns) |
@@ -193,6 +193,7 @@ helm-homelab repo update
 | Alertmanager | alertmanager.k8s.rommelporras.com | base | monitoring |
 | Prometheus | prometheus.k8s.rommelporras.com | base | monitoring |
 | Atuin | atuin.k8s.rommelporras.com | base | atuin |
+| Loki | loki.k8s.rommelporras.com | base | monitoring |
 | Vault UI | vault.k8s.rommelporras.com | base | vault |
 
 **LoadBalancer Services:**

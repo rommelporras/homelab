@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-03-11
+updated: 2026-03-13
 ---
 
 # Conventions
@@ -68,7 +68,9 @@ homelab/
 │   ├── prometheus/values.yaml
 │   ├── intel-gpu-plugin/values.yaml
 │   ├── smartctl-exporter/values.yaml
-│   └── tailscale-operator/values.yaml
+│   ├── tailscale-operator/values.yaml
+│   ├── vault/values.yaml
+│   └── external-secrets/values.yaml
 ├── manifests/               # Raw K8s manifests
 │   ├── ai/                  # Ollama LLM inference server
 │   ├── arr-stack/           # ARR media stack (core + companions: 13 apps)
@@ -81,6 +83,7 @@ homelab/
 │   ├── ghost-dev/           # Ghost blog dev environment
 │   ├── ghost-prod/          # Ghost blog production environment
 │   ├── gitlab/              # GitLab SSH LoadBalancer
+│   ├── gitlab-runner/       # GitLab Runner ExternalSecret
 │   ├── home/                # Home services (AdGuard, Homepage, MySpeed)
 │   ├── invoicetron/         # Invoicetron app + PostgreSQL + backup
 │   ├── karakeep/            # Karakeep bookmark manager (AIO, Chrome, Meilisearch)
@@ -90,7 +93,8 @@ homelab/
 │   ├── portfolio/           # Portfolio deployment + RBAC
 │   ├── storage/             # Longhorn HTTPRoute, NFS PVs
 │   ├── tailscale/           # Tailscale Operator + Connector (subnet router)
-│   └── uptime-kuma/         # Uptime Kuma StatefulSet
+│   ├── uptime-kuma/         # Uptime Kuma StatefulSet
+│   └── vault/               # Vault + auto-unsealer + snapshot CronJob
 ├── scripts/                 # Automation scripts
 │   ├── upgrade-prometheus.sh
 │   ├── sync-ghost-prod-to-dev.sh
@@ -101,7 +105,7 @@ homelab/
 │   └── verify-migration.sh    # Post-migration health check (ESO sync, Vault status)
 ├── docs/
 │   ├── context/             # This knowledge base (RAG source)
-│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.28.2)
+│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.29.0)
 │   ├── todo/                # Active and completed phase plans
 │   └── reference/           # CHANGELOG, historical docs
 └── ansible/                 # Bootstrap automation

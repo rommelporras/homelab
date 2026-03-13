@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.28.1 (GitLab Minio + Atuin Backup Fix)
+> **Latest Release:** v0.29.0 (Vault + External Secrets Operator)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -41,9 +41,9 @@
 | v0.27.1 | ARR Quality Profile Fix + Tdarr Resolution Filter | — | ✅ Released |
 | v0.28.0 | Atuin Self-Hosted Shell History | Phase 4.30 | ✅ Released |
 | v0.28.1 | GitLab Minio + Atuin Backup + Runner OOM Fix | — | ✅ Released |
-| v0.28.2 | Cluster Janitor (Crash Self-Healing) | Phase 4.31 | ⬜ Planned |
-| v0.29.0 | Vault + External Secrets Operator | Phase 4.29 | ⬜ Planned |
-| v0.30.0 | Production Hardening | Phase 5 | ⬜ Planned |
+| v0.28.2 | Cluster Janitor (Crash Self-Healing) | Phase 4.31 | ✅ Released |
+| v0.29.0 | Vault + External Secrets Operator | Phase 4.29 | ✅ Released |
+| v0.30.0 | Production Hardening | Phase 5.0-5.2 | ⬜ Planned |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 
 ---
@@ -84,14 +84,16 @@
 | 4.27 | Version Automation & Upgrade Runbooks | [phase-4.27-version-automation.md](completed/phase-4.27-version-automation.md) |
 | 4.28 | Alerting & Observability Improvements | [phase-4.28-alerting-observability.md](completed/phase-4.28-alerting-observability.md) |
 | 4.30 | Atuin Self-Hosted Shell History | [phase-4.30-atuin.md](completed/phase-4.30-atuin.md) |
+| 4.29 | Vault + External Secrets Operator | [phase-4.29-vault-eso.md](completed/phase-4.29-vault-eso.md) |
+| 4.31 | Cluster Janitor (Crash Self-Healing) | [phase-4.31-cluster-janitor.md](completed/phase-4.31-cluster-janitor.md) |
 
 ### Planned
 
 | Phase | Description | File |
 |-------|-------------|------|
-| 4.29 | Vault + External Secrets Operator | [phase-4.29-vault-eso.md](phase-4.29-vault-eso.md) |
-| 4.31 | Cluster Janitor (Crash Self-Healing) | [phase-4.31-cluster-janitor.md](phase-4.31-cluster-janitor.md) |
-| 5 | Production Hardening | [phase-5-hardening.md](phase-5-hardening.md) |
+| 5.0 | Security Posture Audit | [phase-5.0-security-posture.md](phase-5.0-security-posture.md) |
+| 5.1 | Network Policy Hardening | [phase-5.1-network-policies.md](phase-5.1-network-policies.md) |
+| 5.2 | Resilience & Backup | [phase-5.2-resilience-backup.md](phase-5.2-resilience-backup.md) |
 | 6 | CKA Focused Learning | [phase-6-cka.md](phase-6-cka.md) |
 
 ### Deferred
@@ -114,6 +116,8 @@
 | `monitoring` | ALL observability (Prometheus, Grafana, Loki, exporters) |
 | `cert-manager` | TLS certificate management |
 | `cloudflare` | Cloudflare Tunnel (external access) |
+| `vault` | HashiCorp Vault secrets management |
+| `external-secrets` | External Secrets Operator (syncs K8s Secrets from Vault) |
 
 ### CI/CD Namespaces
 | Namespace | Contents | Storage |
@@ -127,14 +131,13 @@
 | `home` | AdGuard, Homepage, MySpeed | None (stateless) / SQLite |
 | `ghost-prod` | Ghost Blog, MySQL, TrafficAnalytics | MySQL 8.4.8 |
 | `ghost-dev` | Ghost Blog (dev), MySQL | MySQL 8.4.8 |
-| `portfolio` | rommelporras.com (static Next.js) | None (static nginx) |
-| `invoicetron` | Invoice processing app | Own PostgreSQL |
+| `portfolio-dev/staging/prod` | rommelporras.com (static Next.js, 3-env) | None (static nginx) |
+| `invoicetron-dev/prod` | Invoice processing app (2-env) | Own PostgreSQL |
 | `uptime-kuma` | Uptime Kuma endpoint monitoring | SQLite (PVC) |
 | `browser` | Firefox browser (KasmVNC) | None (PVC for profile) |
 | `ai` | Ollama LLM inference server | None (PVC for models) |
 | `karakeep` | Karakeep bookmark manager (web, Chrome, Meilisearch) | SQLite (PVC) |
 | `tailscale` | Tailscale Operator + Connector (subnet router) | None (stateless) |
-| `immich` | Immich server, ML, Redis | Own PostgreSQL |
 | `arr-stack` | Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin, Bazarr, Seerr, Configarr, Unpackerr, Scraparr, Tdarr, Recommendarr, Byparr | SQLite (config on Longhorn, media on NFS) |
 | `atuin` | Atuin self-hosted shell history sync (server + PostgreSQL) | Own PostgreSQL |
 | `node-feature-discovery` | NFD (auto-labels GPU nodes) | None (stateless) |
@@ -143,8 +146,8 @@
 ### Why This Pattern
 - **Matches Docker Compose** — each project = one namespace
 - **Simple service discovery** — `postgres:5432` works within namespace
-- **Easy cleanup** — `kubectl delete namespace immich` removes everything
-- **Isolated failures** — Immich DB issue doesn't affect ARR
+- **Easy cleanup** — `kubectl delete namespace karakeep` removes everything
+- **Isolated failures** — Karakeep DB issue doesn't affect ARR
 - **Scoped NetworkPolicies** — each project controls its own access
 
 ### Database Strategy
