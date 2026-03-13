@@ -695,5 +695,6 @@ kubectl-homelab get ciliumclusterwidenetworkpolicy allow-gateway-ingress-egress
 ## Final: Commit and Release
 
 - [ ] `/audit-security` then `/commit`
+- [ ] `/audit-docs` then `/commit`
 - [ ] `/release v0.31.0 "Network Policies"`
 - [ ] `mv docs/todo/phase-5.1-network-policies.md docs/todo/completed/`

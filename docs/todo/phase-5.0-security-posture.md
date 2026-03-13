@@ -614,5 +614,6 @@ kubectl-homelab label namespace <ns> \
 ## Final: Commit and Release
 
 - [ ] `/audit-security` then `/commit`
+- [ ] `/audit-docs` then `/commit`
 - [ ] `/release v0.30.0 "Security Posture"`
 - [ ] `mv docs/todo/phase-5.0-security-posture.md docs/todo/completed/`

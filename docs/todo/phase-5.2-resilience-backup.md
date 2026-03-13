@@ -977,5 +977,6 @@ These items are explicitly NOT in Phase 5:
 ## Final: Commit and Release
 
 - [ ] `/audit-security` then `/commit`
+- [ ] `/audit-docs` then `/commit`
 - [ ] `/release v0.32.0 "Resilience & Backup"`
 - [ ] `mv docs/todo/phase-5.2-resilience-backup.md docs/todo/completed/`

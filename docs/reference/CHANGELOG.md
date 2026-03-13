@@ -4,6 +4,35 @@
 
 ---
 
+## March 13, 2026 — Warning Event Fixes + Doc Sync (v0.29.1)
+
+### Summary
+
+Fixed 5 warning events surfaced in Headlamp (Ghost probe noise, GitLab runner FailedMount,
+Grafana Init stuck, Byparr readiness timeouts) and synced all documentation to v0.29.0
+cluster state.
+
+### Changes
+
+| Change | Details |
+|--------|---------|
+| Ghost dev/prod probes | Switched from `httpGet` to `tcpSocket` — Ghost redirects HTTP→HTTPS (301), generating ProbeWarning noise. Pods were healthy; warnings were cosmetic. |
+| GitLab runner ESO template | Added empty `runner-registration-token` key — Helm chart projected volume expects both keys even when using GitLab 17.0+ auth flow |
+| Grafana ESO template | Added static `admin-user: "admin"` key — kube-prometheus-stack 81.0.0+ requires it in `existingSecret` |
+| Byparr image pin | `ghcr.io/thephaseless/byparr:latest` → `2.1.0` — pinned to specific version |
+| Byparr probe tuning | Readiness timeout 10s→45s, liveness timeout 30s→60s, period 60s→120s — headless browser blocks `/health` during Cloudflare challenge solves |
+| Documentation sync | 21 issues fixed across 8 doc files — VERSIONS.md, context docs, rebuild guide, TODO |
+
+### Key Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| tcpSocket over httpGet for Ghost | Ghost's 301 redirect is by design (HTTP→HTTPS). `scheme: HTTPS` in probes would work but adds TLS overhead for a health check. tcpSocket is simplest and matches prod probe pattern. |
+| httpGet kept for Byparr (not tcpSocket) | tcpSocket would hide real failures — Byparr's `/health` endpoint reports browser engine status. Generous timeout with httpGet is the correct approach. |
+| ESO templates for static keys | ESO `target.template.data` can mix Vault-fetched values with static strings in a single Secret, avoiding separate manual secrets. |
+
+---
+
 ## March 12, 2026 — Vault + External Secrets Operator (v0.29.0)
 
 ### Summary
