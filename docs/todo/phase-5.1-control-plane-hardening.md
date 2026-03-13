@@ -22,22 +22,89 @@
 | 2 | CP2 | 10.10.30.12 |
 | 3 | CP3 | 10.10.30.13 |
 
-**Procedure:** CP1 change → verify → CP2 change → verify → CP3 change → verify
+**Procedure:** CP1 change → lockout gate → CP2 change → lockout gate → CP3 change → lockout gate
 
 **Why this is safe:**
 - kube-vip VIP (10.10.30.10) fails over in ~2 seconds — always 2/3 nodes serving
 - etcd quorum needs 2/3 — always maintained when only 1 node is down
+- SSH access is independent of Kubernetes — even if API server crashes, SSH still works
+- Backups are taken before every change — rollback is always `cp backup original`
 
 **Abort criteria:** If CP1 change fails and revert doesn't fix within 5 minutes, **STOP** — do not touch CP2/CP3.
 
-**Verification between each node:**
+### Pre-flight: Verify access before ANY changes
+
+Run this ONCE before starting. If any check fails, fix it first.
 ```bash
-# Run from WSL after each node change
-kubectl-homelab get nodes                    # All 3 Ready?
-kubectl-homelab get pods -n kube-system      # All Running?
-kubectl-homelab get cs 2>/dev/null || kubectl-homelab cluster-info  # API healthy?
-kubectl-homelab get --raw /healthz           # API server healthz
+# 1. Verify SSH access to all 3 nodes (independent of Kubernetes)
+ssh wawashi@10.10.30.11 "hostname && uptime"
+ssh wawashi@10.10.30.12 "hostname && uptime"
+ssh wawashi@10.10.30.13 "hostname && uptime"
+
+# 2. Verify kubectl via VIP works
+kubectl-homelab get nodes
+kubectl-homelab get --raw /healthz
+
+# 3. Verify kubectl via DIRECT node IPs works (bypass VIP — emergency fallback)
+kubectl --kubeconfig ~/.kube/homelab.yaml --server https://10.10.30.11:6443 get --raw /healthz
+kubectl --kubeconfig ~/.kube/homelab.yaml --server https://10.10.30.12:6443 get --raw /healthz
+kubectl --kubeconfig ~/.kube/homelab.yaml --server https://10.10.30.13:6443 get --raw /healthz
 ```
+
+> **Why direct-IP checks matter:** If kube-vip fails over during a change, `kubectl-homelab`
+> (which uses the VIP) still works — but you can't tell WHICH node is serving. Direct-IP
+> checks confirm each individual node's API server is healthy.
+
+### Lockout gate (run between EVERY node)
+
+**ALL checks must pass before touching the next node.** Copy-paste this block.
+```bash
+# === LOCKOUT GATE — do NOT proceed if any check fails ===
+
+# 1. Can I still reach the cluster via VIP? (most important — this is how we work)
+kubectl-homelab get nodes
+kubectl-homelab get --raw /healthz
+
+# 2. Are all 3 nodes Ready?
+kubectl-homelab get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}'
+
+# 3. Are kube-system pods healthy? (look for CrashLoopBackOff, Error, Pending)
+kubectl-homelab get pods -n kube-system | grep -v Running | grep -v Completed
+
+# 4. Can I still SSH to all 3 nodes? (escape hatch if kubectl breaks)
+ssh wawashi@10.10.30.11 "echo CP1-OK"
+ssh wawashi@10.10.30.12 "echo CP2-OK"
+ssh wawashi@10.10.30.13 "echo CP3-OK"
+
+# === If any check above fails: STOP. Rollback the last change. Do NOT touch next node. ===
+```
+
+### Emergency recovery (if locked out of kubectl)
+
+If `kubectl-homelab` stops responding after a change, SSH is your escape hatch:
+```bash
+# SSH to the node you just changed (SSH is independent of Kubernetes)
+ssh wawashi@10.10.30.1X
+
+# Check what happened
+sudo crictl ps -a | grep kube-apiserver    # Is API server running or crash-looping?
+sudo journalctl -u kubelet --since "5 min ago" | tail -30  # Kubelet errors?
+
+# Rollback API server manifest (most common issue)
+sudo cp /etc/kubernetes/kube-apiserver.yaml.backup /etc/kubernetes/manifests/kube-apiserver.yaml
+# Wait 30s, API server auto-restarts
+
+# Rollback kubelet config
+sudo cp /var/lib/kubelet/config.yaml.backup /var/lib/kubelet/config.yaml
+sudo systemctl restart kubelet
+
+# After rollback, verify from WSL
+kubectl-homelab get nodes
+```
+
+> **Key insight:** You can NEVER lose SSH access from Kubernetes changes. SSH runs on the OS,
+> not in the cluster. Even if all 3 API servers crash-loop simultaneously, SSH works.
+> The only way to lose SSH is a network/firewall change (not in this phase's scope).
 
 > **Note:** All SSH commands use `ssh wawashi@10.10.30.1X` (user is `wawashi`, not root).
 
@@ -67,7 +134,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: kube-bench
-          image: aquasecurity/kube-bench:v0.10.6
+          image: aquasec/kube-bench:v0.10.6
           command: ["kube-bench", "run", "--targets", "master,node,policies"]
           volumeMounts:
             - name: var-lib-etcd
@@ -105,50 +172,58 @@ Changes to `/var/lib/kubelet/config.yaml` (KubeletConfiguration) on each node, t
 
 **Rolling: CP1 → verify → CP2 → verify → CP3**
 
-Settings to add/change:
+> **Audit (2026-03-14):** kubeadm already sets `authentication.anonymous.enabled: false`,
+> `authentication.webhook.enabled: true`, `authorization.mode: Webhook`, and
+> `rotateCertificates: true` on all 3 nodes. Read-only port 10255 is already closed
+> (connection refused). Only the settings below need to be added.
+
+Settings to add:
 ```yaml
 # Add to /var/lib/kubelet/config.yaml on each node
-authentication:
-  anonymous:
-    enabled: false          # CIS 4.2.1 — default is true
-  webhook:
-    enabled: true           # Should already be true (kubeadm default)
-authorization:
-  mode: Webhook             # CIS 4.2.2 — default is AlwaysAllow
-readOnlyPort: 0             # CIS 4.2.4 — disable unauthenticated read-only port 10255
-protectKernelDefaults: false # CIS 4.2.6 — set to true only if sysctl params are pre-set (verify first)
-eventRecordQPS: 5           # CIS 4.2.8 — default is 5 (verify, don't change if already set)
-rotateCertificates: true    # CIS 4.2.11 — enable automatic cert rotation
+readOnlyPort: 0             # CIS 4.2.4 — explicitly disable (port already closed, but CIS requires explicit setting)
+protectKernelDefaults: true  # CIS 4.2.6 — sysctl params verified present via Ansible 01-prerequisites.yml (2026-03-14)
+eventRecordQPS: 5           # CIS 4.2.8 — set explicitly for CIS compliance
 ```
 
-> **Note on `protectKernelDefaults`:** Before setting to `true`, verify that the required sysctl
-> params (`net.bridge.bridge-nf-call-iptables=1`, etc.) are already set via `/etc/sysctl.d/k8s.conf`
-> (they are — set in Ansible playbook 01-prerequisites.yml). If kubelet starts with
-> `protectKernelDefaults: true` and the params aren't set, kubelet won't start.
+Settings to verify only (already set by kubeadm — do NOT re-add):
+```yaml
+# These should already exist in /var/lib/kubelet/config.yaml
+authentication:
+  anonymous:
+    enabled: false          # CIS 4.2.1 — kubeadm default (NOT raw kubelet default)
+  webhook:
+    enabled: true           # CIS 4.2.5 — kubeadm default
+authorization:
+  mode: Webhook             # CIS 4.2.2 — kubeadm default (NOT raw kubelet default)
+rotateCertificates: true    # CIS 4.2.11 — kubeadm default
+```
 
-- [ ] 5.1.2.1 SSH to CP1, back up existing kubelet config
+- [ ] 5.1.2.1 SSH to CP1, verify kubeadm-managed settings are present, back up config
   ```bash
   ssh wawashi@10.10.30.11
+  sudo grep -E 'anonymous|webhook|Webhook|rotateCertificates' /var/lib/kubelet/config.yaml
   sudo cp /var/lib/kubelet/config.yaml /var/lib/kubelet/config.yaml.backup
   ```
 
-- [ ] 5.1.2.2 Edit kubelet config on CP1 (add the settings above)
+- [ ] 5.1.2.2 Add missing settings on CP1 (`readOnlyPort`, `protectKernelDefaults`, `eventRecordQPS`)
 
 - [ ] 5.1.2.3 Restart kubelet on CP1: `sudo systemctl restart kubelet`
 
 - [ ] 5.1.2.4 Verify CP1 from WSL (get nodes, get pods, cluster-info)
 
-- [ ] 5.1.2.5 Verify kubelet API is no longer accessible anonymously:
+- [ ] 5.1.2.5 Verify kubelet security from another node:
   ```bash
-  # From another node — should return 401 Unauthorized (not pod data)
+  # Should return 401 Unauthorized (already blocked — verifying, not changing)
   ssh wawashi@10.10.30.12 "curl -sk https://10.10.30.11:10250/pods"
-  # Should also fail on read-only port (port closed)
+  # Read-only port should be closed (connection refused)
   ssh wawashi@10.10.30.12 "curl -s http://10.10.30.11:10255/pods --max-time 3"
   ```
 
-- [ ] 5.1.2.6 Apply same changes to CP2, verify
+- [ ] 5.1.2.6 **Run lockout gate** (see Rolling Update Strategy — all checks must pass before touching CP2)
 
-- [ ] 5.1.2.7 Apply same changes to CP3, verify
+- [ ] 5.1.2.7 Apply same changes to CP2, restart kubelet, verify, **run lockout gate**
+
+- [ ] 5.1.2.8 Apply same changes to CP3, restart kubelet, verify, **run lockout gate**
 
 **Rollback:** Restore from backup: `sudo cp /var/lib/kubelet/config.yaml.backup /var/lib/kubelet/config.yaml && sudo systemctl restart kubelet`
 
@@ -171,10 +246,13 @@ Add to `spec.containers[0].command`:
 --audit-log-maxsize=100                   # Max 100MB per file
 ```
 
-> **Note on `--anonymous-auth=false`:** kubeadm default is `true`. With this set to `false`,
-> unauthenticated requests to the API server are rejected. Health check endpoints (`/healthz`,
-> `/readyz`, `/livez`) still work because they're handled before authentication. Verify after
-> applying that `kubectl-homelab` still works (it uses client cert auth, unaffected).
+> **Note on `--anonymous-auth=false`:** kubeadm default is `true`. Currently anonymous requests
+> get 403 (RBAC blocks `system:anonymous`). With `--anonymous-auth=false`, they get 401 (rejected
+> at the authentication layer instead). Health check endpoints (`/healthz`, `/readyz`, `/livez`)
+> still work (handled before authentication). Verify after applying:
+> - `kubectl-homelab` still works (uses client cert auth — unaffected)
+> - kube-vip leader election works (uses ServiceAccount token — unaffected)
+> - Prometheus API server scraping works (uses ServiceAccount token — unaffected)
 
 > **Warning:** Do NOT add `--enable-admission-plugins` unless you know exactly which plugins are
 > already enabled. kubeadm enables a default set. Adding this flag REPLACES the defaults,
@@ -202,34 +280,78 @@ volumes:
       type: DirectoryOrCreate
 ```
 
-- [ ] 5.1.3.1 Create audit policy file on CP1 (see 5.1.5 for policy content — create this FIRST before adding the API server flag)
+> **RISK: This is the most dangerous step in Phase 5.1.** If the audit policy file is missing,
+> malformed, or the volume mount path is wrong, the API server will crash-loop and not recover
+> until the manifest is fixed. The rolling strategy protects you — only 1 node at a time — but
+> validate everything before placing the manifest.
+
+- [ ] 5.1.3.1 Create audit policy file on CP1 (see 5.1.5 for policy content — create this FIRST)
 
 - [ ] 5.1.3.2 Create audit log directory: `sudo mkdir -p /var/log/kubernetes/audit`
 
-- [ ] 5.1.3.3 Back up API server manifest on CP1:
+- [ ] 5.1.3.3 **Validate prerequisites exist before touching the manifest:**
   ```bash
-  sudo cp /etc/kubernetes/manifests/kube-apiserver.yaml /etc/kubernetes/kube-apiserver.yaml.backup
+  ssh wawashi@10.10.30.11 "
+    # Audit policy file must exist and be valid YAML
+    sudo python3 -c 'import yaml; yaml.safe_load(open(\"/etc/kubernetes/audit-policy.yaml\"))' && echo 'AUDIT POLICY: OK' || echo 'AUDIT POLICY: INVALID'
+    # Audit log directory must exist
+    sudo test -d /var/log/kubernetes/audit && echo 'AUDIT DIR: OK' || echo 'AUDIT DIR: MISSING'
+  "
+  # BOTH must show OK before proceeding. If either fails, DO NOT edit the manifest.
   ```
 
-- [ ] 5.1.3.4 Edit API server manifest on CP1 (add flags + volume mounts)
-
-- [ ] 5.1.3.5 Wait for API server to restart (~30s), verify from WSL
-
-- [ ] 5.1.3.6 Verify anonymous auth is disabled:
+- [ ] 5.1.3.4 Back up API server manifest on CP1:
   ```bash
-  # Should return 401, not 200
+  ssh wawashi@10.10.30.11 "sudo cp /etc/kubernetes/manifests/kube-apiserver.yaml /etc/kubernetes/kube-apiserver.yaml.backup"
+  ```
+
+- [ ] 5.1.3.5 Edit API server manifest on CP1 (add flags + volume mounts)
+  > **Tip:** Edit the backup copy first, validate it, then move it into place:
+  > ```bash
+  > ssh wawashi@10.10.30.11
+  > sudo cp /etc/kubernetes/kube-apiserver.yaml.backup /tmp/kube-apiserver-new.yaml
+  > # Edit /tmp/kube-apiserver-new.yaml (add flags + volume mounts)
+  > # Validate YAML syntax before deploying:
+  > sudo python3 -c 'import yaml; yaml.safe_load(open("/tmp/kube-apiserver-new.yaml"))' && echo 'YAML VALID' || echo 'YAML INVALID — DO NOT DEPLOY'
+  > # Only if VALID: move into manifests/ (triggers restart)
+  > sudo cp /tmp/kube-apiserver-new.yaml /etc/kubernetes/manifests/kube-apiserver.yaml
+  > ```
+
+- [ ] 5.1.3.6 Watch API server restart (should come back within 60s):
+  ```bash
+  # From WSL — watch the API server pod status on CP1
+  ssh wawashi@10.10.30.11 "sudo crictl ps | grep kube-apiserver"
+  # If not running after 60s, check why:
+  ssh wawashi@10.10.30.11 "sudo crictl logs \$(sudo crictl ps -a --name kube-apiserver -q | head -1) 2>&1 | tail -20"
+  # If crash-looping: IMMEDIATELY rollback
+  # ssh wawashi@10.10.30.11 "sudo cp /etc/kubernetes/kube-apiserver.yaml.backup /etc/kubernetes/manifests/kube-apiserver.yaml"
+  ```
+
+- [ ] 5.1.3.7 **Run lockout gate** (see Rolling Update Strategy — all checks must pass)
+
+- [ ] 5.1.3.8 Verify anonymous auth is disabled:
+  ```bash
+  # Should return 401 (was 403 before)
   ssh wawashi@10.10.30.11 "curl -sk https://localhost:6443/api"
   ```
 
-- [ ] 5.1.3.7 Verify audit log is being written:
+- [ ] 5.1.3.9 Verify audit log is being written:
   ```bash
   ssh wawashi@10.10.30.11 "sudo ls -la /var/log/kubernetes/audit/"
   ssh wawashi@10.10.30.11 "sudo tail -5 /var/log/kubernetes/audit/audit.log | head -1 | python3 -m json.tool"
   ```
 
-- [ ] 5.1.3.8 Apply same changes to CP2, verify
+- [ ] 5.1.3.10 Verify kube-vip and Prometheus still work:
+  ```bash
+  # kube-vip: VIP still responds
+  kubectl-homelab get --raw /healthz
+  # Prometheus: API server target still UP (give it 1-2 scrape intervals)
+  kubectl-homelab exec -n monitoring $(kubectl-homelab get pod -n monitoring -l app.kubernetes.io/name=prometheus -o name | head -1) -- wget -qO- 'http://localhost:9090/api/v1/targets?state=active' 2>/dev/null | grep -o '"health":"up"' | wc -l
+  ```
 
-- [ ] 5.1.3.9 Apply same changes to CP3, verify
+- [ ] 5.1.3.11 Apply same changes to CP2 (repeat 5.1.3.1-5.1.3.10, substitute 10.10.30.12)
+
+- [ ] 5.1.3.12 Apply same changes to CP3 (repeat 5.1.3.1-5.1.3.10, substitute 10.10.30.13)
 
 **Rollback:** Restore from backup: `sudo cp /etc/kubernetes/kube-apiserver.yaml.backup /etc/kubernetes/manifests/kube-apiserver.yaml` (API server auto-restarts)
 
@@ -257,11 +379,11 @@ Scheduler (`/etc/kubernetes/manifests/kube-scheduler.yaml`):
 
 - [ ] 5.1.4.3 Add `--profiling=false` to scheduler on CP1
 
-- [ ] 5.1.4.4 Verify from WSL (pods restarting, cluster healthy)
+- [ ] 5.1.4.4 Verify from WSL (pods restarting, cluster healthy), **run lockout gate**
 
-- [ ] 5.1.4.5 Apply to CP2, verify
+- [ ] 5.1.4.5 Apply to CP2, verify, **run lockout gate**
 
-- [ ] 5.1.4.6 Apply to CP3, verify
+- [ ] 5.1.4.6 Apply to CP3, verify, **run lockout gate**
 
 **Rollback:** Restore from backup, static pods auto-restart.
 
@@ -271,71 +393,34 @@ Scheduler (`/etc/kubernetes/manifests/kube-scheduler.yaml`):
 
 > **Moved from:** [deferred.md](../deferred.md) (originally deferred in Phase 3.9, 2026-01-20)
 
-Prometheus cannot scrape metrics from kubeadm-managed control plane components because they bind to `127.0.0.1`. This step exposes metrics and removes the Alertmanager silences that were masking the missing targets.
+> **Audit (2026-03-14):** Bind-address changes, etcd metrics URL, and ServiceMonitors are
+> already in place. All 9 control plane targets (3 components x 3 nodes) are UP in Prometheus.
+> Only the Alertmanager silence removal remains.
 
-**Rolling: CP1 → verify → CP2 → verify → CP3**
+**Already done (verified on all 3 nodes, 2026-03-14):**
+- [x] Controller-manager `--bind-address=0.0.0.0` — already set
+- [x] Scheduler `--bind-address=0.0.0.0` — already set
+- [x] etcd `--listen-metrics-urls=http://0.0.0.0:2381` — already set
+- [x] kube-prometheus-stack ServiceMonitors exist for controller-manager, scheduler, etcd
+- [x] All Prometheus targets UP (controller-manager:10257, scheduler:10259, etcd:2381)
 
 **Note:** kube-proxy is not running — Cilium replaces it (`kubeProxyReplacement: true`). The `KubeProxyDown` silence stays permanently.
 
-### Bind-address changes
-
-Apply to the same static pod manifests touched in 5.1.4. Can be done in the same edit pass.
-
-Controller-manager (`/etc/kubernetes/manifests/kube-controller-manager.yaml`):
-```
---bind-address=0.0.0.0    # Expose metrics on all interfaces (default: 127.0.0.1)
-```
-
-Scheduler (`/etc/kubernetes/manifests/kube-scheduler.yaml`):
-```
---bind-address=0.0.0.0    # Expose metrics on all interfaces (default: 127.0.0.1)
-```
-
-etcd (`/etc/kubernetes/manifests/etcd.yaml`):
-```
---listen-metrics-urls=http://0.0.0.0:2381    # Expose etcd metrics (default: 127.0.0.1:2381)
-```
-
-- [ ] 5.1.4a.1 Add `--bind-address=0.0.0.0` to controller-manager on CP1 (combine with 5.1.4.2 if doing same session)
-
-- [ ] 5.1.4a.2 Add `--bind-address=0.0.0.0` to scheduler on CP1 (combine with 5.1.4.3 if doing same session)
-
-- [ ] 5.1.4a.3 Add `--listen-metrics-urls=http://0.0.0.0:2381` to etcd on CP1
-
-- [ ] 5.1.4a.4 Verify metrics endpoints respond from WSL:
-  ```bash
-  ssh wawashi@10.10.30.11 "curl -s http://localhost:10257/metrics --insecure | head -5"   # controller-manager
-  ssh wawashi@10.10.30.11 "curl -s http://localhost:10259/metrics --insecure | head -5"   # scheduler
-  ssh wawashi@10.10.30.11 "curl -s http://localhost:2381/metrics | head -5"               # etcd
-  ```
-
-- [ ] 5.1.4a.5 Apply same changes to CP2, verify
-
-- [ ] 5.1.4a.6 Apply same changes to CP3, verify
-
-### ServiceMonitors
-
-- [ ] 5.1.4a.7 Verify kube-prometheus-stack ServiceMonitors exist for controller-manager, scheduler, and etcd
-  ```bash
-  kubectl-homelab get servicemonitor -n monitoring | grep -E 'controller-manager|scheduler|etcd'
-  ```
-  > kube-prometheus-stack includes these by default. They may just need the endpoint addresses to be reachable (which the bind-address fix provides).
-
-- [ ] 5.1.4a.8 Confirm Prometheus targets are UP in Grafana → Status → Targets
-
 ### Alertmanager silence removal
 
-- [ ] 5.1.4a.9 Remove silence routes from `helm/prometheus/values.yaml` (alertmanager.config.route.routes):
+- [ ] 5.1.4a.1 Remove silence routes from `helm/prometheus/values.yaml` (alertmanager.config.route.routes):
   - Remove `etcdInsufficientMembers` silence
   - Remove `etcdMembersDown` silence
   - Remove `TargetDown` silence for kube-scheduler, kube-controller-manager, kube-etcd
   - **Keep** `KubeProxyDown` silence (Cilium replaces kube-proxy — this is permanent)
 
-- [ ] 5.1.4a.10 Upgrade Prometheus Helm release with updated values
+- [ ] 5.1.4a.2 Add audit alert routing to Alertmanager config (see 5.1.6)
 
-- [ ] 5.1.4a.11 Verify silenced alerts no longer fire (targets are now scraped successfully)
+- [ ] 5.1.4a.3 Upgrade Prometheus Helm release with updated values
 
-**Rollback:** Revert bind-address to `127.0.0.1`, re-add silence routes.
+- [ ] 5.1.4a.4 Verify previously-silenced alerts do not fire (targets are healthy — they shouldn't)
+
+**Rollback:** Re-add silence routes to `helm/prometheus/values.yaml`, upgrade Helm release.
 
 ---
 
@@ -389,13 +474,6 @@ rules:
       - group: ""
         resources: ["pods/exec", "pods/attach", "pods/portforward"]
 
-  # Log authentication failures
-  - level: Metadata
-    stages:
-      - ResponseComplete
-    omitStages:
-      - RequestReceived
-
   # Catch-all: log everything else at Metadata level
   - level: Metadata
     stages:
@@ -428,43 +506,156 @@ Ship API server audit logs from all 3 nodes to Loki via Grafana Alloy.
 > **Why:** On-node logs are useless if you can't search them. Loki + Grafana gives you a
 > single pane of glass for investigating security events.
 
-- [ ] 5.1.6.1 Update Alloy DaemonSet config to scrape audit log files
+> **Audit (2026-03-14):** Alloy DaemonSet currently has NO hostPath mounts for `/var/log`.
+> Both the hostPath volume and volumeMount MUST be added to the Alloy Helm values.
+> Audit logs only exist on CP nodes — Alloy pods on workers will simply find no file.
+
+- [ ] 5.1.6.1 Add hostPath volume mount to Alloy DaemonSet for audit logs
+  Add to `helm/alloy/values.yaml` (verify exact paths match chart version with `helm show values`):
   ```yaml
-  # Add to Alloy config (helm/prometheus/values.yaml or Alloy ConfigMap)
-  # Alloy runs on every node as a DaemonSet — it can read host paths
+  alloy:
+    mounts:
+      extra:
+        - name: audit-logs
+          mountPath: /var/log/kubernetes/audit
+          readOnly: true
+    controller:
+      volumes:
+        extra:
+          - name: audit-logs
+            hostPath:
+              path: /var/log/kubernetes/audit
+              type: DirectoryOrCreate
+  ```
+
+- [ ] 5.1.6.2 Add Alloy config block to scrape audit log files
+  ```yaml
+  # Add to Alloy config in helm/alloy/values.yaml
   local.file_match "audit_logs" {
     path_targets = [{"__path__" = "/var/log/kubernetes/audit/audit.log"}]
     sync_period  = "5s"
   }
 
   loki.source.file "audit_logs" {
-    targets    = local.file_match.audit_logs.targets
-    forward_to = [loki.write.default.receiver]
+    targets       = local.file_match.audit_logs.targets
+    forward_to    = [loki.write.default.receiver]
     tail_from_end = true
   }
   ```
 
-  > Alloy already has hostPath access for `/var/log` — verify the mount covers `/var/log/kubernetes/audit/`.
+- [ ] 5.1.6.3 Upgrade Alloy Helm release and verify pods restart with new mounts
+  ```bash
+  kubectl-homelab get pods -n monitoring -l app.kubernetes.io/name=alloy
+  # Verify 3/3 Running, check logs for audit file discovery
+  kubectl-homelab logs -n monitoring daemonset/alloy --tail=20 | grep audit
+  ```
 
-- [ ] 5.1.6.2 Add Alloy hostPath volume mount for audit log directory (if not already covered)
-
-- [ ] 5.1.6.3 Verify audit logs appear in Grafana → Explore → Loki
+- [ ] 5.1.6.4 Verify audit logs appear in Grafana → Explore → Loki
   ```
   {filename="/var/log/kubernetes/audit/audit.log"} | json | verb != "watch"
   ```
 
-- [ ] 5.1.6.4 Create audit alerting rules
+- [ ] 5.1.6.5 Create audit alerting rules (Loki ruler or PrometheusRule with LogQL)
   ```yaml
-  # Optional: Alert on suspicious audit events
-  # e.g., secrets accessed by unexpected users, exec into pods, RBAC changes
-  # This is a Loki alert rule, not a Prometheus rule
+  # manifests/monitoring/alerts/audit-alerts.yaml
+  groups:
+    - name: audit-security
+      rules:
+        - alert: AuditSecretAccessByNonSystem
+          expr: |
+            count_over_time({filename="/var/log/kubernetes/audit/audit.log"}
+              | json
+              | objectRef_resource = "secrets"
+              | user_username !~ "system:.*"
+              [5m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Non-system user accessed secrets"
+
+        - alert: AuditPodExec
+          expr: |
+            count_over_time({filename="/var/log/kubernetes/audit/audit.log"}
+              | json
+              | objectRef_subresource = "exec"
+              [5m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod exec session detected"
+
+        - alert: AuditRBACChange
+          expr: |
+            count_over_time({filename="/var/log/kubernetes/audit/audit.log"}
+              | json
+              | objectRef_apiGroup = "rbac.authorization.k8s.io"
+              | verb =~ "create|update|patch|delete"
+              [5m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "RBAC resource modified"
+
+        - alert: AuditHighAuthFailureRate
+          expr: |
+            count_over_time({filename="/var/log/kubernetes/audit/audit.log"}
+              | json
+              | responseStatus_code >= 401
+              | responseStatus_code <= 403
+              [5m]) > 50
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High rate of authentication/authorization failures (>50 in 5m)"
   ```
+
+- [ ] 5.1.6.6 Add audit alert routing to Alertmanager config
+  Add to `helm/prometheus/values.yaml` alertmanager routes (combine with 5.1.4a silence removal):
+  ```yaml
+  - match_re:
+      alertname: 'Audit.*'
+    receiver: 'discord-infra'
+  ```
+
+- [ ] 5.1.6.7 Verify audit alerts are routable (trigger a test exec and confirm alert fires)
+  ```bash
+  # Trigger a pod exec (should fire AuditPodExec)
+  kubectl-homelab exec -n kube-system deploy/coredns -- whoami
+  # Check Loki for the event, then Alertmanager for the alert
+  ```
+
+### Useful Loki queries for audit investigation
+
+```
+# Who accessed this secret?
+{filename="/var/log/kubernetes/audit/audit.log"} | json | objectRef_resource = "secrets" | objectRef_name = "<secret-name>"
+
+# All exec sessions in last 24h
+{filename="/var/log/kubernetes/audit/audit.log"} | json | objectRef_subresource = "exec"
+
+# What happened in the 5 minutes before a pod was deleted?
+{filename="/var/log/kubernetes/audit/audit.log"} | json | objectRef_name = "<pod-name>" | verb =~ "delete|update|patch"
+
+# All RBAC changes
+{filename="/var/log/kubernetes/audit/audit.log"} | json | objectRef_apiGroup = "rbac.authorization.k8s.io" | verb =~ "create|update|patch|delete"
+```
 
 ---
 
 ## 5.1.7 Certificate Expiry Monitoring
 
-kubeadm certificates expire in 1 year. No existing alert for this.
+kubeadm certificates expire in 1 year. Existing PrometheusRule `cert-alerts` covers
+**cert-manager certificates** only (TLS certs for ingress, webhooks). This CronJob monitors
+**kubeadm PKI certificates** (CA-signed certs for API server, etcd, kubelet client auth, etc.)
+which are NOT managed by cert-manager.
+
+> **Audit (2026-03-14):** All kubeadm certs expire ~Jan 15, 2027 (~307 days). CAs expire ~2036.
+> `registry.k8s.io/kubeadm:v1.35.0` does NOT exist as a container image — kubeadm is a host
+> binary only. Using `alpine:3.21` with `openssl` to check cert expiry directly.
 
 - [ ] 5.1.7.1 Create CronJob to check certificate expiry
   ```yaml
@@ -491,22 +682,28 @@ kubeadm certificates expire in 1 year. No existing alert for this.
             automountServiceAccountToken: false
             containers:
               - name: check-certs
-                image: registry.k8s.io/kubeadm:v1.35.0
+                image: alpine:3.21
                 command: ["/bin/sh", "-c"]
                 args:
                   - |
-                    OUTPUT=$(kubeadm certs check-expiration 2>&1)
-                    echo "$OUTPUT"
-                    # Check if any cert expires within 30 days
-                    DAYS_LEFT=$(echo "$OUTPUT" | grep -oP '\d+(?=d)' | sort -n | head -1)
-                    if [ -n "$DAYS_LEFT" ] && [ "$DAYS_LEFT" -lt 30 ]; then
-                      echo "WARNING: Certificate expiring in ${DAYS_LEFT} days"
-                      # Send Discord notification
-                      if [ -n "$DISCORD_WEBHOOK_URL" ]; then
-                        curl -H "Content-Type: application/json" \
-                          -d "{\"content\":\"kubeadm certificate expiring in ${DAYS_LEFT} days. Run: kubeadm certs renew all\"}" \
-                          "$DISCORD_WEBHOOK_URL"
+                    apk add --no-cache openssl curl
+                    WARN=0
+                    for CERT in /etc/kubernetes/pki/*.crt /etc/kubernetes/pki/etcd/*.crt; do
+                      [ -f "$CERT" ] || continue
+                      EXPIRY=$(openssl x509 -enddate -noout -in "$CERT" 2>/dev/null | cut -d= -f2)
+                      EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null)
+                      NOW_EPOCH=$(date +%s)
+                      DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+                      echo "$CERT: expires in ${DAYS_LEFT}d ($EXPIRY)"
+                      if [ "$DAYS_LEFT" -lt 30 ]; then
+                        echo "WARNING: $CERT expires in ${DAYS_LEFT} days!"
+                        WARN=1
                       fi
+                    done
+                    if [ "$WARN" -eq 1 ] && [ -n "$DISCORD_WEBHOOK_URL" ]; then
+                      curl -H "Content-Type: application/json" \
+                        -d "{\"content\":\"kubeadm PKI certificate expiring within 30 days. Run: sudo kubeadm certs renew all\"}" \
+                        "$DISCORD_WEBHOOK_URL"
                       exit 1
                     fi
                 env:
@@ -529,9 +726,6 @@ kubeadm certificates expire in 1 year. No existing alert for this.
                   path: /etc/kubernetes/pki
             restartPolicy: Never
   ```
-
-  > **Note:** Verify that `registry.k8s.io/kubeadm:v1.35.0` exists. If not, use an image that
-  > includes `kubeadm` binary, or use `alpine` with kubeadm installed.
 
 - [ ] 5.1.7.2 Run the job manually once to verify baseline cert expiry dates
   ```bash
@@ -615,7 +809,13 @@ Back up `/etc/kubernetes/pki/` — CA keys, API server certs, etcd certs. Losing
             restartPolicy: Never
   ```
 
-- [ ] 5.1.8.3 Run manually once and verify backup on NFS
+- [ ] 5.1.8.3 Run manually once and verify backup is restorable
+  ```bash
+  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
+    ls -la /tmp/nfs/pki/ && \
+    ls /tmp/nfs/pki/pki-*/ca.crt /tmp/nfs/pki/pki-*/ca.key && \
+    sudo umount /tmp/nfs"
+  ```
 
 ---
 
@@ -641,35 +841,149 @@ Run kube-bench again after all changes. Compare against baseline from 5.1.1.
 
 - [ ] 5.1.10.2 Update `docs/reference/CHANGELOG.md`
 
-- [ ] 5.1.10.3 Update Ansible playbooks to include hardening flags (so rebuilds from scratch include these settings)
+- [ ] 5.1.10.3 Bake hardening into kubeadm config (rebuild-safe)
+  Update the kubeadm config template used by Ansible so `kubeadm init`/`kubeadm join` produce
+  hardened manifests from day one:
+  ```yaml
+  # Add to kubeadm ClusterConfiguration (used by Ansible)
+  apiServer:
+    extraArgs:
+      anonymous-auth: "false"
+      profiling: "false"
+      audit-log-path: /var/log/kubernetes/audit/audit.log
+      audit-policy-file: /etc/kubernetes/audit-policy.yaml
+      audit-log-maxage: "30"
+      audit-log-maxbackup: "10"
+      audit-log-maxsize: "100"
+    extraVolumes:
+      - name: audit-policy
+        hostPath: /etc/kubernetes/audit-policy.yaml
+        mountPath: /etc/kubernetes/audit-policy.yaml
+        readOnly: true
+        pathType: File
+      - name: audit-log
+        hostPath: /var/log/kubernetes/audit
+        mountPath: /var/log/kubernetes/audit
+        pathType: DirectoryOrCreate
+  controllerManager:
+    extraArgs:
+      profiling: "false"
+  scheduler:
+    extraArgs:
+      profiling: "false"
+  ---
+  apiVersion: kubelet.config.k8s.io/v1beta1
+  kind: KubeletConfiguration
+  readOnlyPort: 0
+  protectKernelDefaults: true
+  eventRecordQPS: 5
+  ```
+
+- [ ] 5.1.10.4 Add audit policy file deployment to Ansible
+  Add a task to copy `audit-policy.yaml` to `/etc/kubernetes/` on all CP nodes before
+  `kubeadm init`. This file must exist before the API server starts or it will crash-loop.
+
+- [ ] 5.1.10.5 Create hardening verification playbook (`playbooks/09-verify-hardening.yml`)
+  Ansible playbook that checks (not applies) hardening settings on all CP nodes. Re-runnable
+  anytime as a drift detection tool:
+  ```yaml
+  # playbooks/09-verify-hardening.yml
+  # Checks that hardening settings are in place — fails if any are missing
+  - name: Verify control plane hardening
+    hosts: control_plane
+    become: true
+    tasks:
+      - name: Verify kubelet config settings
+        ansible.builtin.shell: |
+          grep -q 'readOnlyPort: 0' /var/lib/kubelet/config.yaml &&
+          grep -q 'protectKernelDefaults: true' /var/lib/kubelet/config.yaml &&
+          grep -q 'eventRecordQPS: 5' /var/lib/kubelet/config.yaml
+        changed_when: false
+
+      - name: Verify kubelet anonymous auth disabled
+        ansible.builtin.shell: |
+          grep -A2 'anonymous:' /var/lib/kubelet/config.yaml | grep -q 'enabled: false'
+        changed_when: false
+
+      - name: Verify API server flags
+        ansible.builtin.shell: |
+          grep -q 'anonymous-auth=false' /etc/kubernetes/manifests/kube-apiserver.yaml &&
+          grep -q 'profiling=false' /etc/kubernetes/manifests/kube-apiserver.yaml &&
+          grep -q 'audit-log-path' /etc/kubernetes/manifests/kube-apiserver.yaml
+        changed_when: false
+
+      - name: Verify controller-manager profiling disabled
+        ansible.builtin.shell: |
+          grep -q 'profiling=false' /etc/kubernetes/manifests/kube-controller-manager.yaml
+        changed_when: false
+
+      - name: Verify scheduler profiling disabled
+        ansible.builtin.shell: |
+          grep -q 'profiling=false' /etc/kubernetes/manifests/kube-scheduler.yaml
+        changed_when: false
+
+      - name: Verify audit policy exists
+        ansible.builtin.stat:
+          path: /etc/kubernetes/audit-policy.yaml
+        register: audit_policy
+        failed_when: not audit_policy.stat.exists
+
+      - name: Verify audit log directory exists
+        ansible.builtin.stat:
+          path: /var/log/kubernetes/audit
+        register: audit_dir
+        failed_when: not audit_dir.stat.exists
+
+      - name: Verify sysctl params for protectKernelDefaults
+        ansible.builtin.shell: |
+          sysctl -n net.bridge.bridge-nf-call-iptables | grep -q 1 &&
+          sysctl -n net.bridge.bridge-nf-call-ip6tables | grep -q 1 &&
+          sysctl -n net.ipv4.ip_forward | grep -q 1
+        changed_when: false
+  ```
+  Run with: `ansible-playbook -i inventory/homelab playbooks/09-verify-hardening.yml`
 
 ---
 
 ## Verification Checklist
 
+**Already verified (2026-03-14) — confirm unchanged during execution:**
+- [x] Kubelet `anonymous-auth: false` on all 3 nodes (kubeadm default)
+- [x] Kubelet `authorization.mode: Webhook` on all 3 nodes (kubeadm default)
+- [x] Kubelet `rotateCertificates: true` on all 3 nodes (kubeadm default)
+- [x] Controller-manager `--bind-address=0.0.0.0` on all 3 nodes
+- [x] Scheduler `--bind-address=0.0.0.0` on all 3 nodes
+- [x] etcd `--listen-metrics-urls=http://0.0.0.0:2381` on all 3 nodes
+- [x] Prometheus scraping controller-manager, scheduler, and etcd targets (all 9/9 UP)
+
+**New work:**
 - [ ] kube-bench baseline scan completed and documented
-- [ ] Kubelet `anonymous-auth: false` on all 3 nodes
-- [ ] Kubelet `authorization.mode: Webhook` on all 3 nodes
-- [ ] Kubelet `readOnlyPort: 0` on all 3 nodes
-- [ ] Kubelet `rotateCertificates: true` on all 3 nodes
-- [ ] API server `--anonymous-auth=false` on all 3 nodes
+- [ ] Kubelet `readOnlyPort: 0` explicitly set on all 3 nodes
+- [ ] Kubelet `protectKernelDefaults: true` on all 3 nodes
+- [ ] Kubelet `eventRecordQPS: 5` on all 3 nodes
+- [ ] API server `--anonymous-auth=false` on all 3 nodes (changes 403 → 401)
 - [ ] API server `--profiling=false` on all 3 nodes
 - [ ] Controller-manager `--profiling=false` on all 3 nodes
 - [ ] Scheduler `--profiling=false` on all 3 nodes
-- [ ] Controller-manager `--bind-address=0.0.0.0` on all 3 nodes
-- [ ] Scheduler `--bind-address=0.0.0.0` on all 3 nodes
-- [ ] etcd `--listen-metrics-urls=http://0.0.0.0:2381` on all 3 nodes
-- [ ] Prometheus scraping controller-manager, scheduler, and etcd targets successfully
 - [ ] Alertmanager silence routes removed (except KubeProxyDown)
 - [ ] Audit policy file deployed to all 3 nodes
 - [ ] Audit logs being written to `/var/log/kubernetes/audit/`
-- [ ] Audit logs shipped to Loki via Alloy
-- [ ] Certificate expiry CronJob deployed and tested
-- [ ] kubeadm PKI backup to NFS deployed and tested
+- [ ] Audit logs contain actual API server requests (not empty files)
+- [ ] Alloy hostPath mount added for audit log directory
+- [ ] Audit logs shipped to Loki via Alloy (visible in Grafana → Explore → Loki)
+- [ ] Audit alert rules deployed (secret access, pod exec, RBAC changes, auth failures)
+- [ ] Audit alert routing added to Alertmanager config (discord-infra)
+- [ ] Certificate expiry CronJob deployed and tested (kubeadm PKI, not cert-manager)
+- [ ] kubeadm PKI backup to NFS deployed and tested (restore verified)
 - [ ] kube-bench post-hardening scan shows improvement
 - [ ] All 3 nodes Ready, all pods Running after all changes
 - [ ] Anonymous kubelet API access blocked (verified from another node)
-- [ ] Anonymous API server access blocked (verified)
+- [ ] Anonymous API server access returns 401 (verified)
+- [ ] kube-vip leader election still works after anonymous-auth change
+- [ ] Prometheus API server scraping still works after anonymous-auth change
+- [ ] kubeadm config template updated with hardening extraArgs (rebuild-safe)
+- [ ] Audit policy file deployment added to Ansible
+- [ ] Hardening verification playbook created and passes on all 3 nodes
 - [ ] No physical access (monitor/keyboard) was needed at any point
 
 ---
