@@ -40,7 +40,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: byparr
-          image: ghcr.io/thephaseless/byparr:latest
+          image: ghcr.io/thephaseless/byparr:2.1.0
           ports:
             - name: http
               containerPort: 8191
@@ -74,13 +74,13 @@ spec:
             httpGet:
               path: /health
               port: http
-            timeoutSeconds: 30
-            periodSeconds: 60
+            timeoutSeconds: 60
+            periodSeconds: 120
             failureThreshold: 5
           readinessProbe:
             httpGet:
               path: /health
               port: http
-            timeoutSeconds: 10
-            periodSeconds: 15
-            failureThreshold: 2
+            timeoutSeconds: 45
+            periodSeconds: 30
+            failureThreshold: 3
