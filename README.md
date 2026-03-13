@@ -72,7 +72,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Ansible-automated bootstrap ([8 playbooks](ansible/playbooks/))
 
 **Observability**
-- Prometheus + Grafana + Loki + Alloy (full metrics, logs, 12 Grafana dashboards in Homelab folder)
+- Prometheus + Grafana + Loki + Alloy (full metrics, logs, 14 Grafana dashboards in Homelab folder)
 - Alertmanager (Discord + Email, severity routing) — 40+ custom PrometheusRules across 23 alert files
 - Blackbox probes (13 services: Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr, Atuin)
 - Dead Man's Switch (healthchecks.io), UPS monitoring (NUT + nut-exporter)
@@ -145,7 +145,7 @@ Things that bit us and might save you time:
 |----------|---------|
 | [docs/context/Cluster.md](docs/context/Cluster.md) | **Source of truth** — nodes, IPs, hardware |
 | [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (29 releases, v0.1.0 to v0.29.0) |
-| [docs/context/](docs/context/) | Knowledge base (11 topic files: Architecture, Gateway, Networking, etc.) |
+| [docs/context/](docs/context/) | Knowledge base (12 topic files: Architecture, Gateway, Networking, Security, etc.) |
 | [docs/todo/](docs/todo/README.md) | Phase plans (active + [completed](docs/todo/completed/)) |
 | [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md) | Decision history and project timeline |
 | [VERSIONS.md](VERSIONS.md) | Component versions, Helm charts, HTTPRoutes |

@@ -24,8 +24,8 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 | OTel Collector | v0.144.0 | monitoring |
 | version-checker | v0.10.0 | monitoring |
 | Nova CronJob | v3.11.10 | monitoring |
-| tdarr-exporter | latest | arr-stack |
-| qbittorrent-exporter | latest | arr-stack |
+| tdarr-exporter | 1.4.3 | arr-stack |
+| qbittorrent-exporter | sha-2fcca94 | arr-stack |
 | Uptime Kuma | v2.0.2 | uptime-kuma |
 
 ## Access

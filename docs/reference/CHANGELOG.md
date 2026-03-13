@@ -10,7 +10,7 @@
 
 Hardened all namespaces with Pod Security Standards, disabled unnecessary service account tokens,
 locked down ESO infrastructure, and restricted ClusterSecretStore access to labeled namespaces.
-9 new namespace manifests created, PSS labels applied to all namespaces, `automountServiceAccountToken: false`
+9 new namespace manifests created, PSS labels applied to 26 namespaces (4 system namespaces intentionally unlabeled), `automountServiceAccountToken: false`
 on 34 workloads, ESO Helm hardening (resource limits, disabled CRD reconcilers, TLS cipher restriction),
 and ClusterSecretStore namespaceSelector restricting Vault access to 15 labeled namespaces.
 

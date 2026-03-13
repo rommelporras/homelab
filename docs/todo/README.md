@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.29.0 (Vault + External Secrets Operator)
+> **Latest Release:** v0.30.0 (Namespace & Pod Security)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -43,7 +43,8 @@
 | v0.28.1 | GitLab Minio + Atuin Backup + Runner OOM Fix | — | ✅ Released |
 | v0.28.2 | Cluster Janitor (Crash Self-Healing) | Phase 4.31 | ✅ Released |
 | v0.29.0 | Vault + External Secrets Operator | Phase 4.29 | ✅ Released |
-| v0.30.0 | Production Hardening | Phase 5.0-5.2 | ⬜ Planned |
+| v0.29.1 | Warning Event Fixes + Doc Sync | — | ✅ Released |
+| v0.30.0 | Namespace & Pod Security | Phase 5.0 | ✅ Released |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 
 ---
@@ -86,14 +87,17 @@
 | 4.30 | Atuin Self-Hosted Shell History | [phase-4.30-atuin.md](completed/phase-4.30-atuin.md) |
 | 4.29 | Vault + External Secrets Operator | [phase-4.29-vault-eso.md](completed/phase-4.29-vault-eso.md) |
 | 4.31 | Cluster Janitor (Crash Self-Healing) | [phase-4.31-cluster-janitor.md](completed/phase-4.31-cluster-janitor.md) |
+| 5.0 | Namespace & Pod Security | [phase-5.0-namespace-pod-security.md](completed/phase-5.0-namespace-pod-security.md) |
 
 ### Planned
 
 | Phase | Description | File |
 |-------|-------------|------|
-| 5.0 | Security Posture Audit | [phase-5.0-security-posture.md](phase-5.0-security-posture.md) |
-| 5.1 | Network Policy Hardening | [phase-5.1-network-policies.md](phase-5.1-network-policies.md) |
-| 5.2 | Resilience & Backup | [phase-5.2-resilience-backup.md](phase-5.2-resilience-backup.md) |
+| 5.1 | Control Plane Hardening | [phase-5.1-control-plane-hardening.md](phase-5.1-control-plane-hardening.md) |
+| 5.2 | RBAC & Encryption | [phase-5.2-rbac-and-encryption.md](phase-5.2-rbac-and-encryption.md) |
+| 5.3 | Network Policies | [phase-5.3-network-policies.md](phase-5.3-network-policies.md) |
+| 5.4 | Resilience & Backup | [phase-5.4-resilience-backup.md](phase-5.4-resilience-backup.md) |
+| 5.5 | Pre-GitOps Validation | [phase-5.5-pre-gitops-validation.md](phase-5.5-pre-gitops-validation.md) |
 | 6 | CKA Focused Learning | [phase-6-cka.md](phase-6-cka.md) |
 
 ### Deferred

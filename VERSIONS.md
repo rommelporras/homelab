@@ -99,7 +99,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** v0.29.0 released. Vault + External Secrets Operator for centralized secret management.
+> **Status:** v0.30.0 released. Namespace & Pod Security hardening (PSS, ESO, SA tokens).
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -142,8 +142,8 @@ helm-homelab repo update
 | Tdarr | 2.58.02 | Running | Library transcoding server (Intel QSV, internal node) |
 | Recommendarr | v1.4.4 | Running | AI media recommendations (Ollama qwen2.5:3b) |
 | Byparr | 2.1.0 | Running | Cloudflare bypass proxy for Prowlarr indexers |
-| tdarr-exporter | latest (homeylab) | Running | Prometheus metrics for Tdarr library stats (arr-stack ns) |
-| qbittorrent-exporter | latest (esanchezm) | Running | Prometheus metrics for qBittorrent downloads (arr-stack ns) |
+| tdarr-exporter | 1.4.3 (homeylab) | Running | Prometheus metrics for Tdarr library stats (arr-stack ns) |
+| qbittorrent-exporter | sha-2fcca94 (esanchezm) | Running | Prometheus metrics for qBittorrent downloads (arr-stack ns) |
 | smartctl-exporter | v0.14.0 | Running | NVMe S.M.A.R.T. DaemonSet on all 3 nodes (monitoring ns) |
 | Atuin Server | 18.12.0 | Running | Self-hosted shell history sync (E2E encrypted) |
 | PostgreSQL (Atuin) | 18.3 | Running | Atuin dedicated database (atuin namespace) |

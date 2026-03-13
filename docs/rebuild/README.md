@@ -237,8 +237,8 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | version-checker | v0.10.0 | v0.26.0 |
 | Nova (CronJob) | v3.11.10 | v0.26.0 |
 | smartctl-exporter | v0.14.0 | v0.27.0 |
-| tdarr-exporter | latest (homeylab) | v0.27.0 |
-| qbittorrent-exporter | latest (esanchezm) | v0.27.0 |
+| tdarr-exporter | 1.4.3 (homeylab) | v0.27.0 |
+| qbittorrent-exporter | sha-2fcca94 (esanchezm) | v0.27.0 |
 | Atuin Server | 18.12.0 | v0.28.0 |
 | PostgreSQL (Atuin) | 18.3 | v0.28.0 |
 | HashiCorp Vault | 1.21.2 | v0.29.0 |
@@ -267,6 +267,7 @@ homelab/
 │
 ├── manifests/
 │   ├── cert-manager/                   # v0.4.0
+│   │   ├── namespace.yaml              # v0.30.0
 │   │   └── cluster-issuer.yaml
 │   ├── cilium/                         # v0.4.0
 │   │   ├── ip-pool.yaml
@@ -282,12 +283,16 @@ homelab/
 │   │       ├── invoicetron-dev.yaml    # v0.14.0
 │   │       └── invoicetron-prod.yaml   # v0.14.0
 │   ├── gitlab/                         # v0.8.0
+│   │   ├── namespace.yaml              # v0.30.0
 │   │   └── gitlab-shell-lb.yaml
 │   ├── home/                           # v0.6.0
 │   │   └── adguard/
 │   ├── portfolio/                      # v0.10.0
 │   │   ├── deployment.yaml
-│   │   └── rbac.yaml
+│   │   ├── rbac.yaml
+│   │   ├── namespace-dev.yaml          # v0.30.0
+│   │   ├── namespace-staging.yaml      # v0.30.0
+│   │   └── namespace-prod.yaml         # v0.30.0
 │   ├── ghost-dev/                      # v0.11.0
 │   │   ├── namespace.yaml
 │   │   ├── mysql-statefulset.yaml
@@ -299,6 +304,7 @@ homelab/
 │   ├── ghost-prod/                     # v0.11.0
 │   │   └── (same structure as ghost-dev)
 │   ├── gitlab-runner/                  # v0.29.0
+│   │   ├── namespace.yaml              # v0.30.0
 │   │   └── externalsecret.yaml
 │   ├── uptime-kuma/                    # v0.13.0
 │   │   ├── namespace.yaml
@@ -312,7 +318,9 @@ homelab/
 │   │   ├── rbac.yaml
 │   │   ├── externalsecret-dev.yaml
 │   │   ├── externalsecret-prod.yaml
-│   │   └── backup-cronjob.yaml
+│   │   ├── backup-cronjob.yaml
+│   │   ├── namespace-dev.yaml          # v0.30.0
+│   │   └── namespace-prod.yaml         # v0.30.0
 │   ├── ai/                             # v0.20.0
 │   │   ├── namespace.yaml
 │   │   ├── ollama-deployment.yaml
@@ -377,6 +385,7 @@ homelab/
 │   │   ├── networkpolicy-egress.yaml
 │   │   └── backup-cronjob.yaml
 │   ├── cloudflare/                     # v0.7.0
+│   │   ├── namespace.yaml              # v0.30.0
 │   │   ├── deployment.yaml
 │   │   ├── networkpolicy.yaml
 │   │   └── ...
@@ -444,7 +453,9 @@ homelab/
 │       │   ├── version-checker-dashboard-configmap.yaml  # v0.26.0
 │       │   ├── longhorn-dashboard-configmap.yaml   # v0.27.0
 │       │   ├── service-health-dashboard-configmap.yaml  # v0.27.0
-│       │   └── atuin-dashboard-configmap.yaml        # v0.28.0
+│       │   ├── atuin-dashboard-configmap.yaml        # v0.28.0
+│       │   ├── dotctl-dashboard-configmap.yaml       # v0.29.0
+│       │   └── vault-dashboard-configmap.yaml        # v0.29.0
 │       ├── exporters/
 │       │   ├── nut-exporter.yaml               # v0.4.0
 │       │   └── kube-vip-monitoring.yaml        # v0.19.0

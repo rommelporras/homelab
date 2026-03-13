@@ -23,6 +23,7 @@ updated: 2026-03-13
 | Longhorn, NFS | [[Storage]] |
 | NUT, graceful shutdown | [[UPS]] |
 | Upgrade/rollback procedures | [[Upgrades]] |
+| PSS, ESO hardening, SA tokens | [[Security]] |
 | GA4, GTM, Cloudflare, Tailscale, SMTP | [[ExternalServices]] |
 
 ## Current State
@@ -33,7 +34,7 @@ updated: 2026-03-13
 | Nodes | 3 control planes (k8s-cp1, cp2, cp3) |
 | CNI | Cilium 1.18.6 |
 | Storage | Longhorn 1.10.1 |
-| Status | Phase 4.31 complete (v0.29.0 released) |
+| Status | Phase 5.0 complete (v0.30.0) |
 
 ## Source
 
