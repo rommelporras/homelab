@@ -1,14 +1,14 @@
-# Phase 5.1: Network Policies
+# Phase 5.3: Network Policies & Node Firewall
 
 > **Status:** ⬜ Planned
-> **Target:** v0.31.0
-> **Prerequisite:** Phase 5.0 (v0.30.0 — namespace manifests and PSS must exist first)
-> **DevOps Topics:** Network segmentation, zero-trust networking, microsegmentation
+> **Target:** v0.33.0
+> **Prerequisite:** Phase 5.2 (v0.32.0 — RBAC audit complete, access control established)
+> **DevOps Topics:** Network segmentation, zero-trust networking, microsegmentation, node-level firewall
 > **CKA Topics:** NetworkPolicy, CiliumNetworkPolicy, ingress/egress rules, podSelector, namespaceSelector, ipBlock, toEntities, toFQDNs
 
-> **Purpose:** Network segmentation — prevent lateral movement between namespaces
+> **Purpose:** Network segmentation — prevent lateral movement between namespaces and harden node-level access
 >
-> **Learning Goal:** Kubernetes NetworkPolicy + CiliumNetworkPolicy — the single highest-impact security control
+> **Learning Goal:** Kubernetes NetworkPolicy + CiliumNetworkPolicy + node firewall — the single highest-impact security control
 
 > **WARNING:** Incorrect NetworkPolicies can break the cluster. Apply one namespace at a time, test after each.
 
@@ -43,7 +43,7 @@
 
 ## Existing CiliumNetworkPolicies
 
-These policies already exist in the cluster. Phase 5.1 must audit, extend, or replace them — not duplicate.
+These policies already exist in the cluster. Phase 5.3 must audit, extend, or replace them — not duplicate.
 
 | Namespace | Policies | Notes |
 |-----------|----------|-------|
@@ -91,9 +91,9 @@ No need to write policies for these pods — they are invisible to Cilium's eBPF
 
 ---
 
-## 5.1.1 Audit Current Connectivity
+## 5.3.1 Audit Current Connectivity
 
-- [ ] 5.1.1.1 Audit existing CiliumNetworkPolicies
+- [ ] 5.3.1.1 Audit existing CiliumNetworkPolicies
   ```bash
   # Review what's already in place — don't duplicate
   kubectl-homelab get ciliumnetworkpolicies -A
@@ -106,7 +106,7 @@ No need to write policies for these pods — they are invisible to Cilium's eBPF
   # - Has DNS egress?
   ```
 
-- [ ] 5.1.1.2 Map cross-namespace traffic
+- [ ] 5.3.1.2 Map cross-namespace traffic
   ```bash
   # Test: can any pod reach any other namespace?
   kubectl-homelab run test --rm -it --image=curlimages/curl -n home -- \
@@ -117,13 +117,13 @@ No need to write policies for these pods — they are invisible to Cilium's eBPF
     curl -s --max-time 5 http://example.com && echo "OPEN"
   ```
 
-- [ ] 5.1.1.3 Document what currently talks to what (baseline before locking down)
+- [ ] 5.3.1.3 Document what currently talks to what (baseline before locking down)
 
 ---
 
-## 5.1.2 Default Deny + Cluster-Wide Policies
+## 5.3.2 Default Deny + Cluster-Wide Policies
 
-### 5.1.2.1 Default Deny Template (K8s NetworkPolicy)
+### 5.3.2.1 Default Deny Template (K8s NetworkPolicy)
 
 Every namespace gets this as the base. Must deny BOTH ingress AND egress.
 
@@ -163,14 +163,14 @@ spec:
           port: 53
 ```
 
-### 5.1.2.2 Cluster-Wide Gateway Ingress Policy (CiliumClusterwideNetworkPolicy)
+### 5.3.2.2 Cluster-Wide Gateway Ingress Policy (CiliumClusterwideNetworkPolicy)
 
 > **CRITICAL:** Cilium Gateway API uses `reserved:ingress` identity for proxied traffic.
 > Standard K8s NetworkPolicy with `namespaceSelector: kube-system` does NOT match this
 > identity — Gateway traffic will be silently dropped. This is a confirmed Cilium limitation
 > ([cilium/cilium#36509](https://github.com/cilium/cilium/issues/36509)).
 
-- [ ] 5.1.2.2 Create cluster-wide policy allowing Gateway `reserved:ingress` to reach backends
+- [ ] 5.3.2.2 Create cluster-wide policy allowing Gateway `reserved:ingress` to reach backends
   ```yaml
   # Without this, ALL HTTPRoutes break when default-deny is applied
   apiVersion: cilium.io/v2
@@ -190,7 +190,7 @@ spec:
   > **Apply this BEFORE any default-deny policies.** If forgotten, every Gateway-exposed
   > service becomes unreachable instantly.
 
-### 5.1.2.3 Gateway Ingress Template (CiliumNetworkPolicy)
+### 5.3.2.3 Gateway Ingress Template (CiliumNetworkPolicy)
 
 Every namespace with HTTPRoutes needs this to allow ingress from Gateway:
 
@@ -214,7 +214,7 @@ spec:
               protocol: TCP
 ```
 
-### 5.1.2.4 Prometheus Scrape Template (K8s NetworkPolicy)
+### 5.3.2.4 Prometheus Scrape Template (K8s NetworkPolicy)
 
 Every namespace with metrics endpoints needs this to allow Prometheus scraping:
 
@@ -241,7 +241,7 @@ spec:
 
 ---
 
-## 5.1.3 Infrastructure Namespace Policies
+## 5.3.3 Infrastructure Namespace Policies
 
 These are unique per namespace. Each gets a detailed traffic matrix.
 Use CiliumNetworkPolicy for Gateway ingress, kube-apiserver egress, and FQDN egress.
@@ -259,7 +259,7 @@ ESO is the highest-priority namespace to lock down. ESO docs warn: *"ESO may be 
 | Ingress | CiliumNP | kube-apiserver entity | 443 | Admission webhook requests (webhook pod) |
 | Ingress | K8s NP | Node IPs (kubelet) | 8081 | Health checks |
 
-- [ ] 5.1.3.1 Create `manifests/external-secrets/networkpolicy.yaml`
+- [ ] 5.3.3.1 Create `manifests/external-secrets/networkpolicy.yaml`
   ```yaml
   # K8s NP: Default deny + DNS (from template)
   # K8s NP: Allow egress to vault namespace (8200)
@@ -284,7 +284,7 @@ ESO is the highest-priority namespace to lock down. ESO docs warn: *"ESO may be 
 
 > **CronJob:** `vault-snapshot` needs egress to vault API (8200) + NFS to NAS (2049).
 
-- [ ] 5.1.3.2 Create `manifests/vault/networkpolicy.yaml`
+- [ ] 5.3.3.2 Create `manifests/vault/networkpolicy.yaml`
 
 ### monitoring
 
@@ -312,7 +312,7 @@ The most complex namespace. Prometheus scrapes ALL namespaces. 19 running pods.
 
 > **CronJob:** `version-check` needs egress to external container registries (443).
 
-- [ ] 5.1.3.3 Create `manifests/monitoring/networkpolicy.yaml`
+- [ ] 5.3.3.3 Create `manifests/monitoring/networkpolicy.yaml`
   - Prometheus egress: use `toEntities: [cluster]` — NOT `toCIDR: 10.244.0.0/16` (won't work with Cilium)
   - Alertmanager: CiliumNP with `toFQDNs` for SMTP + Discord + healthchecks.io
   - Alloy: egress to Loki at `loki.monitoring.svc:3100` (same namespace, simple K8s NP)
@@ -332,11 +332,11 @@ The most complex namespace. Prometheus scrapes ALL namespaces. 19 running pods.
 > **3 pods:** cert-manager, cert-manager-cainjector, cert-manager-webhook.
 > Webhook needs ingress from kube-apiserver for admission webhook requests.
 
-- [ ] 5.1.3.4 Create `manifests/cert-manager/networkpolicy.yaml`
+- [ ] 5.3.3.4 Create `manifests/cert-manager/networkpolicy.yaml`
 
 ---
 
-## 5.1.4 Application Namespace Policies
+## 5.3.4 Application Namespace Policies
 
 Most app namespaces follow repeating patterns. Define templates, then apply.
 All Gateway ingress uses CiliumNetworkPolicy `fromEntities: [ingress]` (not K8s NP `namespaceSelector`).
@@ -358,23 +358,23 @@ Gateway (CiliumNP) → app pod (HTTP) → database pod (DB port)
 | Ingress (db) | K8s NP | app pod (same ns) | DB port | Only app can reach DB |
 | Ingress (metrics) | K8s NP | monitoring ns | metrics port | Prometheus scraping |
 
-- [ ] 5.1.4.1 Create NetworkPolicies for ghost-dev, ghost-prod
+- [ ] 5.3.4.1 Create NetworkPolicies for ghost-dev, ghost-prod
   - Ghost HTTP: 2368, MySQL: 3306
   - Ghost needs SMTP egress (CiliumNP `toFQDNs`: smtp.mail.me.com:587)
   - **ghost-prod has 3 services:** ghost:2368, ghost-analytics:3000, ghost-mysql:3306
   - Ghost Analytics needs Gateway ingress on port 3000 (separate HTTPRoute)
   - ghost-dev has 2 services: ghost:2368, ghost-mysql:3306
 
-- [ ] 5.1.4.2 Create NetworkPolicies for invoicetron-dev, invoicetron-prod
+- [ ] 5.3.4.2 Create NetworkPolicies for invoicetron-dev, invoicetron-prod
   - App HTTP: 3000, PostgreSQL: 5432
   - **CronJob:** `invoicetron-db-backup` (invoicetron-prod) needs egress to DB (5432)
 
-- [ ] 5.1.4.3 Create/audit NetworkPolicies for atuin
+- [ ] 5.3.4.3 Create/audit NetworkPolicies for atuin
   - Atuin HTTP: 8888, PostgreSQL: 5432
   - **Already has 5 CiliumNetworkPolicies** — audit for completeness, don't duplicate
   - CronJob `atuin-backup` needs NFS egress to NAS (10.10.30.4:2049) — check if covered
 
-- [ ] 5.1.4.4 Create/audit NetworkPolicies for karakeep
+- [ ] 5.3.4.4 Create/audit NetworkPolicies for karakeep
   - Karakeep HTTP: 3000, Meilisearch: 7700, Chrome: 9222, Byparr: 8191
   - **Already has 6 CiliumNetworkPolicies** — audit for completeness
   - **Missing from existing:** Byparr (8191) — new pod, may need its own policy
@@ -394,7 +394,7 @@ Gateway (CiliumNP) → app pod (HTTP)
 | Egress | varies | varies | varies | App-specific |
 | Ingress (metrics) | K8s NP | monitoring ns | metrics port | Prometheus scraping (if applicable) |
 
-- [ ] 5.1.4.5 Create NetworkPolicies for home namespace
+- [ ] 5.3.4.5 Create NetworkPolicies for home namespace
   - **AdGuard: CRITICAL** — LoadBalancer service (10.10.30.53) provides DNS for the entire network
     - Needs ingress from LAN CIDR `10.10.0.0/16` on port 53/UDP, 53/TCP (CiliumNP `fromCIDRSet`)
     - Needs Gateway ingress on port 3000 (admin UI HTTPRoute)
@@ -403,17 +403,17 @@ Gateway (CiliumNP) → app pod (HTTP)
   - Homepage: needs egress to many services (widgets query other apps across namespaces)
   - MySpeed: needs egress to speedtest servers
 
-- [ ] 5.1.4.6 Create/audit NetworkPolicies for browser, uptime-kuma
+- [ ] 5.3.4.6 Create/audit NetworkPolicies for browser, uptime-kuma
   - browser: Gateway ingress on port 3000, needs broad internet egress (web browsing)
   - **uptime-kuma already has CiliumNP** (egress only) — needs Gateway ingress + default-deny
   - Uptime Kuma needs broad egress to probe targets across cluster and internet
 
-- [ ] 5.1.4.7 Create NetworkPolicies for ai namespace
+- [ ] 5.3.4.7 Create NetworkPolicies for ai namespace
   - **Already has CiliumNP** (ollama-ingress) — needs default-deny + egress rules
   - Ollama HTTP: 11434, Gateway ingress via HTTPRoute
   - Ollama may need internet egress for model downloads
 
-- [ ] 5.1.4.8 Create NetworkPolicies for portfolio-dev, portfolio-prod, portfolio-staging
+- [ ] 5.3.4.8 Create NetworkPolicies for portfolio-dev, portfolio-prod, portfolio-staging
   - All 3 namespaces have identical setup: portfolio:80
   - Gateway ingress on port 80 (3 HTTPRoutes)
   - Static site — no database, no external egress needed beyond DNS
@@ -434,7 +434,7 @@ arr-stack has **14 pods / 13 services** with extensive inter-pod communication +
 | Sonarr, Radarr | Egress | K8s NP | qBittorrent (same ns) | 8080 | Download client API |
 | Jellyfin | Egress | K8s NP | same ns | various | Connects to Sonarr/Radarr |
 | Tdarr server | Egress | K8s NP | same ns (workers) | various | Dispatch transcode jobs |
-| Tdarr workers | Ingress/Egress | K8s NP | Tdarr server (same ns) | 8265 | Server ↔ worker API |
+| Tdarr workers | Ingress/Egress | K8s NP | Tdarr server (same ns) | 8265 | Server <-> worker API |
 | Byparr | Egress | CiliumNP | `world` entity | 443 | CAPTCHA solving (web requests) |
 | Recommendarr | Egress | K8s NP | Sonarr, Radarr (same ns) | 8989, 7878 | API access |
 | Scraparr | Egress | K8s NP | Sonarr, Radarr (same ns) | 8989, 7878 | API scraping |
@@ -445,7 +445,7 @@ arr-stack has **14 pods / 13 services** with extensive inter-pod communication +
 
 > **CronJobs:** `arr-stall-resolver` needs same-ns API access. `configarr` needs Sonarr/Radarr API access.
 
-- [ ] 5.1.4.9 Audit and extend NetworkPolicies for arr-stack
+- [ ] 5.3.4.9 Audit and extend NetworkPolicies for arr-stack
   - Audit existing `default-deny-ingress` + `default-egress` — check if they cover both directions
   - Add per-pod Gateway ingress rules (9 HTTPRoutes: bazarr, jellyfin, prowlarr, qbittorrent, radarr, recommendarr, seerr, sonarr, tdarr)
   - Add per-pod inter-service egress rules
@@ -454,7 +454,7 @@ arr-stack has **14 pods / 13 services** with extensive inter-pod communication +
 
 ### Pattern D: GitLab
 
-- [ ] 5.1.4.10 Create NetworkPolicies for gitlab, gitlab-runner
+- [ ] 5.3.4.10 Create NetworkPolicies for gitlab, gitlab-runner
   - GitLab is Helm-managed with 13 pods and many internal services
   - Existing K8s NP: `gitlab-redis` — only covers Redis, rest is open
   - 2 HTTPRoutes: gitlab-webservice:8181, gitlab-registry:5000
@@ -464,14 +464,14 @@ arr-stack has **14 pods / 13 services** with extensive inter-pod communication +
 
 ### cloudflare
 
-- [ ] 5.1.4.11 Audit NetworkPolicy for cloudflare namespace
+- [ ] 5.3.4.11 Audit NetworkPolicy for cloudflare namespace
   - **Already has CiliumNP:** `cloudflared-egress` — audit for completeness
   - Needs default-deny + DNS + Gateway ingress (cloudflared metrics: 2000)
   - cloudflared needs egress to Cloudflare edge servers (HTTPS — already handled by existing policy?)
 
 ### tailscale
 
-- [ ] 5.1.4.12 Audit NetworkPolicies for tailscale namespace
+- [ ] 5.3.4.12 Audit NetworkPolicies for tailscale namespace
   - **Already has CiliumNPs:** `operator-egress` + `operator-ingress`
   - Audit for completeness — likely already sufficient
 
@@ -480,7 +480,7 @@ arr-stack has **14 pods / 13 services** with extensive inter-pod communication +
 > These namespaces are Helm-managed or have limited workloads. Evaluate whether
 > default-deny adds value vs. operational overhead.
 
-- [ ] 5.1.4.13 Evaluate policies for longhorn-system, intel-device-plugins, node-feature-discovery
+- [ ] 5.3.4.13 Evaluate policies for longhorn-system, intel-device-plugins, node-feature-discovery
   - longhorn-system: 23 pods, complex internal traffic. Default-deny may break storage.
     Consider deferring or using a permissive intra-namespace policy.
   - intel-device-plugins: 4 pods, webhook + controller. Needs apiserver access.
@@ -488,9 +488,9 @@ arr-stack has **14 pods / 13 services** with extensive inter-pod communication +
 
 ---
 
-## 5.1.5 Testing & Validation
+## 5.3.5 Testing & Validation
 
-- [ ] 5.1.5.1 Test authorized traffic after each namespace policy
+- [ ] 5.3.5.1 Test authorized traffic after each namespace policy
   ```bash
   # Verify app is reachable via Gateway
   curl -I https://<app>.k8s.rommelporras.com
@@ -499,7 +499,7 @@ arr-stack has **14 pods / 13 services** with extensive inter-pod communication +
   kubectl-homelab exec -n <ns> deployment/<app> -- nc -zv <db-svc> <port>
   ```
 
-- [ ] 5.1.5.2 Test unauthorized traffic is blocked
+- [ ] 5.3.5.2 Test unauthorized traffic is blocked
   ```bash
   # From one namespace, try to reach another namespace's DB
   kubectl-homelab run test --rm -it --image=curlimages/curl -n home -- \
@@ -507,7 +507,7 @@ arr-stack has **14 pods / 13 services** with extensive inter-pod communication +
   # Should timeout
   ```
 
-- [ ] 5.1.5.3 Force ESO re-sync after all policies applied
+- [ ] 5.3.5.3 Force ESO re-sync after all policies applied
   ```bash
   kubectl-homelab annotate externalsecret ghost-mysql -n ghost-prod \
     force-sync=$(date +%s) --overwrite
@@ -515,7 +515,7 @@ arr-stack has **14 pods / 13 services** with extensive inter-pod communication +
   # Should return nothing (all synced)
   ```
 
-- [ ] 5.1.5.4 Verify LoadBalancer services still reachable
+- [ ] 5.3.5.4 Verify LoadBalancer services still reachable
   ```bash
   # AdGuard DNS — CRITICAL (network-wide DNS)
   dig @10.10.30.53 google.com +short
@@ -527,7 +527,7 @@ arr-stack has **14 pods / 13 services** with extensive inter-pod communication +
   curl -s http://10.10.30.22:4318/v1/traces -o /dev/null -w "%{http_code}"
   ```
 
-- [ ] 5.1.5.5 Verify CronJobs still run successfully
+- [ ] 5.3.5.5 Verify CronJobs still run successfully
   ```bash
   kubectl-homelab get jobs -A --sort-by=.metadata.creationTimestamp | tail -10
   # Check for Failed jobs after policies applied
@@ -535,9 +535,9 @@ arr-stack has **14 pods / 13 services** with extensive inter-pod communication +
 
 ---
 
-## 5.1.6 CiliumNetworkPolicy Reference Patterns
+## 5.3.6 CiliumNetworkPolicy Reference Patterns
 
-These patterns are used throughout Phase 5.1. Documented here for reference.
+These patterns are used throughout Phase 5.3. Documented here for reference.
 
 ### kube-apiserver egress (for ESO, Vault, cert-manager, monitoring)
 ```yaml
@@ -627,13 +627,78 @@ spec:
 
 ---
 
-## 5.1.7 Documentation
+## 5.3.7 Node-Level Network Hardening
 
-- [ ] 5.1.7.1 Update `docs/context/Security.md` with NetworkPolicy strategy
+> **Why:** NetworkPolicies don't protect hostNetwork pods. The control plane components
+> (API server, etcd, scheduler, controller-manager) and node-exporter use hostNetwork.
+> A compromised pod with hostNetwork can reach etcd directly on port 2379.
+
+### 5.3.7.1 OPNsense Stale Firewall States
+
+> **Problem:** After node reboot, OPNsense keeps stale TCP states. Cross-VLAN SSH times out
+> until states are manually cleared. Happened on every node reboot.
+
+- [ ] 5.3.7.1a Investigate OPNsense state timeout tuning for K8s VLAN
+  - Current behavior: stale states persist for minutes after node comes back
+  - Options: reduce state timeout for VLAN 30, or use adaptive timeouts
+
+- [ ] 5.3.7.1b Evaluate OPNsense API for automated state clearing
+  - Ansible pre/post-reboot task to clear states via OPNsense REST API
+  - Would eliminate manual intervention during rolling reboots
+
+### 5.3.7.2 Evaluate node-level port restrictions
+
+```bash
+# Document which host ports are exposed on each node
+ssh wawashi@10.10.30.11 "sudo ss -tlnp | grep -E '(6443|2379|2380|10250|10255|10257|10259)'"
+```
+
+Consider whether OPNsense firewall rules on the K8s VLAN (10.10.30.0/24) should restrict:
+
+| Port | Service | Who Should Access |
+|------|---------|------------------|
+| 6443 | kube-apiserver | VIP (10.10.30.10), nodes, WSL (10.10.50.X) |
+| 2379-2380 | etcd | Only other CP nodes (10.10.30.11-13) |
+| 10250 | kubelet | Only API server (via VIP or node IPs) |
+| 10255 | kubelet read-only | Nobody (disabled in Phase 5.1) |
+| 10257 | controller-manager | Only localhost (already bound to 127.0.0.1) |
+| 10259 | scheduler | Only localhost (already bound to 127.0.0.1) |
+
+> **Decision needed:** Implement via OPNsense firewall rules (recommended — centralized, visible in OPNsense UI) or via iptables/nftables on each node (more work, survives OPNsense failure).
+
+- [ ] 5.3.7.2a Document current host port exposure on all 3 CP nodes
+- [ ] 5.3.7.2b Decide on implementation approach (OPNsense vs. node-level)
+- [ ] 5.3.7.2c If OPNsense: create firewall rules restricting etcd (2379-2380) to CP nodes only
+- [ ] 5.3.7.2d If OPNsense: create firewall rules restricting kubelet (10250) to API server
+
+### 5.3.7.3 Create GitOps namespace NetworkPolicy template
+
+```yaml
+# Pre-plan the NetworkPolicy for ArgoCD/FluxCD namespace (Phase 6)
+# This isn't applied now — just documented for when GitOps is deployed
+# ArgoCD/FluxCD needs:
+# - Egress to kube-apiserver (6443) — manage cluster resources
+# - Egress to GitLab (git pull) — source of truth
+# - Egress to Helm registries (443) — chart pulls
+# - Ingress from Gateway (UI access)
+# - Ingress from monitoring (Prometheus scraping)
+# - Default deny everything else
+```
+
+- [ ] 5.3.7.3a Draft CiliumNetworkPolicy for ArgoCD namespace (egress to apiserver + GitLab + registries)
+- [ ] 5.3.7.3b Draft K8s NetworkPolicy for ArgoCD namespace (default-deny + DNS + monitoring ingress)
+- [ ] 5.3.7.3c Document in phase-6 plan for application during ArgoCD deployment
+
+---
+
+## 5.3.8 Documentation
+
+- [ ] 5.3.8.1 Update `docs/context/Security.md` with NetworkPolicy strategy
   - Document hybrid K8s NP + CiliumNP approach and rationale
   - Traffic matrix summary per namespace
   - Cilium-specific limitations (Gateway identity, FQDN, pod CIDR)
-- [ ] 5.1.7.2 Update `docs/reference/CHANGELOG.md`
+  - Node-level port exposure and firewall decisions
+- [ ] 5.3.8.2 Update `docs/reference/CHANGELOG.md`
 
 ---
 
@@ -658,6 +723,9 @@ spec:
 - [ ] GitLab SSH LoadBalancer (10.10.30.21) still accepts connections
 - [ ] All 7 CronJobs complete successfully after policies applied
 - [ ] Existing CiliumNetworkPolicies audited — no duplicates or conflicts
+- [ ] OPNsense stale state issue investigated
+- [ ] Node port exposure documented
+- [ ] GitOps namespace NetworkPolicy template prepared
 
 ---
 
@@ -696,5 +764,5 @@ kubectl-homelab get ciliumclusterwidenetworkpolicy allow-gateway-ingress-egress
 
 - [ ] `/audit-security` then `/commit`
 - [ ] `/audit-docs` then `/commit`
-- [ ] `/release v0.31.0 "Network Policies"`
-- [ ] `mv docs/todo/phase-5.1-network-policies.md docs/todo/completed/`
+- [ ] `/release v0.33.0 "Network Policies & Node Firewall"`
+- [ ] `mv docs/todo/phase-5.3-network-policies.md docs/todo/completed/`

@@ -1,8 +1,8 @@
-# Phase 5.2: Resilience & Backup
+# Phase 5.4: Resilience & Backup
 
-> **Status:** ⬜ Planned
-> **Target:** v0.32.0
-> **Prerequisite:** Phase 5.1 (v0.31.0 — network policies in place)
+> **Status:** Planned
+> **Target:** v0.34.0
+> **Prerequisite:** Phase 5.3 (v0.33.0 — network policies in place)
 > **DevOps Topics:** Resource management, disaster recovery, operational resilience, automation hardening
 > **CKA Topics:** ResourceQuota, LimitRange, PodDisruptionBudget, Velero, tolerations, etcd backup, CronJob
 
@@ -16,7 +16,7 @@
 
 > **Why:** Start from a clean state. Stale pods and existing configurations affect planning.
 
-- [x] 5.2.0.1 ~~Fix existing warning events~~ — **Done in v0.29.1**
+- [x] 5.4.0.1 ~~Fix existing warning events~~ — **Done in v0.29.1**
   Fixed: Ghost probes (httpGet→tcpSocket), GitLab runner ESO template (empty runner-token),
   Grafana ESO template (static admin-user), Byparr image pin + probe tuning.
   Remaining: verify no new warning events before proceeding.
@@ -25,14 +25,14 @@
   kubectl-homelab get events -A --field-selector type=Warning --sort-by='.lastTimestamp' | head -20
   ```
 
-- [ ] 5.2.0.2 Clean up stale pods
+- [ ] 5.4.0.2 Clean up stale pods
   ```bash
   # Check for stuck pods (Init, CrashLoopBackOff, etc.)
   kubectl-homelab get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded
   # Resolve any stuck pods before starting resilience work
   ```
 
-- [ ] 5.2.0.3 Fix timezone inconsistency on CronJobs
+- [ ] 5.4.0.3 Fix timezone inconsistency on CronJobs
   **Convention:** `Asia/Manila` everywhere — never UTC. 3 of 7 CronJobs violate this:
 
   | CronJob | Current | Fix |
@@ -50,7 +50,7 @@
   # All should show timezone=Asia/Manila
   ```
 
-- [ ] 5.2.0.4 Inventory existing PodDisruptionBudgets
+- [ ] 5.4.0.4 Inventory existing PodDisruptionBudgets
   ```bash
   kubectl-homelab get pdb -A
   ```
@@ -61,7 +61,7 @@
   | longhorn-system | 5 | csi-attacher, csi-provisioner, csi-resizer, csi-snapshotter, admission-webhook |
   | cloudflare | 1 | cloudflared |
 
-- [ ] 5.2.0.5 Inventory existing resource limits
+- [ ] 5.4.0.5 Inventory existing resource limits
   ```bash
   # Pods WITHOUT limits (the actual gaps)
   kubectl-homelab get pods -A -o json | jq -r '
@@ -77,7 +77,7 @@
   | System | All kube-system pods, all longhorn-system pods, cilium agent/operator |
   | Manifest | Minimal gaps — most already set in prior phases |
 
-- [ ] 5.2.0.6 Check node memory overcommit
+- [ ] 5.4.0.6 Check node memory overcommit
   ```bash
   kubectl-homelab describe nodes | grep -A5 "Allocated resources"
   ```
@@ -87,7 +87,7 @@
 
 ---
 
-## 5.2.1 Resource Limits on All Workloads
+## 5.4.1 Resource Limits on All Workloads
 
 > **Why:** Without limits, one misbehaving pod can starve an entire node.
 > Pods without limits also can't be evicted by priority — kubelet kills them randomly under pressure.
@@ -110,7 +110,7 @@
 > query spikes. With Guaranteed (requests == limits), the scheduler accounts for the full
 > allocation and kubelet won't reclaim it.
 
-- [ ] 5.2.1.1 Audit current resource usage and gaps
+- [ ] 5.4.1.1 Audit current resource usage and gaps
   ```bash
   kubectl-homelab top nodes
   kubectl-homelab top pods -A --sort-by=memory
@@ -131,7 +131,7 @@
   '
   ```
 
-- [ ] 5.2.1.2 Fix known OOMKill: bazarr limit too tight
+- [ ] 5.4.1.2 Fix known OOMKill: bazarr limit too tight
   ```bash
   # bazarr: 256Mi limit, observed 227Mi (88% utilization) → OOMKilled
   # Increase to 512Mi to give proper headroom
@@ -139,7 +139,7 @@
   - Update `manifests/arr-stack/bazarr/deployment.yaml` memory limit: 256Mi → 512Mi
   - This is a **live issue** — fix before proceeding with other limit changes
 
-- [ ] 5.2.1.3 Set resource limits on Helm-managed workloads missing limits
+- [ ] 5.4.1.3 Set resource limits on Helm-managed workloads missing limits
   - cert-manager: set in `helm/cert-manager/values.yaml`
     ```yaml
     resources:
@@ -151,12 +151,12 @@
   - GitLab sidecars: review `helm/gitlab/values.yaml` for config-reloader, exporter containers
   - Review `helm/*/values.yaml` for any other components missing limits
 
-- [ ] 5.2.1.4 Set resource limits on remaining manifest workloads without limits
-  - Cross-reference the audit from 5.2.1.1 against manifests
+- [ ] 5.4.1.4 Set resource limits on remaining manifest workloads without limits
+  - Cross-reference the audit from 5.4.1.1 against manifests
   - Only modify workloads that actually lack limits (don't re-set existing ones)
   - Use the sizing strategy table above (stateless vs database vs sidecar)
 
-- [ ] 5.2.1.5 Verify no pods are OOMKilled or throttled after applying limits
+- [ ] 5.4.1.5 Verify no pods are OOMKilled or throttled after applying limits
   ```bash
   # Check for OOMKilled (wait 24-48h after applying)
   kubectl-homelab get pods -A -o json | jq -r '
@@ -170,7 +170,7 @@
   # If >25% throttled, increase CPU limit
   ```
 
-- [ ] 5.2.1.6 Assess node overcommit after all limits applied
+- [ ] 5.4.1.6 Assess node overcommit after all limits applied
   ```bash
   kubectl-homelab describe nodes | grep -A5 "Allocated resources"
   # If any node exceeds 150% memory overcommit, reduce non-critical limits
@@ -184,7 +184,7 @@
 
 ---
 
-## 5.2.2 LimitRange Defaults
+## 5.4.2 LimitRange Defaults
 
 > **CKA Topic:** LimitRange sets default requests/limits for pods that don't specify them — safety net for missed workloads
 
@@ -196,7 +196,7 @@
 > **Note:** LimitRange only applies to NEW pods. Existing pods are NOT retroactively updated.
 > Restart existing pods after applying LimitRange if they need the defaults.
 
-- [ ] 5.2.2.1 Create LimitRange for application namespaces
+- [ ] 5.4.2.1 Create LimitRange for application namespaces
   ```yaml
   apiVersion: v1
   kind: LimitRange
@@ -214,7 +214,7 @@
         type: Container
   ```
 
-- [ ] 5.2.2.2 Apply LimitRange to all application namespaces
+- [ ] 5.4.2.2 Apply LimitRange to all application namespaces
   - Namespaces to cover: ghost-prod, ghost-dev, invoicetron-prod, invoicetron-dev,
     portfolio-prod, portfolio-dev, portfolio-staging, arr-stack, home, atuin,
     karakeep, ai, uptime-kuma
@@ -224,7 +224,7 @@
   - Don't apply to: monitoring, kube-system, longhorn-system, vault,
     external-secrets, cert-manager, gitlab (Helm-managed — limits set in values)
 
-- [ ] 5.2.2.3 Verify defaults are applied to new pods
+- [ ] 5.4.2.3 Verify defaults are applied to new pods
   ```bash
   # Deploy a pod without resource specs and check it gets defaults
   kubectl-homelab run test --rm -it --image=busybox -n invoicetron-prod -- sh -c "exit 0"
@@ -233,14 +233,14 @@
 
 ---
 
-## 5.2.3 Resource Quotas
+## 5.4.3 Resource Quotas
 
 > **CKA Topic:** ResourceQuota prevents namespace-level resource exhaustion
 
-> **Prerequisite:** LimitRange (5.2.2) must be deployed first. Without LimitRange defaults,
+> **Prerequisite:** LimitRange (5.4.2) must be deployed first. Without LimitRange defaults,
 > pods without explicit resource specs will be rejected by the quota admission controller.
 
-- [ ] 5.2.3.1 Audit actual namespace resource usage
+- [ ] 5.4.3.1 Audit actual namespace resource usage
   ```bash
   # Per-namespace resource consumption
   for ns in ghost-prod invoicetron-prod portfolio-prod arr-stack home atuin karakeep; do
@@ -250,7 +250,7 @@
   ```
   Validate quota values against actual usage — don't use arbitrary numbers.
 
-- [ ] 5.2.3.2 Create ResourceQuota for application namespaces
+- [ ] 5.4.3.2 Create ResourceQuota for application namespaces
   ```yaml
   # Template — adjust per namespace based on audit results
   apiVersion: v1
@@ -273,7 +273,7 @@
   - Don't quota: monitoring, kube-system, longhorn-system, vault, external-secrets,
     cert-manager, gitlab (system/infra namespaces need flexibility)
 
-- [ ] 5.2.3.3 Verify quotas are enforced
+- [ ] 5.4.3.3 Verify quotas are enforced
   ```bash
   kubectl-homelab describe resourcequota -A
   # Check that "Used" values don't exceed "Hard" limits
@@ -282,7 +282,7 @@
 
 ---
 
-## 5.2.4 Backup Strategy
+## 5.4.4 Backup Strategy
 
 > **Purpose:** Recover from accidental deletion, corruption, or node failure
 
@@ -302,22 +302,22 @@
 > - etcd is NOT backed up by Velero — it requires separate `etcdctl snapshot save`.
 > - Kopia is the only FSB engine (restic was deprecated in Velero v1.14, removed in v1.15).
 
-### 5.2.4a Longhorn Volume Backups
+### 5.4.4a Longhorn Volume Backups
 
-- [ ] 5.2.4.1 Create NFS backup target directory on NAS
+- [ ] 5.4.4.1 Create NFS backup target directory on NAS
   ```bash
   ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
     sudo mkdir -p /tmp/nfs/longhorn && sudo umount /tmp/nfs"
   ```
 
-- [ ] 5.2.4.2 Configure Longhorn backup target
+- [ ] 5.4.4.2 Configure Longhorn backup target
   ```bash
   # Set backup target in Longhorn settings
   kubectl-homelab -n longhorn-system edit settings backup-target
   # Set to: nfs://10.10.30.4:/Kubernetes/Backups/longhorn
   ```
 
-- [ ] 5.2.4.3 Create Longhorn RecurringJob for automated backups
+- [ ] 5.4.4.3 Create Longhorn RecurringJob for automated backups
   ```yaml
   apiVersion: longhorn.io/v1beta2
   kind: RecurringJob
@@ -333,7 +333,7 @@
       - default             # Applies to all volumes in default group
   ```
 
-- [ ] 5.2.4.4 Create weekly RecurringJob for longer retention
+- [ ] 5.4.4.4 Create weekly RecurringJob for longer retention
   ```yaml
   apiVersion: longhorn.io/v1beta2
   kind: RecurringJob
@@ -349,7 +349,7 @@
       - default
   ```
 
-- [ ] 5.2.4.5 Test Longhorn backup and restore
+- [ ] 5.4.4.5 Test Longhorn backup and restore
   ```bash
   # Trigger manual backup of a non-critical volume
   # Via Longhorn UI or CLI: create backup of portfolio-prod PVC
@@ -361,11 +361,11 @@
   # 4. Clean up test resources
   ```
 
-### 5.2.4a.1 Existing Backup Hardening
+### 5.4.4a.1 Existing Backup Hardening
 
 > **Problem:** 3 existing backup CronJobs need fixes before adding new ones.
 
-- [ ] 5.2.4.1a Move invoicetron backup from Longhorn to NFS
+- [ ] 5.4.4.1a Move invoicetron backup from Longhorn to NFS
   **Current:** `invoicetron-db-backup` writes pg_dump to a Longhorn PVC.
   **Problem:** Backup lives on the same storage system as the data. If Longhorn has issues,
   you lose both. Vault and Atuin correctly use NFS (off-cluster).
@@ -381,7 +381,7 @@
   - Delete the old Longhorn PVC after verifying NFS backups work
   - Add `timeZone: "Asia/Manila"` (fixes pre-work item too)
 
-- [ ] 5.2.4.1b Add Ghost MySQL backup CronJob (ghost-prod)
+- [ ] 5.4.4.1b Add Ghost MySQL backup CronJob (ghost-prod)
   **Current:** Ghost prod has MySQL with user content — NO backup CronJob exists.
   This is the blog with real content. Data loss = lost posts.
 
@@ -459,13 +459,13 @@
     sudo mkdir -p /tmp/nfs/ghost && sudo umount /tmp/nfs"
   ```
 
-- [ ] 5.2.4.1c Evaluate GitLab backup strategy
+- [ ] 5.4.4.1c Evaluate GitLab backup strategy
   GitLab has its own backup rake task. Evaluate options:
 
   | Option | Pros | Cons |
   |--------|------|------|
   | `gitlab-backup-schedule` Helm value | Native, covers all data | Heavy (full backup each time) |
-  | Velero namespace backup (5.2.4b) | Already planned | Doesn't cover Gitaly internal state |
+  | Velero namespace backup (5.4.4b) | Already planned | Doesn't cover Gitaly internal state |
   | Manual `gitlab-backup create` CronJob | Flexible retention | More manifests to maintain |
 
   **Decision:** Use GitLab's built-in `backup.cronSchedule` in `helm/gitlab/values.yaml`:
@@ -479,9 +479,9 @@
   > Verify this works with the existing MinIO in the gitlab namespace before adding
   > a separate CronJob. If GitLab's MinIO already has backup capability, use it.
 
-### 5.2.4b Velero for K8s Resource Backup
+### 5.4.4b Velero for K8s Resource Backup
 
-- [ ] 5.2.4.6 Deploy MinIO as S3 backend for Velero
+- [ ] 5.4.4.6 Deploy MinIO as S3 backend for Velero
   ```bash
   # Create NFS PV/PVC for MinIO storage
   ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
@@ -492,7 +492,7 @@
   # MinIO provides the S3 API that Velero requires
   ```
 
-- [ ] 5.2.4.7 Add Velero Helm repo and create values
+- [ ] 5.4.4.7 Add Velero Helm repo and create values
   ```bash
   helm-homelab repo add vmware-tanzu https://vmware-tanzu.github.io/helm-charts --force-update
   helm-homelab repo update
@@ -530,14 +530,14 @@
     limits: { cpu: 500m, memory: 512Mi }
   ```
 
-- [ ] 5.2.4.8 Install Velero
+- [ ] 5.4.4.8 Install Velero
   ```bash
   helm-homelab install velero vmware-tanzu/velero \
     --namespace velero \
     --values helm/velero/values.yaml
   ```
 
-- [ ] 5.2.4.9 Create scheduled backup for K8s resources
+- [ ] 5.4.4.9 Create scheduled backup for K8s resources
   ```bash
   # Daily backup at 03:30 Manila time (staggered from Longhorn at 03:00)
   # Retain 30 days (not 7 — corruption may not be noticed for weeks)
@@ -550,25 +550,25 @@
   > **Note:** `--default-volumes-to-fs-backup=false` because Longhorn handles volume
   > backup natively. Velero only backs up K8s resource manifests here.
 
-- [ ] 5.2.4.10 Test Velero backup and restore
+- [ ] 5.4.4.10 Test Velero backup and restore
   ```bash
   velero backup create test-backup --include-namespaces portfolio-dev
   velero backup describe test-backup --details
   velero backup logs test-backup
   ```
 
-### 5.2.4c etcd Backup
+### 5.4.4c etcd Backup
 
 > **CRITICAL:** etcd contains ALL cluster state. Losing etcd = rebuild from scratch.
 > Neither Velero nor Longhorn backs up etcd. This needs a separate solution.
 
-- [ ] 5.2.4.11 Create NFS directory for etcd backups
+- [ ] 5.4.4.11 Create NFS directory for etcd backups
   ```bash
   ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
     sudo mkdir -p /tmp/nfs/etcd && sudo umount /tmp/nfs"
   ```
 
-- [ ] 5.2.4.12 Create etcd backup CronJob
+- [ ] 5.4.4.12 Create etcd backup CronJob
   ```yaml
   # The etcd backup must run ON the control plane node (needs access to etcd certs)
   # Option A: CronJob with hostPath mount to etcd PKI
@@ -624,7 +624,7 @@
             restartPolicy: OnFailure
   ```
 
-- [ ] 5.2.4.13 Test etcd backup and document restore procedure
+- [ ] 5.4.4.13 Test etcd backup and document restore procedure
   ```bash
   # Verify backup was created
   ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
@@ -638,11 +638,25 @@
   # 5. Verify cluster state: kubectl get nodes, kubectl get pods -A
   ```
 
-### 5.2.4d Restore Drill Procedure
+- [ ] 5.4.4.14 Encrypt etcd backup before writing to NFS
+  **Problem:** After Phase 5.2 enables etcd encryption at rest, etcd snapshots contain
+  the encryption key AND encrypted data. If the NAS is compromised, the attacker has both.
+
+  **Options:**
+  | Option | Pros | Cons |
+  |--------|------|------|
+  | GPG encryption with passphrase from Vault | Strong, standard | Requires GPG in container |
+  | OpenSSL AES-256-CBC | No extra tooling | Key management needed |
+  | Skip (accept NAS trust) | Simple | NAS compromise = full secret exposure |
+
+  > **Decision needed:** Evaluate whether the NAS is trusted enough. If it's on a separate
+  > VLAN with restricted access, the risk may be acceptable for a homelab.
+
+### 5.4.4d Restore Drill Procedure
 
 > **Why:** A backup that hasn't been tested is not a backup. Run this drill quarterly.
 
-- [ ] 5.2.4.14 Document full restore drill
+- [ ] 5.4.4.15 Document full restore drill
   ```
   Drill Procedure (use portfolio-dev as test target):
 
@@ -678,11 +692,11 @@
 
 ---
 
-## 5.2.5 Backup Monitoring & Alerting
+## 5.4.5 Backup Monitoring & Alerting
 
 > **Why:** A backup that silently fails is worse than no backup — false sense of security.
 
-- [ ] 5.2.5.1 Add Prometheus alerts for backup health
+- [ ] 5.4.5.1 Add Prometheus alerts for backup health
   ```yaml
   # manifests/monitoring/alerts/backup-alerts.yaml
   apiVersion: monitoring.coreos.com/v1
@@ -728,7 +742,7 @@
               summary: "Namespace {{ $labels.namespace }} using >85% of resource quota"
   ```
 
-- [ ] 5.2.5.2 Add etcd backup age alert
+- [ ] 5.4.5.2 Add etcd backup age alert
   ```yaml
   # Check via file age on NFS or a custom exporter
   # If etcd backup CronJob hasn't succeeded in 36 hours → critical
@@ -742,7 +756,7 @@
       summary: "No successful etcd backup in 36 hours"
   ```
 
-- [ ] 5.2.5.3 Add CronJob failure alerting
+- [ ] 5.4.5.3 Add CronJob failure alerting
   **Problem:** If `vault-snapshot`, `invoicetron-db-backup`, or `ghost-mysql-backup` starts
   failing silently, nobody gets notified. Only cluster-janitor and version-check have Discord.
 
@@ -774,7 +788,7 @@
   > **Coverage:** This single alert covers ALL current and future CronJobs — no per-CronJob
   > configuration needed. The `CronJobNotScheduled` alert catches suspended or stuck CronJobs.
 
-- [ ] 5.2.5.4 Add stuck Longhorn volume alerting
+- [ ] 5.4.5.4 Add stuck Longhorn volume alerting
   **Problem:** Cluster Janitor correctly skips volumes with 0 running replicas (safety),
   but nobody is notified about these stuck volumes. Currently `pvc-6ab4368a...`
   (invoicetron-backups) is detached with all replicas stopped — invisible to operators.
@@ -801,7 +815,7 @@
       summary: "Longhorn volume {{ $labels.volume }} is degraded (missing replica)"
   ```
 
-- [ ] 5.2.5.5 Add stuck pod alerts
+- [ ] 5.4.5.5 Add stuck pod alerts
   ```yaml
   # manifests/monitoring/alerts/stuck-pod-alerts.yaml
   # Catches pods the cluster-janitor doesn't handle (it only cleans Failed pods)
@@ -875,11 +889,11 @@
 
 ---
 
-## 5.2.6 Pod Eviction Timing
+## 5.4.6 Pod Eviction Timing
 
 > **Problem:** When a node goes down, pods take ~5-6 min to reschedule (300s default toleration).
 
-- [ ] 5.2.6.1 Set tolerationSeconds for stateless services
+- [ ] 5.4.6.1 Set tolerationSeconds for stateless services
   ```yaml
   # Add to stateless Deployments (Ghost, Portfolio, Homepage, etc.):
   spec:
@@ -904,7 +918,7 @@
   > **Keep 300s for:** Databases (PostgreSQL, MySQL, Redis), StatefulSets with PVCs,
   > Vault (seal/unseal is expensive). Data consistency > speed for stateful workloads.
 
-- [ ] 5.2.6.2 Document expected recovery times
+- [ ] 5.4.6.2 Document expected recovery times
   | Phase | Duration |
   |-------|----------|
   | M80q BIOS POST | ~5-7 min |
@@ -918,27 +932,12 @@
 
 ---
 
-## 5.2.7 OPNsense Stale Firewall States
-
-> **Problem:** After node reboot, OPNsense keeps stale TCP states. Cross-VLAN SSH times out
-> until states are manually cleared. Happened on every node reboot.
-
-- [ ] 5.2.7.1 Investigate OPNsense state timeout tuning for K8s VLAN
-  - Current behavior: stale states persist for minutes after node comes back
-  - Options: reduce state timeout for VLAN 30, or use adaptive timeouts
-
-- [ ] 5.2.7.2 Evaluate OPNsense API for automated state clearing
-  - Ansible pre/post-reboot task to clear states via OPNsense REST API
-  - Would eliminate manual intervention during rolling reboots
-
----
-
-## 5.2.8 GitLab HA Evaluation
+## 5.4.7 GitLab HA Evaluation
 
 > **Problem:** GitLab webservice is single-replica. Node reboot takes down container registry,
 > causing ImagePullBackOff cascade for invoicetron and portfolio.
 
-- [ ] 5.2.8.1 Assess memory budget for 2 replicas
+- [ ] 5.4.7.1 Assess memory budget for 2 replicas
   ```bash
   kubectl-homelab top pods -n gitlab --sort-by=memory
   # Actual: webservice pod uses ~2214Mi
@@ -952,7 +951,7 @@
   - Alternative: pre-pull images to local containerd cache (mitigates ImagePullBackOff
     without adding memory pressure)
 
-- [ ] 5.2.8.2 If feasible: scale webservice + registry to 2 replicas
+- [ ] 5.4.7.2 If feasible: scale webservice + registry to 2 replicas
   ```yaml
   # helm/gitlab/values.yaml
   gitlab:
@@ -966,12 +965,12 @@
 
 ---
 
-## 5.2.9 Longhorn Remaining Items
+## 5.4.8 Longhorn Remaining Items
 
-- [x] 5.2.9.1 ~~`node-down-pod-deletion-policy`~~ — **Done in v0.28.2**
-- [x] 5.2.9.2 ~~`orphan-resource-auto-deletion`~~ — **Done in v0.28.2**
+- [x] 5.4.8.1 ~~`node-down-pod-deletion-policy`~~ — **Done in v0.28.2**
+- [x] 5.4.8.2 ~~`orphan-resource-auto-deletion`~~ — **Done in v0.28.2**
 
-- [ ] 5.2.9.3 Document manual recovery procedure for stuck stopped replicas
+- [ ] 5.4.8.3 Document manual recovery procedure for stuck stopped replicas
   ```bash
   # 1. Identify stopped replicas
   kubectl-homelab -n longhorn-system get replicas.longhorn.io \
@@ -990,7 +989,7 @@
   kubectl-homelab -n longhorn-system get volumes.longhorn.io -w
   ```
 
-- [ ] 5.2.9.4 Verify `replica-soft-anti-affinity` is `false`
+- [ ] 5.4.8.4 Verify `replica-soft-anti-affinity` is `false`
   ```bash
   kubectl-homelab -n longhorn-system get settings replica-soft-anti-affinity -o jsonpath='{.value}'
   # Must be: false
@@ -998,7 +997,7 @@
 
 ---
 
-## 5.2.10 PodDisruptionBudgets
+## 5.4.9 PodDisruptionBudgets
 
 > **CKA Topic:** PDBs prevent voluntary disruptions (drain, upgrade) from killing too many pods at once
 
@@ -1007,7 +1006,7 @@ Without PDBs, `kubectl drain` or a rolling upgrade can terminate all replicas of
 > **Existing PDBs (13 total):** GitLab (7), Longhorn (5), Cloudflare (1) — already created
 > by their Helm charts. This section adds PDBs for namespaces that don't have them.
 
-- [ ] 5.2.10.1 Add PDBs for services with 2+ replicas
+- [ ] 5.4.9.1 Add PDBs for services with 2+ replicas
   ```yaml
   apiVersion: policy/v1
   kind: PodDisruptionBudget
@@ -1023,7 +1022,7 @@ Without PDBs, `kubectl drain` or a rolling upgrade can terminate all replicas of
   - Apply to: any Deployment/StatefulSet with replicas >= 2 that doesn't already have a PDB
   - Check existing PDBs first: `kubectl-homelab get pdb -A`
 
-- [ ] 5.2.10.2 Add PDBs for critical single-replica services
+- [ ] 5.4.9.2 Add PDBs for critical single-replica services
   ```yaml
   # For single-replica services, use maxUnavailable: 1 (NOT 0)
   # maxUnavailable: 0 permanently blocks kubectl drain — operational footgun
@@ -1049,7 +1048,7 @@ Without PDBs, `kubectl drain` or a rolling upgrade can terminate all replicas of
   - Evaluate for: Vault, Prometheus, Grafana, AdGuard
   - Services that already have Helm-managed PDBs: skip (check with `kubectl-homelab get pdb -A`)
 
-- [ ] 5.2.10.3 Verify PDBs are respected during drain
+- [ ] 5.4.9.3 Verify PDBs are respected during drain
   ```bash
   kubectl-homelab get pdb -A
   # Test: cordon a node and attempt drain — PDB should block if it would violate budget
@@ -1060,13 +1059,13 @@ Without PDBs, `kubectl drain` or a rolling upgrade can terminate all replicas of
 
 ---
 
-## 5.2.11 Automation Hardening
+## 5.4.10 Automation Hardening
 
 > **Why:** Audit of existing CronJobs and version-checking tools revealed 88% false positive
 > rate on version-checker, 3 overlapping tools with coverage gaps, dormant Renovate, and
 > missing notifications on operational automations.
 
-### 5.2.11.1 Fix version-checker Signal Quality
+### 5.4.10.1 Fix version-checker Signal Quality
 
 **Current state:** 145 of 164 images flagged as "outdated" — only 19 are up to date.
 The `ContainerImageOutdated` alert fires on everything, making it useless.
@@ -1080,7 +1079,7 @@ The `ContainerImageOutdated` alert fires on everything, making it useless.
 | Non-semver tags can't compare | ~10 | `alpine:3.21`, `python:3.12-alpine`, `busybox` |
 | Legitimate outdated | ~87 | Real drift (but buried in noise) |
 
-- [ ] 5.2.11.1a Evaluate version-checker filtering options
+- [ ] 5.4.10.1a Evaluate version-checker filtering options
   ```bash
   # Check if version-checker supports container_type filtering
   kubectl-homelab -n monitoring exec deploy/version-checker -- \
@@ -1095,7 +1094,7 @@ The `ContainerImageOutdated` alert fires on everything, making it useless.
   | Add `version-checker.io/image-override` for cert-manager | Medium | Fixes broken Quay detection |
   | Replace with Renovate-only (Phase 6) | Deferred | Permanent fix |
 
-- [ ] 5.2.11.1b Fix `ContainerImageOutdated` alert to reduce noise
+- [ ] 5.4.10.1b Fix `ContainerImageOutdated` alert to reduce noise
   ```yaml
   # Option A: Exclude init containers from the alert
   - alert: ContainerImageOutdated
@@ -1114,19 +1113,19 @@ The `ContainerImageOutdated` alert fires on everything, making it useless.
   ```
   > Pick the option that reduces false positives most with least maintenance burden.
 
-- [ ] 5.2.11.1c Reduce CronJob `successfulJobsHistoryLimit` where excessive
+- [ ] 5.4.10.1c Reduce CronJob `successfulJobsHistoryLimit` where excessive
   CronJobs with `successfulJobsHistoryLimit: 3` create 3 completed pods that version-checker
   scans individually. Reduce to `1` where 3 isn't needed:
   - `invoicetron-db-backup`: 3 → 1 (don't need 3 completed backup pods)
   - `version-check`: 3 → 1
   - `arr-stall-resolver`: 3 → 1
 
-### 5.2.11.2 Fix Nova CronJob Network Fragility
+### 5.4.10.2 Fix Nova CronJob Network Fragility
 
 **Current:** The version-check CronJob runs `apk add --no-cache curl jq` on every execution.
 If Alpine repos are unreachable at Sunday midnight, the job fails silently.
 
-- [ ] 5.2.11.2a Switch version-check main container to `alpine/k8s:1.35.0`
+- [ ] 5.4.10.2a Switch version-check main container to `alpine/k8s:1.35.0`
   `alpine/k8s` already includes curl. Only `jq` needs installing — or bundle the script
   differently.
 
@@ -1143,14 +1142,14 @@ If Alpine repos are unreachable at Sunday midnight, the job fails silently.
   ```
   > `alpine/k8s` has curl but NOT jq. Install jq only (faster, less fragile than curl+jq).
 
-### 5.2.11.3 Decide on Renovate
+### 5.4.10.3 Decide on Renovate
 
 **Current state:** Renovate is installed but dormant. `dependencyDashboardApproval: true`
 means zero PRs are created until someone checks GitHub issue #2. Only 1 PR was ever
 created (initial config PR, closed). Primary remote is GitLab — GitHub issues aren't
 checked regularly.
 
-- [ ] 5.2.11.3a Choose one of:
+- [ ] 5.4.10.3a Choose one of:
 
   | Option | Action | Recommendation |
   |--------|--------|----------------|
@@ -1162,13 +1161,13 @@ checked regularly.
   > tool — it creates a false sense of coverage. Phase 6 (ArgoCD) already plans to solve
   > automated version management properly.
 
-### 5.2.11.4 Add Discord Notification to ARR Stall Resolver
+### 5.4.10.4 Add Discord Notification to ARR Stall Resolver
 
 **Current:** Stall resolver switches quality profiles to "Any" permanently and logs
 `ACTION REQUIRED: manually revert`. But logs only go to Loki — if nobody queries them,
 the revert reminder is invisible. Quality stays as "Any" forever.
 
-- [ ] 5.2.11.4a Add Discord webhook to stall resolver
+- [ ] 5.4.10.4a Add Discord webhook to stall resolver
   ```yaml
   # Add env var to cronjob.yaml
   env:
@@ -1185,9 +1184,9 @@ the revert reminder is invisible. Quality stays as "Any" forever.
   ```
   > Only notify on profile switches (not on "no stalled downloads" — that's noise).
 
-### 5.2.11.5 Cluster Janitor Improvements
+### 5.4.10.5 Cluster Janitor Improvements
 
-- [ ] 5.2.11.5a Add Discord notification for stuck volumes (0 running replicas)
+- [ ] 5.4.10.5a Add Discord notification for stuck volumes (0 running replicas)
   Currently the janitor logs `SKIPPING ... has 0 running replicas` but doesn't notify.
   These stuck volumes need human attention.
 
@@ -1199,24 +1198,24 @@ the revert reminder is invisible. Quality stays as "Any" forever.
   # (requires either a ConfigMap flag or a simple file-based check)
   ```
   > Simpler alternative: rely on the new `LonghornVolumeAllReplicasStopped` Prometheus
-  > alert (5.2.5.4) instead of modifying the janitor. The alert covers this case
+  > alert (5.4.5.4) instead of modifying the janitor. The alert covers this case
   > cluster-wide without per-CronJob logic.
 
-- [ ] 5.2.11.5b Remove redundant `export TZ=Asia/Manila` from janitor script
+- [ ] 5.4.10.5b Remove redundant `export TZ=Asia/Manila` from janitor script
   The CronJob already has `timeZone: "Asia/Manila"` — the env var is redundant.
   (Low priority, cosmetic.)
 
 ---
 
-## 5.2.12 Documentation
+## 5.4.11 Documentation
 
-- [ ] 5.2.12.1 Update VERSIONS.md
+- [ ] 5.4.11.1 Update VERSIONS.md
   ```
   | Velero | X.X.X | K8s resource backup and restore |
   | MinIO  | X.X.X | S3-compatible storage for Velero |
   ```
 
-- [ ] 5.2.12.2 Update `docs/context/Security.md` with:
+- [ ] 5.4.11.2 Update `docs/context/Security.md` with:
   - Resource quota strategy and namespace coverage
   - Backup architecture (3-layer: Longhorn, Velero, etcd)
   - Backup schedule, retention policy, and storage locations
@@ -1224,7 +1223,7 @@ the revert reminder is invisible. Quality stays as "Any" forever.
   - Restore drill procedure and schedule (quarterly)
   - Automation hardening decisions (version-checker filtering, Renovate status, CronJob alerting)
 
-- [ ] 5.2.12.3 Update `docs/reference/CHANGELOG.md`
+- [ ] 5.4.11.3 Update `docs/reference/CHANGELOG.md`
 
 ---
 
@@ -1247,12 +1246,12 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [ ] Velero backup tested and restore verified
 - [ ] etcd backup CronJob running daily
 - [ ] etcd backup tested and restore procedure documented
+- [ ] etcd backup encryption evaluated (GPG/OpenSSL/accept NAS trust)
 - [ ] Restore drill completed on non-prod namespace
 - [ ] Backup health alerts in Prometheus (Velero, Longhorn, etcd, quota)
 - [ ] Stuck pod alerts deployed (Init, Pending, CrashLoop, ImagePull)
 - [ ] Pod eviction timing tuned (60s stateless, 300s databases)
 - [ ] PodDisruptionBudgets on services without existing PDBs
-- [ ] OPNsense state issue investigated (automated or timeout tuned)
 - [ ] GitLab HA evaluated (scaled if memory permits, or image pre-pull alternative)
 - [ ] Longhorn `replica-soft-anti-affinity` confirmed `false`
 - [ ] Stopped replica recovery procedure documented
@@ -1321,7 +1320,7 @@ These items are explicitly NOT in Phase 5:
 | Item | Why Deferred |
 |------|-------------|
 | Manifest directory reorganization | ArgoCD ApplicationSets use directory structure — reorganize right before ArgoCD setup |
-| Automated version management | ArgoCD + Renovate Bot solves this permanently. Renovate may be suspended until then (see 5.2.11.3) |
+| Automated version management | ArgoCD + Renovate Bot solves this permanently. Renovate may be suspended until then (see 5.4.10.3) |
 | App version updates (Ghost, etc.) | One-off bumps are maintenance, not a phase. Automated pipeline comes with ArgoCD |
 
 ---
@@ -1330,5 +1329,5 @@ These items are explicitly NOT in Phase 5:
 
 - [ ] `/audit-security` then `/commit`
 - [ ] `/audit-docs` then `/commit`
-- [ ] `/release v0.32.0 "Resilience & Backup"`
-- [ ] `mv docs/todo/phase-5.2-resilience-backup.md docs/todo/completed/`
+- [ ] `/release v0.34.0 "Resilience & Backup"`
+- [ ] `mv docs/todo/phase-5.4-resilience-backup.md docs/todo/completed/`

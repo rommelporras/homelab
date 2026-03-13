@@ -1,14 +1,14 @@
-# Phase 5.0: Security Posture
+# Phase 5.0: Namespace & Pod Security
 
-> **Status:** ⬜ Planned
+> **Status:** Planned
 > **Target:** v0.30.0
 > **Prerequisite:** v0.29.0 (Vault + ESO)
-> **DevOps Topics:** Pod Security Standards, secrets hardening, RBAC, etcd encryption
-> **CKA Topics:** PSS, RBAC, EncryptionConfiguration, SecurityContext, ServiceAccount
+> **DevOps Topics:** Pod Security Standards, secrets hardening, SecurityContext, service account tokens
+> **CKA Topics:** PSS, SecurityContext, ServiceAccount, automountServiceAccountToken
 
 > **Purpose:** Lock down pods, namespaces, and secrets infrastructure
 >
-> **Learning Goal:** Kubernetes security model — defense in depth from pod to etcd
+> **Learning Goal:** Kubernetes security model — PSS enforcement, ESO hardening, service account token hygiene
 
 ---
 
@@ -322,230 +322,15 @@ Currently any namespace can reference `vault-backend`. After this change, only n
 
 ---
 
-## 5.0.6 RBAC Audit
+## 5.0.6 Documentation
 
-> **CKA Topic:** RBAC, ServiceAccount, ClusterRoleBinding
-
-- [ ] 5.0.6.1 Audit all ServiceAccounts and their bindings
-  ```bash
-  kubectl-homelab get serviceaccounts -A
-  kubectl-homelab get clusterrolebindings -o json | jq -r '
-    .items[] | select(.roleRef.name == "cluster-admin") |
-    .metadata.name + " -> " + (.subjects[]? | .kind + "/" + .name)
-  '
-  ```
-
-- [ ] 5.0.6.2 Review GitLab deploy ServiceAccount
-  ```bash
-  # Already well-scoped: deployments(get/list/watch/patch/update),
-  # replicasets(get/list/watch), pods(get/list/watch).
-  # Exists in 5 namespaces (portfolio-prod, invoicetron-prod, etc.)
-  # Verify bindings haven't drifted:
-  for ns in portfolio-prod portfolio-dev portfolio-staging invoicetron-prod invoicetron-dev; do
-    echo "=== $ns ==="
-    kubectl-homelab get rolebinding -n "$ns" -o yaml 2>/dev/null | grep -A5 "roleRef"
-  done
-  ```
-
-- [ ] 5.0.6.3 Verify ESO ServiceAccount is properly scoped
-  ```bash
-  # ESO role should only be bound to external-secrets:external-secrets SA
-  kubectl-homelab auth can-i --list \
-    --as=system:serviceaccount:external-secrets:external-secrets
-  ```
-
-- [ ] 5.0.6.4 Review longhorn-support-bundle cluster-admin binding
-  ```bash
-  # longhorn-support-bundle has a cluster-admin ClusterRoleBinding.
-  # This is auto-created by Longhorn for support bundle generation.
-  # Evaluate: is this acceptable, or should the binding be removed/scoped down?
-  kubectl-homelab get clusterrolebinding longhorn-support-bundle -o yaml
-  ```
-
-- [ ] 5.0.6.5 Create restricted kubeconfig for Claude Code
-  > **Why:** CLAUDE.md says "never read secret values" but this is policy, not technical
-  > enforcement. A restricted kubeconfig makes it impossible for Claude Code to read
-  > K8s Secret data, including Vault unseal keys and all ESO-synced secrets.
-
-  ```yaml
-  # ServiceAccount for Claude Code
-  apiVersion: v1
-  kind: ServiceAccount
-  metadata:
-    name: claude-code
-    namespace: kube-system
-  ---
-  # ClusterRole: full read access EXCEPT get on secrets
-  apiVersion: rbac.authorization.k8s.io/v1
-  kind: ClusterRole
-  metadata:
-    name: claude-code-role
-  rules:
-    # Read all standard resources
-    - apiGroups: ["", "apps", "batch", "networking.k8s.io", "policy",
-                  "rbac.authorization.k8s.io", "storage.k8s.io"]
-      resources: ["*"]
-      verbs: ["get", "list", "watch"]
-    # Override: secrets — list only (shows names/metadata, not data)
-    - apiGroups: [""]
-      resources: ["secrets"]
-      verbs: ["list"]
-    # CRDs needed for homelab operations
-    - apiGroups: ["external-secrets.io", "cilium.io", "longhorn.io",
-                  "gateway.networking.k8s.io", "monitoring.coreos.com"]
-      resources: ["*"]
-      verbs: ["get", "list", "watch"]
-  ---
-  apiVersion: rbac.authorization.k8s.io/v1
-  kind: ClusterRoleBinding
-  metadata:
-    name: claude-code-binding
-  roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: ClusterRole
-    name: claude-code-role
-  subjects:
-    - kind: ServiceAccount
-      name: claude-code
-      namespace: kube-system
-  ```
-
-  ```bash
-  # Generate kubeconfig for the SA
-  # 1. Apply the SA + ClusterRole + Binding
-  kubectl-homelab apply -f manifests/kube-system/claude-code-rbac.yaml
-
-  # 2. Create a long-lived token (SA tokens are not auto-created in K8s 1.24+)
-  kubectl-homelab create token claude-code -n kube-system --duration=8760h > /tmp/cc-token
-
-  # 3. Build kubeconfig
-  kubectl config set-cluster homelab \
-    --server=https://10.10.30.10:6443 \
-    --certificate-authority=/etc/kubernetes/pki/ca.crt \
-    --kubeconfig=~/.kube/homelab.yaml
-  kubectl config set-credentials claude-code \
-    --token=$(cat /tmp/cc-token) \
-    --kubeconfig=~/.kube/homelab.yaml
-  kubectl config set-context homelab \
-    --cluster=homelab --user=claude-code \
-    --kubeconfig=~/.kube/homelab.yaml
-  kubectl config use-context homelab --kubeconfig=~/.kube/homelab.yaml
-  rm /tmp/cc-token
-
-  # 4. Test: should return Forbidden
-  kubectl-homelab get secret vault-unseal-keys -n vault -o json
-  # 5. Test: should work (list shows names only)
-  kubectl-homelab get secrets -n vault
-  ```
-
-- [ ] 5.0.6.6 Add Claude Code hooks to block secret reads
-  > **Defense in depth:** Hooks provide fast feedback even before RBAC rejects the request.
-  > Blocks commands before they reach the cluster.
-
-  Add to `.claude/hooks.json`:
-  ```json
-  {
-    "hooks": [
-      {
-        "event": "before_tool_call",
-        "tool": "Bash",
-        "pattern": "kubectl.*get\\s+secret.*-o\\s+(json|yaml|jsonpath)",
-        "action": "block",
-        "message": "Blocked: reading secret values is not allowed. Use 'kubectl get secrets' (no -o flag) to list names only."
-      }
-    ]
-  }
-  ```
-
-  Verify hook works:
-  ```bash
-  # This should be blocked by hook before reaching cluster:
-  kubectl-homelab get secret vault-unseal-keys -n vault -o json
-  # This should succeed (list mode, no data):
-  kubectl-homelab get secrets -n vault
-  ```
-
----
-
-## 5.0.7 etcd Encryption at Rest
-
-> **CKA Topic:** EncryptionConfiguration — secrets in etcd are base64 by default, not encrypted
-
-By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd access can read all secrets. `EncryptionConfiguration` encrypts them at rest.
-
-- [ ] 5.0.7.1 Create EncryptionConfiguration on all 3 control plane nodes
-  ```bash
-  # Generate encryption key (run once, use same key on all nodes)
-  ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64)
-  echo "Save this key securely: $ENCRYPTION_KEY"
-
-  # Create config file on each CP node
-  # Path: /etc/kubernetes/encryption-config.yaml
-  cat <<EOF
-  apiVersion: apiserver.config.k8s.io/v1
-  kind: EncryptionConfiguration
-  resources:
-    - resources:
-        - secrets
-      providers:
-        - aescbc:
-            keys:
-              - name: key1
-                secret: ${ENCRYPTION_KEY}
-        - identity: {}  # Fallback: read unencrypted secrets
-  EOF
-  ```
-
-- [ ] 5.0.7.2 Update kube-apiserver on all 3 CP nodes
-  ```bash
-  # Edit /etc/kubernetes/manifests/kube-apiserver.yaml on each node
-  # Add to spec.containers[0].command:
-  #   --encryption-provider-config=/etc/kubernetes/encryption-config.yaml
-  #
-  # Add volume mount for the config file
-  # API server will restart automatically (static pod)
-  ```
-
-- [ ] 5.0.7.3 Re-encrypt all existing secrets
-  ```bash
-  # After API server is back, re-encrypt all secrets
-  kubectl-homelab get secrets -A -o json | kubectl-homelab replace -f -
-  ```
-
-- [ ] 5.0.7.4 Verify encryption works
-  ```bash
-  # Create a test secret
-  kubectl-homelab create secret generic encryption-test \
-    -n default --from-literal=test=encrypted-value
-
-  # IMPORTANT: etcdctl is NOT installed on nodes — must exec into the etcd pod.
-  # Find etcd pod on any CP node:
-  ETCD_POD=$(kubectl-homelab get pods -n kube-system -l component=etcd -o jsonpath='{.items[0].metadata.name}')
-
-  # Read directly from etcd — the value should NOT be readable as plaintext
-  kubectl-homelab exec -n kube-system "$ETCD_POD" -- sh -c \
-    "ETCDCTL_API=3 etcdctl get /registry/secrets/default/encryption-test \
-      --cacert=/etc/kubernetes/pki/etcd/ca.crt \
-      --cert=/etc/kubernetes/pki/etcd/server.crt \
-      --key=/etc/kubernetes/pki/etcd/server.key" | hexdump -C | head
-
-  # Should see "k8s:enc:aescbc:v1:key1" prefix, not plaintext
-
-  kubectl-homelab delete secret encryption-test -n default
-  ```
-
----
-
-## 5.0.8 Documentation
-
-- [ ] 5.0.8.1 Create `docs/context/Security.md`
+- [ ] 5.0.6.1 Create `docs/context/Security.md`
   ```
   Document:
   - PSS levels per namespace (table)
-  - RBAC roles and bindings (audit results)
   - ESO hardening decisions and known trade-offs
   - Vault + ESO trust boundaries
-  - etcd encryption status
+  - automountServiceAccountToken decisions (which pods need it and why)
   ```
 
   **ESO known trade-offs to document:**
@@ -557,7 +342,7 @@ By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd
   | Broad `eso-policy` (`secret/data/*`) | ESO is the only Vault consumer. Per-namespace policies = 15 roles, significant rework. |
   | No policy engine (Kyverno/OPA) | Overkill for single-admin. `namespaceSelector` provides sufficient restriction. |
 
-- [ ] 5.0.8.2 Update `docs/reference/CHANGELOG.md`
+- [ ] 5.0.6.2 Update `docs/reference/CHANGELOG.md`
 
 ---
 
@@ -576,12 +361,7 @@ By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd
 - [ ] ClusterSecretStore has `namespaceSelector` restricting to labeled namespaces
 - [ ] All 15 ESO-consuming namespaces labeled `eso-enabled=true`
 - [ ] Unlabeled namespace cannot sync ExternalSecrets (tested)
-- [ ] RBAC audit complete — no unexpected cluster-admin bindings
-- [ ] longhorn-support-bundle cluster-admin binding reviewed
-- [ ] Restricted kubeconfig for Claude Code deployed (cannot `get secret -o json`)
-- [ ] Claude Code hooks block secret read commands
-- [ ] etcd encryption at rest enabled and verified (via etcd pod exec, not host etcdctl)
-- [ ] Security.md created with all decisions documented
+- [ ] Security.md created with PSS levels, ESO hardening, and automountServiceAccountToken decisions
 
 ---
 
@@ -602,18 +382,11 @@ kubectl-homelab label namespace <ns> \
 # Fix pod securityContext, then re-apply baseline
 ```
 
-**etcd encryption breaks API server:**
-```bash
-# On CP node: remove --encryption-provider-config from
-# /etc/kubernetes/manifests/kube-apiserver.yaml
-# API server will restart automatically and read unencrypted secrets
-```
-
 ---
 
 ## Final: Commit and Release
 
 - [ ] `/audit-security` then `/commit`
 - [ ] `/audit-docs` then `/commit`
-- [ ] `/release v0.30.0 "Security Posture"`
-- [ ] `mv docs/todo/phase-5.0-security-posture.md docs/todo/completed/`
+- [ ] `/release v0.30.0 "Namespace & Pod Security"`
+- [ ] `mv docs/todo/phase-5.0-namespace-pod-security.md docs/todo/completed/`
