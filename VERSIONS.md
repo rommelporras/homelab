@@ -99,7 +99,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** v0.30.0 released. Namespace & Pod Security hardening (PSS, ESO, SA tokens).
+> **Status:** v0.31.0 released. Control plane hardening (CIS benchmark, audit logging, cert lifecycle).
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
@@ -298,11 +298,10 @@ helm-homelab repo update
 | Warning (apps) | #apps | None |
 | Info | (silenced) | None |
 
-**Silenced Alerts (kubeadm false positives):**
-- `KubeProxyDown`, `etcdInsufficientMembers`, `etcdMembersDown`
-- `TargetDown` (kube-scheduler, kube-controller-manager, kube-etcd)
+**Silenced Alerts:**
+- `KubeProxyDown` — Cilium replaces kube-proxy (permanent)
 
-See `docs/todo/deferred.md` for future fix.
+> etcd, scheduler, and controller-manager silences removed in Phase 5.1 (all targets now UP).
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-03-12
+updated: 2026-03-15
 ---
 
 # Monitoring
@@ -103,18 +103,14 @@ Query logs:
 
 ### Silenced Alerts
 
-These kubeadm false positives are routed to `null`:
+Permanently silenced (routed to `null`):
 
 | Alert | Reason |
 |-------|--------|
-| KubeProxyDown | kube-proxy removed (Cilium eBPF) |
-| etcdInsufficientMembers | etcd metrics not scraped |
-| etcdMembersDown | etcd metrics not scraped |
-| TargetDown (kube-scheduler) | Bound to localhost |
-| TargetDown (kube-controller-manager) | Bound to localhost |
-| TargetDown (kube-etcd) | Bound to localhost |
+| KubeProxyDown | kube-proxy removed (Cilium eBPF) — permanent |
 
-See `docs/todo/deferred.md` for future fix instructions.
+> etcd, scheduler, and controller-manager silences removed in Phase 5.1.
+> All control plane targets are now scraped (bind-address=0.0.0.0) and healthy.
 
 ## OTel Collector (Claude Code Telemetry)
 

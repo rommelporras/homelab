@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
-3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 29 releases, each with a [complete rebuild guide](docs/rebuild/README.md).
+3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 31 releases with [29 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
 
 > **Owner:** Rommel Porras  |  **CKA Target:** September 2026
 
@@ -89,7 +89,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Cloudflare Tunnel (HA, 2 replicas) for public services
 - Tailscale Operator (WireGuard subnet router) for private remote access
 - AdGuard DNS as primary for all VLANs + Tailscale global nameserver
-- CiliumNetworkPolicies per namespace
+- CiliumNetworkPolicy for Cloudflare namespace (per-namespace coverage in Phase 5.3)
 
 **Applications**
 - GitLab CE (Runner, Container Registry, SSH) with CI/CD pipelines
@@ -144,7 +144,7 @@ Things that bit us and might save you time:
 | Document | Purpose |
 |----------|---------|
 | [docs/context/Cluster.md](docs/context/Cluster.md) | **Source of truth** — nodes, IPs, hardware |
-| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (29 releases, v0.1.0 to v0.29.0) |
+| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (v0.1.0 to v0.29.0) |
 | [docs/context/](docs/context/) | Knowledge base (12 topic files: Architecture, Gateway, Networking, Security, etc.) |
 | [docs/todo/](docs/todo/README.md) | Phase plans (active + [completed](docs/todo/completed/)) |
 | [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md) | Decision history and project timeline |
@@ -154,8 +154,9 @@ Things that bit us and might save you time:
 
 ## Next Steps
 
-1. **Production Hardening** — RBAC audit, NetworkPolicy hardening, Vault policy tightening (Phase 5)
-2. **CKA Certification** — September 2026 target
+1. **RBAC & Encryption** — RBAC audit, etcd encryption at rest, least-privilege access (Phase 5.2)
+2. **Network Policies** — CiliumNetworkPolicy per namespace, zero-trust networking (Phase 5.3)
+3. **CKA Certification** — September 2026 target
 
 ## Claude Code
 
