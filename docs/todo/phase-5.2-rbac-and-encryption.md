@@ -1,6 +1,6 @@
 # Phase 5.2: RBAC & Secrets Hardening
 
-> **Status:** ⬜ Planned (audited 2026-03-15)
+> **Status:** 🔄 In Progress (RBAC audit executed 2026-03-15, etcd encryption pending)
 > **Target:** v0.32.0
 > **Prerequisite:** Phase 5.1 (v0.31.0 — control plane hardened, audit logging active)
 > **DevOps Topics:** RBAC, etcd encryption, least-privilege access, defense in depth
@@ -49,93 +49,104 @@
 
 > **CKA Topic:** RBAC, ServiceAccount, ClusterRoleBinding
 
-- [ ] 5.2.1.1 Audit all ServiceAccounts and their bindings
+- [x] 5.2.1.1 Audit all ServiceAccounts and their bindings
+  > **✅ VERIFIED (2026-03-15):** 3 cluster-admin bindings, all expected. No surprises.
+  > - `cluster-admin → Group/system:masters` — kubeadm bootstrap ✅
+  > - `kubeadm:cluster-admins → Group/kubeadm:cluster-admins` — kubeadm bootstrap ✅
+  > - `longhorn-support-bundle → SA/longhorn-system/longhorn-support-bundle` — see 5.2.1.5 ✅
   ```bash
-  # 110 ServiceAccounts across all namespaces
-  kubectl-homelab get serviceaccounts -A
-
-  # cluster-admin bindings (3 found):
-  #   cluster-admin -> Group/system:masters (kubeadm bootstrap — expected)
-  #   kubeadm:cluster-admins -> Group/kubeadm:cluster-admins (kubeadm bootstrap — expected)
-  #   longhorn-support-bundle -> SA/longhorn-system/longhorn-support-bundle (Helm-managed — review)
   kubectl-homelab get clusterrolebindings -o json | jq -r '
     .items[] | select(.roleRef.name == "cluster-admin") |
     .metadata.name + " -> " + (.subjects[]? | .kind + "/" + .name)
   '
   ```
 
-- [ ] 5.2.1.2 Review GitLab deploy ServiceAccount
+- [x] 5.2.1.2 Review GitLab deploy ServiceAccount
+  > **✅ VERIFIED (2026-03-15):** Well-scoped in all 5 namespaces, no drift detected.
+  > - portfolio-prod/dev/staging: `deployments(get/list/watch/patch/update)`, `replicasets(get/list/watch)`, `pods(get/list/watch)`
+  > - invoicetron-prod/dev: same + `batch/jobs(get/list/watch/create/delete)` — for backup CronJob integration ✅
+  > No secrets access. All bindings namespace-scoped to their own namespace. ✅
   ```bash
-  # VERIFIED: Well-scoped Role in all 5 namespaces:
-  #   deployments(get/list/watch/patch/update), replicasets(get/list/watch), pods(get/list/watch)
-  # No drift detected — all 5 RoleBindings point to gitlab-deploy Role
   for ns in portfolio-prod portfolio-dev portfolio-staging invoicetron-prod invoicetron-dev; do
     echo "=== $ns ==="
     kubectl-homelab get role gitlab-deploy -n "$ns" -o yaml
   done
   ```
 
-- [ ] 5.2.1.3 ⛔ **NEW: Review GitLab Runner ClusterRole (CRITICAL)**
+- [ ] 5.2.1.3 ⛔ **Fix GitLab Runner ClusterRole — scope to namespace Role**
+  > **DECISION (2026-03-15):** Fix now. `rbac.clusterWideAccess: false` in Helm values.
+  > Runner config confirms `namespace = "gitlab-runner"` — all job pods created in that namespace.
+  > Switching to namespace-scoped Role removes cluster-wide secrets/pods/services CRUD.
+  > Helm chart default Role for the executor covers: pods, pods/log, pods/exec, pods/attach,
+  > pods/status, secrets, configmaps, serviceaccounts in the runner namespace.
   ```bash
-  # GitLab Runner has an overly broad ClusterRole (Helm default from gitlab-runner-0.85.0):
-  #   apiGroups: [""]
-  #   resources: ["*"]
-  #   verbs: ["*"]
-  # This grants full CRUD on ALL core API resources (pods, secrets, services, etc.)
-  # This is MORE dangerous than longhorn-support-bundle — runner pods can read all secrets.
-  kubectl-homelab get clusterrole gitlab-runner -o yaml
+  # 1. Update helm/gitlab-runner/values.yaml: rbac.clusterWideAccess: true → false
+  # 2. Helm upgrade (Helm will delete ClusterRole/ClusterRoleBinding, create Role/RoleBinding)
+  helm-homelab upgrade gitlab-runner gitlab/gitlab-runner -n gitlab-runner \
+    -f helm/gitlab-runner/values.yaml
 
-  # Decision needed:
-  # Option A: Scope down to only what runner needs (pods, secrets in gitlab-runner ns, configmaps)
-  #           Requires testing CI/CD pipelines still work after scoping
-  # Option B: Accept risk and document in Security.md (runner needs broad access for K8s executor)
-  # Option C: Switch runner to namespace-scoped Role instead of ClusterRole
-  #
-  # RISK: Changing runner permissions may break CI/CD deployments.
-  #        Test thoroughly in a non-critical pipeline first.
+  # 3. Verify: ClusterRole gone, namespace Role present
+  kubectl-homelab get clusterrole gitlab-runner 2>&1         # expected: NotFound
+  kubectl-homelab get role -n gitlab-runner                  # expected: namespace Role present
+
+  # 4. Test: trigger a non-critical CI/CD pipeline and verify it completes
+  # ⚠️ Rollback: set clusterWideAccess: true + helm upgrade if pipelines break
   ```
 
-- [ ] 5.2.1.4 Verify ESO ServiceAccount is properly scoped
+- [x] 5.2.1.4 Verify ESO ServiceAccount is properly scoped
+  > **✅ VERIFIED (2026-03-15):** Correctly scoped for ESO's function.
+  > - `secrets: get/list/watch/create/update/delete/patch` — all needed to sync Vault → K8s Secrets
+  > - `configmaps/namespaces/serviceaccounts: get/list/watch` — read-only
+  > - All ESO CRDs: full CRUD (ExternalSecrets, SecretStores, Generators)
   ```bash
-  # VERIFIED: ESO SA has expected permissions:
-  #   secrets: get/list/watch/create/update/delete/patch (needed to sync secrets)
-  #   configmaps/namespaces/serviceaccounts: get/list/watch
-  #   ESO CRDs: full CRUD
-  # This is correct for ESO's function.
   kubectl-homelab auth can-i --list \
     --as=system:serviceaccount:external-secrets:external-secrets
   ```
 
-- [ ] 5.2.1.5 Review longhorn-support-bundle cluster-admin binding
+- [x] 5.2.1.5 Review longhorn-support-bundle cluster-admin binding
+  > **✅ ACCEPTED (2026-03-15):** Helm-managed (longhorn-1.10.1). SA is only activated when
+  > manually generating a support bundle via the Longhorn UI — not running continuously.
+  > Removing breaks the support bundle feature. Document in Security.md as accepted risk.
   ```bash
-  # Helm-managed ClusterRoleBinding (longhorn-1.10.1).
-  # Auto-created by Longhorn for support bundle generation.
-  # This SA is only used when manually generating support bundles.
-  # Decision: Accept and document — removing it breaks Longhorn's support bundle feature.
   kubectl-homelab get clusterrolebinding longhorn-support-bundle -o yaml
   ```
 
-- [ ] 5.2.1.6 ⚠️ **NEW: Review version-check-cronjob secret access**
+- [ ] 5.2.1.6 ⚠️ **Fix version-check-cronjob — broken Nova auth (bug from Phase 5.0)**
+  > **BUG FOUND (2026-03-15):** `automountServiceAccountToken: false` was added during Phase 5.0
+  > hardening without realizing Nova needs K8s API access to read Helm release secrets.
+  >
+  > **Evidence:**
+  > - Last run (6d ago, job `version-check-29548800`) used OLD template — token WAS mounted,
+  >   Nova worked correctly, detected **11 outdated charts**
+  > - Current CronJob template: `automountServiceAccountToken: false`, no projected token volume
+  > - Next Sunday's run: Nova fails auth → caught by `|| echo '[]'` → Discord reports
+  >   "0 outdated, 0 deprecated, 0 current" **regardless of actual cluster state** (silent failure)
+  >
+  > **Why ClusterRole is legitimate:** Nova `find --helm` reads Helm release secrets cluster-wide
+  > (`type: helm.sh/release.v1`). RBAC cannot filter by secret type. `get/list` is correct and needed.
+  > Nova only reads release metadata (chart name, version) — never exposes secret values.
+  >
+  > **Fix:** Remove `automountServiceAccountToken: false` from the CronJob pod spec.
   ```bash
-  # version-check-cronjob ClusterRole has get+list on secrets cluster-wide.
-  # Investigate: does it actually read secret data, or just needs it for
-  # reading Discord webhook URLs from K8s secrets?
-  kubectl-homelab get clusterrole version-check-cronjob -o yaml
+  # Edit manifests/monitoring/version-checker/version-check-cronjob.yaml:
+  # Remove: automountServiceAccountToken: false
+  kubectl-homelab apply -f manifests/monitoring/version-checker/version-check-cronjob.yaml
 
-  # If it reads webhook secrets: acceptable but document it.
-  # If it doesn't need secrets: scope down to only the resources it needs.
+  # Verify next run works by triggering manually:
+  kubectl-homelab create job version-check-test --from=cronjob/version-check -n monitoring
+  kubectl-homelab logs -n monitoring -l job-name=version-check-test -c version-check -f
+  # Expected: "Summary: X outdated, Y deprecated, Z current" (non-zero results if drift exists)
+  kubectl-homelab delete job version-check-test -n monitoring
   ```
 
-- [ ] 5.2.1.7 Verify well-scoped SAs (quick check)
-  ```bash
-  # These were verified during audit and are properly scoped:
-  # - homepage: read-only on namespaces/pods/nodes/deployments/httproutes/metrics (no secrets)
-  # - cluster-janitor: pods(get/list/delete) + longhorn replicas(get/list/delete) + volumes(get/list)
-  # - alloy: scoped Alloy-specific role
-  # - cert-manager: scoped cert-manager roles
-  # - tailscale-operator: scoped operator role
-  # No action needed — document in Security.md
-  ```
+- [x] 5.2.1.7 Verify well-scoped SAs (quick check)
+  > **✅ VERIFIED (2026-03-15):** All confirmed properly scoped.
+  > - `homepage`: namespaces/pods/nodes, deployments/statefulsets/daemonsets/replicasets,
+  >   ingresses, httproutes, metrics — read-only, **no secrets** ✅
+  > - `cluster-janitor`: pods(get/list/delete), longhorn replicas(get/list/delete),
+  >   longhorn volumes(get/list) — **no secrets** ✅
+  > - `alloy`, `cert-manager`, `tailscale-operator`: confirmed in pre-execution audit ✅
+  > No action needed — document in Security.md.
 
 ---
 
@@ -501,10 +512,10 @@ EOF
 
 ## Verification Checklist
 
-- [ ] RBAC audit complete — all ServiceAccounts reviewed
-- [ ] GitLab Runner ClusterRole decision made and documented
-- [ ] longhorn-support-bundle cluster-admin binding reviewed and documented
-- [ ] version-check-cronjob secret access investigated
+- [x] RBAC audit complete — all ServiceAccounts reviewed (2026-03-15)
+- [ ] GitLab Runner ClusterRole replaced with namespace-scoped Role (`clusterWideAccess: false` + helm upgrade + pipeline test)
+- [x] longhorn-support-bundle cluster-admin binding reviewed — accepted, document in Security.md
+- [ ] version-check-cronjob `automountServiceAccountToken: false` bug fixed (remove from pod spec, verify manual run)
 - [ ] etcd encryption at rest enabled with **secretbox** (not aescbc)
 - [ ] Encryption verified via etcdctl (see `k8s:enc:secretbox:v1:key1` prefix)
 - [ ] Encryption key backed up to 1Password
