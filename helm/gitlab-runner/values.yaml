@@ -61,9 +61,12 @@ runners:
 # RBAC - required for creating job pods
 rbac:
   create: true
-  # clusterWideAccess allows deploying to namespaces other than gitlab-runner
-  # Set to true if your CI jobs need to deploy to other namespaces
-  clusterWideAccess: true
+  # clusterWideAccess=true creates a ClusterRole (resources=* verbs=* on core API) — overly broad.
+  # false creates a namespace-scoped Role in gitlab-runner only, which is sufficient because:
+  #   - runner.kubernetes.namespace = "gitlab-runner" (all job pods created there)
+  #   - cross-namespace deployments use the gitlab-deploy SA (namespace Roles), not the runner SA
+  # Phase 5.2: changed true → false to remove cluster-wide secrets/pods CRUD
+  clusterWideAccess: false
 
 # Service account for the runner pod
 serviceAccount:

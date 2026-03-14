@@ -31,7 +31,9 @@ spec:
           labels:
             app: version-check
         spec:
-          automountServiceAccountToken: false
+          # automountServiceAccountToken must remain true (default) — Nova uses in-cluster config
+          # to read Helm release secrets (type: helm.sh/release.v1) cluster-wide for chart drift.
+          # Phase 5.0 hardening incorrectly set this to false, silently breaking Nova auth.
           serviceAccountName: version-check-cronjob
           restartPolicy: OnFailure
           securityContext:

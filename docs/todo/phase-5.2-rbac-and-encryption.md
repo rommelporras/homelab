@@ -73,8 +73,10 @@
   done
   ```
 
-- [ ] 5.2.1.3 ⛔ **Fix GitLab Runner ClusterRole — scope to namespace Role**
+- [x] 5.2.1.3 ⛔ **Fix GitLab Runner ClusterRole — scope to namespace Role**
   > **DECISION (2026-03-15):** Fix now. `rbac.clusterWideAccess: false` in Helm values.
+  > **✅ APPLIED (2026-03-15):** Helm upgrade rev 5 complete. ClusterRole deleted, namespace Role
+  > created in `gitlab-runner`. Runner pod Running 1/1. Pipeline test pending (next CI run).
   > Runner config confirms `namespace = "gitlab-runner"` — all job pods created in that namespace.
   > Switching to namespace-scoped Role removes cluster-wide secrets/pods/services CRUD.
   > Helm chart default Role for the executor covers: pods, pods/log, pods/exec, pods/attach,
@@ -111,7 +113,7 @@
   kubectl-homelab get clusterrolebinding longhorn-support-bundle -o yaml
   ```
 
-- [ ] 5.2.1.6 ⚠️ **Fix version-check-cronjob — broken Nova auth (bug from Phase 5.0)**
+- [x] 5.2.1.6 ⚠️ **Fix version-check-cronjob — broken Nova auth (bug from Phase 5.0)**
   > **BUG FOUND (2026-03-15):** `automountServiceAccountToken: false` was added during Phase 5.0
   > hardening without realizing Nova needs K8s API access to read Helm release secrets.
   >
@@ -127,6 +129,8 @@
   > Nova only reads release metadata (chart name, version) — never exposes secret values.
   >
   > **Fix:** Remove `automountServiceAccountToken: false` from the CronJob pod spec.
+  > **✅ APPLIED (2026-03-15):** Manifest updated, applied. Manual job confirmed:
+  > `Summary: 11 outdated, 0 deprecated, 6 current` — Nova authenticating and detecting drift ✅
   ```bash
   # Edit manifests/monitoring/version-checker/version-check-cronjob.yaml:
   # Remove: automountServiceAccountToken: false
@@ -513,9 +517,9 @@ EOF
 ## Verification Checklist
 
 - [x] RBAC audit complete — all ServiceAccounts reviewed (2026-03-15)
-- [ ] GitLab Runner ClusterRole replaced with namespace-scoped Role (`clusterWideAccess: false` + helm upgrade + pipeline test)
+- [x] GitLab Runner ClusterRole replaced with namespace-scoped Role (`clusterWideAccess: false` + helm upgrade rev 5)
 - [x] longhorn-support-bundle cluster-admin binding reviewed — accepted, document in Security.md
-- [ ] version-check-cronjob `automountServiceAccountToken: false` bug fixed (remove from pod spec, verify manual run)
+- [x] version-check-cronjob `automountServiceAccountToken: false` bug fixed — Nova confirmed working (11 outdated detected)
 - [ ] etcd encryption at rest enabled with **secretbox** (not aescbc)
 - [ ] Encryption verified via etcdctl (see `k8s:enc:secretbox:v1:key1` prefix)
 - [ ] Encryption key backed up to 1Password
