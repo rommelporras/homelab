@@ -1,6 +1,6 @@
 # Phase 5.1: Control Plane Hardening
 
-> **Status:** Complete — pending commit and release
+> **Status:** Complete (v0.31.0)
 > **Target:** v0.31.0
 > **Prerequisite:** Phase 5.0 (v0.30.0 — namespace & pod security in place)
 > **DevOps Topics:** API server hardening, kubelet security, audit logging, CIS compliance, certificate lifecycle
@@ -1105,7 +1105,7 @@ manifest to prevent recurrence.
 
 ## Final: Commit and Release
 
-- [ ] `/audit-security` then `/commit`
-- [ ] `/audit-docs` then `/commit`
-- [ ] `/release v0.31.0 "Control Plane Hardening"`
-- [ ] `mv docs/todo/phase-5.1-control-plane-hardening.md docs/todo/completed/`
+- [x] `/audit-security` then `/commit`
+- [x] `/audit-docs` then `/commit`
+- [x] `/release v0.31.0 "Control Plane Hardening"`
+- [x] `mv docs/todo/phase-5.1-control-plane-hardening.md docs/todo/completed/`
