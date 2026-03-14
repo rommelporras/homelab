@@ -37,6 +37,12 @@
 | v0.27.0 | Phase 4.28 | Alerting & Observability Improvements (15 new alerts, 11 Blackbox probes, smartctl-exporter, Longhorn + cert-manager ServiceMonitors, 11 Grafana dashboards) | [v0.27.0-alerting-improvements.md](v0.27.0-alerting-improvements.md) |
 | v0.28.0 | Phase 4.30 | Atuin Self-Hosted Shell History (sync server + PostgreSQL, CiliumNetworkPolicies, weekly backup, Grafana dashboard) | [v0.28.0-atuin.md](v0.28.0-atuin.md) |
 | v0.29.0 | Phase 4.29 | Vault + External Secrets Operator (HashiCorp Vault, ESO, 30 ExternalSecrets, auto-unseal, NFS snapshots) | [v0.29.0-vault-eso.md](v0.29.0-vault-eso.md) |
+| v0.30.0 | Phase 5.0 | Namespace & Pod Security (PSS labels, SA token hardening, ESO restrictions) | *Hardening — baked into existing guides* |
+| v0.31.0 | Phase 5.1 | Control Plane Hardening (CIS benchmark, audit logging, cert lifecycle) | *Hardening — baked into [v0.2.0-bootstrap.md](v0.2.0-bootstrap.md)* |
+
+> **Note:** v0.30.0+ are hardening phases that modify configs on existing components rather than
+> deploying new ones. Their settings are baked into the Ansible playbooks and kubeadm config
+> (`03-init-cluster.yml`), so a fresh rebuild from v0.2.0 forward produces hardened manifests automatically.
 
 ---
 
