@@ -66,6 +66,7 @@ Kubernetes homelab for CKA prep. 3-node HA cluster (kubeadm, Cilium CNI, Longhor
 
 ## Gotchas
 
+- **kubeadm defaults ≠ raw component defaults** — kubeadm sets `anonymous-auth: false`, `authorization.mode: Webhook`, `rotateCertificates: true` on kubelet, and `--bind-address=0.0.0.0` on controller-manager/scheduler. CIS benchmarks reference raw defaults — verify actual state before planning changes.
 - **Homepage uses kustomize** — `kubectl-homelab apply -k manifests/home/homepage/`, NOT `-f`.
 - **qBittorrent CSRF blocks HTTP probes** — use `tcpSocket`, never `httpGet`.
 - **PostgreSQL PGDATA** — set `PGDATA=/var/lib/postgresql/data/pgdata` (subdirectory). Top-level mount breaks initdb.

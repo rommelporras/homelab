@@ -4,6 +4,43 @@
 
 ---
 
+## March 15, 2026 — Control Plane Hardening (v0.31.0)
+
+### Summary
+
+CIS Kubernetes Benchmark compliance for control plane. kube-bench FAIL count reduced from 20 to 13
+(+7 PASS). Kubelet hardened on all 3 nodes, API server audit logging enabled, profiling disabled on
+API server/controller-manager/scheduler. Certificate expiry monitoring and PKI backup CronJobs deployed.
+Audit logs shipped to Loki via Alloy. All changes applied rolling (one node at a time) with lockout gates.
+
+### Changes
+
+| Change | Details |
+|--------|---------|
+| Kubelet hardening | `readOnlyPort: 0`, `protectKernelDefaults: true`, `eventRecordQPS: 5` on all 3 nodes |
+| API server profiling | `--profiling=false` on all 3 nodes |
+| API server audit logging | `--audit-log-path`, `--audit-policy-file`, `--audit-log-max*` on all 3 nodes |
+| Controller-manager | `--profiling=false` on all 3 nodes |
+| Scheduler | `--profiling=false` on all 3 nodes |
+| Audit policy | Metadata-level catch-all, RequestResponse for RBAC, Request for exec/attach/portforward |
+| Audit log shipping | Alloy DaemonSet hostPath mount → Loki (`{source="audit_log"}`) |
+| Alertmanager silences | Removed etcd/scheduler/CM silences (targets now UP). KubeProxyDown kept (Cilium). |
+| Audit alert routing | `Audit.*` added to discord-infra alertname regex |
+| Cert expiry CronJob | Weekly check with `openssl x509 -checkend`, Discord alert when <30 days |
+| PKI backup CronJob | Weekly backup to NFS (`/Kubernetes/Backups/pki/`), 90-day retention |
+| kubeadm config | Hardening baked into `03-init-cluster.yml` (rebuild-safe) |
+| Verification playbook | `09-verify-hardening.yml` for drift detection |
+
+### Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| Exclude `--anonymous-auth=false` | Breaks API server startup probes in k8s 1.35 (`/livez` returns 401). RBAC 403 is equivalent. CIS 1.2.1 is Manual/WARN. |
+| Keep `--bind-address=0.0.0.0` on CM/scheduler | Required for Prometheus scraping. CIS 1.3.7/1.4.2 accepted as intentional FAIL. |
+| Audit alerts as LogQL (not PromQL) | Requires Loki ruler (not yet enabled). Rules created, ready for deployment. |
+
+---
+
 ## March 13, 2026 — Namespace & Pod Security (v0.30.0)
 
 ### Summary

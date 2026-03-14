@@ -1,11 +1,53 @@
 ---
-tags: [homelab, kubernetes, security, pss, eso, vault, service-accounts]
-updated: 2026-03-13
+tags: [homelab, kubernetes, security, pss, eso, vault, service-accounts, cis, hardening]
+updated: 2026-03-15
 ---
 
 # Security
 
-Pod security, secrets infrastructure hardening, and service account hygiene.
+Control plane hardening, pod security, secrets infrastructure, and service account hygiene.
+
+## Control Plane Hardening (Phase 5.1)
+
+### CIS Kubernetes Benchmark Scores
+
+| Metric | Before (v0.30.0) | After (v0.31.0) |
+|--------|-------------------|------------------|
+| PASS | 51 | 58 |
+| FAIL | 20 | 13 |
+| WARN | 47 | 47 |
+
+### Applied Hardening
+
+| Component | Setting | CIS Check |
+|-----------|---------|-----------|
+| Kubelet | `readOnlyPort: 0` | 4.2.4 |
+| Kubelet | `protectKernelDefaults: true` | 4.2.6 |
+| Kubelet | `eventRecordQPS: 5` | 4.2.8 |
+| API server | `--profiling=false` | 1.2.18 |
+| API server | `--audit-log-path`, `--audit-policy-file`, `--audit-log-max*` | 1.2.16–1.2.19 |
+| Controller-manager | `--profiling=false` | 1.3.2 |
+| Scheduler | `--profiling=false` | 1.4.1 |
+
+### Intentionally Excluded
+
+| Setting | CIS Check | Reason |
+|---------|-----------|--------|
+| `--anonymous-auth=false` | 1.2.1 (WARN/Manual) | Breaks kubelet startup probes in k8s 1.35 — `/livez` returns 401 for unauthenticated requests. RBAC blocks `system:anonymous` (403) instead. Security posture equivalent. |
+| `--bind-address=127.0.0.1` (CM/scheduler) | 1.3.7, 1.4.2 | Intentionally `0.0.0.0` for Prometheus scraping. |
+| etcd data dir `etcd:etcd` ownership | 1.1.12 | etcd runs as static pod (root). Expected with kubeadm. |
+
+### Audit Logging
+
+API server audit logs write to `/var/log/kubernetes/audit/audit.log` on all 3 CP nodes. Policy excludes health probes, watch requests, and controller-manager/scheduler leader election. Secrets logged at Metadata level (who, not what). RBAC changes logged at RequestResponse level.
+
+Logs shipped to Loki via Alloy DaemonSet hostPath mount. Query with `{source="audit_log"}` in Grafana.
+
+### Certificate Lifecycle
+
+All kubeadm certs expire ~Jan 2027 (307 days from Phase 5.1 execution). CAs expire 2036. Weekly CronJob (`cert-expiry-check`) monitors expiry and alerts via Discord when <30 days remaining. PKI backed up weekly to NFS (`/Kubernetes/Backups/pki/`).
+
+Renewal: `sudo kubeadm certs renew all` on each CP node, followed by kubelet restart.
 
 ## Pod Security Standards (PSS)
 
