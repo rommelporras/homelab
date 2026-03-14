@@ -17,6 +17,12 @@
 # DaemonSet ensures one Alloy pod per node to collect all container logs
 controller:
   type: daemonset
+  volumes:
+    extra:
+      - name: audit-logs
+        hostPath:
+          path: /var/log/kubernetes/audit
+          type: DirectoryOrCreate
 
 # =============================================================================
 # Alloy Configuration
@@ -149,6 +155,33 @@ alloy:
       }
 
       // =======================================================================
+      // API Server Audit Log Collection (Phase 5.1)
+      // =======================================================================
+      // Tail audit log files from /var/log/kubernetes/audit/ (hostPath mount).
+      // Only CP nodes have audit logs — Alloy pods on workers find no file.
+      local.file_match "audit_logs" {
+        path_targets = [{"__path__" = "/var/log/kubernetes/audit/audit.log"}]
+        sync_period  = "5s"
+      }
+
+      loki.source.file "audit_logs" {
+        targets       = local.file_match.audit_logs.targets
+        forward_to    = [loki.process.audit_logs.receiver]
+        tail_from_end = true
+      }
+
+      loki.process "audit_logs" {
+        stage.static_labels {
+          values = {
+            cluster = "homelab",
+            source  = "audit_log",
+          }
+        }
+
+        forward_to = [loki.write.loki.receiver]
+      }
+
+      // =======================================================================
       // Send to Loki
       // =======================================================================
       loki.write "loki" {
@@ -156,6 +189,12 @@ alloy:
           url = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
         }
       }
+
+  mounts:
+    extra:
+      - name: audit-logs
+        mountPath: /var/log/kubernetes/audit
+        readOnly: true
 
   # Resource limits for 16GB nodes
   # Increased memory to handle events collection

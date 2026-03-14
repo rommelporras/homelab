@@ -1,0 +1,72 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cert-expiry-check
+  namespace: kube-system
+spec:
+  schedule: "0 20 * * 0"
+  timeZone: "Asia/Manila"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              effect: NoSchedule
+          automountServiceAccountToken: false
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: check-certs
+              image: alpine:3.21
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  apk add --no-cache openssl curl
+                  WARN=0
+                  THRESHOLD=$((30 * 86400))
+                  for CERT in /etc/kubernetes/pki/*.crt /etc/kubernetes/pki/etcd/*.crt; do
+                    [ -f "$CERT" ] || continue
+                    EXPIRY=$(openssl x509 -enddate -noout -in "$CERT" 2>/dev/null | cut -d= -f2)
+                    if openssl x509 -checkend "$THRESHOLD" -in "$CERT" -noout 2>/dev/null; then
+                      echo "OK: $CERT (expires $EXPIRY)"
+                    else
+                      echo "WARNING: $CERT expires within 30 days! ($EXPIRY)"
+                      WARN=1
+                    fi
+                  done
+                  if [ "$WARN" -eq 1 ] && [ -n "$DISCORD_WEBHOOK_URL" ]; then
+                    curl -H "Content-Type: application/json" \
+                      -d "{\"content\":\"kubeadm PKI certificate expiring within 30 days. Run: sudo kubeadm certs renew all\"}" \
+                      "$DISCORD_WEBHOOK_URL"
+                    exit 1
+                  fi
+              env:
+                - name: DISCORD_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: cert-expiry-discord
+                      key: webhook-url
+                      optional: true
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: 100m, memory: 128Mi }
+              volumeMounts:
+                - name: kubernetes-pki
+                  mountPath: /etc/kubernetes/pki
+                  readOnly: true
+          volumes:
+            - name: kubernetes-pki
+              hostPath:
+                path: /etc/kubernetes/pki
+          restartPolicy: Never

@@ -1,0 +1,42 @@
+apiVersion: audit.k8s.io/v1
+kind: Policy
+rules:
+  - level: None
+    nonResourceURLs:
+      - /healthz*
+      - /readyz*
+      - /livez*
+      - /metrics
+
+  - level: None
+    verbs: ["watch"]
+
+  - level: None
+    resources:
+      - group: ""
+        resources: ["endpoints", "configmaps", "leases"]
+    verbs: ["get", "update"]
+    users:
+      - system:kube-controller-manager
+      - system:kube-scheduler
+
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets"]
+
+  - level: RequestResponse
+    resources:
+      - group: "rbac.authorization.k8s.io"
+        resources: ["clusterroles", "clusterrolebindings", "roles", "rolebindings"]
+
+  - level: Request
+    resources:
+      - group: ""
+        resources: ["pods/exec", "pods/attach", "pods/portforward"]
+
+  - level: Metadata
+    stages:
+      - ResponseComplete
+    omitStages:
+      - RequestReceived

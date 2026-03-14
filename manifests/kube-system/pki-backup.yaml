@@ -1,0 +1,66 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pki-backup
+  namespace: kube-system
+spec:
+  schedule: "0 20 * * 0"
+  timeZone: "Asia/Manila"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              effect: NoSchedule
+          automountServiceAccountToken: false
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: alpine:3.21
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  BACKUP_DIR="/backup/pki-$(date +%Y%m%d-%H%M%S)"
+                  mkdir -p "$BACKUP_DIR"
+                  cp -a /etc/kubernetes/pki/* "$BACKUP_DIR/"
+                  cp /etc/kubernetes/admin.conf "$BACKUP_DIR/"
+                  echo "PKI backup created: $BACKUP_DIR"
+                  ls -la "$BACKUP_DIR/"
+                  # Prune backups older than 90 days
+                  find /backup -name "pki-*" -type d -mtime +90 -exec rm -rf {} +
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: 100m, memory: 128Mi }
+              volumeMounts:
+                - name: pki
+                  mountPath: /etc/kubernetes/pki
+                  readOnly: true
+                - name: admin-conf
+                  mountPath: /etc/kubernetes/admin.conf
+                  readOnly: true
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: pki
+              hostPath: { path: /etc/kubernetes/pki }
+            - name: admin-conf
+              hostPath:
+                path: /etc/kubernetes/admin.conf
+                type: File
+            - name: backup
+              nfs:
+                server: 10.10.30.4
+                path: /Kubernetes/Backups/pki
+          restartPolicy: Never

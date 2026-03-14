@@ -46,6 +46,23 @@
       when: not cluster_needs_init
 
     # =========================================
+    # Deploy audit policy (must exist BEFORE kubeadm init)
+    # =========================================
+    - name: Create audit log directory
+      ansible.builtin.file:
+        path: /var/log/kubernetes/audit
+        state: directory
+        mode: '0750'
+      when: cluster_needs_init
+
+    - name: Deploy audit policy file
+      ansible.builtin.copy:
+        src: audit-policy.yaml
+        dest: /etc/kubernetes/audit-policy.yaml
+        mode: '0644'
+      when: cluster_needs_init
+
+    # =========================================
     # Create kubeadm configuration
     # =========================================
     - name: Create kubeadm config file
@@ -73,9 +90,38 @@
           {% for san in cert_sans %}
               - "{{ san }}"
           {% endfor %}
+            extraArgs:
+              profiling: "false"
+              audit-log-path: /var/log/kubernetes/audit/audit.log
+              audit-policy-file: /etc/kubernetes/audit-policy.yaml
+              audit-log-maxage: "30"
+              audit-log-maxbackup: "10"
+              audit-log-maxsize: "100"
+            extraVolumes:
+              - name: audit-policy
+                hostPath: /etc/kubernetes/audit-policy.yaml
+                mountPath: /etc/kubernetes/audit-policy.yaml
+                readOnly: true
+                pathType: File
+              - name: audit-log
+                hostPath: /var/log/kubernetes/audit
+                mountPath: /var/log/kubernetes/audit
+                pathType: DirectoryOrCreate
+          controllerManager:
+            extraArgs:
+              profiling: "false"
+          scheduler:
+            extraArgs:
+              profiling: "false"
           etcd:
             local:
               dataDir: /var/lib/etcd
+          ---
+          apiVersion: kubelet.config.k8s.io/v1beta1
+          kind: KubeletConfiguration
+          readOnlyPort: 0
+          protectKernelDefaults: true
+          eventRecordQPS: 5
         dest: "{{ kubeadm_config_file }}"
         mode: '0644'
       when: cluster_needs_init

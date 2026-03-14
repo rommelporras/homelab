@@ -11,6 +11,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: invoicetron-db-backup
+  namespace: invoicetron-prod
   labels:
     app: invoicetron-db
     app.kubernetes.io/part-of: invoicetron
@@ -74,6 +75,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: invoicetron-backups
+  namespace: invoicetron-prod
   labels:
     app: invoicetron-db
     app.kubernetes.io/part-of: invoicetron

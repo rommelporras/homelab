@@ -182,26 +182,13 @@ alertmanager:
       # Sub-routes (order matters - first match wins)
       routes:
         # =================================================================
-        # SILENCED: kubeadm control plane scraping issues
-        # kubeadm binds components to 127.0.0.1, so Prometheus can't scrape
-        # The components work fine. TODO: Fix in future (docs/todo/deferred.md)
+        # SILENCED: KubeProxyDown — Cilium replaces kube-proxy (permanent)
         - match:
             alertname: KubeProxyDown
           receiver: 'null'
           continue: false
-        - match:
-            alertname: etcdInsufficientMembers
-          receiver: 'null'
-          continue: false
-        - match:
-            alertname: etcdMembersDown
-          receiver: 'null'
-          continue: false
-        - match_re:
-            alertname: TargetDown
-            job: kube-scheduler|kube-controller-manager|kube-etcd
-          receiver: 'null'
-          continue: false
+        # Removed (Phase 5.1, 2026-03-15): etcdInsufficientMembers, etcdMembersDown,
+        # TargetDown for scheduler/controller-manager/etcd — all targets now UP
 
         # =================================================================
         # SILENCED: CPU throttling in monitoring namespace
@@ -237,7 +224,7 @@ alertmanager:
         - match:
             severity: warning
           match_re:
-            alertname: '(Longhorn.*|NVMe.*|etcd.*|KubeVip.*|Certificate.*|Node.*|UPS.*|NetworkInterface.*|KubePersistent.*|SmartCTL.*|KubeApiserver.*|CPUThrottling.*|Alloy.*|Loki.*|ClusterJanitor.*|Vault.*|ESO.*)'
+            alertname: '(Longhorn.*|NVMe.*|etcd.*|KubeVip.*|Certificate.*|Node.*|UPS.*|NetworkInterface.*|KubePersistent.*|SmartCTL.*|KubeApiserver.*|CPUThrottling.*|Alloy.*|Loki.*|ClusterJanitor.*|Vault.*|ESO.*|Audit.*)'
           receiver: 'discord-infra'
           continue: false
 

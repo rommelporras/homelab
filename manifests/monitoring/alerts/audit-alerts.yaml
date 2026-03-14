@@ -1,0 +1,64 @@
+# API Server Audit Log Alert Rules (Phase 5.1)
+#
+# These are LogQL-based alert rules that require Loki ruler to be enabled.
+# Currently Loki is running in single-binary mode without ruler.
+# TODO: Enable Loki ruler and deploy these rules when ready.
+#
+# Query these in Grafana -> Explore -> Loki until ruler is enabled:
+#   {source="audit_log"} | json | objectRef_resource = "secrets"
+#   {source="audit_log"} | json | objectRef_subresource = "exec"
+#   {source="audit_log"} | json | objectRef_apiGroup = "rbac.authorization.k8s.io"
+#
+groups:
+  - name: audit-security
+    rules:
+      - alert: AuditSecretAccessByNonSystem
+        expr: |
+          count_over_time({source="audit_log"}
+            | json
+            | objectRef_resource = "secrets"
+            | user_username !~ "system:.*"
+            [5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Non-system user accessed secrets"
+
+      - alert: AuditPodExec
+        expr: |
+          count_over_time({source="audit_log"}
+            | json
+            | objectRef_subresource = "exec"
+            [5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod exec session detected"
+
+      - alert: AuditRBACChange
+        expr: |
+          count_over_time({source="audit_log"}
+            | json
+            | objectRef_apiGroup = "rbac.authorization.k8s.io"
+            | verb =~ "create|update|patch|delete"
+            [5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RBAC resource modified"
+
+      - alert: AuditHighAuthFailureRate
+        expr: |
+          count_over_time({source="audit_log"}
+            | json
+            | responseStatus_code >= 401
+            | responseStatus_code <= 403
+            [5m]) > 50
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High rate of authentication/authorization failures (>50 in 5m)"
