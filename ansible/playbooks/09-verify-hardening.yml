@@ -18,6 +18,11 @@
         grep -A2 'anonymous:' /var/lib/kubelet/config.yaml | grep -q 'enabled: false'
       changed_when: false
 
+    - name: Verify kubelet read-only port is closed
+      ansible.builtin.shell: |
+        ! curl -s --max-time 2 http://localhost:10255/pods > /dev/null 2>&1
+      changed_when: false
+
     - name: Verify API server flags
       ansible.builtin.shell: |
         grep -q 'profiling=false' /etc/kubernetes/manifests/kube-apiserver.yaml &&
@@ -25,6 +30,13 @@
         grep -q 'audit-policy-file' /etc/kubernetes/manifests/kube-apiserver.yaml
       changed_when: false
       # Note: anonymous-auth=false excluded — breaks startup probes in k8s 1.35 (see 5.1.3)
+
+    - name: Verify API server audit log rotation flags
+      ansible.builtin.shell: |
+        grep -q 'audit-log-maxage' /etc/kubernetes/manifests/kube-apiserver.yaml &&
+        grep -q 'audit-log-maxbackup' /etc/kubernetes/manifests/kube-apiserver.yaml &&
+        grep -q 'audit-log-maxsize' /etc/kubernetes/manifests/kube-apiserver.yaml
+      changed_when: false
 
     - name: Verify controller-manager profiling disabled
       ansible.builtin.shell: |
@@ -47,6 +59,12 @@
         path: /var/log/kubernetes/audit
       register: audit_dir
       failed_when: not audit_dir.stat.exists
+
+    - name: Verify audit log is being written
+      ansible.builtin.stat:
+        path: /var/log/kubernetes/audit/audit.log
+      register: audit_log
+      failed_when: not audit_log.stat.exists or audit_log.stat.size == 0
 
     - name: Verify sysctl params for protectKernelDefaults
       ansible.builtin.shell: |

@@ -32,6 +32,28 @@ immich/
 
 ---
 
+## Loki Ruler for LogQL Alerts
+
+**Status:** Deferred — waiting for a phase that touches Loki/monitoring architecture
+**Priority:** Medium
+**Added:** 2026-03-15 (Phase 5.1)
+
+Audit alert rules exist at `manifests/monitoring/alerts/audit-alerts.yaml` (LogQL-based) but
+cannot fire because Loki is running in single-binary mode without the ruler component.
+
+**What's needed:**
+- Enable Loki ruler in Helm values (`loki.ruler.enabled: true`)
+- Configure ruler storage (local filesystem or object storage for rule state)
+- Deploy the audit-alerts.yaml rules to Loki ruler
+- Verify alerts fire (trigger a `kubectl exec` and confirm `AuditPodExec` fires)
+
+**Manual queries work now** — `{source="audit_log"} | json` in Grafana Explore.
+The gap is only automated alerting.
+
+**When:** Next time Loki is upgraded or monitoring architecture is revisited.
+
+---
+
 ## Firmware Updates (Low Priority)
 
 **Status:** Deferred - requires physical access (HDMI, keyboard)

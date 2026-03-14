@@ -39,7 +39,7 @@
   |---------|---------|-----|
   | `version-check` (monitoring) | `Etc/UTC` | Change to `Asia/Manila`, adjust cron to `0 0 * * 0` (midnight PHT) |
   | `configarr` (arr-stack) | not set (defaults to controller TZ) | Add `timeZone: "Asia/Manila"` |
-  | `invoicetron-db-backup` (invoicetron-prod) | not set | Add `timeZone: "Asia/Manila"` |
+  | ~~`invoicetron-db-backup`~~ | ~~not set~~ | ~~Fixed in Phase 5.0 (has `Asia/Manila`)~~ |
 
   ```bash
   # Verify after fix

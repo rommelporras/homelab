@@ -164,10 +164,24 @@ helm upgrade prometheus oci://ghcr.io/prometheus-community/charts/kube-prometheu
 echo ""
 echo -e "${GREEN}Helm upgrade complete!${NC}"
 
-# Wait for rollout
+# Force Alertmanager restart to guarantee config reload
+# Helm upgrade may not restart the pod if only the config Secret/ConfigMap changed
+# (StatefulSet spec unchanged = no rollout). Without this, Alertmanager serves stale config.
 echo ""
-echo -e "${YELLOW}Waiting for Alertmanager rollout...${NC}"
+echo -e "${YELLOW}Restarting Alertmanager to pick up new config...${NC}"
+$KUBECTL -n monitoring rollout restart statefulset/alertmanager-prometheus-kube-prometheus-alertmanager
 $KUBECTL -n monitoring rollout status statefulset/alertmanager-prometheus-kube-prometheus-alertmanager --timeout=120s
+
+# Verify config was loaded successfully
+echo ""
+echo -e "${YELLOW}Verifying Alertmanager config loaded...${NC}"
+sleep 5
+if $KUBECTL -n monitoring logs -l app.kubernetes.io/name=alertmanager --tail=5 2>/dev/null | grep -q "Completed loading of configuration file"; then
+    echo -e "${GREEN}Alertmanager config loaded successfully${NC}"
+else
+    echo -e "${RED}WARNING: Could not confirm Alertmanager config load — check logs manually${NC}"
+    echo "  kubectl -n monitoring logs -l app.kubernetes.io/name=alertmanager --tail=20"
+fi
 
 echo ""
 echo -e "${GREEN}=== Upgrade Complete ===${NC}"

@@ -30,6 +30,7 @@ Audit logs shipped to Loki via Alloy. All changes applied rolling (one node at a
 | PKI backup CronJob | Weekly backup to NFS (`/Kubernetes/Backups/pki/`), 90-day retention |
 | kubeadm config | Hardening baked into `03-init-cluster.yml` (rebuild-safe) |
 | Verification playbook | `09-verify-hardening.yml` for drift detection |
+| Fix: invoicetron backup namespace | Added `namespace: invoicetron-prod` to manifest — duplicate CronJob was accidentally deployed to `default` during Phase 5.0 |
 
 ### Decisions
 
