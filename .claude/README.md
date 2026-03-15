@@ -147,11 +147,18 @@ PATCH: Bug fixes, documentation updates
 
 Project hook (`.claude/hooks/protect-sensitive.sh`):
 
-**Blocks (exit 2):**
+**protect-sensitive.sh blocks (exit 2):**
 - Edits to k8s-sensitive files: `kubeconfig`, `.kube/config`, `admin.conf`, `secrets.yaml`, `secret.yaml`, `.key`, `.crt`, `ssh_host`, `etcd-snapshot`, `encryption-config`, `serviceAccountKey`
 - Mass kubectl delete across namespaces (`kubectl delete --all` with `-A` or `namespace`)
-- `kubectl get secret -o json/yaml/jsonpath` — exposes base64-encoded secret values
-- `kubectl describe secret` — exposes base64-decoded values in Data section
+- `kubectl get secret -o json/yaml/jsonpath` - exposes base64-encoded secret values
+- `kubectl describe secret` - exposes base64-decoded values in Data section
+
+**block-git-operations.sh blocks (exit 2):**
+- `git add`, `git commit`, `git tag`, `git push` - must use `/commit` or `/release`
+- `gh release create`, `gh release delete` - must use `/release`
+- `rm -rf` / `rm -r` (recursive delete) - must run manually
+
+Skills bypass via lock files: `/commit` creates `/tmp/.claude-skill-commit`, `/release` creates `/tmp/.claude-skill-release`. Hook allows git/gh commands when lock file exists.
 
 **Warns (non-blocking):**
 - Editing YAML files containing `kind: Secret`

@@ -12,6 +12,12 @@ Create version tag, push commits and tag, and create GitHub release.
 
 ## Instructions
 
+0. **Acquire Skill Lock**
+   ```bash
+   touch /tmp/.claude-skill-release
+   ```
+   This allows git/gh commands to pass the `block-git-operations.sh` hook. Clean up in step 9.
+
 1. **Check Current State**
    ```bash
    git branch --show-current   # Must be on main
@@ -89,7 +95,7 @@ Create version tag, push commits and tag, and create GitHub release.
    - If stale: **WARN** "VERSIONS.md last updated on <date>. Should it be updated before release?"
 
    **CHANGELOG check** — this project's changelog is at `docs/reference/CHANGELOG.md` (not a root CHANGELOG.md).
-   The format is: `## Month DD, YYYY — Title (vX.X.X)`
+   The format is: `## Month DD, YYYY - Title (vX.X.X)` (regular hyphen, NOT em dash)
    ```bash
    grep "v<VERSION>" docs/reference/CHANGELOG.md
    ```
@@ -198,6 +204,12 @@ Create version tag, push commits and tag, and create GitHub release.
    ```
 
 9. **Report Results**
+
+   Clean up the skill lock:
+   ```bash
+   rm -f /tmp/.claude-skill-release
+   ```
+
    ```
    Release Complete:
    - Version: v<VERSION>
@@ -296,4 +308,6 @@ Full details: [CHANGELOG](https://github.com/rommelporras/homelab/blob/main/docs
 - Always use annotated tags (`git tag -a`)
 - First release defaults to v0.1.0
 - Release notes should explain "what's in this release" not just list commits
-- **Title format:** Always `v<VERSION> - <Short Title>` — regular hyphen (`-`), NEVER em dash (`—`). Keep titles concise (2-4 words).
+- **Title format:** Always `v<VERSION> - <Short Title>` with a regular hyphen (`-`), NEVER em dash. Keep titles concise (2-4 words).
+- **No em dashes anywhere** - not in tag annotations, release notes, commit messages, or any generated text. Use regular hyphens or rewrite the sentence. Em dashes are an AI writing signal.
+- **Never run git/gh commands outside this skill** - `git tag`, `git push`, `gh release create` must only run inside `/release` execution, never ad-hoc.
