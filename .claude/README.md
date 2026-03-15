@@ -150,6 +150,8 @@ Project hook (`.claude/hooks/protect-sensitive.sh`):
 **Blocks (exit 2):**
 - Edits to k8s-sensitive files: `kubeconfig`, `.kube/config`, `admin.conf`, `secrets.yaml`, `secret.yaml`, `.key`, `.crt`, `ssh_host`, `etcd-snapshot`, `encryption-config`, `serviceAccountKey`
 - Mass kubectl delete across namespaces (`kubectl delete --all` with `-A` or `namespace`)
+- `kubectl get secret -o json/yaml/jsonpath` — exposes base64-encoded secret values
+- `kubectl describe secret` — exposes base64-decoded values in Data section
 
 **Warns (non-blocking):**
 - Editing YAML files containing `kind: Secret`

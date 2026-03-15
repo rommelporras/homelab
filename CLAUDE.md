@@ -46,13 +46,16 @@ Kubernetes homelab for CKA prep. 3-node HA cluster (kubeadm, Cilium CNI, Longhor
 - **1Password vault:** `Kubernetes` only. Format: `op://Kubernetes/<item>/<field>`. Full inventory: `docs/context/Secrets.md`.
 - **1Password plan is FAMILY** — Connect is NOT available (requires Business/Teams).
 - **Never run `op` commands** — this terminal has no `op` access. Includes `op read`, `op item create/edit`.
-- **Never write or read secret values** — no `kubectl create secret` with literal values, no `kubectl get secret -o json/yaml`, no `kubectl describe secret`. Values would flow through Anthropic's servers. To check existence: `kubectl-homelab get secret <name> -n <ns>` (no `-o json`).
+- **Never write or read secret values** — no `kubectl create secret` with literal values, no `kubectl get secret -o json/yaml`, no `kubectl describe secret`. Values would flow through Anthropic's servers. To check existence: `kubectl-homelab get secret <name> -n <ns>` (no `-o json`). Note: `kubectl-homelab` RBAC blocks `get` on secrets — enforcement is technical, not just policy.
 - **Safe automation pattern:** generate scripts with `op://` references, user runs in safe terminal. Never design workflows where Claude sees credential values.
 
 ## Rules
 
-- **Use `kubectl-homelab` and `helm-homelab`** — plain `kubectl`/`helm` connect to work AWS EKS. Aliases use `~/.kube/homelab.yaml`.
-- **`kubectl-homelab` is zsh-only** — scripts must use `kubectl --kubeconfig ~/.kube/homelab.yaml`.
+- **Use `kubectl-homelab` and `helm-homelab`** — plain `kubectl`/`helm` connect to work AWS EKS.
+  - `kubectl-homelab` → `~/.kube/homelab-claude.yaml` (restricted: read-only, no secret `get`)
+  - `kubectl-admin` → `~/.kube/homelab.yaml` (full cluster-admin — use only when write access needed)
+  - `helm-homelab` → uses `~/.kube/homelab.yaml` (Helm needs admin access for installs/upgrades)
+- **`kubectl-homelab` is zsh-only** — scripts that need admin access must use `kubectl --kubeconfig ~/.kube/homelab.yaml`.
 - **Verify container images before deploying** — check the registry for the exact tag. Many images drop version tags without notice.
 - **PUBLIC repository** — security review before every commit. Once pushed, secrets cannot be revoked.
 - **GitLab is the primary remote** — use `glab` CLI with `--hostname gitlab.k8s.rommelporras.com` for API calls.

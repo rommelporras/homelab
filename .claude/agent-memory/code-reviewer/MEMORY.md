@@ -6,6 +6,9 @@ Kubernetes homelab infrastructure repo (public). 3-node HA cluster (kubeadm, Cil
 ## Critical Review Checks
 - **No secrets in code** — repo is PUBLIC. Scan for IPs (10.10.30.x are fine), passwords, tokens, API keys
 - **Use `kubectl-homelab` / `helm-homelab`** — plain `kubectl`/`helm` connects to work AWS EKS
+  - `kubectl-homelab` → restricted kubeconfig (read-only, no secret `get`) — Phase 5.2
+  - `kubectl-admin` → full admin kubeconfig — valid alias, not a violation
+  - Scripts needing admin: `kubectl --kubeconfig ~/.kube/homelab.yaml` is correct
 - **NFS paths must use NFSv4 format** — `/Kubernetes/...` not `/export/Kubernetes/...` (OMV pseudo-root has fsid=0)
 - **Timezone must be `Asia/Manila`** — never UTC or America/Chicago for user-facing configs
 - **Image versions must be pinned** — no `latest` tags in manifests or Helm values

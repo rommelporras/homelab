@@ -63,6 +63,30 @@
       when: cluster_needs_init
 
     # =========================================
+    # Deploy encryption config (must exist BEFORE kubeadm init)
+    # Key passed at runtime: --extra-vars "etcd_encryption_key=$(op read 'op://Kubernetes/etcd Encryption Key/password')"
+    # =========================================
+    - name: Deploy etcd encryption config
+      ansible.builtin.copy:
+        content: |
+          apiVersion: apiserver.config.k8s.io/v1
+          kind: EncryptionConfiguration
+          resources:
+            - resources:
+                - secrets
+              providers:
+                - secretbox:
+                    keys:
+                      - name: key1
+                        secret: {{ etcd_encryption_key }}
+                - identity: {}
+        dest: /etc/kubernetes/encryption-config.yaml
+        mode: '0600'
+        owner: root
+        group: root
+      when: cluster_needs_init
+
+    # =========================================
     # Create kubeadm configuration
     # =========================================
     - name: Create kubeadm config file
@@ -97,6 +121,7 @@
               audit-log-maxage: "30"
               audit-log-maxbackup: "10"
               audit-log-maxsize: "100"
+              encryption-provider-config: /etc/kubernetes/encryption-config.yaml
             extraVolumes:
               - name: audit-policy
                 hostPath: /etc/kubernetes/audit-policy.yaml
@@ -107,6 +132,11 @@
                 hostPath: /var/log/kubernetes/audit
                 mountPath: /var/log/kubernetes/audit
                 pathType: DirectoryOrCreate
+              - name: encryption-config
+                hostPath: /etc/kubernetes/encryption-config.yaml
+                mountPath: /etc/kubernetes/encryption-config.yaml
+                readOnly: true
+                pathType: File
           controllerManager:
             extraArgs:
               profiling: "false"

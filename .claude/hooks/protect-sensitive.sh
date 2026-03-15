@@ -56,6 +56,22 @@ fi
 
 if [[ "$TOOL" == "Bash" && -n "$COMMAND" ]]; then
 
+  # Block kubectl get secret[s] -o json/yaml/jsonpath (exposes base64-encoded values)
+  # Catches: kubectl get secret, kubectl get secrets, kubectl --kubeconfig ... get secret, etc.
+  if echo "$COMMAND" | grep -qE 'kubectl.*\bget\b.*\bsecrets?\b' && \
+     echo "$COMMAND" | grep -qE '\-o[= ]*(json|yaml|jsonpath)'; then
+    echo "BLOCKED: 'kubectl get secret -o json/yaml' exposes secret values." >&2
+    echo "   Use 'kubectl get secrets' (no -o flag) to list names only." >&2
+    exit 2
+  fi
+
+  # Block kubectl describe secret[s] (shows base64-decoded values in Data section)
+  if echo "$COMMAND" | grep -qE 'kubectl.*\bdescribe\b.*\bsecrets?\b'; then
+    echo "BLOCKED: 'kubectl describe secret' exposes base64-decoded values." >&2
+    echo "   Use 'kubectl get secrets' (no -o flag) to list names only." >&2
+    exit 2
+  fi
+
   # Block mass-deletion across namespaces
   if [[ "$COMMAND" == *"kubectl delete"*"--all"* ]]; then
     if [[ "$COMMAND" == *"namespace"* || "$COMMAND" == *"-A"* ]]; then
