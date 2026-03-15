@@ -160,140 +160,450 @@
 
 By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd access can read all secrets. `EncryptionConfiguration` encrypts them at rest.
 
-> **⚠️ CORRECTED:** Plan originally used `aescbc`. Kubernetes docs state aescbc is "not recommended
-> due to CBC's vulnerability to padding oracle attacks." Changed to `secretbox` (XSalsa20-Poly1305),
-> which is stronger, faster, and recommended for new deployments.
+> **Encryption provider:** `secretbox` (XSalsa20-Poly1305). k8s docs: aescbc is "not recommended
+> due to CBC's vulnerability to padding oracle attacks." Verified from k8s GitHub source.
+
+> **Execution audit corrections (2026-03-15):**
+> - ⛔ `sh` is NOT available in etcd:3.6.6-0 — pre-execution audit was wrong. Use `etcdctl` directly (no `sh -c`)
+> - ⛔ StorageVersionMigration API is NOT available on this cluster — must use `kubectl replace` for re-encryption
+> - ⛔ Re-encryption (`kubectl get secrets -A -o json`) pipes ALL secret data through terminal — user must run manually
+> - ⛔ etcd snapshot save works: 104 MB, takes ~700ms. Save to `/var/lib/etcd/` (hostPath mounted)
+> - ✅ etcdctl is available in pod (just not `sh` — exec `etcdctl` directly)
+> - ✅ All 3 etcd members healthy and started
+> - ✅ API server manifest pattern from Phase 5.1 confirmed (audit-policy volume/mount)
 
 > **Rolling update strategy:**
-> - etcd encryption requires adding `--encryption-provider-config` to the API server manifest on all 3 CP nodes
-> - This requires a rolling restart: CP1 → 5-min soak → verify → CP2 → 5-min soak → verify → CP3
-> - Same safety model as Phase 5.1 (always 2/3 nodes healthy)
-> - The EncryptionConfiguration file must be created on ALL 3 nodes BEFORE adding the API server flag on any node
-> - After all 3 API servers have the flag, re-encrypt all existing secrets
-> - **Phase 5.1 pattern:** No scp between nodes — create files directly on each node via SSH from WSL
-> - **Phase 5.1 pattern:** Static pod restart takes ~30-45s. Monitor with `crictl ps` on the node.
+> - Create EncryptionConfiguration on ALL 3 nodes BEFORE modifying any API server manifest
+> - Rolling restart: CP1 → verification gate → 5-min soak → CP2 → gate → soak → CP3
+> - Always 2/3 nodes healthy (same safety model as Phase 5.1)
+> - No scp between nodes — create files directly on each node via SSH from WSL
+> - Static pod restart takes ~30-45s. Monitor with `crictl ps` on the node.
 
-- [ ] 5.2.2.1 Create EncryptionConfiguration on all 3 control plane nodes
+### 5.2.2.0 Pre-flight checks
+
+- [ ] 5.2.2.0a Record baseline cluster state
   ```bash
-  # Generate encryption key (run once, use same key on all nodes)
-  # secretbox requires a 32-byte key, base64-encoded
-  ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64)
-  echo "Save this key securely: $ENCRYPTION_KEY"
+  # Run from Claude Code — captures health state to compare against after changes
+  kubectl-homelab get nodes -o wide
+  kubectl-homelab get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded
+  kubectl-homelab get events -A --sort-by='.lastTimestamp' | tail -20
+  ```
 
-  # Create config file on each CP node via SSH from WSL (no scp between nodes!)
-  # Path: /etc/kubernetes/encryption-config.yaml
-  # /etc/kubernetes/ is writable (drwxrwxr-x) on all nodes — verified
+- [ ] 5.2.2.0b Verify etcd cluster health
+  ```bash
+  # Must use etcdctl directly — NO sh wrapper (distroless, sh not in PATH)
+  ETCD_POD=$(kubectl-homelab get pods -n kube-system -l component=etcd \
+    -o jsonpath='{.items[0].metadata.name}')
+
+  kubectl-homelab exec -n kube-system "$ETCD_POD" -- \
+    etcdctl endpoint health \
+      --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+      --cert=/etc/kubernetes/pki/etcd/server.crt \
+      --key=/etc/kubernetes/pki/etcd/server.key
+  # Expected: "127.0.0.1:2379 is healthy"
+
+  kubectl-homelab exec -n kube-system "$ETCD_POD" -- \
+    etcdctl member list \
+      --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+      --cert=/etc/kubernetes/pki/etcd/server.crt \
+      --key=/etc/kubernetes/pki/etcd/server.key \
+      --write-out=table
+  # Expected: 3 members, all "started"
+  ```
+
+- [ ] 5.2.2.0c Take etcd snapshot (pre-flight backup)
+  ```bash
+  # Save snapshot inside etcd pod to /var/lib/etcd (hostPath → persists on node)
+  kubectl-homelab exec -n kube-system etcd-k8s-cp1 -- \
+    etcdctl snapshot save /var/lib/etcd/pre-encryption-snapshot.db \
+      --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+      --cert=/etc/kubernetes/pki/etcd/server.crt \
+      --key=/etc/kubernetes/pki/etcd/server.key
+  # Expected: "Snapshot saved at /var/lib/etcd/pre-encryption-snapshot.db" (~104 MB)
+
+  # Verify snapshot exists on CP1's filesystem
+  ssh wawashi@10.10.30.11 "ls -lh /var/lib/etcd/pre-encryption-snapshot.db"
+  ```
+
+- [ ] 5.2.2.0d Back up API server manifests on all 3 nodes
+  ```bash
   for node in 11 12 13; do
-    ssh wawashi@10.10.30.$node "sudo tee /etc/kubernetes/encryption-config.yaml" <<EOF
-apiVersion: apiserver.config.k8s.io/v1
-kind: EncryptionConfiguration
-resources:
-  - resources:
-      - secrets
-    providers:
-      - secretbox:
-          keys:
-            - name: key1
-              secret: ${ENCRYPTION_KEY}
-      - identity: {}
-EOF
-    # Lock down permissions (only root should read the key)
+    echo "=== k8s-cp$((node-10)) ==="
+    ssh wawashi@10.10.30.$node \
+      "sudo cp /etc/kubernetes/manifests/kube-apiserver.yaml \
+               /etc/kubernetes/kube-apiserver.yaml.pre-encryption-backup"
+    ssh wawashi@10.10.30.$node \
+      "ls -la /etc/kubernetes/kube-apiserver.yaml.pre-encryption-backup"
+  done
+  ```
+
+### 5.2.2.1 Generate and deploy encryption key
+
+> **⚠️ CLAUDE CODE MUST NOT RUN THIS STEP.**
+> The encryption key must never flow through this terminal. Generate the script
+> for the user to run in their safe terminal.
+
+- [ ] 5.2.2.1a Generate deployment script for user
+  ```bash
+  # Claude Code generates this script as a file, user runs it manually.
+  # The script:
+  #   1. Generates a 32-byte secretbox key
+  #   2. Deploys encryption-config.yaml to all 3 CP nodes
+  #   3. Sets permissions to 600 (root only)
+  #   4. Verifies file exists and checksums match on all 3 nodes
+  #   5. Prints the 1Password backup command
+  #
+  # Script path: /tmp/deploy-encryption-config.sh
+  # User runs: bash /tmp/deploy-encryption-config.sh
+  ```
+
+  Script content:
+  ```bash
+  #!/bin/bash
+  set -euo pipefail
+
+  # Generate encryption key
+  ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64)
+  echo "Generated encryption key (save this in 1Password):"
+  echo "  $ENCRYPTION_KEY"
+  echo ""
+
+  # Deploy to all 3 CP nodes
+  for node in 11 12 13; do
+    echo "=== Deploying to k8s-cp$((node-10)) (10.10.30.$node) ==="
+    ssh wawashi@10.10.30.$node "sudo tee /etc/kubernetes/encryption-config.yaml > /dev/null" <<EOFCONFIG
+  apiVersion: apiserver.config.k8s.io/v1
+  kind: EncryptionConfiguration
+  resources:
+    - resources:
+        - secrets
+      providers:
+        - secretbox:
+            keys:
+              - name: key1
+                secret: ${ENCRYPTION_KEY}
+        - identity: {}
+  EOFCONFIG
     ssh wawashi@10.10.30.$node "sudo chmod 600 /etc/kubernetes/encryption-config.yaml"
+    echo "  Done."
   done
 
-  # Verify file exists and has correct permissions on all nodes
+  echo ""
+  echo "=== Verifying checksums ==="
+  for node in 11 12 13; do
+    CHECKSUM=$(ssh wawashi@10.10.30.$node "sudo sha256sum /etc/kubernetes/encryption-config.yaml")
+    echo "  k8s-cp$((node-10)): $CHECKSUM"
+  done
+
+  echo ""
+  echo "⚠️  Verify all 3 checksums above are IDENTICAL."
+  echo ""
+  echo "=== Back up key to 1Password ==="
+  echo "Run this command:"
+  echo "  op item create --vault=Kubernetes --title='etcd Encryption Key' \\"
+  echo "    --category=password password='$ENCRYPTION_KEY'"
+  ```
+
+- [ ] 5.2.2.1b Verify encryption config deployed (Claude Code can verify — no key in output)
+  ```bash
+  # Verify files exist with correct permissions (doesn't show key content)
   for node in 11 12 13; do
     echo "=== k8s-cp$((node-10)) ==="
     ssh wawashi@10.10.30.$node "sudo ls -la /etc/kubernetes/encryption-config.yaml"
   done
-  ```
-  > **⚠️ IMPORTANT:** The encryption key will be visible in the terminal. Run this in a secure
-  > terminal, not through Claude Code. Generate the op item create command for the user.
 
-- [ ] 5.2.2.2 Update kube-apiserver on all 3 CP nodes (rolling)
+  # Verify checksums match across all nodes (checksums are safe to see)
+  for node in 11 12 13; do
+    ssh wawashi@10.10.30.$node "sudo sha256sum /etc/kubernetes/encryption-config.yaml"
+  done
+  # ⛔ STOP if checksums don't match — investigate before proceeding
+  ```
+
+### 5.2.2.2 Rolling API server manifest update
+
+> **Per-node procedure:** Edit manifest → wait ~45s → verify API server restarted →
+> verify all 3 nodes Ready → verify etcd healthy → verify no error events → wait 5 min → next node
+
+- [ ] 5.2.2.2a Edit API server manifest on CP1
   ```bash
-  # Rolling update: CP1 → verify → CP2 → verify → CP3
-  # Each node: edit manifest, wait for restart, verify health
-  #
-  # Add to spec.containers[0].command:
-  #   --encryption-provider-config=/etc/kubernetes/encryption-config.yaml
-  #
-  # Add volumeMount (same pattern as audit-policy from Phase 5.1):
-  #   - mountPath: /etc/kubernetes/encryption-config.yaml
-  #     name: encryption-config
-  #     readOnly: true
-  #
-  # Add volume:
-  #   - hostPath:
-  #       path: /etc/kubernetes/encryption-config.yaml
-  #       type: File
-  #     name: encryption-config
-  #
-  # ⚠️ Use Python yaml.safe_load/yaml.dump to edit (Phase 5.1 pattern) — not sed/vi
-  # ⚠️ Static pod restart takes ~30-45s. Check with: sudo crictl ps --name kube-apiserver
-  # ⚠️ After restart, verify: kubectl-homelab get nodes (all 3 Ready)
-  # ⚠️ Wait 5 minutes and check events before proceeding to next node
+  # Python script to add encryption config (same pattern as Phase 5.1 audit-policy)
+  ssh wawashi@10.10.30.11 "sudo python3 -c \"
+import yaml
+
+with open('/etc/kubernetes/manifests/kube-apiserver.yaml') as f:
+    manifest = yaml.safe_load(f)
+
+# Add --encryption-provider-config flag
+cmd = manifest['spec']['containers'][0]['command']
+flag = '--encryption-provider-config=/etc/kubernetes/encryption-config.yaml'
+if flag not in cmd:
+    cmd.append(flag)
+    print(f'Added: {flag}')
+else:
+    print(f'Already present: {flag}')
+
+# Add volumeMount
+vmounts = manifest['spec']['containers'][0]['volumeMounts']
+vm_entry = {
+    'mountPath': '/etc/kubernetes/encryption-config.yaml',
+    'name': 'encryption-config',
+    'readOnly': True
+}
+if not any(vm.get('name') == 'encryption-config' for vm in vmounts):
+    vmounts.append(vm_entry)
+    print('Added volumeMount: encryption-config')
+else:
+    print('volumeMount already present')
+
+# Add volume
+vols = manifest['spec']['volumes']
+vol_entry = {
+    'hostPath': {'path': '/etc/kubernetes/encryption-config.yaml', 'type': 'File'},
+    'name': 'encryption-config'
+}
+if not any(v.get('name') == 'encryption-config' for v in vols):
+    vols.append(vol_entry)
+    print('Added volume: encryption-config')
+else:
+    print('volume already present')
+
+with open('/etc/kubernetes/manifests/kube-apiserver.yaml', 'w') as f:
+    yaml.dump(manifest, f, default_flow_style=False, sort_keys=False)
+
+print('Manifest updated. API server will restart automatically.')
+\""
   ```
 
-- [ ] 5.2.2.3 Re-encrypt all existing secrets
+- [ ] 5.2.2.2b Verify CP1 API server restarted and healthy
   ```bash
-  # 126 secrets total (38 have ownerReferences — these are ESO-managed and safe to replace)
-  # No immutable secrets — verified
-  #
-  # Re-encrypt all secrets so they use the new encryption provider:
-  kubectl-homelab get secrets -A -o json | kubectl-homelab replace -f -
-  #
-  # ⚠️ RISK: This is a heavy operation touching 126 secrets.
-  # ownerReferences won't cause issues — replace doesn't change metadata.
-  # If any secret fails, it will show in the output — investigate individually.
-  #
-  # Alternative (safer, available in k8s 1.30+):
-  # Use StorageVersionMigration API to trigger server-side re-encryption
-  # https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#configure-automatic-reloading
-  # Evaluate during execution which approach is better.
+  # Wait for restart (~45s), then verify
+  sleep 45
+
+  # Check API server container is running on CP1
+  ssh wawashi@10.10.30.11 "sudo crictl ps --name kube-apiserver"
+  # Expected: kube-apiserver RUNNING, age < 1 minute
+
+  # Check all 3 nodes are Ready
+  kubectl-homelab get nodes
+  # Expected: all 3 Ready
+
+  # Check etcd health
+  kubectl-homelab exec -n kube-system etcd-k8s-cp1 -- \
+    etcdctl endpoint health \
+      --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+      --cert=/etc/kubernetes/pki/etcd/server.crt \
+      --key=/etc/kubernetes/pki/etcd/server.key
+
+  # Check for error events
+  kubectl-homelab get events -n kube-system --sort-by='.lastTimestamp' \
+    --field-selector=type=Warning | tail -10
+
+  # ⛔ STOP if any node NotReady, API server not running, or etcd unhealthy
+  # ⛔ ROLLBACK: restore backup manifest on CP1 (see Rollback section)
+  echo "CP1 healthy. Wait 5 minutes before proceeding to CP2..."
   ```
 
-- [ ] 5.2.2.4 Verify encryption works
+- [ ] 5.2.2.2c Wait 5-minute soak for CP1
+  ```bash
+  # After 5 minutes, re-verify before moving to CP2
+  kubectl-homelab get nodes
+  kubectl-homelab get pods -n kube-system | grep -E "apiserver|etcd"
+  # All Running, 0 restarts since the intentional restart
+  ```
+
+- [ ] 5.2.2.2d Edit CP2 manifest, verify, and soak
+  ```bash
+  # Same Python script as CP1, targeting CP2
+  ssh wawashi@10.10.30.12 "sudo python3 -c \"
+import yaml
+
+with open('/etc/kubernetes/manifests/kube-apiserver.yaml') as f:
+    manifest = yaml.safe_load(f)
+
+cmd = manifest['spec']['containers'][0]['command']
+flag = '--encryption-provider-config=/etc/kubernetes/encryption-config.yaml'
+if flag not in cmd:
+    cmd.append(flag)
+
+vmounts = manifest['spec']['containers'][0]['volumeMounts']
+vm_entry = {'mountPath': '/etc/kubernetes/encryption-config.yaml', 'name': 'encryption-config', 'readOnly': True}
+if not any(vm.get('name') == 'encryption-config' for vm in vmounts):
+    vmounts.append(vm_entry)
+
+vols = manifest['spec']['volumes']
+vol_entry = {'hostPath': {'path': '/etc/kubernetes/encryption-config.yaml', 'type': 'File'}, 'name': 'encryption-config'}
+if not any(v.get('name') == 'encryption-config' for v in vols):
+    vols.append(vol_entry)
+
+with open('/etc/kubernetes/manifests/kube-apiserver.yaml', 'w') as f:
+    yaml.dump(manifest, f, default_flow_style=False, sort_keys=False)
+print('CP2 manifest updated.')
+\""
+
+  # Then: sleep 45, crictl check, kubectl get nodes, etcd health, events, 5-min soak
+  # Same verification steps as CP1 (5.2.2.2b + 5.2.2.2c)
+  ```
+
+- [ ] 5.2.2.2e Edit CP3 manifest, verify, and soak
+  ```bash
+  # Same Python script targeting CP3 (10.10.30.13)
+  # Same verification steps
+  # After CP3: all 3 API servers now have --encryption-provider-config
+  ```
+
+- [ ] 5.2.2.2f Final verification — all 3 API servers have encryption config
+  ```bash
+  # Confirm the flag is present on all 3 nodes
+  for node in 11 12 13; do
+    echo "=== k8s-cp$((node-10)) ==="
+    ssh wawashi@10.10.30.$node \
+      "sudo grep 'encryption-provider-config' /etc/kubernetes/manifests/kube-apiserver.yaml"
+  done
+  # Expected: all 3 show --encryption-provider-config=/etc/kubernetes/encryption-config.yaml
+
+  # Final health check
+  kubectl-homelab get nodes
+  kubectl-homelab get pods -n kube-system | grep -E "apiserver|etcd"
+  ```
+
+### 5.2.2.3 Verify encryption works
+
+- [ ] 5.2.2.3a Create test secret and verify in etcd
   ```bash
   # Create a test secret
   kubectl-homelab create secret generic encryption-test \
     -n default --from-literal=test=encrypted-value
 
-  # VERIFIED: etcdctl 3.6.6 IS available in etcd pod
-  # ⛔ CORRECTED: hexdump is NOT available (distroless image)
-  # Use raw etcdctl output instead — look for "k8s:enc:secretbox:v1:key1" prefix
+  # Read directly from etcd — NO sh wrapper (distroless image, sh not in PATH)
   ETCD_POD=$(kubectl-homelab get pods -n kube-system -l component=etcd \
     -o jsonpath='{.items[0].metadata.name}')
 
-  # Read directly from etcd — output should show encrypted prefix, not plaintext
-  kubectl-homelab exec -n kube-system "$ETCD_POD" -- sh -c \
-    "ETCDCTL_API=3 etcdctl get /registry/secrets/default/encryption-test \
+  kubectl-homelab exec -n kube-system "$ETCD_POD" -- \
+    etcdctl get /registry/secrets/default/encryption-test \
       --cacert=/etc/kubernetes/pki/etcd/ca.crt \
       --cert=/etc/kubernetes/pki/etcd/server.crt \
-      --key=/etc/kubernetes/pki/etcd/server.key" 2>&1
+      --key=/etc/kubernetes/pki/etcd/server.key \
+      --print-value-only 2>&1 | head -5
 
-  # Expected: binary data with "k8s:enc:secretbox:v1:key1" prefix visible
-  # If you see plaintext "encrypted-value" → encryption is NOT working
+  # Expected: binary data starting with "k8s:enc:secretbox:v1:key1"
+  # ⛔ FAIL if you see plaintext "encrypted-value" — encryption NOT working
 
   kubectl-homelab delete secret encryption-test -n default
   ```
 
-- [ ] 5.2.2.5 Back up encryption key to 1Password
+### 5.2.2.4 Re-encrypt all existing secrets
+
+> **⚠️ CLAUDE CODE MUST NOT RUN THIS STEP.**
+> `kubectl get secrets -A -o json` outputs ALL secret data through the terminal.
+> StorageVersionMigration is NOT available on this cluster (verified).
+> The user must run this in their safe terminal.
+
+- [ ] 5.2.2.4a Generate re-encryption script for user
   ```bash
-  # IMPORTANT: Do NOT run this command — generate it for the user to run in their safe terminal
-  # op item create --vault=Kubernetes --title="etcd Encryption Key" \
-  #   --category=password password=$ENCRYPTION_KEY
+  # Claude Code generates this script, user runs it in safe terminal.
+  # Script path: /tmp/re-encrypt-secrets.sh
+
+  #!/bin/bash
+  set -euo pipefail
+  export KUBECONFIG=~/.kube/homelab.yaml
+
+  echo "Re-encrypting all secrets with new encryption provider..."
+  echo "This reads+writes all secrets so they're stored with secretbox."
+  echo ""
+
+  # Count secrets first
+  TOTAL=$(kubectl get secrets -A --no-headers | wc -l)
+  echo "Total secrets to re-encrypt: $TOTAL"
+  echo ""
+
+  # Re-encrypt
+  kubectl get secrets -A -o json | kubectl replace -f -
+
+  echo ""
+  echo "Re-encryption complete. Verify a sample in etcd:"
+  echo "  kubectl exec -n kube-system etcd-k8s-cp1 -- \\"
+  echo "    etcdctl get /registry/secrets/<namespace>/<name> \\"
+  echo "      --cacert=/etc/kubernetes/pki/etcd/ca.crt \\"
+  echo "      --cert=/etc/kubernetes/pki/etcd/server.crt \\"
+  echo "      --key=/etc/kubernetes/pki/etcd/server.key \\"
+  echo "      --print-value-only | head -5"
+  echo ""
+  echo "Expected: binary data with 'k8s:enc:secretbox:v1:key1' prefix"
   ```
 
-- [ ] 5.2.2.6 Bake encryption into Ansible rebuild playbook
+- [ ] 5.2.2.4b Verify re-encryption (Claude Code can verify — etcd raw data is binary, not secret values)
   ```bash
-  # Update ansible/playbooks/03-init-cluster.yml to include:
-  # 1. Task to deploy encryption-config.yaml BEFORE kubeadm init
-  # 2. extraArgs: --encryption-provider-config=/etc/kubernetes/encryption-config.yaml
-  # 3. extraVolumes for the encryption config file
+  # Check a known secret in etcd to confirm encrypted prefix
+  # Pick a non-sensitive secret (e.g., a cert-manager token or Helm release secret)
+  kubectl-homelab exec -n kube-system etcd-k8s-cp1 -- \
+    etcdctl get /registry/secrets/kube-system/bootstrap-token-$(
+      kubectl-homelab get secrets -n kube-system --no-headers | \
+      grep bootstrap-token | head -1 | awk '{print $1}' | sed 's/bootstrap-token-//'
+    ) \
+      --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+      --cert=/etc/kubernetes/pki/etcd/server.crt \
+      --key=/etc/kubernetes/pki/etcd/server.key \
+      --print-value-only 2>&1 | head -3
+  # Expected: starts with "k8s:enc:secretbox:v1:key1" (not plaintext)
+  ```
+
+### 5.2.2.5 Back up encryption key to 1Password
+
+> **Claude Code MUST NOT run `op` commands.** Generate the command for user.
+
+- [ ] 5.2.2.5a Print 1Password backup command
+  ```bash
+  # Tell user to run (already printed by deploy-encryption-config.sh):
+  # op item create --vault=Kubernetes --title="etcd Encryption Key" \
+  #   --category=password password='<the key from deployment>'
+  ```
+
+### 5.2.2.6 Bake encryption into Ansible rebuild playbook
+
+- [ ] 5.2.2.6a Update 03-init-cluster.yml
+  ```yaml
+  # Add BEFORE the "Create kubeadm config file" task:
+
+  # =========================================
+  # Deploy encryption configuration (must exist BEFORE kubeadm init)
+  # =========================================
+  - name: Deploy encryption configuration
+    ansible.builtin.copy:
+      content: |
+        apiVersion: apiserver.config.k8s.io/v1
+        kind: EncryptionConfiguration
+        resources:
+          - resources:
+              - secrets
+            providers:
+              - secretbox:
+                  keys:
+                    - name: key1
+                      secret: "{{ etcd_encryption_key }}"
+              - identity: {}
+      dest: /etc/kubernetes/encryption-config.yaml
+      mode: '0600'
+    when: cluster_needs_init
+
+  # Add to kubeadm ClusterConfiguration apiServer section:
+  #   extraArgs:
+  #     encryption-provider-config: /etc/kubernetes/encryption-config.yaml
+  #   extraVolumes:
+  #     - name: encryption-config
+  #       hostPath: /etc/kubernetes/encryption-config.yaml
+  #       mountPath: /etc/kubernetes/encryption-config.yaml
+  #       readOnly: true
+  #       pathType: File
+  ```
+
+  ```bash
+  # The variable etcd_encryption_key must be provided at runtime.
+  # Options:
+  # A. ansible-playbook --extra-vars "etcd_encryption_key=$(op read 'op://Kubernetes/etcd Encryption Key/password')"
+  # B. Add to group_vars/control_plane.yml as ansible-vault encrypted variable
+  # C. Prompt at runtime with vars_prompt
   #
-  # ⚠️ The encryption KEY is not in Ansible — it must be provided at runtime
-  # or read from 1Password. Add a variable placeholder.
+  # Recommended: Option A (reads from 1Password at runtime, key never stored in git)
   ```
 
 ---
@@ -520,10 +830,14 @@ EOF
 - [x] GitLab Runner ClusterRole replaced with namespace-scoped Role (`clusterWideAccess: false` + helm upgrade rev 5)
 - [x] longhorn-support-bundle cluster-admin binding reviewed — accepted, document in Security.md
 - [x] version-check-cronjob `automountServiceAccountToken: false` bug fixed — Nova confirmed working (11 outdated detected)
-- [ ] etcd encryption at rest enabled with **secretbox** (not aescbc)
-- [ ] Encryption verified via etcdctl (see `k8s:enc:secretbox:v1:key1` prefix)
+- [ ] Pre-flight: etcd snapshot saved, API server manifests backed up on all 3 nodes
+- [ ] Encryption key generated and deployed to all 3 nodes (checksums match)
+- [ ] Rolling API server update: CP1 → soak → CP2 → soak → CP3 (all 3 healthy)
+- [ ] Encryption verified via etcdctl (see `k8s:enc:secretbox:v1:key1` prefix in test secret)
+- [ ] All existing secrets re-encrypted (user runs manually — data must not flow through Claude)
+- [ ] Post-re-encryption verification (sample secret shows encrypted prefix in etcd)
 - [ ] Encryption key backed up to 1Password
-- [ ] Encryption baked into Ansible rebuild playbook
+- [ ] Encryption baked into Ansible rebuild playbook (03-init-cluster.yml)
 - [ ] Restricted kubeconfig for Claude Code deployed (separate file, not overwriting admin)
 - [ ] kubectl-homelab alias updated to use restricted kubeconfig
 - [ ] Claude Code hooks block `get secret -o json/yaml` and `describe secret`
@@ -533,45 +847,70 @@ EOF
 
 ## Rollback
 
-**etcd encryption breaks API server:**
+**Option 1 — Restore from backup manifest (fastest):**
 ```bash
-# On CP node: remove --encryption-provider-config from
-# /etc/kubernetes/manifests/kube-apiserver.yaml
-# Also remove the encryption-config volume and volumeMount
-# API server will restart automatically and read unencrypted secrets
-# Existing secrets remain readable (identity provider is the fallback)
-
-# Use Python to safely edit the manifest (Phase 5.1 pattern):
-ssh wawashi@10.10.30.11
-sudo python3 -c "
-import yaml
-with open('/etc/kubernetes/manifests/kube-apiserver.yaml') as f:
-    manifest = yaml.safe_load(f)
-# Remove the flag, volume, and volumeMount
-# ... (specific removal code during execution)
-"
+# If API server fails after manifest edit, restore the pre-encryption backup:
+NODE_IP=10.10.30.11  # change for CP2 (.12) or CP3 (.13)
+ssh wawashi@$NODE_IP \
+  "sudo cp /etc/kubernetes/kube-apiserver.yaml.pre-encryption-backup \
+           /etc/kubernetes/manifests/kube-apiserver.yaml"
+# API server will restart automatically (~30-45s)
+# Verify: ssh wawashi@$NODE_IP "sudo crictl ps --name kube-apiserver"
 ```
 
-**API server manifest restore procedure:**
+**Option 2 — Python rollback (if backup is missing):**
 ```bash
-# If the API server fails to start after adding --encryption-provider-config:
-# 1. SSH to the affected CP node
-ssh wawashi@10.10.30.11
+# Complete Python script to remove encryption config from API server manifest
+NODE_IP=10.10.30.11  # change for each node
+ssh wawashi@$NODE_IP "sudo python3 -c \"
+import yaml
 
-# 2. Check API server container logs
-sudo crictl logs $(sudo crictl ps -a --name kube-apiserver -q | head -1)
+with open('/etc/kubernetes/manifests/kube-apiserver.yaml') as f:
+    manifest = yaml.safe_load(f)
 
-# 3. Remove the encryption flag from the static pod manifest
-sudo vi /etc/kubernetes/manifests/kube-apiserver.yaml
-# Remove: --encryption-provider-config=/etc/kubernetes/encryption-config.yaml
-# Remove: the volume and volumeMount for encryption-config
+# Remove --encryption-provider-config flag
+cmd = manifest['spec']['containers'][0]['command']
+flag = '--encryption-provider-config=/etc/kubernetes/encryption-config.yaml'
+if flag in cmd:
+    cmd.remove(flag)
+    print(f'Removed: {flag}')
 
-# 4. API server will restart automatically (static pod) — takes ~30-45s
-# 5. Verify API server is healthy
-kubectl-homelab get nodes
+# Remove volumeMount
+vmounts = manifest['spec']['containers'][0]['volumeMounts']
+manifest['spec']['containers'][0]['volumeMounts'] = [
+    vm for vm in vmounts if vm.get('name') != 'encryption-config'
+]
+print('Removed volumeMount: encryption-config')
 
-# 6. Repeat on other CP nodes if they were also modified
-# 7. Existing secrets remain readable (identity provider is the fallback)
+# Remove volume
+vols = manifest['spec']['volumes']
+manifest['spec']['volumes'] = [
+    v for v in vols if v.get('name') != 'encryption-config'
+]
+print('Removed volume: encryption-config')
+
+with open('/etc/kubernetes/manifests/kube-apiserver.yaml', 'w') as f:
+    yaml.dump(manifest, f, default_flow_style=False, sort_keys=False)
+
+print('Manifest reverted. API server will restart automatically (~30-45s).')
+\""
+```
+
+**After rollback verification:**
+```bash
+# Wait for API server restart
+sleep 45
+ssh wawashi@$NODE_IP "sudo crictl ps --name kube-apiserver"
+kubectl-homelab get nodes  # all 3 Ready
+# Existing secrets remain readable — identity provider is the fallback
+# in EncryptionConfiguration (reads unencrypted secrets, identity: {} is last provider)
+```
+
+**etcd snapshot restore (nuclear option — only if etcd is corrupted):**
+```bash
+# The pre-encryption snapshot is at /var/lib/etcd/pre-encryption-snapshot.db on CP1
+# This is a full etcd restore — consult k8s docs before using
+# https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/#restoring-an-etcd-cluster
 ```
 
 **Restricted kubeconfig breaks Claude Code operations:**
