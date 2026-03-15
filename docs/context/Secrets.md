@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password, vault, external-secrets]
-updated: 2026-03-12
+updated: 2026-03-15
 ---
 
 # Secrets
@@ -130,6 +130,8 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Vault Unseal Keys | `unseal-key-1` thru `unseal-key-5`, `root-token` | Vault init break-glass (3 of 5 keys needed to unseal) |
 | Cloudflare Tunnel | `token` | cloudflared Deployment (cloudflare namespace) |
 | iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
+| etcd Encryption Key | `password` | etcd encryption at rest (secretbox). Passed to Ansible: `--extra-vars "etcd_encryption_key=$(op read '...')"` |
+| Kubeconfig | `admin-kubeconfig`, `claude-kubeconfig` | Device sync — admin (full access) and restricted (Claude Code read-only) kubeconfigs |
 
 ## 1Password Paths
 
@@ -253,6 +255,13 @@ op://Kubernetes/Atuin/personal-password
 op://Kubernetes/Atuin/encryption-key
 op://Kubernetes/Atuin/eam-email
 op://Kubernetes/Atuin/eam-password
+
+# etcd Encryption Key (rebuild — Ansible runtime variable)
+op://Kubernetes/etcd Encryption Key/password
+
+# Kubeconfig (device sync — both kubeconfigs in one item)
+# op item get 'Kubeconfig' --vault=Kubernetes --fields admin-kubeconfig > ~/.kube/homelab.yaml
+# op item get 'Kubeconfig' --vault=Kubernetes --fields claude-kubeconfig > ~/.kube/homelab-claude.yaml
 
 # Homepage (widget credentials — 24 fields)
 op://Kubernetes/Homepage/proxmox-pve-user

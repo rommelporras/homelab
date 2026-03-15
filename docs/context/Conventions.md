@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-03-13
+updated: 2026-03-15
 ---
 
 # Conventions
@@ -87,7 +87,7 @@ homelab/
 │   ├── home/                # Home services (AdGuard, Homepage, MySpeed)
 │   ├── invoicetron/         # Invoicetron app + PostgreSQL + backup
 │   ├── karakeep/            # Karakeep bookmark manager (AIO, Chrome, Meilisearch)
-│   ├── kube-system/          # Cluster Janitor CronJob
+│   ├── kube-system/         # System CronJobs, RBAC (claude-code SA), cert utilities
 │   ├── monitoring/          # Observability (alerts/, dashboards/, probes/, exporters/, servicemonitors/)
 │   ├── network-policies/    # Namespace network policies
 │   ├── portfolio/           # Portfolio deployment + RBAC
@@ -105,7 +105,7 @@ homelab/
 │   └── verify-migration.sh    # Post-migration health check (ESO sync, Vault status)
 ├── docs/
 │   ├── context/             # This knowledge base (RAG source)
-│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.29.0)
+│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.31.0)
 │   ├── todo/                # Active and completed phase plans
 │   └── reference/           # CHANGELOG, historical docs
 └── ansible/                 # Bootstrap automation

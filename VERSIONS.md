@@ -99,7 +99,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** v0.31.0 released. Control plane hardening (CIS benchmark, audit logging, cert lifecycle).
+> **Status:** v0.32.0 released. RBAC & secrets hardening (etcd encryption, claude-code RBAC, restricted kubeconfig).
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|

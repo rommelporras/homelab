@@ -1,6 +1,6 @@
 # Phase 5.2: RBAC & Secrets Hardening
 
-> **Status:** ✅ Complete (all tasks executed 2026-03-15 — pending /audit-security, /commit, /release v0.32.0)
+> **Status:** ✅ Complete (all tasks executed 2026-03-15)
 > **Target:** v0.32.0
 > **Prerequisite:** Phase 5.1 (v0.31.0 — control plane hardened, audit logging active)
 > **DevOps Topics:** RBAC, etcd encryption, least-privilege access, defense in depth
@@ -974,7 +974,7 @@ kubectl-homelab get nodes  # all 3 Ready
 
 ## Final: Commit and Release
 
-- [ ] `/audit-security` then `/commit`
-- [ ] `/audit-docs` then `/commit`
-- [ ] `/release v0.32.0 "RBAC & Secrets Hardening"`
-- [ ] `mv docs/todo/phase-5.2-rbac-and-encryption.md docs/todo/completed/`
+- [x] `/audit-security` then `/commit` (2026-03-15)
+- [x] `/audit-docs` then `/commit` (2026-03-15)
+- [x] `/release v0.32.0 "RBAC & Secrets Hardening"` (2026-03-15)
+- [x] `mv docs/todo/phase-5.2-rbac-and-encryption.md docs/todo/completed/` (2026-03-15)

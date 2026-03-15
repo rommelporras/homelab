@@ -112,6 +112,7 @@ Most app pods have `automountServiceAccountToken: false` — they don't call the
 | monitoring | kube-state-metrics | Reads cluster state |
 | monitoring | loki | Log ingestion |
 | monitoring | version-checker | Queries container image versions |
+| monitoring | version-check-cronjob | Nova reads Helm release Secrets (`helm.sh/release.v1`) cluster-wide for chart drift |
 | vault | snapshot (CronJob) | Reads SA token for Vault Kubernetes auth login |
 
 Helm-managed workloads (Cilium, cert-manager, Longhorn, Vault, NFD, Intel device plugins) control their own `automountServiceAccountToken` via chart defaults.
