@@ -1,0 +1,88 @@
+# CiliumNetworkPolicies for kube-system CronJob pods
+# Only targeting CronJob pods (non-hostNetwork) with stable app labels.
+# hostNetwork pods (Cilium, kube-dns, kube-proxy, node-exporter) are exempt from policy.
+#
+# pki-backup: no policy needed - NFS volume mount is node-level (kubelet handles it,
+#             no pod-network traffic). Pod has no network calls.
+
+# ============================================================
+# cluster-janitor (app=cluster-janitor)
+# Deletes failed pods + stopped Longhorn replicas, sends Discord report.
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cluster-janitor-egress
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app: cluster-janitor
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # kubectl to kube-apiserver (delete failed pods, stopped Longhorn replicas)
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    # Discord webhook for janitor report
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+
+# ============================================================
+# cert-expiry-check (app=cert-expiry-check)
+# Reads PKI certs from hostPath, sends Discord alert if expiring within 30 days.
+# No kube-apiserver access - uses openssl on mounted cert files.
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cert-expiry-check-egress
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app: cert-expiry-check
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Discord webhook for cert expiry alert
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

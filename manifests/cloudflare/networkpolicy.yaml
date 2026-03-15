@@ -87,3 +87,32 @@ spec:
         protocol: TCP
 
   # Everything else is implicitly denied
+---
+# Ingress: monitoring scraping (metrics port 2000) + kubelet health probes (port 2000)
+# Without this, default-deny ingress does not apply (no ingress policy exists yet).
+# ServiceMonitor exists for cloudflared metrics on port 2000.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cloudflared-ingress
+  namespace: cloudflare
+  labels:
+    app: cloudflared
+spec:
+  endpointSelector:
+    matchLabels:
+      app: cloudflared
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "2000"
+              protocol: TCP
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "2000"
+              protocol: TCP

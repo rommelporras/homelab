@@ -1,0 +1,66 @@
+# CiliumNetworkPolicies for browser namespace
+# Single pod: firefox browser-in-a-box, port 3000
+# Needs broad internet egress for web browsing
+# Default-deny enforced implicitly (ingress + egress policies both present)
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: browser
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: firefox-gateway-ingress
+  namespace: browser
+spec:
+  endpointSelector:
+    matchLabels:
+      app: firefox
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kubelet-probes
+  namespace: browser
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - host
+---
+# Firefox needs broad internet egress to browse any website
+# world entity covers external internet and LAN (non-cluster) targets
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: firefox-internet-egress
+  namespace: browser
+spec:
+  endpointSelector:
+    matchLabels:
+      app: firefox
+  egress:
+    - toEntities:
+        - world

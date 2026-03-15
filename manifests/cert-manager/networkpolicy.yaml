@@ -1,0 +1,201 @@
+# CiliumNetworkPolicies for cert-manager namespace
+# 3 pods: cert-manager controller, cainjector, webhook (all Helm-managed)
+# Default-deny enforced implicitly (ingress + egress policies cover both directions per pod)
+
+# ============================================================
+# cert-manager controller (app=cert-manager, app.kubernetes.io/name=cert-manager)
+# Needs FQDN egress for ACME (Let's Encrypt) + DNS-01 (Cloudflare)
+# Health probe: HTTP on port 9403 (named port "http-healthz")
+# Metrics: port 9402
+# ============================================================
+---
+# cert-manager egress: DNS (with inspection for FQDN) + kube-apiserver + Let's Encrypt + Cloudflare
+# DNS inspection rule MUST be in the same policy as toFQDNs rules
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cert-manager-egress
+  namespace: cert-manager
+spec:
+  endpointSelector:
+    matchLabels:
+      app: cert-manager
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    # ACME HTTP-01 / DNS-01 challenges via Let's Encrypt
+    - toFQDNs:
+        - matchName: "acme-v02.api.letsencrypt.org"
+        - matchName: "acme-staging-v02.api.letsencrypt.org"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # DNS-01 validation via Cloudflare API
+    - toFQDNs:
+        - matchName: "api.cloudflare.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+# cert-manager ingress: monitoring (9402 metrics) + kubelet (9403 healthz)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cert-manager-ingress
+  namespace: cert-manager
+spec:
+  endpointSelector:
+    matchLabels:
+      app: cert-manager
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9402"
+              protocol: TCP
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "9403"
+              protocol: TCP
+
+# ============================================================
+# cert-manager-cainjector (app=cainjector, app.kubernetes.io/name=cainjector)
+# No FQDN egress needed - only kube-apiserver for CA injection
+# Health probe: HTTP on port "healthcheck" (actual port unknown, allow host broadly)
+# Metrics: port 9402
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cert-manager-cainjector-egress
+  namespace: cert-manager
+spec:
+  endpointSelector:
+    matchLabels:
+      app: cainjector
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+---
+# cainjector ingress: monitoring (9402 metrics) + kubelet (any port - healthcheck port unknown)
+# Note: cainjector healthcheck named port not defined in container ports - allow host broadly
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cert-manager-cainjector-ingress
+  namespace: cert-manager
+spec:
+  endpointSelector:
+    matchLabels:
+      app: cainjector
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9402"
+              protocol: TCP
+    - fromEntities:
+        - host
+
+# ============================================================
+# cert-manager-webhook (app=webhook, app.kubernetes.io/name=webhook)
+# Admission webhook - kube-apiserver calls it for cert validation
+# Webhook pod port: 10250 (HTTPS), healthcheck: 6080, metrics: 9402
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cert-manager-webhook-egress
+  namespace: cert-manager
+spec:
+  endpointSelector:
+    matchLabels:
+      app: webhook
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+---
+# webhook ingress: kube-apiserver webhook calls (10250) + monitoring (9402) + kubelet (6080)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cert-manager-webhook-ingress
+  namespace: cert-manager
+spec:
+  endpointSelector:
+    matchLabels:
+      app: webhook
+  ingress:
+    # kube-apiserver sends admission webhook requests to cert-manager-webhook:10250
+    - fromEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "10250"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9402"
+              protocol: TCP
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "6080"
+              protocol: TCP

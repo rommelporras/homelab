@@ -1,0 +1,469 @@
+# CiliumNetworkPolicies for monitoring namespace
+# 16 non-hostNetwork pods + 3 node-exporter (hostNetwork, exempt from policy)
+# Default-deny enforced implicitly via namespace-wide egress (allow-dns) and
+# component-specific ingress/egress policies.
+
+# ============================================================
+# Namespace-wide baseline policies
+# ============================================================
+
+---
+# DNS egress for all monitoring pods.
+# Once this policy selects all pods (endpointSelector: {}), default-deny egress
+# takes effect for the entire namespace - only DNS allowed unless other policies add more.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: monitoring
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+# Kubelet health probes for all monitoring pods
+# Grafana: port 3000, Prometheus: 9090, Alertmanager: 9093, Loki: 3100, etc.
+# Using no port restriction - kubelet probes vary per pod.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kubelet-probes
+  namespace: monitoring
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - host
+---
+# Allow Prometheus to scrape all pods in monitoring namespace (intra-namespace)
+# Covers: Grafana, Alertmanager, Loki, Alloy, blackbox-exporter, kube-state-metrics, etc.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-intra-namespace-ingress
+  namespace: monitoring
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+---
+# All monitoring pods can send to other monitoring pods (internal service calls)
+# Grafana → Prometheus (9090), Loki (3100) data sources
+# OTel collector → internal forwarding
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-intra-namespace-egress
+  namespace: monitoring
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+
+# ============================================================
+# Prometheus (app.kubernetes.io/name=prometheus)
+# Scrapes metrics from ALL namespaces + kube-apiserver + node subnet (kube-vip)
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prometheus-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  egress:
+    # Scrape all cluster pods across all namespaces (not pod CIDR - use cluster entity)
+    # This is the correct way - toCIDR with pod CIDR silently fails for managed endpoints
+    - toEntities:
+        - cluster
+    # kube-apiserver for service discovery, kube-state-metrics
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    # kube-vip metrics (hostNetwork pod, accessed via node IP on port 2112)
+    - toCIDR:
+        - 10.10.30.0/24
+      toPorts:
+        - ports:
+            - port: "2112"
+              protocol: TCP
+---
+# Prometheus ingress: Gateway HTTPRoute + uptime-kuma probe
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prometheus-gateway-ingress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+
+# ============================================================
+# Alertmanager (app.kubernetes.io/name=alertmanager)
+# FQDN egress: Discord, SMTP (Apple Mail), healthchecks.io
+# ============================================================
+---
+# Alertmanager FQDN egress: DNS inspection + SMTP + Discord + healthchecks
+# DNS inspection rule MUST be in the same policy as toFQDNs rules
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: alertmanager-fqdn-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  egress:
+    # DNS with inspection (required for toFQDNs FQDN-to-IP cache)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*"
+    # Apple iCloud SMTP for email alerts
+    - toFQDNs:
+        - matchName: "smtp.mail.me.com"
+      toPorts:
+        - ports:
+            - port: "587"
+              protocol: TCP
+    # Discord webhooks for notifications
+    - toFQDNs:
+        - matchName: "discord.com"
+        - matchPattern: "*.discord.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # healthchecks.io dead man's switch (watchdog)
+    - toFQDNs:
+        - matchName: "healthchecks.io"
+        - matchName: "hc-ping.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+# Alertmanager ingress: Gateway HTTPRoute
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: alertmanager-gateway-ingress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "9093"
+              protocol: TCP
+
+# ============================================================
+# Grafana (app.kubernetes.io/name=grafana)
+# ============================================================
+---
+# Grafana ingress: Gateway HTTPRoute on port 3000 (pod port, service is 80)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: grafana-gateway-ingress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+
+# ============================================================
+# Loki (app.kubernetes.io/name=loki)
+# Receives logs from Alloy (same namespace) + Gateway UI access
+# ============================================================
+---
+# Loki ingress: Gateway HTTPRoute on port 3100
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: loki-gateway-ingress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "3100"
+              protocol: TCP
+
+# ============================================================
+# Alloy (app.kubernetes.io/name=alloy, DaemonSet - 3 pods)
+# Ships logs to Loki, enriches with K8s API metadata
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: alloy-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: alloy
+  egress:
+    # Ship logs to Loki (same namespace)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: loki
+      toPorts:
+        - ports:
+            - port: "3100"
+              protocol: TCP
+    # K8s API for log enrichment (pod/namespace metadata)
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+
+# ============================================================
+# Blackbox Exporter (app.kubernetes.io/name=prometheus-blackbox-exporter)
+# Probes external endpoints (internet) and internal cluster services
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: blackbox-exporter-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-blackbox-exporter
+  egress:
+    # External probes (internet HTTPS/HTTP endpoints)
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+    # Internal cluster service probes
+    - toEntities:
+        - cluster
+    # LAN service probes (Proxmox, OPNsense, NAS, AdGuard DNS, etc. via homelab VLAN)
+    - toCIDR:
+        - 10.10.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+# ============================================================
+# nut-exporter (app=nut-exporter)
+# Queries UPS via NUT protocol on NAS (10.10.30.4:3493)
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: nut-exporter-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: nut-exporter
+  egress:
+    # NUT protocol to NAS/UPS (port 3493)
+    - toCIDR:
+        - 10.10.30.4/32
+      toPorts:
+        - ports:
+            - port: "3493"
+              protocol: TCP
+
+# ============================================================
+# OTel Collector (app=otel-collector)
+# LoadBalancer 10.10.30.22 receives traces from LAN + cluster apps
+# ============================================================
+---
+# OTel collector ingress: LAN CIDR (LoadBalancer traffic) + cluster pods (traces)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: otel-collector-ingress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: otel-collector
+  ingress:
+    # LAN clients sending traces via LoadBalancer 10.10.30.22
+    - fromCIDRSet:
+        - cidr: 10.10.0.0/16
+      toPorts:
+        - ports:
+            - port: "4317"
+              protocol: TCP
+            - port: "4318"
+              protocol: TCP
+            - port: "8889"
+              protocol: TCP
+    # Cluster pods sending traces directly (via service DNS)
+    - fromEntities:
+        - cluster
+      toPorts:
+        - ports:
+            - port: "4317"
+              protocol: TCP
+            - port: "4318"
+              protocol: TCP
+
+# ============================================================
+# version-checker (app=version-checker)
+# Checks image versions against container registries (internet HTTPS)
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: version-checker-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: version-checker
+  egress:
+    # Container registry access (ghcr.io, registry.k8s.io, docker.io, quay.io, etc.)
+    # Using broad internet CIDR - registry list is too large for toFQDNs enumeration
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+
+# ============================================================
+# kube-prometheus-stack operator (app=kube-prometheus-stack-operator)
+# Manages PrometheusRules, ServiceMonitors, PodMonitors, etc.
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prometheus-operator-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kube-prometheus-stack-operator
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+---
+# Operator ingress: kube-apiserver webhook calls (10250) + intra-ns (already covered)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prometheus-operator-ingress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kube-prometheus-stack-operator
+  ingress:
+    - fromEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "10250"
+              protocol: TCP
+
+# ============================================================
+# kube-state-metrics (app.kubernetes.io/name=kube-state-metrics)
+# Queries K8s API for cluster metrics
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kube-state-metrics-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP

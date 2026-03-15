@@ -1,0 +1,130 @@
+# CiliumNetworkPolicies for gitlab-runner namespace
+# 1 runner pod (app=gitlab-runner) + ephemeral CI job pods (dynamic labels)
+# Default-deny enforced implicitly via namespace-wide policies.
+#
+# Kubernetes executor: runner creates ephemeral job pods in this namespace.
+# Namespace-wide internet egress covers both the runner pod and CI job pods.
+
+# ============================================================
+# Namespace-wide baseline policies
+# ============================================================
+
+---
+# DNS egress for all pods (runner + ephemeral CI job pods)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: gitlab-runner
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+# Kubelet health probes for all pods
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kubelet-probes
+  namespace: gitlab-runner
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - host
+---
+# kube-apiserver egress for all pods
+# Runner manages job pods (needs apiserver). CI job pods may run kubectl.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-apiserver-egress
+  namespace: gitlab-runner
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+---
+# Internet egress for all pods (runner + CI job pods)
+# Runner: pulls CI images from registries (docker.io, ghcr.io, quay.io, etc.)
+# CI job pods: apt/npm/pip/cargo package downloads, git clones, HTTP tests
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-internet-egress
+  namespace: gitlab-runner
+spec:
+  endpointSelector: {}
+  egress:
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+---
+# GitLab namespace egress for all pods
+# Runner: registers with GitLab API (8181), reports job status
+# CI job pods: push artifacts to GitLab (8181), push/pull registry images (5000)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-gitlab-egress
+  namespace: gitlab-runner
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: gitlab
+      toPorts:
+        - ports:
+            - port: "8181"
+              protocol: TCP
+            - port: "8080"
+              protocol: TCP
+            - port: "5000"
+              protocol: TCP
+
+# ============================================================
+# Runner pod (app=gitlab-runner)
+# ============================================================
+---
+# Monitoring scrapes runner metrics on port 9252
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: runner-monitoring-ingress
+  namespace: gitlab-runner
+spec:
+  endpointSelector:
+    matchLabels:
+      app: gitlab-runner
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9252"
+              protocol: TCP

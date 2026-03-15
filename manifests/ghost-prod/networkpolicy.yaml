@@ -1,0 +1,187 @@
+# CiliumNetworkPolicies for ghost-prod
+# Pods:
+#   ghost (app=ghost, port 2368) - HTTPRoute + Cloudflare tunnel
+#   ghost-analytics (app=ghost-analytics, port 3000) - internal only + Cloudflare tunnel
+#   ghost-mysql (app=ghost-mysql, port 3306) - DB, exec probe only
+# Pattern A: Web App + Database
+# Default-deny enforced implicitly (ingress + egress policies cover both directions per pod)
+---
+# Ghost ingress: Gateway HTTPRoute + Cloudflare direct tunnel + kubelet TCP probe on 2368
+# cloudflared connects directly to ghost pods (not via Gateway) for blog.rommelporras.com
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ghost-gateway-ingress
+  namespace: ghost-prod
+spec:
+  endpointSelector:
+    matchLabels:
+      app: ghost
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "2368"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cloudflare
+      toPorts:
+        - ports:
+            - port: "2368"
+              protocol: TCP
+    # Monitoring: blackbox exporter probes
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "2368"
+              protocol: TCP
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "2368"
+              protocol: TCP
+---
+# Ghost egress: DNS (with inspection for FQDN) + MySQL + Analytics + SMTP
+# DNS inspection rule MUST be in the same policy as toFQDNs rules
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ghost-egress
+  namespace: ghost-prod
+spec:
+  endpointSelector:
+    matchLabels:
+      app: ghost
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEndpoints:
+        - matchLabels:
+            app: ghost-mysql
+      toPorts:
+        - ports:
+            - port: "3306"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app: ghost-analytics
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+    - toFQDNs:
+        - matchName: "smtp.mail.me.com"
+      toPorts:
+        - ports:
+            - port: "587"
+              protocol: TCP
+---
+# Ghost Analytics ingress: Ghost app + Cloudflare direct tunnel + kubelet HTTP probe on 3000
+# No HTTPRoute - accessed by ghost app internally and via Cloudflare tunnel (TrafficAnalytics)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ghost-analytics-ingress
+  namespace: ghost-prod
+spec:
+  endpointSelector:
+    matchLabels:
+      app: ghost-analytics
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: ghost
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cloudflare
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+---
+# Ghost Analytics egress: DNS only (no external calls)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ghost-analytics-egress
+  namespace: ghost-prod
+spec:
+  endpointSelector:
+    matchLabels:
+      app: ghost-analytics
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+# MySQL ingress: only ghost app can reach the database
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ghost-mysql-ingress
+  namespace: ghost-prod
+spec:
+  endpointSelector:
+    matchLabels:
+      app: ghost-mysql
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: ghost
+      toPorts:
+        - ports:
+            - port: "3306"
+              protocol: TCP
+---
+# MySQL egress: DNS only (exec probe - no kubelet network needed)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ghost-mysql-egress
+  namespace: ghost-prod
+spec:
+  endpointSelector:
+    matchLabels:
+      app: ghost-mysql
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP

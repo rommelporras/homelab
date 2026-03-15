@@ -1,0 +1,169 @@
+# CiliumNetworkPolicies for vault namespace
+# Pods:
+#   vault-0 (app.kubernetes.io/name=vault, component=server) - StatefulSet
+#   vault-unsealer (app=vault-unsealer) - Deployment
+#   vault-snapshot (app=vault-snapshot) - CronJob pods (label in pod template)
+#
+# Default-deny enforced implicitly (ingress + egress policies cover both directions per pod)
+
+# ============================================================
+# vault-0 (Vault server)
+# ============================================================
+---
+# Vault server ingress:
+# - external-secrets ns: ESO fetches secrets (8200)
+# - monitoring ns: Prometheus scrapes metrics (8200, unauthenticated_metrics_access=true)
+# - Gateway ingress entity: Vault UI via HTTPRoute (8200)
+# - vault ns: unsealer + snapshot CronJob access vault API (8200)
+# Note: exec readiness probe (vault status) - no kubelet network needed
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vault-server-ingress
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+      component: server
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: external-secrets
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+    # Vault-internal: unsealer + snapshot CronJob (same namespace)
+    - fromEndpoints:
+        - matchLabels:
+            app: vault-unsealer
+        - matchLabels:
+            app: vault-snapshot
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+            - port: "8201"
+              protocol: TCP
+---
+# Vault server egress: DNS + kube-apiserver (Kubernetes auth backend)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vault-server-egress
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+      component: server
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+
+# ============================================================
+# vault-unsealer
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vault-unsealer-egress
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app: vault-unsealer
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Vault API for unseal operations (via ClusterIP service)
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: vault
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+    # Watch vault pod status
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+# ============================================================
+# vault-snapshot CronJob
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vault-snapshot-egress
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app: vault-snapshot
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Vault API for snapshot creation
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: vault
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+    # NFS to NAS for snapshot storage
+    - toCIDR:
+        - 10.10.30.4/32
+      toPorts:
+        - ports:
+            - port: "2049"
+              protocol: TCP

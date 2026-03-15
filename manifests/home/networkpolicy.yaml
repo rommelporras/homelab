@@ -1,0 +1,320 @@
+# CiliumNetworkPolicies for home namespace
+# Pods:
+#   adguard-home (app=adguard-home, port 3000 admin UI, LoadBalancer 10.10.30.53:53 DNS)
+#   homepage (app=homepage, port 3000)
+#   myspeed (app=myspeed, port 5216)
+# WARNING: AdGuard provides DNS for the entire LAN (10.10.30.53). Breaking its policy
+# will cause network-wide DNS failures. Apply and verify immediately.
+
+# ============================================================
+# AdGuard Home
+# ============================================================
+
+---
+# AdGuard DNS ingress: LAN devices need DNS service (LoadBalancer 10.10.30.53:53)
+# CRITICAL: Without this, all LAN DNS fails (AdGuard is the primary DNS server)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: adguard-dns-ingress
+  namespace: home
+spec:
+  endpointSelector:
+    matchLabels:
+      app: adguard-home
+  ingress:
+    - fromCIDRSet:
+        - cidr: 10.10.0.0/16  # All VLANs - LAN clients send DNS queries here
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Monitoring: blackbox exporter DNS probes
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+# AdGuard admin UI ingress: Gateway HTTPRoute (adguard.k8s.rommelporras.com)
+# + kubelet HTTP probe on port 3000 + uptime-kuma monitoring
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: adguard-gateway-ingress
+  namespace: home
+spec:
+  endpointSelector:
+    matchLabels:
+      app: adguard-home
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: uptime-kuma
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+---
+# AdGuard egress: DNS forwarding to upstream resolvers + blocklist updates
+# CRITICAL: AdGuard must be able to forward DNS queries to upstream DNS servers
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: adguard-egress
+  namespace: home
+spec:
+  endpointSelector:
+    matchLabels:
+      app: adguard-home
+  egress:
+    # Own DNS resolution via kube-dns
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Forward DNS queries to upstream resolvers (public DNS: 1.1.1.1, 8.8.8.8, etc.)
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Blocklist updates from internet
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+
+# ============================================================
+# Homepage
+# ============================================================
+
+---
+# Homepage ingress: Gateway HTTPRoute (portal.k8s.rommelporras.com)
+# + kubelet HTTP probe on port 3000 + uptime-kuma monitoring
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: homepage-gateway-ingress
+  namespace: home
+spec:
+  endpointSelector:
+    matchLabels:
+      app: homepage
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: uptime-kuma
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+---
+# Homepage egress: complex - widgets access many services across cluster and LAN
+# Ref: manifests/home/homepage/config/services.yaml for full widget inventory
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: homepage-egress
+  namespace: home
+spec:
+  endpointSelector:
+    matchLabels:
+      app: homepage
+  egress:
+    # DNS (kube-dns)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Kubernetes API (cluster/node/pod widgets) - SA has ClusterRole bound
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    # In-cluster services: Vault direct connection (customapi widget)
+    # vault.vault.svc.cluster.local:8200
+    - toEntities:
+        - cluster
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+    # Gateway VIP (10.10.30.20) - services at *.k8s.rommelporras.com route here
+    # Covers: Grafana, Prometheus, Alertmanager, Sonarr, Radarr, Jellyfin, qBittorrent,
+    # Prowlarr, Bazarr, Tdarr, Recommendarr, Seerr, Karakeep, AdGuard, Longhorn,
+    # Uptime Kuma, GitLab, Browser, Atuin, Blog (dev+prod), MySpeed
+    - toCIDR:
+        - 10.10.30.20/32
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+    # LAN services (Proxmox, OPNsense, NAS OMV, OpenWRT, AdGuard failover)
+    # Accessed via private IPs or private DNS names
+    - toCIDR:
+        - 10.10.0.0/16  # All VLANs: nodes, NAS, router, switches
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+    # Node exporters (Prometheus metrics widgets)
+    - toCIDR:
+        - 10.10.30.11/32  # k8s-cp1
+        - 10.10.30.12/32  # k8s-cp2
+        - 10.10.30.13/32  # k8s-cp3
+      toPorts:
+        - ports:
+            - port: "9100"
+              protocol: TCP
+    # NAS Glances (direct HTTP widget)
+    - toCIDR:
+        - 10.10.30.4/32
+      toPorts:
+        - ports:
+            - port: "61208"
+              protocol: TCP
+    # External internet: Tailscale API, OpenWeather API
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+
+# ============================================================
+# MySpeed
+# ============================================================
+
+---
+# MySpeed ingress: Gateway HTTPRoute (myspeed.k8s.rommelporras.com)
+# + kubelet HTTP probe on port 5216 + uptime-kuma monitoring
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: myspeed-gateway-ingress
+  namespace: home
+spec:
+  endpointSelector:
+    matchLabels:
+      app: myspeed
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "5216"
+              protocol: TCP
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "5216"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: uptime-kuma
+      toPorts:
+        - ports:
+            - port: "5216"
+              protocol: TCP
+---
+# MySpeed egress: DNS + broad internet for speedtest servers (no fixed IPs)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: myspeed-egress
+  namespace: home
+spec:
+  endpointSelector:
+    matchLabels:
+      app: myspeed
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Speedtest servers (Ookla, LibreSpeed) - no fixed IPs, must allow broad internet
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+            - port: "8080"
+              protocol: TCP

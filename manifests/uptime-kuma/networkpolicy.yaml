@@ -107,3 +107,47 @@ spec:
     - ports:
       - port: "61208"
         protocol: TCP
+---
+# Ingress: Gateway (HTTPRoute) + kubelet health probes
+# Without this, default-deny ingress does not apply (no ingress policy existed).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: uptime-kuma-ingress
+  namespace: uptime-kuma
+  labels:
+    app: uptime-kuma
+    app.kubernetes.io/part-of: uptime-kuma
+spec:
+  endpointSelector:
+    matchLabels:
+      app: uptime-kuma
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "3001"
+              protocol: TCP
+    # Cloudflare tunnel: status.rommelporras.com
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cloudflare
+      toPorts:
+        - ports:
+            - port: "3001"
+              protocol: TCP
+    # Monitoring: Prometheus scraping
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "3001"
+              protocol: TCP
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "3001"
+              protocol: TCP

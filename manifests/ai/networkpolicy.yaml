@@ -51,3 +51,44 @@ spec:
               protocol: TCP
 
   # Everything else is implicitly denied
+    # Kubelet health probes (httpGet on port 11434)
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "11434"
+              protocol: TCP
+---
+# Egress: DNS + internet for Ollama model downloads
+# Without this, default-deny egress does not apply (no egress policy existed).
+# Ollama pulls models from registry.ollama.ai and other HTTPS sources.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ollama-egress
+  namespace: ai
+  labels:
+    app: ollama
+    app.kubernetes.io/part-of: ollama
+spec:
+  endpointSelector:
+    matchLabels:
+      app: ollama
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Model downloads from Ollama registry, Hugging Face, etc.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

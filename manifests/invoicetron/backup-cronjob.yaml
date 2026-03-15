@@ -24,6 +24,9 @@ spec:
   jobTemplate:
     spec:
       template:
+        metadata:
+          labels:
+            app: invoicetron-db-backup
         spec:
           automountServiceAccountToken: false
           securityContext:
@@ -56,6 +59,9 @@ spec:
               echo "Backup completed: ${BACKUP_FILE} ($(du -h "${BACKUP_FILE}" | cut -f1))"
               # Keep only last 30 days of backups
               find /backups -name "invoicetron_*.sql" -mtime +30 -delete
+            resources:
+              requests: { cpu: 50m, memory: 64Mi }
+              limits: { cpu: 200m, memory: 256Mi }
             env:
             - name: PGPASSWORD
               valueFrom:

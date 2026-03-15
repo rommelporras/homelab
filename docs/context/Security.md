@@ -95,6 +95,8 @@ These pods run as root due to upstream image constraints (baseline PSS allows th
 | Portfolio (nginx) | Needs CHOWN, SETUID, SETGID, NET_BIND_SERVICE — root required for port 80 bind and file ownership |
 | MySpeed | Upstream image runs as root, no non-root option |
 | version-check CronJob | Main container uses `apk` which needs write access to `/lib/apk/db` |
+| cert-expiry-check CronJob | Reads hostPath `/etc/kubernetes/pki` (root-owned mode 600) |
+| pki-backup CronJob | Reads hostPath `/etc/kubernetes/pki` + `admin.conf` (root-owned) |
 
 ## automountServiceAccountToken
 

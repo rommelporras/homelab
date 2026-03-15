@@ -1,0 +1,323 @@
+# CiliumNetworkPolicies for gitlab namespace
+# 13 pods: gitaly, gitlab-exporter, gitlab-shell, kas (x2), minio, postgresql,
+#           redis-master, registry (x2), sidekiq, toolbox, webservice
+# Default-deny enforced implicitly via namespace-wide policies covering both directions.
+#
+# Existing K8s NP: gitlab-redis (Helm-bundled) - allows ingress on 6379/9121 from any source,
+# egress allow-all. CiliumNPs union with this policy for redis pods.
+
+# ============================================================
+# Namespace-wide baseline policies
+# ============================================================
+
+---
+# DNS egress for all gitlab pods
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: gitlab
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+# Kubelet health probes for all gitlab pods
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kubelet-probes
+  namespace: gitlab
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - host
+---
+# All gitlab pods can receive from other gitlab pods (covers complex internal service mesh)
+# gitaly, kas, minio, postgresql, redis, registry - all accessed by webservice/sidekiq/toolbox
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-intra-namespace-ingress
+  namespace: gitlab
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: gitlab
+---
+# All gitlab pods can send to other gitlab pods (internal service calls)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-intra-namespace-egress
+  namespace: gitlab
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: gitlab
+---
+# kube-apiserver egress for all gitlab pods
+# webservice, sidekiq, kas, toolbox all use K8s API
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-apiserver-egress
+  namespace: gitlab
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+
+# ============================================================
+# webservice (app=webservice)
+# Receives: Gateway (port 8181 workhorse), gitlab-runner, monitoring
+# Sends: internal services (covered by intra-namespace) + internet integrations
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: webservice-gateway-ingress
+  namespace: gitlab
+spec:
+  endpointSelector:
+    matchLabels:
+      app: webservice
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "8181"
+              protocol: TCP
+---
+# gitlab-runner accesses GitLab API on 8181 and 8080 (internal)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: webservice-runner-ingress
+  namespace: gitlab
+spec:
+  endpointSelector:
+    matchLabels:
+      app: webservice
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: gitlab-runner
+      toPorts:
+        - ports:
+            - port: "8181"
+              protocol: TCP
+            - port: "8080"
+              protocol: TCP
+---
+# Webservice internet egress: outbound webhooks, OAuth providers, integrations
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: webservice-internet-egress
+  namespace: gitlab
+spec:
+  endpointSelector:
+    matchLabels:
+      app: webservice
+  egress:
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+
+# ============================================================
+# registry (app=registry)
+# Receives: Gateway (port 5000), gitlab-runner (image push/pull)
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: registry-gateway-ingress
+  namespace: gitlab
+spec:
+  endpointSelector:
+    matchLabels:
+      app: registry
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "5000"
+              protocol: TCP
+---
+# gitlab-runner accesses registry for image push/pull
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: registry-runner-ingress
+  namespace: gitlab
+spec:
+  endpointSelector:
+    matchLabels:
+      app: registry
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: gitlab-runner
+      toPorts:
+        - ports:
+            - port: "5000"
+              protocol: TCP
+
+# ============================================================
+# gitlab-shell (app=gitlab-shell)
+# SSH LoadBalancer - LAN clients SSH on port 22 (container port 2222)
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: gitlab-shell-ssh-ingress
+  namespace: gitlab
+spec:
+  endpointSelector:
+    matchLabels:
+      app: gitlab-shell
+  ingress:
+    # LAN clients via LoadBalancer 10.10.30.21:22 → container port 2222
+    - fromCIDRSet:
+        - cidr: 10.10.0.0/16
+      toPorts:
+        - ports:
+            - port: "2222"
+              protocol: TCP
+
+# ============================================================
+# sidekiq (app=sidekiq)
+# Background job processor - sends webhooks, emails, external integrations
+# ============================================================
+---
+# Sidekiq internet egress: webhooks, SMTP email, external integrations
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: sidekiq-internet-egress
+  namespace: gitlab
+spec:
+  endpointSelector:
+    matchLabels:
+      app: sidekiq
+  egress:
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+            - port: "587"
+              protocol: TCP
+
+# ============================================================
+# Monitoring metrics ingress
+# Prometheus scrapes: gitlab-exporter:9168, postgresql-metrics:9187,
+#                     redis-metrics:9121, kas-metrics:8151, sidekiq:3807,
+#                     gitaly:9236, webservice:8083
+# (all covered by allow-intra-namespace-ingress since monitoring is a different ns)
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: monitoring-metrics-ingress
+  namespace: gitlab
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: gitlab
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9168"
+              protocol: TCP
+            - port: "8151"
+              protocol: TCP
+            - port: "3807"
+              protocol: TCP
+            - port: "9236"
+              protocol: TCP
+            - port: "8083"
+              protocol: TCP
+---
+# postgresql metrics (separate label: app.kubernetes.io/name=postgresql)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: postgresql-monitoring-ingress
+  namespace: gitlab
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9187"
+              protocol: TCP
+---
+# redis metrics (separate label: app.kubernetes.io/name=redis)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: redis-monitoring-ingress
+  namespace: gitlab
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9121"
+              protocol: TCP

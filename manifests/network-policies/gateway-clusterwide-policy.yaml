@@ -1,0 +1,21 @@
+# CiliumClusterwideNetworkPolicy: Allow Gateway reserved:ingress to reach backends
+#
+# CRITICAL: Apply this BEFORE any default-deny policies.
+# Without this, all HTTPRoutes break the moment default-deny is applied to any namespace.
+#
+# Cilium Gateway API uses reserved:ingress identity for proxied traffic.
+# Standard K8s NetworkPolicy namespaceSelector does NOT match this identity.
+# Source: docs.cilium.io/en/stable/network/servicemesh/ingress-and-network-policy/
+# Issue: cilium/cilium#36509
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: allow-gateway-ingress-egress
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: reserved:ingress
+        operator: Exists
+  egress:
+    - toEntities:
+        - cluster
