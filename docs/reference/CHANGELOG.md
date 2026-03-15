@@ -4,6 +4,51 @@
 
 ---
 
+## March 15, 2026 — RBAC & Secrets Hardening (v0.32.0)
+
+### Summary
+
+RBAC audit across all 110 ServiceAccounts and 82 ClusterRoleBindings. GitLab Runner scoped from
+cluster-wide ClusterRole to namespace-scoped Role. Nova auth bug fixed (version-check-cronjob).
+etcd encryption at rest enabled on all 3 CP nodes (secretbox/XSalsa20-Poly1305), all existing secrets
+re-encrypted. Claude Code access restricted via dedicated ServiceAccount + RBAC + hook-based blocking.
+
+### Changes
+
+| Change | Details |
+|--------|---------|
+| GitLab Runner RBAC | `clusterWideAccess: false` in Helm values — ClusterRole deleted, namespace-scoped Role created in `gitlab-runner`. Helm upgrade rev 5. |
+| version-check-cronjob fix | Removed `automountServiceAccountToken: false` — Nova needs in-cluster API access to read Helm release secrets. Manual job confirmed: 11 outdated, 0 deprecated, 6 current. |
+| etcd encryption | EncryptionConfiguration (secretbox) deployed to all 3 nodes. Rolling API server update: CP1 → soak → CP2 → soak → CP3. All servers Running 0 restarts post-update. |
+| etcd re-encryption | All pre-existing secrets re-encrypted via `kubectl replace`. Verified: `k8s:enc:secretbox:v1:key1:` prefix on cert-manager and vault Helm release secrets. |
+| Encryption key backup | "etcd Encryption Key" in 1Password Kubernetes vault. |
+| Ansible rebuild | `03-init-cluster.yml` updated: deploy task + `encryption-provider-config` extraArg + extraVolume. Key via `--extra-vars "etcd_encryption_key=$(op read ...)"` at runtime. |
+| claude-code SA | ClusterRole (read-only, no secret `get`), ClusterRoleBinding, permanent token Secret. `manifests/kube-system/claude-code-rbac.yaml`. |
+| Restricted kubeconfig | `~/.kube/homelab-claude.yaml` — permanent token, embedded CA. Both kubeconfigs saved to 1Password "Kubeconfig" (fields: `admin-kubeconfig`, `claude-kubeconfig`). |
+| Alias update | `kubectl-homelab` → restricted kubeconfig. `kubectl-admin` → admin kubeconfig. Updated in `~/.zshrc` and `CLAUDE.md`. |
+| Hooks | `protect-sensitive.sh` extended: blocks `kubectl get secret -o json/yaml/jsonpath` and `kubectl describe secret`. |
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| secretbox over aescbc | k8s docs: aescbc not recommended due to CBC padding oracle vulnerability. secretbox uses XSalsa20-Poly1305 (AEAD). |
+| Permanent SA token for claude-code | Time-limited tokens (1 year) expire and break all synced devices simultaneously. Restricted read-only SA is low-risk enough for permanent token. Rotation: delete Secret → k8s revokes immediately. |
+| Both kubeconfigs in one 1Password item | Single `op item get` per file on new device. Fields `admin-kubeconfig` and `claude-kubeconfig` are self-documenting. |
+| longhorn-support-bundle cluster-admin accepted | Manual trigger only, upstream constraint, no feasible alternative. Documented as known exception. |
+| RBAC + hook = two independent layers | RBAC blocks `get` at API server. Hook blocks the command before it reaches the cluster. Either layer alone is insufficient (list verb exposes data with -o yaml). |
+
+### Gotchas
+
+| Gotcha | Detail |
+|--------|--------|
+| `list` verb on secrets still exposes data | `kubectl get secrets -o yaml` uses `list` and returns full data. RBAC `list`-only is not sufficient alone — hooks provide the second layer. |
+| etcd:3.6.6-0 is distroless | No `sh`, no `hexdump`. Use `etcdctl` directly. No `sh -c` wrapper. |
+| StorageVersionMigration not available | k8s 1.35 without feature gate. Re-encryption must use `kubectl get secrets -A -o json | kubectl replace -f -` (user runs manually — data must not flow through Claude). |
+| kube-scheduler restarts during rolling update | When API server restarts, scheduler briefly loses connection and restarts once. Expected — resolves within ~60s. Not an error. |
+
+---
+
 ## March 15, 2026 — Control Plane Hardening (v0.31.0)
 
 ### Summary

@@ -1,6 +1,6 @@
 # Phase 5.2: RBAC & Secrets Hardening
 
-> **Status:** 🔄 In Progress (RBAC audit executed 2026-03-15, etcd encryption pending)
+> **Status:** ✅ Complete (all tasks executed 2026-03-15 — pending /audit-security, /commit, /release v0.32.0)
 > **Target:** v0.32.0
 > **Prerequisite:** Phase 5.1 (v0.31.0 — control plane hardened, audit logging active)
 > **DevOps Topics:** RBAC, etcd encryption, least-privilege access, defense in depth
@@ -181,7 +181,8 @@ By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd
 
 ### 5.2.2.0 Pre-flight checks
 
-- [ ] 5.2.2.0a Record baseline cluster state
+- [x] 5.2.2.0a Record baseline cluster state
+  > **✅ EXECUTED (2026-03-15):** 3 nodes Ready, 0 non-Running pods, clean events (only cluster-janitor + Vault SecretStore validation).
   ```bash
   # Run from Claude Code — captures health state to compare against after changes
   kubectl-homelab get nodes -o wide
@@ -189,7 +190,8 @@ By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd
   kubectl-homelab get events -A --sort-by='.lastTimestamp' | tail -20
   ```
 
-- [ ] 5.2.2.0b Verify etcd cluster health
+- [x] 5.2.2.0b Verify etcd cluster health
+  > **✅ EXECUTED (2026-03-15):** 127.0.0.1:2379 healthy (8ms). All 3 members started.
   ```bash
   # Must use etcdctl directly — NO sh wrapper (distroless, sh not in PATH)
   ETCD_POD=$(kubectl-homelab get pods -n kube-system -l component=etcd \
@@ -211,7 +213,8 @@ By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd
   # Expected: 3 members, all "started"
   ```
 
-- [ ] 5.2.2.0c Take etcd snapshot (pre-flight backup)
+- [x] 5.2.2.0c Take etcd snapshot (pre-flight backup)
+  > **✅ EXECUTED (2026-03-15):** 104 MB snapshot at /var/lib/etcd/pre-encryption-snapshot.db on CP1.
   ```bash
   # Save snapshot inside etcd pod to /var/lib/etcd (hostPath → persists on node)
   kubectl-homelab exec -n kube-system etcd-k8s-cp1 -- \
@@ -225,7 +228,8 @@ By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd
   ssh wawashi@10.10.30.11 "ls -lh /var/lib/etcd/pre-encryption-snapshot.db"
   ```
 
-- [ ] 5.2.2.0d Back up API server manifests on all 3 nodes
+- [x] 5.2.2.0d Back up API server manifests on all 3 nodes
+  > **✅ EXECUTED (2026-03-15):** Backup at /etc/kubernetes/kube-apiserver.yaml.pre-encryption-backup (4545 bytes) on all 3 nodes.
   ```bash
   for node in 11 12 13; do
     echo "=== k8s-cp$((node-10)) ==="
@@ -243,7 +247,8 @@ By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd
 > The encryption key must never flow through this terminal. Generate the script
 > for the user to run in their safe terminal.
 
-- [ ] 5.2.2.1a Generate deployment script for user
+- [x] 5.2.2.1a Generate deployment script for user
+  > **✅ EXECUTED (2026-03-15):** Script /tmp/deploy-enc-key.sh generated and improved (SSH pre-check, idempotency guard, key length validation, inline op save). User ran manually.
   ```bash
   # Claude Code generates this script as a file, user runs it manually.
   # The script:
@@ -304,7 +309,8 @@ By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd
   echo "    --category=password password='$ENCRYPTION_KEY'"
   ```
 
-- [ ] 5.2.2.1b Verify encryption config deployed (Claude Code can verify — no key in output)
+- [x] 5.2.2.1b Verify encryption config deployed (Claude Code can verify — no key in output)
+  > **✅ EXECUTED (2026-03-15):** All 3 nodes: 600 root:root 274 bytes. Checksums identical (61173152...).
   ```bash
   # Verify files exist with correct permissions (doesn't show key content)
   for node in 11 12 13; do
@@ -324,7 +330,8 @@ By default, kubeadm stores Secrets in etcd as plaintext base64. Anyone with etcd
 > **Per-node procedure:** Edit manifest → wait ~45s → verify API server restarted →
 > verify all 3 nodes Ready → verify etcd healthy → verify no error events → wait 5 min → next node
 
-- [ ] 5.2.2.2a Edit API server manifest on CP1
+- [x] 5.2.2.2a Edit API server manifest on CP1
+  > **✅ EXECUTED (2026-03-15):** Added flag, volumeMount, volume. API server restarted (attempt 0, 10s after edit).
   ```bash
   # Python script to add encryption config (same pattern as Phase 5.1 audit-policy)
   ssh wawashi@10.10.30.11 "sudo python3 -c \"
@@ -374,7 +381,8 @@ print('Manifest updated. API server will restart automatically.')
 \""
   ```
 
-- [ ] 5.2.2.2b Verify CP1 API server restarted and healthy
+- [x] 5.2.2.2b Verify CP1 API server restarted and healthy
+  > **✅ EXECUTED (2026-03-15):** crictl: Running attempt 0. All 3 nodes Ready. etcd healthy. Cilium-operator probe blips transient (restart window only).
   ```bash
   # Wait for restart (~45s), then verify
   sleep 45
@@ -403,7 +411,8 @@ print('Manifest updated. API server will restart automatically.')
   echo "CP1 healthy. Wait 5 minutes before proceeding to CP2..."
   ```
 
-- [ ] 5.2.2.2c Wait 5-minute soak for CP1
+- [x] 5.2.2.2c Wait 5-minute soak for CP1
+  > **✅ EXECUTED (2026-03-15):** 5 min soak passed. CP1 apiserver Running 0 restarts. All nodes Ready.
   ```bash
   # After 5 minutes, re-verify before moving to CP2
   kubectl-homelab get nodes
@@ -411,7 +420,8 @@ print('Manifest updated. API server will restart automatically.')
   # All Running, 0 restarts since the intentional restart
   ```
 
-- [ ] 5.2.2.2d Edit CP2 manifest, verify, and soak
+- [x] 5.2.2.2d Edit CP2 manifest, verify, and soak
+  > **✅ EXECUTED (2026-03-15):** API server Running attempt 0. kube-scheduler restarted once (expected — API disconnect during restart window). No new warnings after recovery. 5 min soak passed.
   ```bash
   # Same Python script as CP1, targeting CP2
   ssh wawashi@10.10.30.12 "sudo python3 -c \"
@@ -444,14 +454,16 @@ print('CP2 manifest updated.')
   # Same verification steps as CP1 (5.2.2.2b + 5.2.2.2c)
   ```
 
-- [ ] 5.2.2.2e Edit CP3 manifest, verify, and soak
+- [x] 5.2.2.2e Edit CP3 manifest, verify, and soak
+  > **✅ EXECUTED (2026-03-15):** API server Running attempt 0. Readiness probe blip at 52s (restart window only). Recovered within 30s. 5 min soak passed.
   ```bash
   # Same Python script targeting CP3 (10.10.30.13)
   # Same verification steps
   # After CP3: all 3 API servers now have --encryption-provider-config
   ```
 
-- [ ] 5.2.2.2f Final verification — all 3 API servers have encryption config
+- [x] 5.2.2.2f Final verification — all 3 API servers have encryption config
+  > **✅ EXECUTED (2026-03-15):** All 3 manifests confirmed: --encryption-provider-config=/etc/kubernetes/encryption-config.yaml. All API servers Running 0 restarts.
   ```bash
   # Confirm the flag is present on all 3 nodes
   for node in 11 12 13; do
@@ -468,7 +480,8 @@ print('CP2 manifest updated.')
 
 ### 5.2.2.3 Verify encryption works
 
-- [ ] 5.2.2.3a Create test secret and verify in etcd
+- [x] 5.2.2.3a Create test secret and verify in etcd
+  > **✅ EXECUTED (2026-03-15):** etcd prefix confirmed: `k8s:enc:secretbox:v1:key1:`. API server decrypts correctly. Test secret deleted.
   ```bash
   # Create a test secret
   kubectl-homelab create secret generic encryption-test \
@@ -498,7 +511,8 @@ print('CP2 manifest updated.')
 > StorageVersionMigration is NOT available on this cluster (verified).
 > The user must run this in their safe terminal.
 
-- [ ] 5.2.2.4a Generate re-encryption script for user
+- [x] 5.2.2.4a Generate re-encryption script for user
+  > **✅ EXECUTED (2026-03-15):** /tmp/re-encrypt-secrets.sh generated. User ran manually. Verified 2 pre-existing secrets (cert-manager + vault Helm releases) now have `k8s:enc:secretbox:v1:key1:` prefix in etcd.
   ```bash
   # Claude Code generates this script, user runs it in safe terminal.
   # Script path: /tmp/re-encrypt-secrets.sh
@@ -531,7 +545,8 @@ print('CP2 manifest updated.')
   echo "Expected: binary data with 'k8s:enc:secretbox:v1:key1' prefix"
   ```
 
-- [ ] 5.2.2.4b Verify re-encryption (Claude Code can verify — etcd raw data is binary, not secret values)
+- [x] 5.2.2.4b Verify re-encryption (Claude Code can verify — etcd raw data is binary, not secret values)
+  > **✅ EXECUTED (2026-03-15):** cert-manager/sh.helm.release.v1.cert-manager.v1 → k8s:enc:secretbox:v1:key1: ✅. vault/sh.helm.release.v1.vault.v1 → k8s:enc:secretbox:v1:key1: ✅.
   ```bash
   # Check a known secret in etcd to confirm encrypted prefix
   # Pick a non-sensitive secret (e.g., a cert-manager token or Helm release secret)
@@ -551,7 +566,8 @@ print('CP2 manifest updated.')
 
 > **Claude Code MUST NOT run `op` commands.** Generate the command for user.
 
-- [ ] 5.2.2.5a Print 1Password backup command
+- [x] 5.2.2.5a Print 1Password backup command
+  > **✅ EXECUTED (2026-03-15):** Key saved automatically by deploy-enc-key.sh via inline `op item create`. Item ID: 3q2a5mdcpskdjmj7q4hwkkkcmu in Kubernetes vault, title "etcd Encryption Key".
   ```bash
   # Tell user to run (already printed by deploy-encryption-config.sh):
   # op item create --vault=Kubernetes --title="etcd Encryption Key" \
@@ -560,7 +576,9 @@ print('CP2 manifest updated.')
 
 ### 5.2.2.6 Bake encryption into Ansible rebuild playbook
 
-- [ ] 5.2.2.6a Update 03-init-cluster.yml
+- [x] 5.2.2.6a Update 03-init-cluster.yml
+  > **✅ EXECUTED (2026-03-15):** Added deploy task (before kubeadm init), encryption-provider-config extraArg, and encryption-config extraVolume. Key passed at runtime via `--extra-vars "etcd_encryption_key=$(op read ...)"`.
+
   ```yaml
   # Add BEFORE the "Create kubeadm config file" task:
 
@@ -619,7 +637,8 @@ print('CP2 manifest updated.')
 > `kubectl get secrets -n vault -o yaml` uses `list` and shows all data.
 > The hooks (5.2.4) are an ESSENTIAL defense layer, not optional.
 
-- [ ] 5.2.3.1 Create restricted ServiceAccount, ClusterRole, and ClusterRoleBinding
+- [x] 5.2.3.1 Create restricted ServiceAccount, ClusterRole, and ClusterRoleBinding
+  > **✅ EXECUTED (2026-03-15):** SA + ClusterRole + ClusterRoleBinding applied. Manifest at manifests/kube-system/claude-code-rbac.yaml.
   ```yaml
   # manifests/kube-system/claude-code-rbac.yaml
   apiVersion: v1
@@ -711,59 +730,89 @@ print('CP2 manifest updated.')
       namespace: kube-system
   ```
 
-- [ ] 5.2.3.2 Generate kubeconfig for the ServiceAccount
+- [x] 5.2.3.2 Generate kubeconfig for the ServiceAccount
+  > **✅ EXECUTED (2026-03-15):** Permanent Secret-based token (claude-code-token). homelab-claude.yaml built with embedded CA.
+  > Both kubeconfigs saved to 1Password "Kubeconfig" (ID: npgphvdw3yf22uyxsxidsgmo7i) — fields: admin-kubeconfig, claude-kubeconfig.
+  > kubectl-homelab alias → homelab-claude.yaml (restricted). kubectl-admin alias → homelab.yaml (admin).
+  > RBAC verified: get secret → Forbidden ✅, list secrets → allowed ✅, get nodes → allowed ✅.
   ```bash
   # ⛔ CORRECTED: Use SEPARATE kubeconfig file — do NOT overwrite admin kubeconfig!
-  # Original plan would overwrite ~/.kube/homelab.yaml, locking out admin.
+  # ⛔ CORRECTED: Use permanent Secret-based token, NOT time-limited token.
+  #   kubectl create token --duration=8760h expires after 1 year — breaks all synced devices.
+  #   A read-only SA with no secret access is low-risk enough for a permanent token.
 
   # 1. Apply the SA + ClusterRole + Binding
-  kubectl-homelab apply -f manifests/kube-system/claude-code-rbac.yaml
+  kubectl --kubeconfig ~/.kube/homelab.yaml apply -f manifests/kube-system/claude-code-rbac.yaml
 
-  # 2. Create a long-lived token (SA tokens are not auto-created in K8s 1.24+)
-  # --duration is a REQUEST — server may return different duration. Verify actual expiry.
-  # No --service-account-max-token-expiration set on API server — should honor our request.
-  kubectl-homelab create token claude-code -n kube-system --duration=8760h > /tmp/cc-token
+  # 2. Create permanent token Secret (k8s 1.24+ doesn't auto-create SA tokens)
+  kubectl --kubeconfig ~/.kube/homelab.yaml apply -f - <<EOF
+  apiVersion: v1
+  kind: Secret
+  metadata:
+    name: claude-code-token
+    namespace: kube-system
+    annotations:
+      kubernetes.io/service-account.name: claude-code
+  type: kubernetes.io/service-account-token
+  EOF
 
-  # 3. Build SEPARATE kubeconfig (NOT ~/.kube/homelab.yaml!)
+  # Wait for token to be populated by the token controller (~5s)
+  sleep 5
+  kubectl --kubeconfig ~/.kube/homelab.yaml get secret claude-code-token -n kube-system
+  # Expected: Opaque, age=few seconds
+
+  # 3. Build restricted kubeconfig (NOT ~/.kube/homelab.yaml!)
   CLAUDE_KUBECONFIG=~/.kube/homelab-claude.yaml
-  # Copy CA cert from admin kubeconfig
-  kubectl --kubeconfig ~/.kube/homelab.yaml config view --raw \
-    -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | \
-    base64 -d > /tmp/homelab-ca.crt
+  TOKEN=$(kubectl --kubeconfig ~/.kube/homelab.yaml get secret claude-code-token \
+    -n kube-system -o jsonpath='{.data.token}' | base64 -d)
+  CA_DATA=$(kubectl --kubeconfig ~/.kube/homelab.yaml config view --raw \
+    -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
 
   kubectl config set-cluster homelab \
     --server=https://api.k8s.rommelporras.com:6443 \
-    --certificate-authority=/tmp/homelab-ca.crt \
-    --embed-certs=true \
+    --certificate-authority-data="$CA_DATA" \
     --kubeconfig=$CLAUDE_KUBECONFIG
   kubectl config set-credentials claude-code \
-    --token=$(cat /tmp/cc-token) \
+    --token="$TOKEN" \
     --kubeconfig=$CLAUDE_KUBECONFIG
   kubectl config set-context homelab-claude \
     --cluster=homelab --user=claude-code \
     --kubeconfig=$CLAUDE_KUBECONFIG
   kubectl config use-context homelab-claude --kubeconfig=$CLAUDE_KUBECONFIG
-  rm /tmp/cc-token /tmp/homelab-ca.crt
+  unset TOKEN CA_DATA
 
-  # 4. Update kubectl-homelab alias to use restricted kubeconfig
+  # 4. Save BOTH kubeconfigs to 1Password — one item, two fields
+  # Retrieve on any device:
+  #   op item get 'Kubeconfig' --vault=Kubernetes --fields admin-kubeconfig > ~/.kube/homelab.yaml
+  #   op item get 'Kubeconfig' --vault=Kubernetes --fields claude-kubeconfig > ~/.kube/homelab-claude.yaml
+  op item create \
+    --vault=Kubernetes \
+    --title='Kubeconfig' \
+    --category='Secure Note' \
+    "admin-kubeconfig[text]=$(cat ~/.kube/homelab.yaml)" \
+    "claude-kubeconfig[text]=$(cat ~/.kube/homelab-claude.yaml)"
+
+  # 5. Update kubectl-homelab alias to use restricted kubeconfig
   # In ~/.zshrc, change:
   #   alias kubectl-homelab='kubectl --kubeconfig ~/.kube/homelab.yaml'
   # To:
   #   alias kubectl-homelab='kubectl --kubeconfig ~/.kube/homelab-claude.yaml'
   #   alias kubectl-admin='kubectl --kubeconfig ~/.kube/homelab.yaml'
-  # This way Claude Code uses restricted access, user has kubectl-admin for full access.
 
-  # 5. Test: should return Forbidden
+  # 6. Test restricted access — should return Forbidden
   kubectl --kubeconfig $CLAUDE_KUBECONFIG get secret vault-unseal-keys -n vault -o json
   # Expected: Error from server (Forbidden)
 
-  # 6. Test: should work (list shows names only in table format)
+  # 7. Test list access — should work (names/metadata only in table format)
   kubectl --kubeconfig $CLAUDE_KUBECONFIG get secrets -n vault
-  # Expected: NAME, TYPE, DATA, AGE columns (no secret data shown)
+  # Expected: NAME, TYPE, DATA, AGE columns (no secret values)
 
   # ⚠️ NOTE: kubectl get secrets -n vault -o yaml WILL still show data via list verb.
   # This is why hooks (5.2.4) are ESSENTIAL — they block -o json/yaml on secrets.
   ```
+
+  > **Token rotation:** if token is ever compromised, delete the `claude-code-token` Secret
+  > (k8s immediately revokes it), create a new one, rebuild kubeconfig, update 1Password item.
 
 ---
 
@@ -779,7 +828,8 @@ print('CP2 manifest updated.')
 > This project already has `.claude/hooks/protect-sensitive.sh` with PreToolUse hooks
 > in `.claude/settings.json`. Extend the existing hook script instead of creating new files.
 
-- [ ] 5.2.4.1 Add secret-read blocking to `.claude/hooks/protect-sensitive.sh`
+- [x] 5.2.4.1 Add secret-read blocking to `.claude/hooks/protect-sensitive.sh`
+  > **✅ EXECUTED (2026-03-15):** Two patterns added — blocks `get secret -o json/yaml/jsonpath` and `describe secret`. Tightened regex handles flags in any position.
   ```bash
   # Add to the COMMAND PROTECTION section of protect-sensitive.sh:
 
@@ -798,7 +848,8 @@ print('CP2 manifest updated.')
   fi
   ```
 
-- [ ] 5.2.4.2 Verify hook works
+- [x] 5.2.4.2 Verify hook works
+  > **✅ EXECUTED (2026-03-15):** Hook blocked its own test command (pattern in Bash text triggered correctly). Allowed cases pass: `get secrets` (no -o), `get pods -o json`. RBAC + hook = two independent layers.
   ```bash
   # These should be blocked by hook before reaching cluster:
   kubectl-homelab get secret vault-unseal-keys -n vault -o json
@@ -814,13 +865,10 @@ print('CP2 manifest updated.')
 
 ## 5.2.5 Documentation
 
-- [ ] 5.2.5.1 Update `docs/context/Security.md` with:
-  - RBAC audit results (ServiceAccounts, bindings, cluster-admin usage)
-  - GitLab Runner ClusterRole decision and rationale
-  - etcd encryption status and key management
-  - Claude Code access restrictions (RBAC + hooks)
-  - RBAC trust boundaries diagram
-- [ ] 5.2.5.2 Update `docs/reference/CHANGELOG.md`
+- [x] 5.2.5.1 Update `docs/context/Security.md` with:
+  > **✅ EXECUTED (2026-03-15):** Added RBAC Hardening section (audit results, GitLab Runner + longhorn decisions, trust boundaries), etcd Encryption section (secretbox config, verification, rotation, rebuild), and Claude Code Access Restrictions section (RBAC layer, hook layer, alias mapping, token rotation).
+- [x] 5.2.5.2 Update `docs/reference/CHANGELOG.md`
+  > **✅ EXECUTED (2026-03-15):** v0.32.0 entry added — summary, all changes, key decisions, gotchas.
 
 ---
 
@@ -830,18 +878,16 @@ print('CP2 manifest updated.')
 - [x] GitLab Runner ClusterRole replaced with namespace-scoped Role (`clusterWideAccess: false` + helm upgrade rev 5)
 - [x] longhorn-support-bundle cluster-admin binding reviewed — accepted, document in Security.md
 - [x] version-check-cronjob `automountServiceAccountToken: false` bug fixed — Nova confirmed working (11 outdated detected)
-- [ ] Pre-flight: etcd snapshot saved, API server manifests backed up on all 3 nodes
-- [ ] Encryption key generated and deployed to all 3 nodes (checksums match)
-- [ ] Rolling API server update: CP1 → soak → CP2 → soak → CP3 (all 3 healthy)
-- [ ] Encryption verified via etcdctl (see `k8s:enc:secretbox:v1:key1` prefix in test secret)
-- [ ] All existing secrets re-encrypted (user runs manually — data must not flow through Claude)
-- [ ] Post-re-encryption verification (sample secret shows encrypted prefix in etcd)
-- [ ] Encryption key backed up to 1Password
-- [ ] Encryption baked into Ansible rebuild playbook (03-init-cluster.yml)
-- [ ] Restricted kubeconfig for Claude Code deployed (separate file, not overwriting admin)
-- [ ] kubectl-homelab alias updated to use restricted kubeconfig
-- [ ] Claude Code hooks block `get secret -o json/yaml` and `describe secret`
-- [ ] All existing secrets re-encrypted with new provider
+- [x] Pre-flight: etcd snapshot saved (104 MB), API server manifests backed up on all 3 nodes (2026-03-15)
+- [x] Encryption key generated and deployed to all 3 nodes — checksums identical (2026-03-15)
+- [x] Rolling API server update: CP1 → soak → CP2 → soak → CP3 — all 3 Running 0 restarts (2026-03-15)
+- [x] Encryption verified via etcdctl — `k8s:enc:secretbox:v1:key1:` prefix confirmed on new secrets (2026-03-15)
+- [x] All existing secrets re-encrypted — user ran manually, sample verified (cert-manager + vault Helm releases) (2026-03-15)
+- [x] Encryption key backed up to 1Password — "etcd Encryption Key" in Kubernetes vault (2026-03-15)
+- [x] Encryption baked into Ansible rebuild playbook (03-init-cluster.yml) — deploy task + extraArg + extraVolume (2026-03-15)
+- [x] Restricted kubeconfig for Claude Code deployed — permanent SA token, saved to 1Password "Kubeconfig" (2026-03-15)
+- [x] kubectl-homelab alias → homelab-claude.yaml (restricted); kubectl-admin alias → homelab.yaml (admin) (2026-03-15)
+- [x] Claude Code hooks block `get secret -o json/yaml` and `describe secret` (2026-03-15)
 
 ---
 

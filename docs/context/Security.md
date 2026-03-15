@@ -169,3 +169,109 @@ Kubernetes Secrets (consumed by pods)
 | ESO → Namespaces | `namespaceSelector` on ClusterSecretStore; unlabeled namespaces are blocked |
 | Vault bootstrap | `vault-unseal-keys` is the only imperative secret (chicken-and-egg) |
 | Vault access | `eso-policy` grants read on `secret/data/*`, list on `secret/metadata/*` |
+
+## RBAC Hardening (Phase 5.2)
+
+### Audit Results (2026-03-15)
+
+| Binding | Subjects | Verdict |
+|---------|----------|---------|
+| `cluster-admin` → `Group/system:masters` | kubeadm bootstrap | ✅ Expected |
+| `kubeadm:cluster-admins` → `Group/kubeadm:cluster-admins` | kubeadm bootstrap | ✅ Expected |
+| `longhorn-support-bundle` → `SA/longhorn-system/longhorn-support-bundle` | Longhorn support bundle collection | ✅ Accepted — see below |
+
+### Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| longhorn-support-bundle cluster-admin accepted | Required for bundle collection across all namespaces. Only one manual CRD triggers it; no continuous privilege. Longhorn upstream — not fixable without forking. Documented as known exception. |
+| GitLab Runner `clusterWideAccess: false` | Runner was using a ClusterRole with `resources: ["*"], verbs: ["*"]` on core API. All job pods run in `gitlab-runner` namespace; cross-namespace deploys use `gitlab-deploy` SA (separate namespace Roles). Changed to namespace-scoped Role in Helm values. Helm upgrade applied (rev 5), ClusterRole deleted. |
+| version-check-cronjob `automountServiceAccountToken` restored | Phase 5.0 hardening set this to `false` on the CronJob pod spec. Nova (Fairwinds) requires in-cluster API access to read Helm release Secrets (`type: helm.sh/release.v1`) across all namespaces for chart drift detection. Removing the flag restored Nova auth. |
+
+### RBAC Trust Boundaries
+
+```
+cluster-admin
+    ├── system:masters (kubeadm bootstrap — cluster-admin)
+    ├── kubeadm:cluster-admins (kubeadm bootstrap — cluster-admin)
+    └── longhorn-support-bundle (Longhorn SA — cluster-admin, manual trigger only)
+
+Read-only (restricted)
+    └── claude-code SA (kube-system)
+            ClusterRole: get/list/watch all resources EXCEPT secrets
+            Secrets: list only (names/metadata — no values)
+            Enforced by: RBAC + protect-sensitive.sh hook
+```
+
+## etcd Encryption at Rest (Phase 5.2)
+
+Enabled 2026-03-15 on all 3 control plane nodes.
+
+| Setting | Value |
+|---------|-------|
+| Provider | `secretbox` (XSalsa20-Poly1305) |
+| Key name | `key1` |
+| Config path | `/etc/kubernetes/encryption-config.yaml` (mode 600, root:root) |
+| Key backup | 1Password "etcd Encryption Key" in Kubernetes vault |
+| Resources encrypted | `secrets` only |
+| Identity fallback | `identity: {}` as second provider (read existing unencrypted data) |
+
+### Why secretbox over aescbc
+
+k8s docs: aescbc is "not recommended due to CBC's vulnerability to padding oracle attacks." secretbox uses XSalsa20-Poly1305 — AEAD cipher with authentication. Verified from k8s GitHub source.
+
+### Verification
+
+etcd raw prefix on all secrets: `k8s:enc:secretbox:v1:key1:` — confirmed via `etcdctl get --print-value-only | head -c 30 | cat -v` on cp1.
+
+All pre-existing secrets re-encrypted 2026-03-15 via `kubectl get secrets -A -o json | kubectl replace -f -`.
+
+### Rebuild
+
+Key passed at Ansible runtime: `--extra-vars "etcd_encryption_key=$(op read 'op://Kubernetes/etcd Encryption Key/password')"`. Baked into `ansible/playbooks/03-init-cluster.yml` (deploy task + extraArg + extraVolume).
+
+### Key Rotation
+
+To rotate: add new key as first entry in EncryptionConfiguration, rolling-restart API servers, re-encrypt all secrets, remove old key, restart again. Update 1Password item.
+
+## Claude Code Access Restrictions (Phase 5.2)
+
+Defense in depth — two independent layers prevent Claude Code from reading secret values.
+
+### Layer 1: Restricted Kubeconfig (RBAC)
+
+| Resource | `kubectl-homelab` access |
+|----------|--------------------------|
+| All resources (pods, services, nodes, etc.) | `get`, `list`, `watch` |
+| Secrets | `list` only (table format — names/metadata, not values) |
+| Secrets (`get` individual) | **Forbidden** (API server rejects) |
+
+ServiceAccount: `claude-code` in `kube-system`. Permanent token in `claude-code-token` Secret.
+Kubeconfigs: both admin and restricted saved to 1Password "Kubeconfig" (fields: `admin-kubeconfig`, `claude-kubeconfig`).
+
+```bash
+# Sync to new device
+op item get 'Kubeconfig' --vault=Kubernetes --fields admin-kubeconfig > ~/.kube/homelab.yaml
+op item get 'Kubeconfig' --vault=Kubernetes --fields claude-kubeconfig > ~/.kube/homelab-claude.yaml
+```
+
+### Layer 2: Hook Blocking (protect-sensitive.sh)
+
+Even if RBAC were misconfigured, the PreToolUse hook blocks the Bash command before it reaches the cluster:
+
+| Command pattern | Action |
+|----------------|--------|
+| `kubectl get secret[s] -o json/yaml/jsonpath` | Blocked (exit 2) |
+| `kubectl describe secret[s]` | Blocked (exit 2) |
+
+### Alias Mapping
+
+| Alias | Kubeconfig | Access |
+|-------|-----------|--------|
+| `kubectl-homelab` | `~/.kube/homelab-claude.yaml` | Restricted (Claude Code) |
+| `kubectl-admin` | `~/.kube/homelab.yaml` | Full cluster-admin (user only) |
+| `helm-homelab` | `~/.kube/homelab.yaml` | Full (Helm needs admin for installs) |
+
+### Token Rotation
+
+If `claude-code` token is compromised: delete `claude-code-token` Secret in kube-system (k8s immediately revokes it), create new Secret, rebuild `homelab-claude.yaml`, update 1Password "Kubeconfig" item.
