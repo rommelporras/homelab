@@ -18,7 +18,7 @@
 
 > **Why CiliumNetworkPolicy exclusively (not K8s NetworkPolicy)?**
 >
-> The cluster already has **18 CiliumNetworkPolicies** across 8 namespaces and **zero** K8s
+> The cluster already has **18 CiliumNetworkPolicies** across 7 namespaces and **zero** K8s
 > NetworkPolicies (except the Helm-bundled `gitlab-redis`). Mixing both policy types on
 > the same endpoint creates debugging complexity - both independently trigger default-deny,
 > and allow rules union across both, making it harder to trace why traffic is allowed or denied.
@@ -123,8 +123,8 @@ Apply policies in this order, from lowest-risk to highest-risk. Test after each 
 | 8 | external-secrets | High | Blocks ESO = blocks all secret syncing |
 | 9 | vault | High | Blocks Vault = blocks ESO = blocks everything |
 | 10 | cert-manager | High | Blocks cert-manager = certs stop renewing |
-| 11 | arr-stack | High | 20 pods, complex inter-pod traffic, already has policies |
-| 12 | monitoring | Highest | 22 pods, scrapes everything, FQDN egress, most complex |
+| 11 | arr-stack | High | 14 pods + 2 CronJobs, complex inter-pod traffic, already has policies |
+| 12 | monitoring | Highest | 19 pods (16 non-hostNetwork), scrapes everything, FQDN egress, most complex |
 | 13 | gitlab, gitlab-runner | Highest | Helm-managed, 13+ pods, many internal services |
 | 14 | longhorn-system, intel-device-plugins, node-feature-discovery | Deferred | Storage/device plugins - high breakage risk, low attack surface |
 
@@ -179,28 +179,11 @@ metadata:
   namespace: <namespace>
 spec:
   endpointSelector: {}
-  ingress:
-    - {}    # Triggers default-deny for ingress direction
-  egress:
-    - {}    # Triggers default-deny for egress direction
-```
-
-> **Note:** An empty `ingress: [{}]` with no `fromEndpoints`/`fromEntities` would actually
-> ALLOW all ingress. For CiliumNetworkPolicy, the correct default-deny pattern is to include
-> the direction in the spec but with NO rules:
-
-```yaml
-# Correct CiliumNetworkPolicy default-deny pattern
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
-  name: default-deny-all
-  namespace: <namespace>
-spec:
-  endpointSelector: {}
-  # Selecting the direction without any allow rules = default-deny
-  # In enable-policy=default mode, just having a policy that selects
-  # the endpoint triggers deny for that direction
+  # Empty arrays = section present but no allow rules = default-deny for that direction
+  # IMPORTANT: ingress: [{}] (with empty object) means ALLOW ALL - that is wrong
+  # ingress: [] (empty array) means no rules = default-deny - that is correct
+  ingress: []
+  egress: []
 ---
 # Always allow DNS - without this, nothing works
 apiVersion: cilium.io/v2
@@ -241,7 +224,7 @@ spec:
 
 - [ ] 5.3.2.2 Create cluster-wide policy allowing Gateway `reserved:ingress` to reach backends
   ```yaml
-  # Without this, ALL 31 HTTPRoutes break when default-deny is applied
+  # Without this, ALL 32 HTTPRoutes break when default-deny is applied
   # Source: docs.cilium.io/en/stable/network/servicemesh/ingress-and-network-policy/
   apiVersion: cilium.io/v2
   kind: CiliumClusterwideNetworkPolicy
@@ -359,7 +342,7 @@ ESO is the highest-priority namespace to lock down. ESO docs warn: *"ESO may be 
 
 ### vault
 
-4 pods: `vault-0` (StatefulSet), `vault-unsealer` (Deployment), `vault-snapshot-*` (CronJob)
+2 running pods + 1 CronJob: `vault-0` (StatefulSet), `vault-unsealer` (Deployment), `vault-snapshot-*` (CronJob)
 
 | Direction | Target | Port | Why |
 |-----------|--------|------|-----|
@@ -381,7 +364,7 @@ ESO is the highest-priority namespace to lock down. ESO docs warn: *"ESO may be 
 
 ### monitoring
 
-The most complex namespace. Prometheus scrapes ALL namespaces. **22 running pods** (not counting completed CronJob pods).
+The most complex namespace. Prometheus scrapes ALL namespaces. **19 running pods** (16 non-hostNetwork + 3 node-exporter hostNetwork, not counting completed CronJob pods).
 
 | Component | Direction | Target | Port | Why |
 |-----------|-----------|--------|------|-----|
@@ -396,7 +379,7 @@ The most complex namespace. Prometheus scrapes ALL namespaces. **22 running pods
 | blackbox-exporter | Egress | `world` entity | 443 | Probe external endpoints |
 | blackbox-exporter | Egress | `cluster` entity | various | Probe internal endpoints |
 | nut-exporter | Egress | NAS/UPS 10.10.30.4 | 3493 | NUT protocol to UPS |
-| OTel collector | Ingress | LAN CIDR 10.10.0.0/16 | 4317, 4318 | LoadBalancer (10.10.30.22) |
+| OTel collector | Ingress | LAN CIDR 10.10.0.0/16 | 4317, 4318, 8889 | LoadBalancer (10.10.30.22) - 8889 is Prometheus metrics |
 | Grafana, Prometheus, Alertmanager, Loki | Ingress | Gateway (`ingress` entity) | 80, 9090, 9093, 3100 | HTTPRoutes (4 routes) |
 | All metrics pods | Ingress | same ns (Prometheus) | various | Internal scraping |
 | kube-vip (metrics svc) | Ingress | monitoring ns (Prometheus) | 2112 | kube-vip metrics |
@@ -504,12 +487,19 @@ Gateway (CiliumNP) -> app pod (HTTP)
     - Needs DNS egress to upstream resolvers (53/UDP, 53/TCP) - `toCIDRSet: 0.0.0.0/0` on port 53
     - Needs HTTPS egress for blocklist updates (443)
   - **Homepage: needs egress to many services** (widgets query apps across namespaces)
-    - Known widget targets: Grafana (monitoring:80), Sonarr (arr-stack:8989), Radarr (arr-stack:7878),
-      Jellyfin (arr-stack:8096), qBittorrent (arr-stack:8080), Prowlarr (arr-stack:9696),
-      AdGuard (home:3000), Longhorn (longhorn-system), Uptime Kuma (uptime-kuma:3001),
-      GitLab (gitlab:8181)
-    - Enumerate all widgets from Homepage config before writing policy
-    - Also needs kube-apiserver egress if Homepage queries K8s API for cluster widgets
+    - Most cluster services accessed via Gateway VIP `10.10.30.20:443` (`*.k8s.rommelporras.com`)
+    - Direct internal connection: Vault (`vault.vault.svc.cluster.local:8200`) via customapi widget
+    - LAN targets (private CIDR, not via Gateway):
+      - Proxmox VE (`pve.home.rommelporras.com:443`), Firewall (`firewall.home.rommelporras.com:443`)
+      - OPNsense (`10.10.10.1:443`), OpenWRT (`10.10.70.4:80`)
+      - Node exporters (`10.10.30.11-13:9100`)
+      - NAS: OMV (`omv.home.rommelporras.com:443`), Glances (`10.10.30.4:61208`)
+    - External internet: Tailscale API (`login.tailscale.com:443`), OpenWeather API
+    - Cluster widgets via Gateway VIP: Grafana, Prometheus, Alertmanager, Sonarr, Radarr, Jellyfin,
+      qBittorrent, Prowlarr, Bazarr, Tdarr, Recommendarr, Seerr, Karakeep, AdGuard, Longhorn,
+      Uptime Kuma, GitLab, Browser, Atuin, Blog (dev+prod), MySpeed, Immich (home network)
+    - Kubernetes API (kube-apiserver egress) for cluster/node/pod widgets via RBAC
+    - Full widget inventory: `manifests/home/homepage/config/services.yaml`
   - MySpeed HTTP: 5216, needs egress to speedtest servers (broad internet)
 
 - [ ] 5.3.4.6 Create/audit NetworkPolicies for browser, uptime-kuma
@@ -519,9 +509,10 @@ Gateway (CiliumNP) -> app pod (HTTP)
 
 - [ ] 5.3.4.7 Create NetworkPolicies for ai namespace
   - **Already has CiliumNP** (ollama-ingress) - needs egress rules added
-  - Ollama HTTP: 11434, Gateway ingress via HTTPRoute (already covered by ollama-ingress)
+  - Ollama HTTP: 11434, no HTTPRoute (accessed directly by other namespaces, not via Gateway)
   - Ollama may need internet egress for model downloads
   - Existing ingress allows from: monitoring (probes), karakeep (tagging), arr-stack (Recommendarr)
+  - Note: ollama-ingress does NOT have `fromEntities: [ingress]` - no Gateway ingress needed
 
 - [ ] 5.3.4.8 Create NetworkPolicies for portfolio-dev, portfolio-prod, portfolio-staging
   - All 3 namespaces have identical setup: portfolio:80
@@ -531,7 +522,7 @@ Gateway (CiliumNP) -> app pod (HTTP)
 
 ### Pattern C: ARR Stack (Complex)
 
-arr-stack has **20 pods / 13 services** with extensive inter-pod communication + NFS + external trackers.
+arr-stack has **14 running pods + 2 CronJobs / 13 services** with extensive inter-pod communication + NFS + external trackers.
 
 > **Already has CiliumNetworkPolicies:** `default-deny-ingress` + `default-egress`.
 > Current policies allow broad intra-namespace + internet egress for all pods.
@@ -604,7 +595,8 @@ arr-stack has **20 pods / 13 services** with extensive inter-pod communication +
   - `cert-expiry-check` (weekly): needs kube-apiserver access (checks cert expiry dates)
   - `pki-backup` (weekly): needs kube-apiserver or node access for PKI files
   - These run in kube-system which is largely hostNetwork-exempt, but the CronJob pods themselves
-    may NOT use hostNetwork - verify before deciding if policies are needed
+    do NOT use hostNetwork (verified) - they WILL need network policies
+  - All 3 need: DNS egress + kube-apiserver egress (6443)
 
 ### Remaining Namespaces
 
@@ -883,7 +875,7 @@ Consider whether OPNsense firewall rules on the K8s VLAN (10.10.30.0/24) should 
 - [ ] Cross-namespace DB access blocked (tested)
 - [ ] Homepage widgets still load (cross-namespace queries)
 - [ ] Unpackerr in arr-stack can access qBittorrent + Sonarr/Radarr
-- [ ] All 31 HTTPRoutes still serve traffic via Gateway
+- [ ] All 32 HTTPRoutes still serve traffic via Gateway
 - [ ] All 30 ExternalSecrets still synced
 
 ### LoadBalancers + CronJobs

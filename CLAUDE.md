@@ -79,3 +79,5 @@ Kubernetes homelab for CKA prep. 3-node HA cluster (kubeadm, Cilium CNI, Longhor
 - **Grafana RWO PVC on Helm upgrade** — new pod can't attach. Scale down old RS, delete old pod first.
 - **Cilium HTTPRoute `<none>` status** — `kubectl-homelab rollout restart deployment/cilium-operator -n kube-system`.
 - **Sonarr/Radarr API** — external HTTPRoute returns 404. Must port-forward from WSL.
+- **CiliumNP default-deny** — `ingress: [{}]` = allow-all (empty rule matches everything), `ingress: []` = deny-all. Opposite of K8s NP intuition where `{}` means deny.
+- **CiliumNP CIDR vs pod traffic** — `toCIDR`/`fromCIDR` with pod CIDR `10.244.0.0/16` silently fails for pod-to-pod traffic. Cilium uses identity-based matching for managed endpoints. Use `toEndpoints`/`toEntities` instead.
