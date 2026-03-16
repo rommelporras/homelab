@@ -27,6 +27,8 @@
   due to CI/CD placeholder image - fixed via kubectl patch to avoid image rollback)
 - AdGuard Home: L4-only egress policy (L7 envoy proxy intermittently broke upstream DNS
   forwarding, causing network-wide DNS failures for *.home.rommelporras.com services)
+- OTel Collector: added fromEntities: [world] to ingress (LoadBalancer external traffic
+  needs world entity - fromCIDRSet doesn't match after Cilium LB DNAT processing)
 
 ### Cilium Discoveries
 - toCIDR silently fails for cluster node IPs (remote-node identity) - use toEntities: [remote-node]

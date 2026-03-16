@@ -350,7 +350,11 @@ spec:
 # LoadBalancer 10.10.30.22 receives traces from LAN + cluster apps
 # ============================================================
 ---
-# OTel collector ingress: LAN CIDR (LoadBalancer traffic) + cluster pods (traces)
+# OTel collector ingress: LAN + LoadBalancer traffic + cluster pods
+# No toPorts on external-facing rules - L7 proxy interferes with
+# gRPC/LoadBalancer traffic (same issue as Homepage/AdGuard egress,
+# but on the ingress side). Port restriction is unnecessary since
+# the OTel pod only listens on 4317/4318/8889 anyway.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -361,19 +365,13 @@ spec:
     matchLabels:
       app: otel-collector
   ingress:
-    # LAN clients sending traces via LoadBalancer 10.10.30.22
-    - fromCIDRSet:
-        - cidr: 10.10.0.0/16
-      toPorts:
-        - ports:
-            - port: "4317"
-              protocol: TCP
-            - port: "4318"
-              protocol: TCP
-            - port: "8889"
-              protocol: TCP
-    # Cluster pods sending traces directly (via service DNS)
+    # All external sources (LAN clients via LoadBalancer 10.10.30.22)
+    # Uses world + host + remote-node to cover all possible source identities
+    # after Cilium LB processing (SNAT, DNAT, identity assignment varies)
     - fromEntities:
+        - world
+        - host
+        - remote-node
         - cluster
       toPorts:
         - ports:
