@@ -79,6 +79,7 @@ homelab/
 │   ├── cert-manager/        # ClusterIssuer
 │   ├── cilium/              # IP pool, L2 announcements
 │   ├── cloudflare/          # Cloudflare Tunnel + network policy
+│   ├── external-secrets/    # ESO CiliumNetworkPolicy
 │   ├── gateway/             # Gateway + HTTPRoutes (routes/ subdir)
 │   ├── ghost-dev/           # Ghost blog dev environment
 │   ├── ghost-prod/          # Ghost blog production environment
@@ -89,7 +90,7 @@ homelab/
 │   ├── karakeep/            # Karakeep bookmark manager (AIO, Chrome, Meilisearch)
 │   ├── kube-system/         # System CronJobs, RBAC (claude-code SA), cert utilities
 │   ├── monitoring/          # Observability (alerts/, dashboards/, probes/, exporters/, servicemonitors/)
-│   ├── network-policies/    # Namespace network policies
+│   ├── network-policies/    # CiliumClusterwideNetworkPolicy (gateway ingress)
 │   ├── portfolio/           # Portfolio deployment + RBAC
 │   ├── storage/             # Longhorn HTTPRoute, NFS PVs
 │   ├── tailscale/           # Tailscale Operator + Connector (subnet router)

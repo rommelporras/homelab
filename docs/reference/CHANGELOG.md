@@ -4,22 +4,39 @@
 
 ---
 
-## March 16, 2026 — Network Policies (v0.33.0)
+## March 16, 2026 - Network Policies (v0.33.0)
 
-- CiliumNetworkPolicies for 20 namespaces (implicit default-deny)
-- CiliumClusterwideNetworkPolicy for Gateway reserved:ingress identity
+### Network Policy Implementation
+- 117 CiliumNetworkPolicies across 23 namespaces (implicit default-deny via enable-policy=default)
+- 1 CiliumClusterwideNetworkPolicy for Gateway reserved:ingress identity
 - FQDN egress for Alertmanager (Discord, SMTP, healthchecks.io) and cert-manager (Let's Encrypt, Cloudflare)
 - LoadBalancer ingress for AdGuard DNS (53), GitLab SSH (22), OTel Collector (4317/4318)
-- Cross-namespace ingress for monitoring probes, Cloudflare tunnel, uptime-kuma
+- Cross-namespace ingress patterns: monitoring (blackbox probes), cloudflare (tunnel), uptime-kuma (health)
 - Deferred: longhorn-system, intel-device-plugins, node-feature-discovery
-- Fixed invoicetron backup CronJob (fsGroup for non-root PVC write access)
-- Fixed DNS TCP/53 in uptime-kuma, cloudflare, arr-stack egress policies
-- Pinned cert-manager cainjector host ingress to port 9402
-- Added cert-expiry-check and pki-backup to Security.md non-root exceptions
+
+### Bug Fixes
+- invoicetron backup CronJob: added fsGroup: 70 (PVC write permissions after Phase 5.0 runAsUser change)
+- ghost-analytics: memory limit 256Mi to 384Mi (OOMKilled 4x overnight)
+- vault-unsealer: cpu limit 50m to 100m (73% CPU throttling)
+- Homepage: automountServiceAccountToken restored (K8s/Longhorn widgets need metrics API)
+- Homepage: L4-only egress policy (Cilium L7 envoy 403 on Gateway LB hairpin)
+- DNS TCP/53 added to uptime-kuma, cloudflare, arr-stack egress policies
+- nut-exporter/kube-vip: toCIDR changed to toEntities: [remote-node] (Cilium identity fix)
+- Pinned cert-manager cainjector host ingress to port 9402 (had no probes, was unrestricted)
+
+### Cilium Discoveries
+- toCIDR silently fails for cluster node IPs (remote-node identity) - use toEntities: [remote-node]
+- toCIDR silently fails for Gateway LB VIP (service identity) - use L4-only policy (no toPorts)
+- L7 envoy proxy (triggered by toPorts) returns 403 on Gateway hairpin traffic
+- toServices with selectorless services converts to CIDR, which also fails for managed identities
+
+### Documentation
+- Security.md: Cilium identity reference table, Gateway hairpin limitation, non-root exceptions
+- Deferred: NUT client setup for Proxmox PVE (graceful shutdown during power failure)
 
 ---
 
-## March 15, 2026 — RBAC & Secrets Hardening (v0.32.0)
+## March 15, 2026 - RBAC & Secrets Hardening (v0.32.0)
 
 ### Summary
 
@@ -32,14 +49,14 @@ re-encrypted. Claude Code access restricted via dedicated ServiceAccount + RBAC 
 
 | Change | Details |
 |--------|---------|
-| GitLab Runner RBAC | `clusterWideAccess: false` in Helm values — ClusterRole deleted, namespace-scoped Role created in `gitlab-runner`. Helm upgrade rev 5. |
-| version-check-cronjob fix | Removed `automountServiceAccountToken: false` — Nova needs in-cluster API access to read Helm release secrets. Manual job confirmed: 11 outdated, 0 deprecated, 6 current. |
+| GitLab Runner RBAC | `clusterWideAccess: false` in Helm values - ClusterRole deleted, namespace-scoped Role created in `gitlab-runner`. Helm upgrade rev 5. |
+| version-check-cronjob fix | Removed `automountServiceAccountToken: false` - Nova needs in-cluster API access to read Helm release secrets. Manual job confirmed: 11 outdated, 0 deprecated, 6 current. |
 | etcd encryption | EncryptionConfiguration (secretbox) deployed to all 3 nodes. Rolling API server update: CP1 → soak → CP2 → soak → CP3. All servers Running 0 restarts post-update. |
 | etcd re-encryption | All pre-existing secrets re-encrypted via `kubectl replace`. Verified: `k8s:enc:secretbox:v1:key1:` prefix on cert-manager and vault Helm release secrets. |
 | Encryption key backup | "etcd Encryption Key" in 1Password Kubernetes vault. |
 | Ansible rebuild | `03-init-cluster.yml` updated: deploy task + `encryption-provider-config` extraArg + extraVolume. Key via `--extra-vars "etcd_encryption_key=$(op read ...)"` at runtime. |
 | claude-code SA | ClusterRole (read-only, no secret `get`), ClusterRoleBinding, permanent token Secret. `manifests/kube-system/claude-code-rbac.yaml`. |
-| Restricted kubeconfig | `~/.kube/homelab-claude.yaml` — permanent token, embedded CA. Both kubeconfigs saved to 1Password "Kubeconfig" (fields: `admin-kubeconfig`, `claude-kubeconfig`). |
+| Restricted kubeconfig | `~/.kube/homelab-claude.yaml` - permanent token, embedded CA. Both kubeconfigs saved to 1Password "Kubeconfig" (fields: `admin-kubeconfig`, `claude-kubeconfig`). |
 | Alias update | `kubectl-homelab` → restricted kubeconfig. `kubectl-admin` → admin kubeconfig. Updated in `~/.zshrc` and `CLAUDE.md`. |
 | Hooks | `protect-sensitive.sh` extended: blocks `kubectl get secret -o json/yaml/jsonpath` and `kubectl describe secret`. |
 
@@ -57,14 +74,14 @@ re-encrypted. Claude Code access restricted via dedicated ServiceAccount + RBAC 
 
 | Gotcha | Detail |
 |--------|--------|
-| `list` verb on secrets still exposes data | `kubectl get secrets -o yaml` uses `list` and returns full data. RBAC `list`-only is not sufficient alone — hooks provide the second layer. |
+| `list` verb on secrets still exposes data | `kubectl get secrets -o yaml` uses `list` and returns full data. RBAC `list`-only is not sufficient alone - hooks provide the second layer. |
 | etcd:3.6.6-0 is distroless | No `sh`, no `hexdump`. Use `etcdctl` directly. No `sh -c` wrapper. |
-| StorageVersionMigration not available | k8s 1.35 without feature gate. Re-encryption must use `kubectl get secrets -A -o json | kubectl replace -f -` (user runs manually — data must not flow through Claude). |
-| kube-scheduler restarts during rolling update | When API server restarts, scheduler briefly loses connection and restarts once. Expected — resolves within ~60s. Not an error. |
+| StorageVersionMigration not available | k8s 1.35 without feature gate. Re-encryption must use `kubectl get secrets -A -o json | kubectl replace -f -` (user runs manually - data must not flow through Claude). |
+| kube-scheduler restarts during rolling update | When API server restarts, scheduler briefly loses connection and restarts once. Expected - resolves within ~60s. Not an error. |
 
 ---
 
-## March 15, 2026 — Control Plane Hardening (v0.31.0)
+## March 15, 2026 - Control Plane Hardening (v0.31.0)
 
 ### Summary
 
@@ -90,7 +107,7 @@ Audit logs shipped to Loki via Alloy. All changes applied rolling (one node at a
 | PKI backup CronJob | Weekly backup to NFS (`/Kubernetes/Backups/pki/`), 90-day retention |
 | kubeadm config | Hardening baked into `03-init-cluster.yml` (rebuild-safe) |
 | Verification playbook | `09-verify-hardening.yml` for drift detection |
-| Fix: invoicetron backup namespace | Added `namespace: invoicetron-prod` to manifest — duplicate CronJob was accidentally deployed to `default` during Phase 5.0 |
+| Fix: invoicetron backup namespace | Added `namespace: invoicetron-prod` to manifest - duplicate CronJob was accidentally deployed to `default` during Phase 5.0 |
 
 ### Decisions
 
@@ -102,7 +119,7 @@ Audit logs shipped to Loki via Alloy. All changes applied rolling (one node at a
 
 ---
 
-## March 13, 2026 — Namespace & Pod Security (v0.30.0)
+## March 13, 2026 - Namespace & Pod Security (v0.30.0)
 
 ### Summary
 
@@ -117,7 +134,7 @@ and ClusterSecretStore namespaceSelector restricting Vault access to 15 labeled 
 | Change | Details |
 |--------|---------|
 | 9 namespace manifests | cert-manager, cloudflare, gitlab, gitlab-runner, invoicetron-dev, invoicetron-prod, portfolio-dev, portfolio-prod, portfolio-staging |
-| PSS enforce labels | baseline (18 ns), privileged (7 ns), restricted (1 ns — cloudflare) |
+| PSS enforce labels | baseline (18 ns), privileged (7 ns), restricted (1 ns - cloudflare) |
 | PSS audit/warn | `audit: restricted` + `warn: restricted` on all labeled namespaces |
 | eso-enabled labels | 15 namespaces labeled for ClusterSecretStore access |
 | automountServiceAccountToken | `false` on 34 workloads, explicit `true` on cluster-janitor |
@@ -142,15 +159,15 @@ and ClusterSecretStore namespaceSelector restricting Vault access to 15 labeled 
 
 ### Gotchas
 
-- **Portfolio nginx needs CHOWN, SETUID, SETGID, NET_BIND_SERVICE capabilities** — dropping ALL capabilities without adding these back causes CrashLoopBackOff (chown fails, then bind port 80 fails).
-- **NUT exporter CreateContainerConfigError** — image runs as root but `runAsNonRoot: true` was set. Fixed by adding `runAsUser: 65534` at container level.
-- **PSS dry-run doesn't audit existing pods** — `kubectl label --dry-run=server` only checks the label change, not pod compliance. Must audit securityContext directly via `kubectl get pods -o json | jq`.
-- **ESO disabling PushSecret requires also disabling ClusterPushSecret** — Helm upgrade fails if only `processPushSecret: false` is set without `processClusterPushSecret: false`.
-- **Uptime Kuma 403 from CiliumNetworkPolicy** — egress rule excluded 10.0.0.0/8 but gateway VIP is 10.10.30.20. Envoy returns "Access denied" (not connection refused), making it look like an app-level issue.
+- **Portfolio nginx needs CHOWN, SETUID, SETGID, NET_BIND_SERVICE capabilities** - dropping ALL capabilities without adding these back causes CrashLoopBackOff (chown fails, then bind port 80 fails).
+- **NUT exporter CreateContainerConfigError** - image runs as root but `runAsNonRoot: true` was set. Fixed by adding `runAsUser: 65534` at container level.
+- **PSS dry-run doesn't audit existing pods** - `kubectl label --dry-run=server` only checks the label change, not pod compliance. Must audit securityContext directly via `kubectl get pods -o json | jq`.
+- **ESO disabling PushSecret requires also disabling ClusterPushSecret** - Helm upgrade fails if only `processPushSecret: false` is set without `processClusterPushSecret: false`.
+- **Uptime Kuma 403 from CiliumNetworkPolicy** - egress rule excluded 10.0.0.0/8 but gateway VIP is 10.10.30.20. Envoy returns "Access denied" (not connection refused), making it look like an app-level issue.
 
 ---
 
-## March 13, 2026 — Warning Event Fixes + Doc Sync (v0.29.1)
+## March 13, 2026 - Warning Event Fixes + Doc Sync (v0.29.1)
 
 ### Summary
 
@@ -162,24 +179,24 @@ cluster state.
 
 | Change | Details |
 |--------|---------|
-| Ghost dev/prod probes | Switched from `httpGet` to `tcpSocket` — Ghost redirects HTTP→HTTPS (301), generating ProbeWarning noise. Pods were healthy; warnings were cosmetic. |
-| GitLab runner ESO template | Added empty `runner-registration-token` key — Helm chart projected volume expects both keys even when using GitLab 17.0+ auth flow |
-| Grafana ESO template | Added static `admin-user: "admin"` key — kube-prometheus-stack 81.0.0+ requires it in `existingSecret` |
-| Byparr image pin | `ghcr.io/thephaseless/byparr:latest` → `2.1.0` — pinned to specific version |
-| Byparr probe tuning | Readiness timeout 10s→45s, liveness timeout 30s→60s, period 60s→120s — headless browser blocks `/health` during Cloudflare challenge solves |
-| Documentation sync | 21 issues fixed across 8 doc files — VERSIONS.md, context docs, rebuild guide, TODO |
+| Ghost dev/prod probes | Switched from `httpGet` to `tcpSocket` - Ghost redirects HTTP→HTTPS (301), generating ProbeWarning noise. Pods were healthy; warnings were cosmetic. |
+| GitLab runner ESO template | Added empty `runner-registration-token` key - Helm chart projected volume expects both keys even when using GitLab 17.0+ auth flow |
+| Grafana ESO template | Added static `admin-user: "admin"` key - kube-prometheus-stack 81.0.0+ requires it in `existingSecret` |
+| Byparr image pin | `ghcr.io/thephaseless/byparr:latest` → `2.1.0` - pinned to specific version |
+| Byparr probe tuning | Readiness timeout 10s→45s, liveness timeout 30s→60s, period 60s→120s - headless browser blocks `/health` during Cloudflare challenge solves |
+| Documentation sync | 21 issues fixed across 8 doc files - VERSIONS.md, context docs, rebuild guide, TODO |
 
 ### Key Decisions
 
 | Decision | Rationale |
 |----------|-----------|
 | tcpSocket over httpGet for Ghost | Ghost's 301 redirect is by design (HTTP→HTTPS). `scheme: HTTPS` in probes would work but adds TLS overhead for a health check. tcpSocket is simplest and matches prod probe pattern. |
-| httpGet kept for Byparr (not tcpSocket) | tcpSocket would hide real failures — Byparr's `/health` endpoint reports browser engine status. Generous timeout with httpGet is the correct approach. |
+| httpGet kept for Byparr (not tcpSocket) | tcpSocket would hide real failures - Byparr's `/health` endpoint reports browser engine status. Generous timeout with httpGet is the correct approach. |
 | ESO templates for static keys | ESO `target.template.data` can mix Vault-fetched values with static strings in a single Secret, avoiding separate manual secrets. |
 
 ---
 
-## March 12, 2026 — Vault + External Secrets Operator (v0.29.0)
+## March 12, 2026 - Vault + External Secrets Operator (v0.29.0)
 
 ### Summary
 
@@ -202,16 +219,16 @@ ServiceMonitor for kube-prometheus-stack scraping, VaultSealed alert false-posit
 | HashiCorp Vault 1.21.2 | Standalone, Raft on Longhorn 5Gi, `helm/vault/values.yaml` |
 | Auto-unsealer Deployment | Polls vault-0 every 30s, unseals with 3 Shamir keys from `vault-unseal-keys` secret |
 | ESO v2.1.0 | `ClusterSecretStore` via Kubernetes auth, `serviceMonitor.enabled: true` |
-| 30 ExternalSecrets | Covers all 15 namespaces — all STATUS=SecretSynced |
+| 30 ExternalSecrets | Covers all 15 namespaces - all STATUS=SecretSynced |
 | Vault HTTPRoute | `vault.k8s.rommelporras.com` via homelab-gateway |
 | Vault ServiceMonitor | Prometheus scraping via ServiceMonitor CRD (pod annotations don't work with kube-prometheus-stack) |
 | Snapshot CronJob | Daily 02:00 PHT to NFS `/Kubernetes/Backups/vault`, 15-day retention |
 | 8 PrometheusRule alerts | VaultSealed (critical), VaultMetricsMissing (warning), VaultAuditFailure (critical), VaultDown (warning), VaultHighLatency (warning), ESOSecretNotSynced (critical), ESOSyncErrors (warning), VaultSnapshotFailing (warning) |
-| VaultSealed alert fix | Added `probe_success{job="vault"} == 0` guard — prevents false positives when metrics aren't scraped yet |
-| Blackbox probe | Probes `/v1/sys/health` — returns 503 when sealed (triggers VaultDown) |
+| VaultSealed alert fix | Added `probe_success{job="vault"} == 0` guard - prevents false positives when metrics aren't scraped yet |
+| Blackbox probe | Probes `/v1/sys/health` - returns 503 when sealed (triggers VaultDown) |
 | `VAULT_ADDR` in `.zshrc` | No more manual export or port-forward needed for vault CLI |
 | `send_resolved: true` on Discord | All 3 Discord receivers now explicitly send resolved notifications |
-| Alertmanager infra routing | `Vault.*` and `ESO.*` patterns added to `#infra` regex — ensures all 8 Vault/ESO alerts route to `#infra` instead of catch-all `#apps` |
+| Alertmanager infra routing | `Vault.*` and `ESO.*` patterns added to `#infra` regex - ensures all 8 Vault/ESO alerts route to `#infra` instead of catch-all `#apps` |
 | dotctl Observability | Loki HTTPRoute (`loki.k8s.rommelporras.com`), PrometheusRule for dotctl drift/staleness, Grafana dashboard |
 | Scripts deleted | `scripts/apply-arr-secrets.sh` replaced by ExternalSecret CRDs |
 | 8 secret.yaml files deleted | Replaced by `externalsecret.yaml` in each namespace |
@@ -220,22 +237,22 @@ ServiceMonitor for kube-prometheus-stack scraping, VaultSealed alert false-posit
 
 | Decision | Rationale |
 |----------|-----------|
-| 1-pod Vault (not HA 3-pod) | Longhorn already provides 2× data replication. HA adds 15Gi storage and complex Raft join/unseal. Unsealer recovers pod restarts in ~30s — downtime is minimal |
+| 1-pod Vault (not HA 3-pod) | Longhorn already provides 2× data replication. HA adds 15Gi storage and complex Raft join/unseal. Unsealer recovers pod restarts in ~30s - downtime is minimal |
 | Kubernetes auth (not token) | ESO uses its own ServiceAccount for Vault auth. No static tokens to rotate, no secrets in manifests |
 | Seed script (not direct op read) | Secret values from 1Password never enter Claude Code context. Script runs in safe terminal; all manifests contain only `op://` references |
-| `vault-unseal-keys` stays imperative | Vault must be running for ESO to work — chicken-and-egg. Only this one secret stays imperative by design |
+| `vault-unseal-keys` stays imperative | Vault must be running for ESO to work - chicken-and-egg. Only this one secret stays imperative by design |
 | ServiceMonitor over pod annotations | kube-prometheus-stack 81.x ignores `prometheus.io/scrape` annotations on non-kube-state-metrics pods. ServiceMonitor CRD is the correct scrape mechanism |
 
 ### Gotchas
 
-- **`unauthenticated_metrics_access` in `listener.telemetry{}`** — Vault 1.16+ moved this setting from top-level `telemetry{}`. Top-level placement causes 403 on `/v1/sys/metrics` despite no error in Vault logs.
-- **Vault StatefulSet uses OnDelete** — `helm upgrade` doesn't restart vault-0. Must delete the pod manually after any HCL config change.
-- **`upgrade-prometheus.sh` temp file overrides receivers entirely** — Any receiver setting in `values.yaml` (like `send_resolved`) must also be in the script's temp file or it will be silently dropped on upgrade.
-- **ESO `externalsecret.yaml` filenames** — The pre-commit hook `protect-sensitive.sh` matches `*secret.yaml`. Write these files via bash heredoc if the hook blocks.
+- **`unauthenticated_metrics_access` in `listener.telemetry{}`** - Vault 1.16+ moved this setting from top-level `telemetry{}`. Top-level placement causes 403 on `/v1/sys/metrics` despite no error in Vault logs.
+- **Vault StatefulSet uses OnDelete** - `helm upgrade` doesn't restart vault-0. Must delete the pod manually after any HCL config change.
+- **`upgrade-prometheus.sh` temp file overrides receivers entirely** - Any receiver setting in `values.yaml` (like `send_resolved`) must also be in the script's temp file or it will be silently dropped on upgrade.
+- **ESO `externalsecret.yaml` filenames** - The pre-commit hook `protect-sensitive.sh` matches `*secret.yaml`. Write these files via bash heredoc if the hook blocks.
 
 ---
 
-## March 11, 2026 — Cluster Janitor + Discord Notification Restructure (v0.28.2)
+## March 11, 2026 - Cluster Janitor + Discord Notification Restructure (v0.28.2)
 
 ### Summary
 
@@ -251,7 +268,7 @@ separate items into 1 "Discord Webhooks" item with 6 fields.
 
 | Change | Details |
 |--------|---------|
-| Cluster Janitor CronJob | `kube-system/cluster-janitor` every 10 min — deletes Failed pods, cleans stopped Longhorn replicas (safety guard: skips last replica), posts summary to Discord `#janitor` |
+| Cluster Janitor CronJob | `kube-system/cluster-janitor` every 10 min - deletes Failed pods, cleans stopped Longhorn replicas (safety guard: skips last replica), posts summary to Discord `#janitor` |
 | Image: `alpine/k8s:1.35.0` | `bitnami/kubectl` dropped version tags. `alpine/k8s` provides pinned kubectl + curl + bash |
 | RBAC | ServiceAccount + ClusterRole (pods get/list/delete, replicas.longhorn.io get/list/delete, volumes.longhorn.io get/list) |
 | PrometheusRule | `ClusterJanitorFailing` fires after 30m of CronJob failures (routes to `#infra`) |
@@ -267,25 +284,25 @@ separate items into 1 "Discord Webhooks" item with 6 fields.
 
 | Decision | Rationale |
 |----------|-----------|
-| `alpine/k8s:1.35.0` over `bitnami/kubectl` | Bitnami only publishes `latest` + SHA digests — can't pin versions. `alpine/k8s` provides version tags matching cluster kubectl |
-| Safety guard (skip last replica) | Never delete a stopped replica if it's the only one for a volume — data loss prevention |
-| No `set -e` in janitor script | Tasks are independent — partial cleanup is better than aborting on first failure |
+| `alpine/k8s:1.35.0` over `bitnami/kubectl` | Bitnami only publishes `latest` + SHA digests - can't pin versions. `alpine/k8s` provides version tags matching cluster kubectl |
+| Safety guard (skip last replica) | Never delete a stopped replica if it's the only one for a volume - data loss prevention |
+| No `set -e` in janitor script | Tasks are independent - partial cleanup is better than aborting on first failure |
 | `concurrencyPolicy: Forbid` | Prevents overlapping runs that could race on replica deletion |
 | `timeZone: Asia/Manila` | Discord messages show PHT, matching user's timezone |
 | Infra regex vs catch-all apps | First-match routing: specific infra patterns get `#infra`, everything else falls through to `#apps` |
-| `orphan-resource-auto-deletion: "replica-data;instance"` | Not a boolean — semicolon-separated list of resource types. `replica-data` cleans orphaned data dirs, `instance` cleans orphaned engine/replica processes |
-| Supersedes Phase 5.5.4.1 and 5.5.4.2 | Longhorn settings originally planned for Phase 5 — implemented early as part of crash recovery hardening |
+| `orphan-resource-auto-deletion: "replica-data;instance"` | Not a boolean - semicolon-separated list of resource types. `replica-data` cleans orphaned data dirs, `instance` cleans orphaned engine/replica processes |
+| Supersedes Phase 5.5.4.1 and 5.5.4.2 | Longhorn settings originally planned for Phase 5 - implemented early as part of crash recovery hardening |
 
 ### Gotchas
 
-- **`orphan-resource-auto-deletion` is NOT a boolean** — value is `replica-data;instance` (semicolon-separated), not `true`/`false`
-- **Helm YAML array merge** — `--values` files replace arrays entirely (not merge). The secrets temp file must define all 5 receivers since it replaces the receivers array from `values.yaml`
-- **`bitnami/kubectl` dropped version tags** — only `latest` + SHA digests available. Switched to `alpine/k8s` which maintains version-pinned tags
-- **Detached volumes have stopped replicas** — this is normal Longhorn behavior. The janitor correctly skips these (0 running replicas = last copy)
+- **`orphan-resource-auto-deletion` is NOT a boolean** - value is `replica-data;instance` (semicolon-separated), not `true`/`false`
+- **Helm YAML array merge** - `--values` files replace arrays entirely (not merge). The secrets temp file must define all 5 receivers since it replaces the receivers array from `values.yaml`
+- **`bitnami/kubectl` dropped version tags** - only `latest` + SHA digests available. Switched to `alpine/k8s` which maintains version-pinned tags
+- **Detached volumes have stopped replicas** - this is normal Longhorn behavior. The janitor correctly skips these (0 running replicas = last copy)
 
 ---
 
-## March 9, 2026 — GitLab Minio + Atuin Backup + Runner OOM Fix (v0.28.1)
+## March 9, 2026 - GitLab Minio + Atuin Backup + Runner OOM Fix (v0.28.1)
 
 ### Summary
 
@@ -294,7 +311,7 @@ Patch release fixing three infrastructure issues. (1) The GitLab Minio PVC (`git
 active tags for `0xwsh/portfolio`), causing `KubePersistentVolumeFillingUp` alert, registry
 500 errors blocking CI/CD pushes (`XMinioStorageFull`), and runner job completion failures.
 (2) The Atuin backup CronJob used the wrong NFS path format and the backup directory was
-never created on the NAS. (3) A Next.js build OOM-killed k8s-cp3 — the 2Gi runner build pod
+never created on the NAS. (3) A Next.js build OOM-killed k8s-cp3 - the 2Gi runner build pod
 memory limit was insufficient for Docker-in-Docker builds, causing node-level memory pressure
 that froze kubelet and required a power cycle.
 
@@ -318,20 +335,20 @@ that froze kubelet and required a power cycle.
 | 20Gi for minio (not 15Gi or 30Gi) | 10Gi was too tight once CI/CD started pushing images. 20Gi gives comfortable headroom. Alert fires at ~85% (17Gi) for early warning |
 | Remove `registry.persistence` from values | When `global.minio.enabled=true` (default), registry uses minio as S3 backend. `registry.persistence` created no PVC and was misleading |
 | NFSv4 path format | Matches Immich (`/Kubernetes/Immich`) and arr-stack (`/Kubernetes/Media`). OMV has `/export` with `fsid=0` as NFSv4 pseudo-root |
-| 4Gi runner memory (not 8Gi) | 3Gi peak + docker daemon overhead fits within 4Gi. 8Gi would consume half a 16GB node. Cluster-side limit, not app-side — Invoicetron should also add `NODE_OPTIONS="--max-old-space-size=2048"` as belt-and-suspenders |
+| 4Gi runner memory (not 8Gi) | 3Gi peak + docker daemon overhead fits within 4Gi. 8Gi would consume half a 16GB node. Cluster-side limit, not app-side - Invoicetron should also add `NODE_OPTIONS="--max-old-space-size=2048"` as belt-and-suspenders |
 
 ### Gotchas
 
-- **Helm does NOT resize existing PVCs** — Must `kubectl patch pvc` manually. Values file update is for future installs only
-- **NFSv4 pseudo-root** — OMV filesystem path `/export/Kubernetes/X` becomes NFSv4 mount path `/Kubernetes/X`. The `/export` prefix must be stripped for K8s NFS volumes
-- **Registry GC requires `--delete-untagged`** — Without this flag, only unreferenced blobs are deleted. Untagged manifests (the main space consumer) are kept
-- **Minio pod restart needed for PVC resize** — Longhorn expands the block device online, but kubelet only triggers the filesystem resize (ext4 `resize2fs`) during the next mount phase. Restart the pod to trigger `FileSystemResizePending` → resize
-- **Runner stuck loop** — Runner submits "job succeeded" but gets "accepted, but not yet completed" when minio is full. Runner restart + pipeline cancel/retry is the fix
-- **DinD builds can OOM-kill nodes** — Docker-in-Docker spawns multiple processes (docker daemon + build + app) sharing one cgroup. A Next.js `bun run build` peaking at ~3Gi combined with docker daemon overhead exceeded the 2Gi pod memory limit, triggering kernel OOM killer (SIGKILL). Node-level memory pressure froze kubelet, requiring power cycle of k8s-cp3. Raised to 4Gi limit with 1Gi request
+- **Helm does NOT resize existing PVCs** - Must `kubectl patch pvc` manually. Values file update is for future installs only
+- **NFSv4 pseudo-root** - OMV filesystem path `/export/Kubernetes/X` becomes NFSv4 mount path `/Kubernetes/X`. The `/export` prefix must be stripped for K8s NFS volumes
+- **Registry GC requires `--delete-untagged`** - Without this flag, only unreferenced blobs are deleted. Untagged manifests (the main space consumer) are kept
+- **Minio pod restart needed for PVC resize** - Longhorn expands the block device online, but kubelet only triggers the filesystem resize (ext4 `resize2fs`) during the next mount phase. Restart the pod to trigger `FileSystemResizePending` → resize
+- **Runner stuck loop** - Runner submits "job succeeded" but gets "accepted, but not yet completed" when minio is full. Runner restart + pipeline cancel/retry is the fix
+- **DinD builds can OOM-kill nodes** - Docker-in-Docker spawns multiple processes (docker daemon + build + app) sharing one cgroup. A Next.js `bun run build` peaking at ~3Gi combined with docker daemon overhead exceeded the 2Gi pod memory limit, triggering kernel OOM killer (SIGKILL). Node-level memory pressure froze kubelet, requiring power cycle of k8s-cp3. Raised to 4Gi limit with 1Gi request
 
 ---
 
-## March 1, 2026 — Atuin Self-Hosted Shell History (v0.28.0)
+## March 1, 2026 - Atuin Self-Hosted Shell History (v0.28.0)
 
 ### Summary
 
@@ -370,29 +387,29 @@ weekly pg_dump backup to NAS, and full observability stack.
 
 | Decision | Rationale |
 |----------|-----------|
-| Deployment+Recreate over StatefulSet | Simpler, matches other homelab services. Single replica with RWO PVC — StatefulSet adds complexity with no benefit |
+| Deployment+Recreate over StatefulSet | Simpler, matches other homelab services. Single replica with RWO PVC - StatefulSet adds complexity with no benefit |
 | `enforce: baseline` PSS (not restricted) | Backup CronJob uses NFS volume which violates restricted PSS profile |
 | Shared encryption key across accounts | `atuin register` reuses `~/.local/share/atuin/key` by design. Server enforces user isolation. Separate key only needed for third-party users |
 | `rommel-eam` naming (not `rommel-work`) | Department/company-specific naming scales to future employers (e.g. `rommel-freelance`, `rommel-acme`) |
 | Internal Blackbox probe URL (not external) | External URL returns 403 from inside cluster (Cilium Gateway hairpin routing). Internal ClusterIP tests pod health directly |
-| Uptime Kuma accepts 403 | In-cluster hairpin through Cilium Gateway returns 403 — same pattern as Karakeep. External URL with accepted status codes `200-299, 403` |
+| Uptime Kuma accepts 403 | In-cluster hairpin through Cilium Gateway returns 403 - same pattern as Karakeep. External URL with accepted status codes `200-299, 403` |
 
 ### Gotchas
 
-- **Image tag `v18.12.1` does not exist on GHCR** — `v18.12.1` was a client-only patch. Server image is `18.12.0` (no `v` prefix)
-- **Entrypoint is `atuin-server`, args `["start"]`** — NOT `atuin server start`. The container entrypoint is `/usr/local/bin/atuin-server`
-- **`atuin register` password with special chars** — Wrap in single quotes in zsh. Characters like `*` trigger glob expansion
-- **`atuin sync` requires `$ATUIN_SESSION`** — After `atuin import zsh`, run `exec zsh` to reload shell and set the session variable
-- **Cilium Gateway HTTPRoute stall** — New HTTPRoute may not reconcile until `kubectl rollout restart deployment/cilium-operator -n kube-system`
+- **Image tag `v18.12.1` does not exist on GHCR** - `v18.12.1` was a client-only patch. Server image is `18.12.0` (no `v` prefix)
+- **Entrypoint is `atuin-server`, args `["start"]`** - NOT `atuin server start`. The container entrypoint is `/usr/local/bin/atuin-server`
+- **`atuin register` password with special chars** - Wrap in single quotes in zsh. Characters like `*` trigger glob expansion
+- **`atuin sync` requires `$ATUIN_SESSION`** - After `atuin import zsh`, run `exec zsh` to reload shell and set the session variable
+- **Cilium Gateway HTTPRoute stall** - New HTTPRoute may not reconcile until `kubectl rollout restart deployment/cilium-operator -n kube-system`
 
 ---
 
-## February 21, 2026 — ARR Stack Quality Profile & Tdarr Resolution Filter (v0.27.1)
+## February 21, 2026 - ARR Stack Quality Profile & Tdarr Resolution Filter (v0.27.1)
 
 ### Summary
 
 Two operational fixes. First: the TRaSH Guide quality profiles in Sonarr (WEB-1080p) and Radarr
-(HD Bluray + WEB) are too restrictive for casual requests — Seerr requests that couldn't find any
+(HD Bluray + WEB) are too restrictive for casual requests - Seerr requests that couldn't find any
 release with the strict profile (WEBDL/WEBRip 1080p only) sat unfulfilled. A new "Relaxed WEB"
 profile was created in both apps that adds HDTV-720p, WEB-720p, and HDTV-1080p as accepted
 qualities, and Seerr was updated to use it as the default. The TRaSH profiles are untouched
@@ -405,30 +422,30 @@ with minimal space savings.
 
 | Change | Details |
 |--------|---------|
-| Add `Relaxed WEB` quality profile — Sonarr (id: 8) | Enables: HDTV-720p, WEBDL-720p, WEBRip-720p, HDTV-1080p, WEB 1080p group. Upgrades allowed, cutoff = WEB 1080p. TRaSH `WEB-1080p` profile untouched |
-| Add `Relaxed WEB` quality profile — Radarr (id: 9) | Enables: WEBDL-720p, WEBRip-720p, HDTV-1080p, Bluray-720p, WEB 1080p group, Bluray-1080p. Upgrades allowed, cutoff = WEB 1080p. TRaSH `HD Bluray + WEB` profile untouched |
+| Add `Relaxed WEB` quality profile - Sonarr (id: 8) | Enables: HDTV-720p, WEBDL-720p, WEBRip-720p, HDTV-1080p, WEB 1080p group. Upgrades allowed, cutoff = WEB 1080p. TRaSH `WEB-1080p` profile untouched |
+| Add `Relaxed WEB` quality profile - Radarr (id: 9) | Enables: WEBDL-720p, WEBRip-720p, HDTV-1080p, Bluray-720p, WEB 1080p group, Bluray-1080p. Upgrades allowed, cutoff = WEB 1080p. TRaSH `HD Bluray + WEB` profile untouched |
 | Update Seerr default profile → `Relaxed WEB` | Both Radarr (id: 9) and Sonarr (id: 8) including anime profile. Changed via `settings.json` + pod restart |
-| Backfill 5 stuck Radarr movies to `Relaxed WEB` | Cake, Network, Try Seventeen, Outlander, Parasite — added before profile fix, were on strict TRaSH profile with no grabs. Re-searched |
-| Backfill 2 stuck Sonarr series to `Relaxed WEB` | The Flash (2014), Fallout — same issue. The Flash triggered full series search; Fallout already downloading |
+| Backfill 5 stuck Radarr movies to `Relaxed WEB` | Cake, Network, Try Seventeen, Outlander, Parasite - added before profile fix, were on strict TRaSH profile with no grabs. Re-searched |
+| Backfill 2 stuck Sonarr series to `Relaxed WEB` | The Flash (2014), Fallout - same issue. The Flash triggered full series search; Fallout already downloading |
 
 ### Tdarr Changes
 
 | Change | Details |
 |--------|---------|
 | Raise `video_height_range_include.min` 0 → 1082 | Decision Maker height filter (API-level). Files with height ≤ 1080px no longer enter the transcode pipeline. 4K (2160p) content unaffected |
-| Add `filterResolutionsSkip`: `480p,576p,720p,1080p` | Filters tab → Resolutions to skip (UI-level). Label-based companion filter — skips files Tdarr identifies as 480p, 576p, 720p, or 1080p from the transcode queue. Double protection alongside the height range filter |
+| Add `filterResolutionsSkip`: `480p,576p,720p,1080p` | Filters tab → Resolutions to skip (UI-level). Label-based companion filter - skips files Tdarr identifies as 480p, 576p, 720p, or 1080p from the transcode queue. Double protection alongside the height range filter |
 
 ### Key Design Decisions
 
 | Decision | Rationale |
 |----------|-----------|
 | New profile instead of editing TRaSH profile | Configarr (TRaSH Guide manager) runs on a schedule and would overwrite any edits to `WEB-1080p` / `HD Bluray + WEB`. Custom profile is invisible to Configarr |
-| HDTV-720p/1080p enabled in Relaxed WEB | Most older broadcast TV (CW, NBC, etc.) only has HDTV rips on public indexers — the WEB release either never existed or is dead. HDTV-1080p from broadcast is comparable quality to WEB-720p |
+| HDTV-720p/1080p enabled in Relaxed WEB | Most older broadcast TV (CW, NBC, etc.) only has HDTV rips on public indexers - the WEB release either never existed or is dead. HDTV-1080p from broadcast is comparable quality to WEB-720p |
 | Tdarr height cutoff at 1082 not 2000 | Captures 1440p content (rare but valid) for transcoding while precisely excluding 1080p (height=1080). H264 content is already excluded at the codec level regardless of resolution |
 
 ---
 
-## February 21, 2026 — Alert Quality Improvements (Pre-Release Fixes)
+## February 21, 2026 - Alert Quality Improvements (Pre-Release Fixes)
 
 ### Summary
 
@@ -444,19 +461,19 @@ The Feb 19 `helm upgrade` was run directly (without `./scripts/upgrade-prometheu
 the base alertmanager secret with literal `SET_VIA_HELM` placeholder strings. Go's URL parser
 returned `scheme=""` for these values, causing the Prometheus Operator to fail every reconcile
 attempt for 44+ hours. Alertmanager was still running on its last-known-good config, so alerts
-continued firing — but new config changes were silently not applied. **Fix: always use
+continued firing - but new config changes were silently not applied. **Fix: always use
 `./scripts/upgrade-prometheus.sh` for kube-prometheus-stack upgrades.**
 
 ### Alert Changes
 
 | Change | File | Details |
 |--------|------|---------|
-| Fix `KubeVipLeaseStale` — add `max()` | `alerts/kube-vip-alerts.yaml` | `max()` collapses pod/instance labels from kube-state-metrics, prevents duplicate alert series during kube-state-metrics restarts (e.g. Helm upgrades) |
-| Fix `KubeVipLeaseStale` — `for: 1m → 2m` | `alerts/kube-vip-alerts.yaml` | Absorbs transient API server load spikes during Helm upgrades (~90s blip) that caused false-positive firing |
+| Fix `KubeVipLeaseStale` - add `max()` | `alerts/kube-vip-alerts.yaml` | `max()` collapses pod/instance labels from kube-state-metrics, prevents duplicate alert series during kube-state-metrics restarts (e.g. Helm upgrades) |
+| Fix `KubeVipLeaseStale` - `for: 1m → 2m` | `alerts/kube-vip-alerts.yaml` | Absorbs transient API server load spikes during Helm upgrades (~90s blip) that caused false-positive firing |
 | Disable built-in `CPUThrottlingHigh` | `helm/prometheus/values.yaml` | Replaced by custom rule at 50% threshold, arr-stack excluded |
 | Add custom `CPUThrottlingHigh` | `alerts/cpu-throttling-alerts.yaml` (new) | Threshold raised 25% → 50%; arr-stack excluded (Tdarr transcoding + Byparr headless browser are always bursty) |
 | Disable built-in `NodeMemoryMajorPagesFaults` | `helm/prometheus/values.yaml` | Replaced by compound condition rule |
-| Add custom `NodeMemoryMajorPagesFaults` | `alerts/node-alerts.yaml` (new) | Now requires `rate(pgmajfault) > 2000` AND `MemAvailable < 15%` simultaneously — confirmed false positive: k8s-cp1 had 7.5GB free during original alert, caused by Tdarr NFS reads |
+| Add custom `NodeMemoryMajorPagesFaults` | `alerts/node-alerts.yaml` (new) | Now requires `rate(pgmajfault) > 2000` AND `MemAvailable < 15%` simultaneously - confirmed false positive: k8s-cp1 had 7.5GB free during original alert, caused by Tdarr NFS reads |
 | Route `info` severity → `null` | `helm/prometheus/values.yaml` | Info alerts are non-actionable; visible in Alertmanager UI only, no Discord pings |
 | Fix 🔴 on RESOLVED critical alerts | `helm/prometheus/values.yaml` | `discord-incidents-email` title was hardcoded 🔴; now uses `{{ if eq .Status "firing" }}🔴{{ else }}✅{{ end }}` |
 
@@ -464,7 +481,7 @@ continued firing — but new config changes were silently not applied. **Fix: al
 
 | Dashboard | Change |
 |-----------|--------|
-| kube-vip | `Lease Age` panel query wrapped in `max()` — prevents two-box display during kube-state-metrics restarts |
+| kube-vip | `Lease Age` panel query wrapped in `max()` - prevents two-box display during kube-state-metrics restarts |
 
 ### Prometheus Config Changes
 
@@ -476,7 +493,7 @@ continued firing — but new config changes were silently not applied. **Fix: al
 
 | Decision | Rationale |
 |----------|-----------|
-| `info` → `null` routing | `info` severity is intentionally non-paging in Prometheus conventions. CPUThrottlingHigh is `info` severity — routing it to Discord caused midnight noise from Tdarr/Byparr/Ghost doing normal work |
+| `info` → `null` routing | `info` severity is intentionally non-paging in Prometheus conventions. CPUThrottlingHigh is `info` severity - routing it to Discord caused midnight noise from Tdarr/Byparr/Ghost doing normal work |
 | CPUThrottlingHigh 50% threshold | Three services crossed 25% during normal operation (tdarr 100%, byparr 28%, ghost 35%). None required action. 50% still catches truly saturated containers while ignoring bursty-by-design workloads |
 | arr-stack excluded from CPUThrottlingHigh | Media transcoding (Tdarr) and headless browser (Byparr) are inherently bursty CPU workloads. 100% throttling during an encode run is expected and cannot be actioned |
 | NodeMemoryMajorPagesFaults compound condition | Major page faults are generated by NFS reads (cold cache miss), not just memory exhaustion. Tdarr reading 20GB 4K files from NFS produces 1000+ faults/sec with 7.5GB free RAM. The compound condition ensures the alert only fires when memory is genuinely low |
@@ -484,7 +501,7 @@ continued firing — but new config changes were silently not applied. **Fix: al
 
 ---
 
-## February 21, 2026 — Phase 4.28 Pre-Release: Dashboard Alert Gaps + Tdarr/qBit Alerts
+## February 21, 2026 - Phase 4.28 Pre-Release: Dashboard Alert Gaps + Tdarr/qBit Alerts
 
 ### Summary
 
@@ -501,11 +518,11 @@ Tdarr transcode/health check failures and qBittorrent stalled downloads.
 | Add `NVMeTemperatureHigh` | `alerts/storage-alerts.yaml` | `smartctl_device_temperature{temperature_type="current"} > 65` for 10m; SK Hynix max = 70°C, baseline = 46°C |
 | Add `ServiceHighResponseTime` | `alerts/service-health-alerts.yaml` (new) | `probe_duration_seconds > 5s` on public services (ghost, invoicetron, portfolio, jellyfin, seerr, karakeep) |
 | Add `BazarrDown` | `alerts/arr-alerts.yaml` | Blackbox probe failure on Bazarr subtitle downloader (arr-stack:6767) |
-| Add `TdarrTranscodeErrors` | `alerts/arr-alerts.yaml` | `increase(tdarr_library_transcodes{status="error"}[1h]) > 2` for 15m — warning |
-| Add `TdarrTranscodeErrorsBurst` | `alerts/arr-alerts.yaml` | `increase(...) > 15` for 0m — critical → #incidents + email |
-| Add `TdarrHealthCheckErrors` | `alerts/arr-alerts.yaml` | `increase(tdarr_library_health_checks{status="error"}[1h]) > 5` for 15m — warning |
-| Add `TdarrHealthCheckErrorsBurst` | `alerts/arr-alerts.yaml` | `increase(...) > 50` for 0m — critical → #incidents + email |
-| Add `QBittorrentStalledDownloads` | `alerts/arr-alerts.yaml` | `sum(qbittorrent_torrents_count{status="stalledDL"}) > 0` for 45m — warning |
+| Add `TdarrTranscodeErrors` | `alerts/arr-alerts.yaml` | `increase(tdarr_library_transcodes{status="error"}[1h]) > 2` for 15m - warning |
+| Add `TdarrTranscodeErrorsBurst` | `alerts/arr-alerts.yaml` | `increase(...) > 15` for 0m - critical → #incidents + email |
+| Add `TdarrHealthCheckErrors` | `alerts/arr-alerts.yaml` | `increase(tdarr_library_health_checks{status="error"}[1h]) > 5` for 15m - warning |
+| Add `TdarrHealthCheckErrorsBurst` | `alerts/arr-alerts.yaml` | `increase(...) > 50` for 0m - critical → #incidents + email |
+| Add `QBittorrentStalledDownloads` | `alerts/arr-alerts.yaml` | `sum(qbittorrent_torrents_count{status="stalledDL"}) > 0` for 45m - warning |
 
 ### New Probe
 
@@ -524,16 +541,16 @@ Tdarr transcode/health check failures and qBittorrent stalled downloads.
 
 | Decision | Rationale |
 |----------|-----------|
-| Use `increase()[1h]` for Tdarr alerts | Tdarr metrics are cumulative counters — 73+ health check errors already existed from historical runs. Using raw `> 0` would fire permanently and never auto-resolve. `increase()[1h]` measures new errors in a sliding 1h window; drops to 0 when errors stop → auto-resolves ~1h later. |
+| Use `increase()[1h]` for Tdarr alerts | Tdarr metrics are cumulative counters - 73+ health check errors already existed from historical runs. Using raw `> 0` would fire permanently and never auto-resolve. `increase()[1h]` measures new errors in a sliding 1h window; drops to 0 when errors stop → auto-resolves ~1h later. |
 | Tdarr warning thresholds (>2 encode, >5 health) | Avoids false positives from occasional one-off plugin failures or minor file variance |
 | Tdarr critical thresholds (>15 encode, >50 health) | Burst-level: 15 encode failures/hr = systematic plugin failure; 50 health/hr = likely NFS/storage issue affecting all files |
 | qBittorrent `for: 45m` | `stalledDL` is briefly normal (peers connecting). 45m = stall-resolver CronJob has run 1-2 cycles and still couldn't clear it |
-| Alert scope for `ServiceHighResponseTime` | Excludes internal tools (Tdarr, Byparr, AdGuard) — internal services often have slow initial responses. Only public/user-facing services alerted. |
-| Auto-resolve is already built in | Alertmanager sends ✅ RESOLVED automatically when PromQL expr drops to 0 results. Discord #status title uses `{{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }}` — no extra config needed. |
+| Alert scope for `ServiceHighResponseTime` | Excludes internal tools (Tdarr, Byparr, AdGuard) - internal services often have slow initial responses. Only public/user-facing services alerted. |
+| Auto-resolve is already built in | Alertmanager sends ✅ RESOLVED automatically when PromQL expr drops to 0 results. Discord #status title uses `{{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }}` - no extra config needed. |
 
 ---
 
-## February 20, 2026 — Tdarr: Debugging, Worker Tuning & Phase 4.29 Planning
+## February 20, 2026 - Tdarr: Debugging, Worker Tuning & Phase 4.29 Planning
 
 ### Summary
 
@@ -557,10 +574,10 @@ errors. Phase 4.29 Vault + ESO design approved and 21-task plan committed to git
 |------|--------|-------|-----------|
 | Boosh-Transcode QSV: `min_average_bitrate` | 0 | 2000 | Overrides NaN `-minrate`; `max_average_bitrate` overrides NaN `-maxrate` |
 | Boosh-Transcode QSV: `max_average_bitrate` | 0 | 8000 | Upper bound for files with no source bitrate metadata |
-| Tdarr node: Transcode CPU workers | 1 | 1 | Kept — CPU transcode is slow; GPU is the correct tool |
-| Tdarr node: Transcode GPU workers | 1 | 1 | Kept — one UHD 630 QSV session at a time is optimal |
+| Tdarr node: Transcode CPU workers | 1 | 1 | Kept - CPU transcode is slow; GPU is the correct tool |
+| Tdarr node: Transcode GPU workers | 1 | 1 | Kept - one UHD 630 QSV session at a time is optimal |
 | Tdarr node: Health Check CPU workers | 1 | 3 | Faster health check scans; ffprobe is I/O-bound and lightweight |
-| Tdarr node: Health Check GPU workers | 1 | 0 | Health checks use ffprobe only — no GPU benefit; frees device slot |
+| Tdarr node: Health Check GPU workers | 1 | 0 | Health checks use ffprobe only - no GPU benefit; frees device slot |
 
 ### Tdarr Library State (end of session)
 
@@ -591,20 +608,20 @@ secret in the cluster becomes a committed manifest with zero hardcoded values.
 
 | Decision | Rationale |
 |----------|-----------|
-| Ignore DASH-remuxed files (skip list) | `extra_qsv_options` inserts BEFORE calculated values — cannot override NaN this way. No safe config-only fix. 10 files skipped permanently. |
+| Ignore DASH-remuxed files (skip list) | `extra_qsv_options` inserts BEFORE calculated values - cannot override NaN this way. No safe config-only fix. 10 files skipped permanently. |
 | Keep Transcode GPU workers at 1 | Intel UHD 630 is one physical QSV device. Multiple simultaneous sessions compete for the same hardware and cause encode failures or slowdowns. NFS read is the real bottleneck. |
 | Health Check CPU → 3 | ffprobe is I/O-bound and lightweight. 3 parallel probes finish 3× faster; pod's 2-core CPU limit gently throttles without failures. |
-| Health Check GPU → 0 | Health checks use ffprobe only — no GPU acceleration. Setting to 0 frees the UHD 630 device slot for transcoding. |
+| Health Check GPU → 0 | Health checks use ffprobe only - no GPU acceleration. Setting to 0 frees the UHD 630 device slot for transcoding. |
 | Add CPU worker for Inception 3D | Lmg1 Reorder Streams requires a CPU worker slot even in a GPU transcode pipeline. 3D SBS files need stream reordering before encode. One slot is sufficient. |
 | Tdarr stats API caches state | Tdarr stats endpoint caches previous file states. `FileJSONDB` `HealthCheck` field is ground truth. Grafana exporter metrics lag until cache refreshes after scan completes. |
 
 ---
 
-## February 19–20, 2026 — Phase 4.28 (Complete): Alerting & Observability
+## February 19–20, 2026 - Phase 4.28 (Complete): Alerting & Observability
 
 ### Summary
 
-Phase 4.28 complete — 20 new alerts + NVMe S.M.A.R.T. monitoring + ARR stall resolver + Tdarr and qBittorrent Prometheus exporters + 11 Grafana dashboards (6 new/rewritten, 5 updated). All 11 dashboards in "Homelab" folder. Control plane bind addresses fixed. kube-vip VIP loss root-caused and KubeApiserverFrequentRestarts alert added. kube-vip, Network, and Scraparr dashboards fully overhauled after initial standardization pass.
+Phase 4.28 complete - 20 new alerts + NVMe S.M.A.R.T. monitoring + ARR stall resolver + Tdarr and qBittorrent Prometheus exporters + 11 Grafana dashboards (6 new/rewritten, 5 updated). All 11 dashboards in "Homelab" folder. Control plane bind addresses fixed. kube-vip VIP loss root-caused and KubeApiserverFrequentRestarts alert added. kube-vip, Network, and Scraparr dashboards fully overhauled after initial standardization pass.
 
 ### Infrastructure Changes
 
@@ -612,13 +629,13 @@ Phase 4.28 complete — 20 new alerts + NVMe S.M.A.R.T. monitoring + ARR stall r
 |--------|-------------|
 | monitoring/ reorganization | 55 flat files → 8 typed subdirectories (alerts/, dashboards/, exporters/, grafana/, otel/, probes/, servicemonitors/, version-checker/) |
 | smartctl_exporter | DaemonSet on all 3 nodes for NVMe S.M.A.R.T. metrics. Pinned to `/dev/nvme0`, 5 Helm-provided PrometheusRules + 3 custom NVMe alerts |
-| ARR stall resolver | CronJob (every 30 min) automates stuck torrent resolution — switches quality profile to Any and blocklists dead releases to trigger re-search |
+| ARR stall resolver | CronJob (every 30 min) automates stuck torrent resolution - switches quality profile to Any and blocklists dead releases to trigger re-search |
 | Grafana folder organization | Enable sidecar `folderAnnotation` in Prometheus Helm values; add `grafana_folder: "Homelab"` to all 11 dashboard ConfigMaps |
 | Prometheus HTTPRoute | Exposed Prometheus UI at `prometheus.k8s.rommelporras.com` |
 | Alertmanager HTTPRoute | Exposed Alertmanager UI at `alertmanager.k8s.rommelporras.com` |
 | Homepage widgets | Prometheus targets count + Alertmanager firing count (excludes Watchdog) |
 | kubeadm bind addresses | Fixed etcd/kube-controller-manager/kube-scheduler to `0.0.0.0` so Prometheus can scrape |
-| kubeProxy disabled | `kubeProxy.enabled: false` in Helm values — Cilium replaces kube-proxy |
+| kubeProxy disabled | `kubeProxy.enabled: false` in Helm values - Cilium replaces kube-proxy |
 | version-checker memory | Memory request 64Mi→128Mi, limit 128Mi→256Mi (was OOMKilled scanning 137 pods) |
 | tdarr-exporter | Deployment + Service (`homeylab/tdarr-exporter`, port 9090) + ServiceMonitor (60s). Exposes library stats: GB Saved, Tdarr Score %, Files, Transcodes by status, Health Check errors, codec/container/resolution breakdown |
 | qbittorrent-exporter | Deployment + Service (`esanchezm/prometheus-qbittorrent-exporter`, port 8000) + ServiceMonitor (30s). Exposes torrent counts by status (downloading/seeding/stalled/paused) and transfer rates |
@@ -639,8 +656,8 @@ Phase 4.28 complete — 20 new alerts + NVMe S.M.A.R.T. monitoring + ARR stall r
 | cert-manager ServiceMonitor + alerts | `servicemonitors/certmanager-servicemonitor.yaml`, `alerts/cert-alerts.yaml` | Done |
 | Cloudflare Tunnel alerts | `alerts/cloudflare-alerts.yaml` | Done |
 | KubeApiserverFrequentRestarts | `alerts/apiserver-alerts.yaml` | Done |
-| NVMe SMART alerts (3) | `alerts/storage-alerts.yaml` — NVMeMediaErrors (critical), NVMeSpareWarning, NVMeWearHigh | Done |
-| ARR queue health alerts (2) | `alerts/arr-alerts.yaml` — ArrQueueWarning (60m stall), ArrQueueError (15m) | Done |
+| NVMe SMART alerts (3) | `alerts/storage-alerts.yaml` - NVMeMediaErrors (critical), NVMeSpareWarning, NVMeWearHigh | Done |
+| ARR queue health alerts (2) | `alerts/arr-alerts.yaml` - ArrQueueWarning (60m stall), ArrQueueError (15m) | Done |
 | AdGuard alert label fix | `alerts/adguard-dns-alert.yaml` | Done |
 | LokiStorageLow removed | `alerts/logging-alerts.yaml` | Done |
 
@@ -648,7 +665,7 @@ Phase 4.28 complete — 20 new alerts + NVMe S.M.A.R.T. monitoring + ARR stall r
 
 | Dashboard | Change |
 |-----------|--------|
-| Longhorn Storage (new) | Storage Health stats, NVMe S.M.A.R.T. section (6 stat panels: SMART status, temp, spare, wear, TBW, power-on — replaced initial table panel with single stat row saving 4 vertical rows, drive model/serial/firmware in row description hover), Node Disk Usage, Volume I/O Throughput + IOPS |
+| Longhorn Storage (new) | Storage Health stats, NVMe S.M.A.R.T. section (6 stat panels: SMART status, temp, spare, wear, TBW, power-on - replaced initial table panel with single stat row saving 4 vertical rows, drive model/serial/firmware in row description hover), Node Disk Usage, Volume I/O Throughput + IOPS |
 | Service Health (new) | 11 UP/DOWN probe stat panels, Uptime History + Response Time time series; `max()` on all queries to collapse stale TSDB series |
 | kube-vip (full rewrite) | Fix Instance Health thresholds (red<2, yellow=2, green=3), per-node labels via `label_replace` (cp1/cp2/cp3), merge Process+Network into one collapsed row, multi-series tooltip, right-side table legend, 30s refresh. Remove non-existent `kube_lease_spec_lease_transitions` panel. |
 | Network (full overhaul) | Per-node queries (cp1/cp2/cp3), deduplicate with `sum/max by()`, NIC Utilization % Over Time with 80% threshold line, multi-series tooltip, right-side table legend, per-node color overrides |
@@ -670,9 +687,9 @@ Phase 4.28 complete — 20 new alerts + NVMe S.M.A.R.T. monitoring + ARR stall r
 4. ~2 min gap with no VIP → all `kubectl` calls timed out
 5. cp2 won leader election → VIP restored
 
-**Restart counts (34 days):** cp1=7, cp2=21, cp3=30 — cp3 averaging ~1 restart/day.
+**Restart counts (34 days):** cp1=7, cp2=21, cp3=30 - cp3 averaging ~1 restart/day.
 
-**Resolution:** Added `KubeApiserverFrequentRestarts` alert — fires when any kube-apiserver pod exceeds 5 restarts in 24h. Currently NOT firing (cp1=2, cp2=1, cp3=2 restarts/24h, all below threshold).
+**Resolution:** Added `KubeApiserverFrequentRestarts` alert - fires when any kube-apiserver pod exceeds 5 restarts in 24h. Currently NOT firing (cp1=2, cp2=1, cp3=2 restarts/24h, all below threshold).
 
 ### Key Decisions
 
@@ -680,24 +697,24 @@ Phase 4.28 complete — 20 new alerts + NVMe S.M.A.R.T. monitoring + ARR stall r
 |----------|-----------|
 | smartctl_exporter pinned to `/dev/nvme0` | Avoids scraping Longhorn iSCSI virtual block devices that appear as `/dev/sd*` on each node |
 | NVMe alerts in storage-alerts.yaml | Groups all storage alerting (Longhorn volumes + NVMe health) in one file |
-| Stall resolver CronJob every 30 min | Two cycles (60 min) before ArrQueueWarning fires — gives automation time to resolve before alerting |
+| Stall resolver CronJob every 30 min | Two cycles (60 min) before ArrQueueWarning fires - gives automation time to resolve before alerting |
 | Stall resolver skips importPending/importBlocked | Different root cause (NFS/disk issues) requires manual intervention, not blocklisting |
 | `grafana_folder: "Homelab"` on all dashboards | Organizes custom dashboards into dedicated folder, separate from kube-prometheus-stack defaults |
-| Longhorn NVMe table → 6 stat panels | Zero tables across all dashboards. Removed table panel, consolidated SMART/Temp/Spare/Wear/TBW/Power-On into one stat row. Drive model/serial/firmware moved to NVMe Health row description (hover) — static reference data, not monitoring. |
+| Longhorn NVMe table → 6 stat panels | Zero tables across all dashboards. Removed table panel, consolidated SMART/Temp/Spare/Wear/TBW/Power-On into one stat row. Drive model/serial/firmware moved to NVMe Health row description (hover) - static reference data, not monitoring. |
 | `max()` on all probe stat panels | Prevents stale TSDB series from creating duplicate stat panels when probe targets change |
 | `increase($__rate_interval)` for Container Restarts | Cumulative counter misleads at short time ranges; `increase()` shows new restarts per window |
 | Expose Prometheus/Alertmanager via HTTPRoute | Needed for Homepage widgets and direct troubleshooting |
-| Watchdog excluded from Homepage firing count | `alertname!="Watchdog"` — intentional dead man's switch, always fires |
-| kube-vip Network panels show host traffic | `hostNetwork: true` means RX/TX panels show all host network I/O (~485 KB/s), not just kube-vip ARP traffic — documented in panel descriptions |
-| qBittorrent torrent count uses `sum()` | Torrent metrics include `category` label — `sum()` aggregates across all categories to give total count |
+| Watchdog excluded from Homepage firing count | `alertname!="Watchdog"` - intentional dead man's switch, always fires |
+| kube-vip Network panels show host traffic | `hostNetwork: true` means RX/TX panels show all host network I/O (~485 KB/s), not just kube-vip ARP traffic - documented in panel descriptions |
+| qBittorrent torrent count uses `sum()` | Torrent metrics include `category` label - `sum()` aggregates across all categories to give total count |
 
 ---
 
-## February 19, 2026 — v0.26.0: Version Automation & Upgrade Runbooks
+## February 19, 2026 - v0.26.0: Version Automation & Upgrade Runbooks
 
 ### Summary
 
-Phase 4.27 — three-tool automated version tracking covering container images, Helm charts, and Kubernetes version. Includes upgrade/rollback runbook for all component types.
+Phase 4.27 - three-tool automated version tracking covering container images, Helm charts, and Kubernetes version. Includes upgrade/rollback runbook for all component types.
 
 ### New Components
 
@@ -759,7 +776,7 @@ All pinned images also got `match-regex` version-checker annotations for LinuxSe
 
 ---
 
-## February 19, 2026 — v0.25.2: ARR Media Quality and Playback Fixes
+## February 19, 2026 - v0.25.2: ARR Media Quality and Playback Fixes
 
 ### Summary
 
@@ -769,11 +786,11 @@ Fixed Italian-default audio in Jellyfin, added language release filtering, expan
 
 | Issue | Root Cause | Fix |
 |-------|-----------|-----|
-| Jellyfin defaulting to Italian audio on multi-language releases | Preferred Audio Language not set — Jellyfin respected MKV file's default track flag (Italian) over user preference | Set Preferred Audio Language to `Auto`, Subtitle Mode to `Smart`, Preferred Subtitle Language to `English` in Jellyfin user settings |
-| Italian audio releases downloaded by Radarr/Sonarr | No language filtering — Italian-first multi-audio releases (e.g. `iTA-ENG`, CYBER/Licdom release groups) grabbed freely | Added Custom Format "Penalize Italian Dub" (Language = Italian, score -10000) to all quality profiles in both Radarr and Sonarr |
+| Jellyfin defaulting to Italian audio on multi-language releases | Preferred Audio Language not set - Jellyfin respected MKV file's default track flag (Italian) over user preference | Set Preferred Audio Language to `Auto`, Subtitle Mode to `Smart`, Preferred Subtitle Language to `English` in Jellyfin user settings |
+| Italian audio releases downloaded by Radarr/Sonarr | No language filtering - Italian-first multi-audio releases (e.g. `iTA-ENG`, CYBER/Licdom release groups) grabbed freely | Added Custom Format "Penalize Italian Dub" (Language = Italian, score -10000) to all quality profiles in both Radarr and Sonarr |
 | K-pop Demon Hunters stuck on Italian 4K release | Movie assigned to unmanaged 4K profile, no replacement found at -10000 score | Changed quality profile to "HD Bluray + WEB", grabbed `KPop.Demon.Hunters.2025.1080p.WEB.h264-EDITH` |
 | Mercy grabbed Italian release | `Mercy.2026.iTA-ENG.WEBDL.1080p.x264-CYBER.mkv` was the only available release | Penalize Italian Dub CF scored it -10000, triggered automatic search, grabbed `Mercy.Sotto.Accusa.2026.1080p.AMZN.WEB-DL.DDP5.1.H.264-FHC_CREW` |
-| Konosuba episodes stuck downloading (<5 seeds) | minimumSeeders was 1 on all indexers — Sonarr grabbed the first available release regardless of seed count | Raised minimumSeeders from 1 → 10 on all Sonarr and Radarr indexers via API |
+| Konosuba episodes stuck downloading (<5 seeds) | minimumSeeders was 1 on all indexers - Sonarr grabbed the first available release regardless of seed count | Raised minimumSeeders from 1 → 10 on all Sonarr and Radarr indexers via API |
 | No 4K quality profile in Radarr | Configarr only synced `radarr-quality-profile-hd-bluray-web` (1080p) | Added `radarr-quality-profile-uhd-bluray-web` + `radarr-custom-formats-uhd-bluray-web` templates to Configarr |
 | Sonarr WEB-only releases (no BluRay sources) | Configarr only synced `sonarr-v4-quality-profile-web-1080p` | Added `sonarr-v4-quality-profile-hd-bluray-web` + `sonarr-v4-custom-formats-hd-bluray-web` templates to Configarr |
 
@@ -783,7 +800,7 @@ Fixed Italian-default audio in Jellyfin, added language release filtering, expan
 |-----|---------|--------|-------|
 | Jellyfin | Preferred Audio Language | English | Auto (uses file default) |
 | Jellyfin | Subtitle Mode | Default | Smart |
-| Jellyfin | Preferred Subtitle Language | — | English |
+| Jellyfin | Preferred Subtitle Language | - | English |
 | Radarr + Sonarr | All indexers minimumSeeders | 1 | 10 |
 | Radarr | Quality profiles | HD Bluray + WEB only | + UHD Bluray + WEB |
 | Sonarr | Quality profiles | WEB-1080p only | + HD Bluray + WEB |
@@ -793,11 +810,11 @@ Fixed Italian-default audio in Jellyfin, added language release filtering, expan
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Jellyfin audio preference | `Auto` (not `English`) | "English" would force English dub on Korean/Japanese movies; `Auto` respects original language when file is correctly flagged |
-| Subtitle mode | `Smart` | Shows English subs only when audio is non-English — no subs on English content, subs on Korean/Japanese automatically |
+| Subtitle mode | `Smart` | Shows English subs only when audio is non-English - no subs on English content, subs on Korean/Japanese automatically |
 | Language filter approach | Custom Format -10000 (not hard restriction) | Allows fallback to Italian release if no alternative exists; just heavily penalizes |
 | minimumSeeders | 10 | Filters out sub-5-seed stuck torrents while still allowing niche content with moderate seeding |
-| minimumSeeders set via API | Bulk API update | "Minimum Seeders" is a hidden field (requires "Show hidden" in UI) — API faster than editing 8 indexers manually |
-| Configarr Custom Format scores | Manual per new profile | Configarr manages TRaSH CF scores but not user-added CFs — must manually set -10000 on each new profile Configarr creates |
+| minimumSeeders set via API | Bulk API update | "Minimum Seeders" is a hidden field (requires "Show hidden" in UI) - API faster than editing 8 indexers manually |
+| Configarr Custom Format scores | Manual per new profile | Configarr manages TRaSH CF scores but not user-added CFs - must manually set -10000 on each new profile Configarr creates |
 
 ### Files Modified
 
@@ -807,13 +824,13 @@ Fixed Italian-default audio in Jellyfin, added language release filtering, expan
 
 ---
 
-## February 18, 2026 — v0.25.1: ARR Alert and Byparr Fixes
+## February 18, 2026 - v0.25.1: ARR Alert and Byparr Fixes
 
 ### Bug Fixes
 
 | Issue | Root Cause | Fix |
 |-------|-----------|-----|
-| RadarrQueueStalled false positive (permanently firing) | Alert used `changes(radarr_movies_total[2h])` which tracks library size, not downloads — metric almost never changes | Rewrite to `radarr_queue_count > 0 and changes(radarr_missing_movies_total[2h]) == 0` — only fires when queue items exist but aren't completing |
+| RadarrQueueStalled false positive (permanently firing) | Alert used `changes(radarr_movies_total[2h])` which tracks library size, not downloads - metric almost never changes | Rewrite to `radarr_queue_count > 0 and changes(radarr_missing_movies_total[2h]) == 0` - only fires when queue items exist but aren't completing |
 | SonarrQueueStalled false positive (same issue) | Same flawed pattern using `sonarr_episodes_total` | Same fix using `sonarr_queue_count` and `sonarr_missing_episodes_total` |
 | Byparr restart loop (16 restarts in 14h) | Liveness probe `/health` runs Playwright browser page load; 10s timeout too short when browser busy with real requests | Relaxed probe: 30s timeout, 60s period, 5 failures (5min grace vs 90s) |
 
@@ -826,7 +843,7 @@ Fixed Italian-default audio in Jellyfin, added language release filtering, expan
 
 ---
 
-## February 18, 2026 — Phase 4.26: ARR Companions
+## February 18, 2026 - Phase 4.26: ARR Companions
 
 ### Milestone: Complete Media Automation Platform
 
@@ -902,7 +919,7 @@ Deployed 7 companion apps to the ARR media stack: Seerr (media requests + discov
 
 ---
 
-## February 17, 2026 — Phase 4.25b: Intel QSV Hardware Transcoding
+## February 17, 2026 - Phase 4.25b: Intel QSV Hardware Transcoding
 
 ### Milestone: GPU-Accelerated Media Streaming
 
@@ -971,7 +988,7 @@ Enabled Intel Quick Sync Video (QSV) hardware transcoding on all 3 cluster nodes
 
 ---
 
-## February 16, 2026 — Phase 4.25: ARR Media Stack
+## February 16, 2026 - Phase 4.25: ARR Media Stack
 
 ### Milestone: Self-Hosted Media Automation Platform
 
@@ -990,14 +1007,14 @@ Deployed 6-app ARR media automation stack to `arr-stack` namespace: Prowlarr (in
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Namespace | `arr-stack` (not `media`) | `media` too generic — Immich is also media |
+| Namespace | `arr-stack` (not `media`) | `media` too generic - Immich is also media |
 | Media storage | NFS on OMV NAS | Hardlinks require single filesystem; NAS has 2TB NVMe |
 | Config storage | Longhorn PVCs | Fast SQLite I/O, 2x replicated, off the single-drive NAS |
 | NFS mount | Single PV/PVC at `/data` for all pods | Required for hardlinks between torrents/ and media/ |
 | Jellyfin image | Official (not LSIO) | Bundles jellyfin-ffmpeg with Intel iHD driver for QSV (Phase 4.25b). Also meets PSS restricted (no root) |
 | LSIO apps | s6-overlay v3 with PUID/PGID | Requires CHOWN+SETUID+SETGID capabilities, runs as root |
 | Sonarr/Radarr/Bazarr tags | `:latest` with `imagePullPolicy: Always` | Rapid release cycle, LSIO rebuilds frequently |
-| Seeding | Disabled (ratio 0, Stop torrent) | NAS has single NVMe — preserve TBW |
+| Seeding | Disabled (ratio 0, Stop torrent) | NAS has single NVMe - preserve TBW |
 | Subtitle provider | OpenSubtitles.com + Podnapisi | Free accounts, public providers |
 | Prowlarr indexers | EZTV, YTS, Nyaa.si | All public, no account. Skipped: 1337x (Cloudflare blocks), TheRARBG (removed from Prowlarr) |
 | Jellyfin Connect | Radarr + Sonarr → Jellyfin | Auto library scan on import (instead of 12h schedule) |
@@ -1028,13 +1045,13 @@ Deployed 6-app ARR media automation stack to `arr-stack` namespace: Prowlarr (in
 
 ### Critical Gotchas Discovered
 
-1. **qBittorrent Torrent Management Mode** — Must be set to `Automatic` (not `Manual`) for category-based save paths to work. Default `Manual` saves to `/downloads` which doesn't exist in the container.
-2. **qBittorrent CSRF on HTTP API** — Health endpoint returns 403 due to CSRF protection. Use `tcpSocket` probes on port 8080, not `httpGet`.
-3. **Seeding disabled = no hardlinks** — With ratio 0 + "Remove Completed Downloads" in Radarr, source is deleted after import. File has link count 1 (effectively a move, not a hardlink). Expected behavior when seeding is disabled.
-4. **Jellyfin no auto-scan on NFS** — NFS doesn't support inotify. Must add Jellyfin Connect integration in Radarr/Sonarr (Settings → Connect → Emby/Jellyfin) for automatic library refresh on import.
-5. **NetworkPolicy blocks Uptime Kuma** — Internal K8s service URLs timeout from uptime-kuma namespace. Use HTTPS URLs with 403 accepted status codes for monitoring.
-6. **`kubectl-homelab` alias unavailable in bash scripts** — Alias is zsh-only. Scripts must use `kubectl --kubeconfig ${HOME}/.kube/homelab.yaml`.
-7. **1GbE NIC bottleneck** — K8s nodes have 1GbE NICs, NAS has 2.5GbE. Download speeds may be limited by node NIC (investigation deferred to Phase 4.26).
+1. **qBittorrent Torrent Management Mode** - Must be set to `Automatic` (not `Manual`) for category-based save paths to work. Default `Manual` saves to `/downloads` which doesn't exist in the container.
+2. **qBittorrent CSRF on HTTP API** - Health endpoint returns 403 due to CSRF protection. Use `tcpSocket` probes on port 8080, not `httpGet`.
+3. **Seeding disabled = no hardlinks** - With ratio 0 + "Remove Completed Downloads" in Radarr, source is deleted after import. File has link count 1 (effectively a move, not a hardlink). Expected behavior when seeding is disabled.
+4. **Jellyfin no auto-scan on NFS** - NFS doesn't support inotify. Must add Jellyfin Connect integration in Radarr/Sonarr (Settings → Connect → Emby/Jellyfin) for automatic library refresh on import.
+5. **NetworkPolicy blocks Uptime Kuma** - Internal K8s service URLs timeout from uptime-kuma namespace. Use HTTPS URLs with 403 accepted status codes for monitoring.
+6. **`kubectl-homelab` alias unavailable in bash scripts** - Alias is zsh-only. Scripts must use `kubectl --kubeconfig ${HOME}/.kube/homelab.yaml`.
+7. **1GbE NIC bottleneck** - K8s nodes have 1GbE NICs, NAS has 2.5GbE. Download speeds may be limited by node NIC (investigation deferred to Phase 4.26).
 
 ### 1Password Items
 
@@ -1045,11 +1062,11 @@ Deployed 6-app ARR media automation stack to `arr-stack` namespace: Prowlarr (in
 
 ---
 
-## February 13, 2026 — Phase 4.10: Tailscale Operator (Subnet Router)
+## February 13, 2026 - Phase 4.10: Tailscale Operator (Subnet Router)
 
 ### Milestone: Secure Remote Access via WireGuard Mesh VPN
 
-Deployed Tailscale Kubernetes Operator v1.94.1 with a Connector CRD that advertises the entire 10.10.30.0/24 subnet to the tailnet. All existing K8s services are now accessible from any Tailscale-connected device (phone, laptop) via WireGuard tunnel — zero per-service manifests needed. AdGuard DNS set as global nameserver for ad-blocking on all tailnet devices.
+Deployed Tailscale Kubernetes Operator v1.94.1 with a Connector CRD that advertises the entire 10.10.30.0/24 subnet to the tailnet. All existing K8s services are now accessible from any Tailscale-connected device (phone, laptop) via WireGuard tunnel - zero per-service manifests needed. AdGuard DNS set as global nameserver for ad-blocking on all tailnet devices.
 
 | Component | Version | Status |
 |-----------|---------|--------|
@@ -1065,7 +1082,7 @@ Deployed Tailscale Kubernetes Operator v1.94.1 with a Connector CRD that adverti
 | PSS | Privileged enforce | Proxy pods require NET_ADMIN + NET_RAW for WireGuard tunnel (hard requirement) |
 | Cilium fix | `socketLB.hostNamespaceOnly: true` | Cilium eBPF socket LB intercepts traffic in proxy pod netns, breaking WireGuard routing |
 | Network policy | Operator-only (no connector proxy policy) | CiliumNetworkPolicy filters forwarded/routed packets, breaking subnet routing entirely |
-| HTTPS certs | Existing Let's Encrypt (via Cilium Gateway) | Traffic enters through Gateway after subnet route — no Tailscale HTTPS certs needed |
+| HTTPS certs | Existing Let's Encrypt (via Cilium Gateway) | Traffic enters through Gateway after subnet route - no Tailscale HTTPS certs needed |
 | immich VM | Disabled Tailscale on VM | K8s subnet route (10.10.30.0/24) caused immich VM's Tailscale to intercept LAN traffic |
 
 ### Files Added
@@ -1088,17 +1105,17 @@ Deployed Tailscale Kubernetes Operator v1.94.1 with a Connector CRD that adverti
 
 ### Critical Gotchas Discovered
 
-1. **Cilium socketLB breaks WireGuard** — Must add `socketLB.hostNamespaceOnly: true` BEFORE installing operator
-2. **CiliumNetworkPolicy blocks subnet routing** — Connector forwards packets via IP forwarding; CNP filters forwarded packets, not just pod-originated traffic
-3. **Operator uses ClusterIP (10.96.0.1)** — Egress policy needs `toEntities: kube-apiserver`, not CIDR-based node IP rules
-4. **`proxyConfig.defaultTags` must be string** — YAML array causes `cannot unmarshal array into Go struct field EnvVar`
-5. **immich VM routing conflict** — VM's Tailscale saw K8s subnet route and intercepted LAN traffic (TTL 64→61)
-6. **OAuth clients renamed** — Now under `Settings → Trust credentials` in Tailscale admin console
-7. **Connector is a StatefulSet, not Deployment** — Alerts/dashboard queries must use `kube_statefulset_status_replicas_ready`, not `kube_deployment_status_replicas_available`
+1. **Cilium socketLB breaks WireGuard** - Must add `socketLB.hostNamespaceOnly: true` BEFORE installing operator
+2. **CiliumNetworkPolicy blocks subnet routing** - Connector forwards packets via IP forwarding; CNP filters forwarded packets, not just pod-originated traffic
+3. **Operator uses ClusterIP (10.96.0.1)** - Egress policy needs `toEntities: kube-apiserver`, not CIDR-based node IP rules
+4. **`proxyConfig.defaultTags` must be string** - YAML array causes `cannot unmarshal array into Go struct field EnvVar`
+5. **immich VM routing conflict** - VM's Tailscale saw K8s subnet route and intercepted LAN traffic (TTL 64→61)
+6. **OAuth clients renamed** - Now under `Settings → Trust credentials` in Tailscale admin console
+7. **Connector is a StatefulSet, not Deployment** - Alerts/dashboard queries must use `kube_statefulset_status_replicas_ready`, not `kube_deployment_status_replicas_available`
 
 ---
 
-## February 12, 2026 — Phase 4.24: Karakeep Migration
+## February 12, 2026 - Phase 4.24: Karakeep Migration
 
 ### Milestone: Bookmark Manager with AI Tagging
 
@@ -1117,7 +1134,7 @@ Migrated Karakeep 0.30.0 bookmark manager from Proxmox Docker to Kubernetes. Thr
 |----------|--------|-----------|
 | Text model | qwen2.5:3b over qwen3:1.7b | qwen3 thinking mode breaks Ollama structured output ([#10538](https://github.com/ollama/ollama/issues/10538)) |
 | Architecture | AIO image (not split web/workers) | SQLite = single writer, no benefit to splitting |
-| Database | SQLite (embedded) | No Redis needed — liteque replaces Redis since v0.16.0 |
+| Database | SQLite (embedded) | No Redis needed - liteque replaces Redis since v0.16.0 |
 | Chrome security | `--no-sandbox` + CIDR egress restriction | Standard for containerized Chromium + blocks SSRF to internal networks |
 | Crawler timeout | 120s (default 60s) | Content-type check + banner download needs headroom |
 | Ollama probes | Widened timeouts (liveness 10s, readiness 5s) | CPU inference saturates cores, HTTP may be slow during active inference |
@@ -1159,15 +1176,15 @@ Migrated Karakeep 0.30.0 bookmark manager from Proxmox Docker to Kubernetes. Thr
 
 ### Lessons Learned
 
-1. **qwen3 + structured output = broken** — Ollama's structured output suppresses the `<think>` token, breaking qwen3 models. Use qwen2.5:3b for Karakeep.
-2. **Karakeep needs internet egress** — Content-type checks, banner image downloads, and favicon fetches all require outbound HTTPS from Karakeep pods (not just Chrome).
-3. **Ollama probe timeouts matter during inference** — CPU inference saturates all cores (~4000m). HTTP health probes can time out during active inference, causing false restarts. Widened liveness to 10s timeout, readiness to 5s.
-4. **karakeep-cli `migrate` needs `-it` flag** — Interactive confirmation prompt requires TTY allocation.
-5. **s6-overlay requires root init** — Karakeep AIO uses s6-overlay which needs root during init (manages /run), then drops to app user. `runAsNonRoot: false` with `fsGroup: 0`.
+1. **qwen3 + structured output = broken** - Ollama's structured output suppresses the `<think>` token, breaking qwen3 models. Use qwen2.5:3b for Karakeep.
+2. **Karakeep needs internet egress** - Content-type checks, banner image downloads, and favicon fetches all require outbound HTTPS from Karakeep pods (not just Chrome).
+3. **Ollama probe timeouts matter during inference** - CPU inference saturates all cores (~4000m). HTTP health probes can time out during active inference, causing false restarts. Widened liveness to 10s timeout, readiness to 5s.
+4. **karakeep-cli `migrate` needs `-it` flag** - Interactive confirmation prompt requires TTY allocation.
+5. **s6-overlay requires root init** - Karakeep AIO uses s6-overlay which needs root during init (manages /run), then drops to app user. `runAsNonRoot: false` with `fsGroup: 0`.
 
 ---
 
-## February 11, 2026 — Phase 4.23: Ollama Local AI
+## February 11, 2026 - Phase 4.23: Ollama Local AI
 
 ### Milestone: CPU-Only LLM Inference Server
 
@@ -1185,9 +1202,9 @@ Deployed Ollama 0.15.6 for local AI inference, primarily as foundation for Karak
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Text model | qwen3:1.7b over qwen2.5:3b | Same quality (official Qwen benchmark), half the size, faster |
-| Vision model | moondream (1.8B) over llava (7B) | 3x smaller — both loaded = 4.5 GB vs 8.5 GB (critical on 16GB nodes) |
+| Vision model | moondream (1.8B) over llava (7B) | 3x smaller - both loaded = 4.5 GB vs 8.5 GB (critical on 16GB nodes) |
 | Quantization | Q4_K_M (Ollama default) | Classification/tagging retains 96-99% accuracy at 4-bit (Red Hat 500K evaluations) |
-| Memory limit | 6Gi (not 3Gi) | Ollama mmap's models + kernel page cache fills cgroup — 3Gi caused OOM |
+| Memory limit | 6Gi (not 3Gi) | Ollama mmap's models + kernel page cache fills cgroup - 3Gi caused OOM |
 | Network policy | CiliumNetworkPolicy ingress | Only monitoring + karakeep namespaces can reach Ollama |
 | Monitoring | Blackbox probe + PrometheusRule | No native /metrics endpoint; 3 alerts (Down, MemoryHigh, HighRestarts) |
 
@@ -1204,7 +1221,7 @@ Deployed Ollama 0.15.6 for local AI inference, primarily as foundation for Karak
 
 ---
 
-## February 11, 2026 — Phase 2.1: kube-vip Upgrade + Monitoring
+## February 11, 2026 - Phase 2.1: kube-vip Upgrade + Monitoring
 
 ### Milestone: kube-vip v1.0.4 + Prometheus Monitoring
 
@@ -1251,18 +1268,18 @@ Upgraded kube-vip from v1.0.3 to v1.0.4 across all 3 control plane nodes via rol
 
 ### Lessons Learned
 
-1. **kube-vip has no custom Prometheus metrics** (v1.0.3 and v1.0.4) — only Go runtime + process metrics. Monitor leader election via kube-state-metrics lease metrics instead.
-2. **Prometheus Operator uses Endpoints, not EndpointSlice** — K8s 1.33+ deprecates v1 Endpoints, but the deprecation is cosmetic. The API still works and Prometheus Operator requires it for ServiceMonitor discovery.
-3. **Optimistic lock errors don't mean VIP is down** — cp3 maintained the VIP despite constant lease update errors. The VIP worked fine; only log noise and wasted API server resources.
-4. **Pre-pull images before static pod upgrades** — minimizes VIP downtime window during kubelet pod restart.
+1. **kube-vip has no custom Prometheus metrics** (v1.0.3 and v1.0.4) - only Go runtime + process metrics. Monitor leader election via kube-state-metrics lease metrics instead.
+2. **Prometheus Operator uses Endpoints, not EndpointSlice** - K8s 1.33+ deprecates v1 Endpoints, but the deprecation is cosmetic. The API still works and Prometheus Operator requires it for ServiceMonitor discovery.
+3. **Optimistic lock errors don't mean VIP is down** - cp3 maintained the VIP despite constant lease update errors. The VIP worked fine; only log noise and wasted API server resources.
+4. **Pre-pull images before static pod upgrades** - minimizes VIP downtime window during kubelet pod restart.
 
 ---
 
-## February 9, 2026 — Phase 4.21: Containerized Firefox Browser
+## February 9, 2026 - Phase 4.21: Containerized Firefox Browser
 
 ### Milestone: Persistent Browser Session via KasmVNC
 
-Deployed containerized Firefox accessible from any LAN device via `browser.k8s.rommelporras.com`. Uses KasmVNC for WebSocket-based display streaming — close the tab on one device, open the URL on another, same session. Firefox profile (bookmarks, cookies, extensions, open tabs) persists on Longhorn PVC.
+Deployed containerized Firefox accessible from any LAN device via `browser.k8s.rommelporras.com`. Uses KasmVNC for WebSocket-based display streaming - close the tab on one device, open the URL on another, same session. Firefox profile (bookmarks, cookies, extensions, open tabs) persists on Longhorn PVC.
 
 | Component | Version | Status |
 |-----------|---------|--------|
@@ -1270,11 +1287,11 @@ Deployed containerized Firefox accessible from any LAN device via `browser.k8s.r
 
 ### Key Decisions
 
-- **`latest` tag instead of pinning** — Browser security patches are frequent; `imagePullPolicy: Always` ensures fresh pulls on restart
-- **AdGuard DNS routing** — Pod uses `dnsPolicy: None` with AdGuard primary (10.10.30.53) + failover (10.10.30.54) for ad-blocking and privacy
-- **LAN-only access** — NOT exposed via Cloudflare Tunnel (browser session = full machine access to logged-in accounts)
-- **TCP probes instead of HTTP** — Basic auth returns 401 on unauthenticated requests, so HTTP probes would always fail
-- **Least-privilege capabilities** — `drop: ALL` + add back only CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER (required by LinuxServer s6 init)
+- **`latest` tag instead of pinning** - Browser security patches are frequent; `imagePullPolicy: Always` ensures fresh pulls on restart
+- **AdGuard DNS routing** - Pod uses `dnsPolicy: None` with AdGuard primary (10.10.30.53) + failover (10.10.30.54) for ad-blocking and privacy
+- **LAN-only access** - NOT exposed via Cloudflare Tunnel (browser session = full machine access to logged-in accounts)
+- **TCP probes instead of HTTP** - Basic auth returns 401 on unauthenticated requests, so HTTP probes would always fail
+- **Least-privilege capabilities** - `drop: ALL` + add back only CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER (required by LinuxServer s6 init)
 
 ### Files Added
 
@@ -1294,7 +1311,7 @@ Deployed containerized Firefox accessible from any LAN device via `browser.k8s.r
 
 ---
 
-## February 9, 2026 — Phase 4.12.1: Ghost Web Analytics (Tinybird)
+## February 9, 2026 - Phase 4.12.1: Ghost Web Analytics (Tinybird)
 
 ### Milestone: Native Web Analytics for Ghost Blog
 
@@ -1360,17 +1377,17 @@ Ghost Admin Dashboard (reads Tinybird stats endpoint)
 
 ### Lessons Learned
 
-1. **OOM kill produces zero logs** — A container that exceeds its memory limit before writing any stdout gives empty `kubectl logs`. Diagnose by running the image locally with `docker stats`.
+1. **OOM kill produces zero logs** - A container that exceeds its memory limit before writing any stdout gives empty `kubectl logs`. Diagnose by running the image locally with `docker stats`.
 
-2. **Ghost `__` config convention** — Ghost maps env vars with double-underscore to nested config objects. `tinybird__workspaceId` → `config.tinybird.workspaceId`. The `web_analytics_configured` field checks `_isValidTinybirdConfig()` which validates these nested values.
+2. **Ghost `__` config convention** - Ghost maps env vars with double-underscore to nested config objects. `tinybird__workspaceId` → `config.tinybird.workspaceId`. The `web_analytics_configured` field checks `_isValidTinybirdConfig()` which validates these nested values.
 
-3. **Ghost does NOT proxy `/.ghost/analytics/`** — In Docker Compose, Caddy handles this routing. In Kubernetes without a reverse proxy, a separate Cloudflare Tunnel hostname is required for browser-facing POST requests.
+3. **Ghost does NOT proxy `/.ghost/analytics/`** - In Docker Compose, Caddy handles this routing. In Kubernetes without a reverse proxy, a separate Cloudflare Tunnel hostname is required for browser-facing POST requests.
 
-4. **Cloudflare free SSL subdomain limit** — Universal SSL covers `*.rommelporras.com` but NOT `*.blog.rommelporras.com`. Two-level subdomains fail TLS handshake.
+4. **Cloudflare free SSL subdomain limit** - Universal SSL covers `*.rommelporras.com` but NOT `*.blog.rommelporras.com`. Two-level subdomains fail TLS handshake.
 
-5. **Ad-blocker-friendly naming** — Browser ad blockers filter subdomains containing "analytics", "tracking", "stats". `blog-api` passes through ad blockers.
+5. **Ad-blocker-friendly naming** - Browser ad blockers filter subdomains containing "analytics", "tracking", "stats". `blog-api` passes through ad blockers.
 
-6. **CiliumNetworkPolicy port additions** — Adding TrafficAnalytics (port 3000) to ghost-prod required updating the cloudflared egress policy. Without it, Cloudflare Tunnel returned 502.
+6. **CiliumNetworkPolicy port additions** - Adding TrafficAnalytics (port 3000) to ghost-prod required updating the cloudflared egress policy. Without it, Cloudflare Tunnel returned 502.
 
 ### 1Password Items
 
@@ -1380,11 +1397,11 @@ Ghost Admin Dashboard (reads Tinybird stats endpoint)
 
 ---
 
-## February 8, 2026 — Phase 4.20: MySpeed Migration
+## February 8, 2026 - Phase 4.20: MySpeed Migration
 
 ### Milestone: Internet Speed Tracker Migrated from Proxmox LXC to Kubernetes
 
-Migrated MySpeed internet speed test tracker from Proxmox LXC (10.10.30.6) to Kubernetes cluster. Fresh start with no data migration — K8s instance builds its own speed test history.
+Migrated MySpeed internet speed test tracker from Proxmox LXC (10.10.30.6) to Kubernetes cluster. Fresh start with no data migration - K8s instance builds its own speed test history.
 
 | Component | Version | Status |
 |-----------|---------|--------|
@@ -1412,7 +1429,7 @@ Migrated MySpeed internet speed test tracker from Proxmox LXC (10.10.30.6) to Ku
 |----------|--------|-----------|
 | Image registry | Docker Hub (`germannewsmaker/myspeed`) | GHCR (`ghcr.io/gnmyt/myspeed`) returned 403 Forbidden |
 | Data migration | Fresh start | SQLite history on LXC during soak period, K8s builds own |
-| Security context | Partial restricted PSS | Image requires root — `runAsNonRoot` breaks data folder creation |
+| Security context | Partial restricted PSS | Image requires root - `runAsNonRoot` breaks data folder creation |
 | Resource limits | 100m/500m CPU, 128Mi/256Mi memory | Peak observed at 78Mi during speed test |
 | Named ports | `http` reference in probes + service | Single source of truth for port number |
 | Uptime Kuma monitors | Standardized all to external URLs | Full chain testing (DNS → Gateway → TLS → Service) over internal URLs for consistency |
@@ -1421,27 +1438,27 @@ Migrated MySpeed internet speed test tracker from Proxmox LXC (10.10.30.6) to Ku
 
 | Topic | Concept |
 |-------|---------|
-| PVC access modes | RWO (Longhorn) vs RWX (NFS) — RWO requires Recreate strategy |
+| PVC access modes | RWO (Longhorn) vs RWX (NFS) - RWO requires Recreate strategy |
 | Named ports | Reference `port: http` in probes/services instead of hardcoded numbers |
-| Pod Security Standards | Not all images support restricted PSS — apply what you can |
-| Kustomize | Homepage uses `-k` flag, not `-f` — `kubectl apply -f` overwrites imperative secrets |
+| Pod Security Standards | Not all images support restricted PSS - apply what you can |
+| Kustomize | Homepage uses `-k` flag, not `-f` - `kubectl apply -f` overwrites imperative secrets |
 | Resource right-sizing | Use Prometheus `max_over_time()` to measure peak usage before setting limits |
 
 ### Lessons Learned
 
-1. **Always verify container registry** — The phase plan listed `ghcr.io/gnmyt/myspeed` but the image is actually on Docker Hub as `germannewsmaker/myspeed`. GHCR returned 403 Forbidden.
+1. **Always verify container registry** - The phase plan listed `ghcr.io/gnmyt/myspeed` but the image is actually on Docker Hub as `germannewsmaker/myspeed`. GHCR returned 403 Forbidden.
 
-2. **runAsNonRoot breaks some images** — MySpeed needs root to create its `/myspeed/data` folder. Keep other security settings (seccomp, drop ALL, no privilege escalation) even when you can't run as non-root.
+2. **runAsNonRoot breaks some images** - MySpeed needs root to create its `/myspeed/data` folder. Keep other security settings (seccomp, drop ALL, no privilege escalation) even when you can't run as non-root.
 
-3. **kubectl apply -f on Kustomize directories overwrites secrets** — Homepage uses Kustomize with `configMapGenerator`. Running `kubectl apply -f` instead of `kubectl apply -k` applied the placeholder `secret.yaml`, overwriting real credentials. This caused all Homepage widgets to fail with 401 errors.
+3. **kubectl apply -f on Kustomize directories overwrites secrets** - Homepage uses Kustomize with `configMapGenerator`. Running `kubectl apply -f` instead of `kubectl apply -k` applied the placeholder `secret.yaml`, overwriting real credentials. This caused all Homepage widgets to fail with 401 errors.
 
-4. **Rate limiting from bad credentials** — When placeholder secrets triggered repeated 401s, AdGuard and OMV rate-limited the Homepage pod IP. Had to wait for lockout expiry and reset failed counters.
+4. **Rate limiting from bad credentials** - When placeholder secrets triggered repeated 401s, AdGuard and OMV rate-limited the Homepage pod IP. Had to wait for lockout expiry and reset failed counters.
 
-5. **Homepage rebuild guide was incomplete** — The v0.6.0 secret creation command was missing fields added in later phases (AdGuard failover, Karakeep, OpenWRT, Glances user). Also had wrong variable names for OPNsense (USER/PASS vs KEY/SECRET).
+5. **Homepage rebuild guide was incomplete** - The v0.6.0 secret creation command was missing fields added in later phases (AdGuard failover, Karakeep, OpenWRT, Glances user). Also had wrong variable names for OPNsense (USER/PASS vs KEY/SECRET).
 
 ---
 
-## February 6, 2026 — v0.15.1: Dashboard Fixes and Alert Tuning
+## February 6, 2026 - v0.15.1: Dashboard Fixes and Alert Tuning
 
 ### Claude Code Dashboard Query Fixes
 
@@ -1484,7 +1501,7 @@ Previous $25/$50 thresholds triggered on normal daily usage (~$52 avg, ~$78 peak
 
 ---
 
-## February 5, 2026 — Phase 4.15: Claude Code Monitoring
+## February 5, 2026 - Phase 4.15: Claude Code Monitoring
 
 ### Milestone: Centralized Claude Code Telemetry on Kubernetes
 
@@ -1576,17 +1593,17 @@ OTel Collector fully hardened:
 
 ### Lessons Learned
 
-1. **Loki OTLP native ingestion stores attributes as structured metadata** — Query with `| event_name="api_request"`, not `| json`. The `| json` parser is for unstructured log lines.
+1. **Loki OTLP native ingestion stores attributes as structured metadata** - Query with `| event_name="api_request"`, not `| json`. The `| json` parser is for unstructured log lines.
 
-2. **OTel Collector memory limit must exceed memory_limiter** — Container limit (600Mi) must be higher than the `memory_limiter` processor setting (512 MiB) or the pod OOM-kills.
+2. **OTel Collector memory limit must exceed memory_limiter** - Container limit (600Mi) must be higher than the `memory_limiter` processor setting (512 MiB) or the pod OOM-kills.
 
-3. **OTLP metric names transform in Prometheus** — Dots become underscores, counters get `_total` suffix. Always verify after deployment.
+3. **OTLP metric names transform in Prometheus** - Dots become underscores, counters get `_total` suffix. Always verify after deployment.
 
-4. **Grafana `joinByLabels` transformation fails with Loki metric queries** — Causes "Value label not found" error. Use bar charts with `sum by` instead of tables with join transformations for Loki data.
+4. **Grafana `joinByLabels` transformation fails with Loki metric queries** - Causes "Value label not found" error. Use bar charts with `sum by` instead of tables with join transformations for Loki data.
 
-5. **One-time counters need `last_over_time()`, not `increase()`** — `session_count`, `commit_count`, and `pull_request_count` increment once and never change, so `increase()` always returns 0. Use `count(count by (session_id) (last_over_time(metric[$__range])))` for counts. Continuously-incrementing counters (cost, tokens, active_time) still use `increase()`.
+5. **One-time counters need `last_over_time()`, not `increase()`** - `session_count`, `commit_count`, and `pull_request_count` increment once and never change, so `increase()` always returns 0. Use `count(count by (session_id) (last_over_time(metric[$__range])))` for counts. Continuously-incrementing counters (cost, tokens, active_time) still use `increase()`.
 
-6. **5s metric export interval prevents data loss** — The default 60s `OTEL_METRIC_EXPORT_INTERVAL` causes one-time counters (commits, PRs, sessions) to be lost if a session ends before the next export. Use 5000ms to match the logs interval.
+6. **5s metric export interval prevents data loss** - The default 60s `OTEL_METRIC_EXPORT_INTERVAL` causes one-time counters (commits, PRs, sessions) to be lost if a session ends before the next export. Use 5000ms to match the logs interval.
 
 ### Open-Source Project
 
@@ -1594,7 +1611,7 @@ Dashboard and configs developed in parallel with [claude-code-monitoring](https:
 
 ---
 
-## February 5, 2026 — Phase 4.9: Invoicetron Migration
+## February 5, 2026 - Phase 4.9: Invoicetron Migration
 
 ### Milestone: Stateful Application with Database Migrated to Kubernetes
 
@@ -1672,7 +1689,7 @@ main    → validate → test → build:prod → deploy:prod → verify:prod
 
 | Environment | Internal URL | Public URL |
 |-------------|-------------|------------|
-| Dev | invoicetron.dev.k8s.rommelporras.com | — |
+| Dev | invoicetron.dev.k8s.rommelporras.com | - |
 | Prod | invoicetron.k8s.rommelporras.com | invoicetron.rommelporras.com (Cloudflare) |
 
 ### Cloudflare Access
@@ -1696,23 +1713,23 @@ main    → validate → test → build:prod → deploy:prod → verify:prod
 
 ### Lessons Learned
 
-1. **Private GitLab projects need imagePullSecrets** — Container registry inherits project visibility. Deploy token with `read_registry` scope + `docker-registry` secret in each namespace.
+1. **Private GitLab projects need imagePullSecrets** - Container registry inherits project visibility. Deploy token with `read_registry` scope + `docker-registry` secret in each namespace.
 
-2. **envFrom injects hyphenated keys** — K8s secret keys like `database-url` become env vars with hyphens. Prisma expects `DATABASE_URL`. Use explicit `env` with `valueFrom.secretKeyRef`, not `envFrom`.
+2. **envFrom injects hyphenated keys** - K8s secret keys like `database-url` become env vars with hyphens. Prisma expects `DATABASE_URL`. Use explicit `env` with `valueFrom.secretKeyRef`, not `envFrom`.
 
-3. **PostgreSQL 18+ mount path** — Mount at `/var/lib/postgresql` (parent), not `/var/lib/postgresql/data`. PG creates the data subdirectory itself.
+3. **PostgreSQL 18+ mount path** - Mount at `/var/lib/postgresql` (parent), not `/var/lib/postgresql/data`. PG creates the data subdirectory itself.
 
-4. **DATABASE_URL passwords must avoid special chars** — Passwords with `/` break Prisma URL parsing. URL-encoding (`%2F`) works for CLI but not runtime. Use hex-only passwords.
+4. **DATABASE_URL passwords must avoid special chars** - Passwords with `/` break Prisma URL parsing. URL-encoding (`%2F`) works for CLI but not runtime. Use hex-only passwords.
 
-5. **PostgreSQL only reads POSTGRES_PASSWORD on first init** — Changing the secret requires `ALTER USER` inside the running pod.
+5. **PostgreSQL only reads POSTGRES_PASSWORD on first init** - Changing the secret requires `ALTER USER` inside the running pod.
 
-6. **kubectl apply reverts CI/CD image** — Manifest has placeholder image. CI/CD sets actual image via `kubectl set image`. Applying manifest reverts it. Use `kubectl set env` for runtime changes.
+6. **kubectl apply reverts CI/CD image** - Manifest has placeholder image. CI/CD sets actual image via `kubectl set image`. Applying manifest reverts it. Use `kubectl set env` for runtime changes.
 
-7. **CiliumNetworkPolicy needs exact namespace names** — `invoicetron` ≠ `invoicetron-prod`. Caused 502 through Cloudflare Tunnel until fixed.
+7. **CiliumNetworkPolicy needs exact namespace names** - `invoicetron` ≠ `invoicetron-prod`. Caused 502 through Cloudflare Tunnel until fixed.
 
-8. **Better Auth client baseURL** — Hardcoded `NEXT_PUBLIC_APP_URL` means login only works on that domain. Removing baseURL lets Better Auth use `window.location.origin` automatically. Server-side `ADDITIONAL_TRUSTED_ORIGINS` validates allowed origins.
+8. **Better Auth client baseURL** - Hardcoded `NEXT_PUBLIC_APP_URL` means login only works on that domain. Removing baseURL lets Better Auth use `window.location.origin` automatically. Server-side `ADDITIONAL_TRUSTED_ORIGINS` validates allowed origins.
 
-9. **1Password CLI session scope** — `op read` returns empty if session expired. Always `eval $(op signin)` before creating secrets. Verify secrets after creation.
+9. **1Password CLI session scope** - `op read` returns empty if session expired. Always `eval $(op signin)` before creating secrets. Verify secrets after creation.
 
 ### 1Password Items
 
@@ -1727,7 +1744,7 @@ With both Portfolio and Invoicetron running in K8s, the temporary DMZ rule (`10.
 
 ---
 
-## February 4, 2026 — Cloudflare WAF: RSS Feed Access
+## February 4, 2026 - Cloudflare WAF: RSS Feed Access
 
 ### Fix: GitHub Actions Blog RSS Fetch (403)
 
@@ -1748,11 +1765,11 @@ Added Cloudflare WAF skip rule and disabled Bot Fight Mode to allow the GitHub P
 
 ### Lesson Learned
 
-WAF custom rule "Skip all remaining custom rules" does **not** skip Bot Fight Mode — they are separate systems. To skip bot protection for a specific path, you must also check "All Super Bot Fight Mode Rules" in the WAF skip action **and** disable the global Bot Fight Mode toggle.
+WAF custom rule "Skip all remaining custom rules" does **not** skip Bot Fight Mode - they are separate systems. To skip bot protection for a specific path, you must also check "All Super Bot Fight Mode Rules" in the WAF skip action **and** disable the global Bot Fight Mode toggle.
 
 ---
 
-## February 3, 2026 — Phase 4.14: Uptime Kuma Monitoring
+## February 3, 2026 - Phase 4.14: Uptime Kuma Monitoring
 
 ### Milestone: Self-hosted Endpoint Monitoring with Public Status Page
 
@@ -1851,21 +1868,21 @@ Tags: Kubernetes (Blue), Proxmox (Orange), Network (Purple), Storage (Pink), Pub
 
 ### Lessons Learned
 
-1. **StatefulSet vs Deployment for SQLite** — StatefulSet provides stable pod identity (`uptime-kuma-0`) and volumeClaimTemplates auto-create PVCs. No separate PVC manifest needed.
+1. **StatefulSet vs Deployment for SQLite** - StatefulSet provides stable pod identity (`uptime-kuma-0`) and volumeClaimTemplates auto-create PVCs. No separate PVC manifest needed.
 
-2. **CiliumNetworkPolicy uses pod ports, not service ports** — A service mapping port 80→3000 requires the network policy to allow port 3000 (the pod port). Service port abstraction doesn't apply at the CNI level.
+2. **CiliumNetworkPolicy uses pod ports, not service ports** - A service mapping port 80→3000 requires the network policy to allow port 3000 (the pod port). Service port abstraction doesn't apply at the CNI level.
 
-3. **Private IP exclusion blocks home network** — `toCIDRSet` with `except: 10.0.0.0/8` blocks home network devices (AdGuard failover, OPNsense, NAS). Must add explicit `toCIDR` rules for specific IPs.
+3. **Private IP exclusion blocks home network** - `toCIDRSet` with `except: 10.0.0.0/8` blocks home network devices (AdGuard failover, OPNsense, NAS). Must add explicit `toCIDR` rules for specific IPs.
 
-4. **Hairpin routing with Cilium Gateway** — Pods accessing their own service via the Gateway VIP (pod→VIP→pod) get 403. Use internal service URLs for self-monitoring or accept the limitation.
+4. **Hairpin routing with Cilium Gateway** - Pods accessing their own service via the Gateway VIP (pod→VIP→pod) get 403. Use internal service URLs for self-monitoring or accept the limitation.
 
-5. **Cloudflare Access: block-admin > allowlist for SPAs** — Allowlisting only `/status/homelab` blocks JS/CSS/API paths the SPA needs. Blocking only admin paths (`/dashboard`, `/manage-status-page`, `/settings`) is simpler and SPA-compatible.
+5. **Cloudflare Access: block-admin > allowlist for SPAs** - Allowlisting only `/status/homelab` blocks JS/CSS/API paths the SPA needs. Blocking only admin paths (`/dashboard`, `/manage-status-page`, `/settings`) is simpler and SPA-compatible.
 
-6. **rootless vs slim-rootless** — The `rootless` image includes Chromium for browser-engine monitors (real browser rendering checks). `slim-rootless` saves ~200MB but loses this capability. Memory limits need bumping (256Mi→768Mi).
+6. **rootless vs slim-rootless** - The `rootless` image includes Chromium for browser-engine monitors (real browser rendering checks). `slim-rootless` saves ~200MB but loses this capability. Memory limits need bumping (256Mi→768Mi).
 
-7. **HTTPRoute BackendNotFound timing issue** — Cilium Gateway controller may report `Service "uptime-kuma" not found` even when the service exists. Delete and re-apply the HTTPRoute to force re-reconciliation.
+7. **HTTPRoute BackendNotFound timing issue** - Cilium Gateway controller may report `Service "uptime-kuma" not found` even when the service exists. Delete and re-apply the HTTPRoute to force re-reconciliation.
 
-8. **Cloudflare Zero Trust requires payment method** — Even the free plan ($0/month, 50 seats) requires a credit card or PayPal for identity verification. Standard anti-abuse measure.
+8. **Cloudflare Zero Trust requires payment method** - Even the free plan ($0/month, 50 seats) requires a credit card or PayPal for identity verification. Standard anti-abuse measure.
 
 ### 1Password Items
 
@@ -1875,7 +1892,7 @@ Tags: Kubernetes (Blue), Proxmox (Orange), Network (Purple), Storage (Pink), Pub
 
 ---
 
-## February 2, 2026 — Phase 4.13: Domain Migration
+## February 2, 2026 - Phase 4.13: Domain Migration
 
 ### Milestone: Corporate-Style Domain Hierarchy
 
@@ -1917,22 +1934,22 @@ Migrated all Kubernetes services from `*.k8s.home.rommelporras.com` to a tiered 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Tier convention | prod=default, non-prod=qualified | Corporate pattern: `blog.k8s` is prod, `blog.dev.k8s` is dev |
-| Wildcard scope | Per-tier wildcards | `*.k8s`, `*.dev.k8s`, `*.stg.k8s` — no broad `*.rommelporras.com` |
+| Wildcard scope | Per-tier wildcards | `*.k8s`, `*.dev.k8s`, `*.stg.k8s` - no broad `*.rommelporras.com` |
 | Legacy boundary | `*.home.rommelporras.com` untouched | Proxmox, OPNsense, OMV stay on NPM |
 | Node hostnames | `cp{1,2,3}.k8s.rommelporras.com` | Hierarchical, consistent with service naming |
 | API hostname | `api.k8s.rommelporras.com` | Short, follows corporate convention |
 
 ### Lessons Learned
 
-1. **kubeadm `certs renew` does NOT add new SANs** — It only renews expiration, reusing existing SANs. To add a new SAN: delete the cert+key, then run `kubeadm init phase certs apiserver --config /path/to/config.yaml`.
+1. **kubeadm `certs renew` does NOT add new SANs** - It only renews expiration, reusing existing SANs. To add a new SAN: delete the cert+key, then run `kubeadm init phase certs apiserver --config /path/to/config.yaml`.
 
-2. **Local kubeadm config takes priority over ConfigMap** — If `/etc/kubernetes/kubeadm-config.yaml` exists on a node, `kubeadm init phase certs` uses it instead of the kube-system ConfigMap. Must update (or create) the local file on each node.
+2. **Local kubeadm config takes priority over ConfigMap** - If `/etc/kubernetes/kubeadm-config.yaml` exists on a node, `kubeadm init phase certs` uses it instead of the kube-system ConfigMap. Must update (or create) the local file on each node.
 
-3. **AdGuard configmap is only an init template** — The init container copies config to PVC only on first boot (`if [ ! -f ... ]`). Runtime changes must be made via web UI. Configmap should still be updated as rebuild source of truth.
+3. **AdGuard configmap is only an init template** - The init container copies config to PVC only on first boot (`if [ ! -f ... ]`). Runtime changes must be made via web UI. Configmap should still be updated as rebuild source of truth.
 
-4. **RWO PVC + RollingUpdate = deadlock** — Grafana's Longhorn RWO volume caused a stuck rollout: new pod scheduled on different node couldn't attach the volume, old pod couldn't terminate (rolling update). Fix: scale to 0 then back to 1.
+4. **RWO PVC + RollingUpdate = deadlock** - Grafana's Longhorn RWO volume caused a stuck rollout: new pod scheduled on different node couldn't attach the volume, old pod couldn't terminate (rolling update). Fix: scale to 0 then back to 1.
 
-5. **Gateway API multi-listener migration pattern** — Add new listeners alongside old ones, switch HTTPRoutes to new listeners, verify, then remove old listeners in cleanup phase. Zero-downtime migration.
+5. **Gateway API multi-listener migration pattern** - Add new listeners alongside old ones, switch HTTPRoutes to new listeners, verify, then remove old listeners in cleanup phase. Zero-downtime migration.
 
 ### CKA Learnings
 
@@ -1959,7 +1976,7 @@ Migrated all Kubernetes services from `*.k8s.home.rommelporras.com` to a tiered 
 
 ---
 
-## January 31, 2026 — Phase 4.12: Ghost Blog Platform
+## January 31, 2026 - Phase 4.12: Ghost Blog Platform
 
 ### Milestone: Self-hosted Ghost CMS with Dev/Prod Environments
 
@@ -2003,7 +2020,7 @@ Deployed Ghost 6.14.0 blog platform with MySQL 8.4.8 LTS backend in two environm
 
 | Environment | Internal URL | Public URL |
 |-------------|-------------|------------|
-| Dev | blog-dev.k8s.home.rommelporras.com | — |
+| Dev | blog-dev.k8s.home.rommelporras.com | - |
 | Prod | blog.k8s.home.rommelporras.com | blog.rommelporras.com (Cloudflare) |
 
 ### Public Access & Security (February 1)
@@ -2037,13 +2054,13 @@ Configured Cloudflare Tunnel for public access and WAF custom rules to protect t
 
 ### Lessons Learned (Public Access)
 
-1. **Ghost 301-redirects HTTP when url is HTTPS** — Ghost checks `X-Forwarded-Proto` header. Cloudflare Tunnel with HTTP type sends this header automatically. Using HTTPS type causes cloudflared to attempt TLS to Ghost (which doesn't support it).
+1. **Ghost 301-redirects HTTP when url is HTTPS** - Ghost checks `X-Forwarded-Proto` header. Cloudflare Tunnel with HTTP type sends this header automatically. Using HTTPS type causes cloudflared to attempt TLS to Ghost (which doesn't support it).
 
-2. **CiliumNetworkPolicy blocks cross-namespace by default** — The cloudflared egress policy blocks all private IPs and whitelists per-namespace. New tunnel backends require an explicit egress rule.
+2. **CiliumNetworkPolicy blocks cross-namespace by default** - The cloudflared egress policy blocks all private IPs and whitelists per-namespace. New tunnel backends require an explicit egress rule.
 
-3. **Cloudflare Access path precedence is unreliable** — "Most specific path wins" has [known bugs](https://community.cloudflare.com/t/policy-inheritance-not-prioritizing-most-specific-path/820213). WAF custom rules with Skip + Block pattern is deterministic.
+3. **Cloudflare Access path precedence is unreliable** - "Most specific path wins" has [known bugs](https://community.cloudflare.com/t/policy-inheritance-not-prioritizing-most-specific-path/820213). WAF custom rules with Skip + Block pattern is deterministic.
 
-4. **Ghost Content API vs Admin API** — Only `/ghost/api/content/` needs public access (read-only, API key auth). `/ghost/api/admin/` is write-capable (JWT auth) and should be blocked publicly.
+4. **Ghost Content API vs Admin API** - Only `/ghost/api/content/` needs public access (read-only, API key auth). `/ghost/api/admin/` is write-capable (JWT auth) and should be blocked publicly.
 
 ### CKA Learnings
 
@@ -2059,7 +2076,7 @@ Configured Cloudflare Tunnel for public access and WAF custom rules to protect t
 
 ---
 
-## January 30, 2026 — Phase 4.8.1: AdGuard DNS Alerting
+## January 30, 2026 - Phase 4.8.1: AdGuard DNS Alerting
 
 ### Milestone: Synthetic DNS Monitoring for L2 Lease Misalignment
 
@@ -2068,8 +2085,8 @@ Deployed blackbox exporter with DNS probe to detect when AdGuard is running but 
 | Component | Version | Status |
 |-----------|---------|--------|
 | blackbox-exporter | v0.28.0 | Running (monitoring namespace) |
-| Probe CRD (adguard-dns) | — | Scraping every 30s |
-| PrometheusRule (AdGuardDNSUnreachable) | — | Loaded, severity: critical |
+| Probe CRD (adguard-dns) | - | Scraping every 30s |
+| PrometheusRule (AdGuardDNSUnreachable) | - | Loaded, severity: critical |
 
 ### Files Added/Modified
 
@@ -2111,15 +2128,15 @@ Prometheus → Blackbox Exporter → DNS query to 10.10.30.53 → AdGuard
 
 ### Lessons Learned
 
-1. **kube-prometheus-stack does NOT include blackbox exporter** — Despite the `prometheusBlackboxExporter` key existing in chart values, it requires a separate Helm chart installation.
+1. **kube-prometheus-stack does NOT include blackbox exporter** - Despite the `prometheusBlackboxExporter` key existing in chart values, it requires a separate Helm chart installation.
 
-2. **probeSelectorNilUsesHelmValues must be set** — Without `probeSelectorNilUsesHelmValues: false`, Prometheus ignores Probe CRDs. Silently fails with no error.
+2. **probeSelectorNilUsesHelmValues must be set** - Without `probeSelectorNilUsesHelmValues: false`, Prometheus ignores Probe CRDs. Silently fails with no error.
 
-3. **Blackbox exporter has NO default DNS module** — Must explicitly configure `dns_udp` with `query_name` (required field). Without it, probe errors with no useful message.
+3. **Blackbox exporter has NO default DNS module** - Must explicitly configure `dns_udp` with `query_name` (required field). Without it, probe errors with no useful message.
 
-4. **Service name follows `<release>-prometheus-blackbox-exporter` pattern** — Not `<release>-kube-prometheus-blackbox-exporter` as initially assumed.
+4. **Service name follows `<release>-prometheus-blackbox-exporter` pattern** - Not `<release>-kube-prometheus-blackbox-exporter` as initially assumed.
 
-5. **1Password field names must be exact** — `credential` vs `url` vs `password` — always verify with `op item get <name> --format json | jq '.fields[]'`.
+5. **1Password field names must be exact** - `credential` vs `url` vs `password` - always verify with `op item get <name> --format json | jq '.fields[]'`.
 
 ### Alert Runbook
 
@@ -2149,7 +2166,7 @@ Prometheus → Blackbox Exporter → DNS query to 10.10.30.53 → AdGuard
 
 ---
 
-## January 29, 2026 — Phase 4.8: AdGuard Client IP Preservation
+## January 29, 2026 - Phase 4.8: AdGuard Client IP Preservation
 
 ### Milestone: Fixed Client IP Visibility in AdGuard Logs
 
@@ -2188,7 +2205,7 @@ Resolved issue where AdGuard showed node IPs instead of real client IPs. Root ca
 
 ---
 
-## January 28, 2026 — Phase 4.7: Portfolio CI/CD Migration
+## January 28, 2026 - Phase 4.7: Portfolio CI/CD Migration
 
 ### Milestone: First App Deployed via GitLab CI/CD
 
@@ -2256,7 +2273,7 @@ Migrated portfolio website from PVE VM Docker Compose to Kubernetes with full Gi
 
 ---
 
-## January 25, 2026 — Phase 4.6: GitLab CE
+## January 25, 2026 - Phase 4.6: GitLab CE
 
 ### Milestone: Self-hosted DevOps Platform
 
@@ -2339,7 +2356,7 @@ Deployed GitLab CE v18.8.2 with GitLab Runner for CI/CD pipelines, Container Reg
 
 ---
 
-## January 24, 2026 — Phase 4.5: Cloudflare Tunnel
+## January 24, 2026 - Phase 4.5: Cloudflare Tunnel
 
 ### Milestone: HA Cloudflare Tunnel on Kubernetes
 
@@ -2442,7 +2459,7 @@ Verified via test pod with `app=cloudflared` label:
 
 ---
 
-## January 22, 2026 — Phase 4.1-4.4: Stateless Workloads
+## January 22, 2026 - Phase 4.1-4.4: Stateless Workloads
 
 ### Milestone: Home Services Running on Kubernetes
 
@@ -2538,7 +2555,7 @@ Successfully deployed stateless home services to Kubernetes with full monitoring
 
 ---
 
-## January 20, 2026 — Phase 3.9: Alertmanager Notifications
+## January 20, 2026 - Phase 3.9: Alertmanager Notifications
 
 ### Milestone: Discord + Email Alerting Configured
 
@@ -2617,7 +2634,7 @@ Configured Alertmanager to send notifications via Discord and Email, with intell
 
 ---
 
-## January 20, 2026 — Documentation: Rebuild Guides
+## January 20, 2026 - Documentation: Rebuild Guides
 
 ### Milestone: Split Rebuild Documentation by Release Tag
 
@@ -2640,7 +2657,7 @@ Created comprehensive step-by-step rebuild guides split by release tag for bette
 
 ---
 
-## January 20, 2026 — Phase 3.8: UPS Monitoring (NUT)
+## January 20, 2026 - Phase 3.8: UPS Monitoring (NUT)
 
 ### Milestone: NUT + Prometheus UPS Monitoring Running
 
@@ -2769,7 +2786,7 @@ network_ups_tools_battery_runtime_seconds               # Estimated runtime
 
 ---
 
-## January 19, 2026 — Phase 3.7: Logging Stack
+## January 19, 2026 - Phase 3.7: Logging Stack
 
 ### Milestone: Loki + Alloy Running
 
@@ -2859,7 +2876,7 @@ K8s Events ──────►        │                      │
 
 ---
 
-## January 18, 2026 — Phase 3.6: Monitoring Stack
+## January 18, 2026 - Phase 3.6: Monitoring Stack
 
 ### Milestone: kube-prometheus-stack Running
 
@@ -2905,7 +2922,7 @@ Successfully installed complete monitoring stack with Prometheus, Grafana, Alert
 
 ---
 
-## January 17, 2026 — Phase 3: Storage Infrastructure
+## January 17, 2026 - Phase 3: Storage Infrastructure
 
 ### Milestone: Longhorn Distributed Storage Running
 
@@ -2965,7 +2982,7 @@ This caused "No such file or directory" errors until the path format was correct
 
 ---
 
-## January 16, 2026 — Kubernetes HA Cluster Bootstrap Complete
+## January 16, 2026 - Kubernetes HA Cluster Bootstrap Complete
 
 ### Milestone: 3-Node HA Cluster Running
 
@@ -3020,7 +3037,7 @@ kubectl get pods
 
 ---
 
-## January 11, 2026 — Node Preparation & Project Setup
+## January 11, 2026 - Node Preparation & Project Setup
 
 ### Ubuntu Pro Attached
 
@@ -3070,7 +3087,7 @@ Recreated repository with clean commit history and proper conventional commit me
 
 ---
 
-## January 11, 2026 — Ubuntu Installation Complete
+## January 11, 2026 - Ubuntu Installation Complete
 
 ### Milestone: Phase 1 Complete
 
@@ -3083,7 +3100,7 @@ All 3 nodes running Ubuntu 24.04.3 LTS with SSH access configured.
 | Spec | Documented | Actual |
 |------|------------|--------|
 | Model | M70q Gen 1 | **M80q** |
-| Product ID | — | 11DN0054PC |
+| Product ID | - | 11DN0054PC |
 | CPU | i5-10400T | i5-10400T |
 | NIC | I219-V | **I219-LM** |
 
@@ -3121,7 +3138,7 @@ Consolidated documentation to reduce redundancy:
 
 ---
 
-## January 10, 2026 — Switch Configuration
+## January 10, 2026 - Switch Configuration
 
 ### VLAN Configuration
 
@@ -3133,7 +3150,7 @@ Configured LIANGUO LG-SG5T1 managed switch.
 
 ---
 
-## January 4, 2026 — Pre-Installation Decisions
+## January 4, 2026 - Pre-Installation Decisions
 
 ### Key Decisions
 
@@ -3146,7 +3163,7 @@ Configured LIANGUO LG-SG5T1 managed switch.
 
 ---
 
-## January 3, 2026 — Hardware Purchase
+## January 3, 2026 - Hardware Purchase
 
 ### Hardware Purchased
 
@@ -3168,7 +3185,7 @@ Configured LIANGUO LG-SG5T1 managed switch.
 
 ---
 
-## December 31, 2025 — Network Adapter Correction
+## December 31, 2025 - Network Adapter Correction
 
 ### Correction Applied
 
@@ -3180,7 +3197,7 @@ Configured LIANGUO LG-SG5T1 managed switch.
 
 ---
 
-## December 2025 — Initial Planning
+## December 2025 - Initial Planning
 
 ### Project Goals Defined
 

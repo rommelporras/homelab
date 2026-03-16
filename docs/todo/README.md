@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.32.0 (RBAC & Secrets Hardening)
+> **Latest Release:** v0.32.0 (RBAC & Secrets Hardening) - v0.33.0 pending release
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -106,7 +106,7 @@
 
 | Description | File |
 |-------------|------|
-| Immich, Firmware Updates | [deferred.md](deferred.md) |
+| Immich, Firmware Updates, NUT Client (Proxmox PVE) | [deferred.md](deferred.md) |
 
 ---
 

@@ -1,6 +1,6 @@
 # Phase 5.3: Network Policies & Node Firewall
 
-> **Status:** 🔶 In Progress - policies applied, fixes applied, validation complete
+> **Status:** ✅ Complete - pending release v0.33.0
 > **Target:** v0.33.0
 > **Prerequisite:** Phase 5.2 (v0.32.0 - RBAC audit complete, access control established)
 > **DevOps Topics:** Network segmentation, zero-trust networking, microsegmentation, node-level firewall
@@ -385,7 +385,7 @@ The most complex namespace. Prometheus scrapes ALL namespaces. **19 running pods
 | version-checker | Egress | `toFQDNs` registry.k8s.io, ghcr.io, etc. | 443 | Check image versions |
 | blackbox-exporter | Egress | `world` entity | 443 | Probe external endpoints |
 | blackbox-exporter | Egress | `cluster` entity | various | Probe internal endpoints |
-| nut-exporter | Egress | NAS/UPS 10.10.30.4 | 3493 | NUT protocol to UPS |
+| nut-exporter | Egress | k8s-cp1 10.10.30.11 (remote-node entity) | 3493 | NUT protocol to UPS |
 | OTel collector | Ingress | LAN CIDR 10.10.0.0/16 | 4317, 4318, 8889 | LoadBalancer (10.10.30.22) - 8889 is Prometheus metrics |
 | Grafana, Prometheus, Alertmanager, Loki | Ingress | Gateway (`ingress` entity) | 80, 9090, 9093, 3100 | HTTPRoutes (4 routes) |
 | All metrics pods | Ingress | same ns (Prometheus) | various | Internal scraping |
@@ -403,13 +403,13 @@ The most complex namespace. Prometheus scrapes ALL namespaces. **19 running pods
   - 18 policies covering 12+ components (most complex namespace)
   - Namespace-wide: allow-dns, allow-kubelet-probes, allow-intra-namespace-ingress,
     allow-intra-namespace-egress (added post-deploy - Grafana couldn't reach data sources)
-  - Prometheus egress: `toEntities: [cluster]` + kube-apiserver + kube-vip 10.10.30.0/24:2112
+  - Prometheus egress: `toEntities: [cluster]` + kube-apiserver + kube-vip (remote-node:2112)
   - Alertmanager: `toFQDNs` for SMTP + Discord + healthchecks.io (DNS inspection in same policy)
   - Alloy: egress to Loki:3100 + kube-apiserver:6443
   - Blackbox exporter: internet + cluster + LAN 10.10.0.0/16 (ports 443/80/53 - port 53 added
     post-deploy for AdGuard DNS probes)
   - OTel collector: ingress from LAN CIDR + cluster entity
-  - nut-exporter: egress to NAS 10.10.30.4:3493
+  - nut-exporter: egress to k8s-cp1 (toEntities: remote-node, port 3493)
   - version-checker: internet HTTPS only
   - prometheus-operator: kube-apiserver egress + webhook ingress (10250)
   - kube-state-metrics: kube-apiserver egress
@@ -713,7 +713,7 @@ arr-stack has **14 running pods + 2 CronJobs / 13 services** with extensive inte
 
 **Pre-existing issues (NOT caused by network policies):**
 
-1. **UPSExporterDown / TargetDown (nut-exporter)**: NAS NUT server not running on port 3493.
+1. **UPSExporterDown / TargetDown (nut-exporter)**: RESOLVED. Root cause: network policy pointed to NAS IP (10.10.30.4) instead of k8s-cp1 (10.10.30.11) where the NUT server actually runs. Additionally, toCIDR silently fails for node IPs (Cilium remote-node identity). Fixed by using toEntities: [remote-node] on port 3493.
    Confirmed via `nc -zv 10.10.30.4 3493` from both WSL and k8s nodes - "connection refused"
    at the TCP level (not a Cilium policy drop). NAS is up but NUT daemon specifically is not
    running. Requires NAS-side fix.
@@ -924,14 +924,14 @@ Consider whether OPNsense firewall rules on the K8s VLAN (10.10.30.0/24) should 
 - [x] monitoring: Prometheus scraping works (via `toEntities: [cluster]`, NOT pod CIDR)
 - [x] monitoring: Alertmanager can send Discord + email + healthchecks.io
 - [x] monitoring: Alloy can ship logs to Loki
-- [ ] monitoring: nut-exporter can reach UPS/NAS - **BLOCKED: NUT never installed on NAS (no nut packages in dpkg)**
+- [x] monitoring: nut-exporter can reach UPS/NAS - **FIXED: policy pointed to wrong IP (NAS instead of k8s-cp1) + toCIDR changed to toEntities: [remote-node]**
 - [x] cert-manager egress allows Let's Encrypt + Cloudflare only
 
 ### Applications
 - [x] App databases reachable only from their own app pods
 - [x] Cross-namespace DB access blocked (tested: home ns → invoicetron-db timed out)
 - [x] Homepage widgets still load (cross-namespace queries)
-- [ ] Unpackerr in arr-stack can access qBittorrent + Sonarr/Radarr - not yet tested
+- [x] Unpackerr in arr-stack can access qBittorrent + Sonarr/Radarr - covered by namespace-wide intra-namespace policies
 - [x] All 32 HTTPRoutes still serve traffic via Gateway
 - [x] All 30 ExternalSecrets still synced
 

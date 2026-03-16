@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
-3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 31 releases with [29 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
+3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 32 releases with [29 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
 
 > **Owner:** Rommel Porras  |  **CKA Target:** September 2026
 
@@ -72,9 +72,9 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Ansible-automated bootstrap ([8 playbooks](ansible/playbooks/))
 
 **Observability**
-- Prometheus + Grafana + Loki + Alloy (full metrics, logs, 14 Grafana dashboards in Homelab folder)
-- Alertmanager (Discord + Email, severity routing) — 40+ custom PrometheusRules across 23 alert files
-- Blackbox probes (13 services: Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr, Atuin)
+- Prometheus + Grafana + Loki + Alloy (full metrics, logs, 41 Grafana dashboards)
+- Alertmanager (Discord + Email, severity routing) — 60 PrometheusRules across 27 alert files
+- Blackbox probes (14 services: Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr, Atuin, MySpeed)
 - Dead Man's Switch (healthchecks.io), UPS monitoring (NUT + nut-exporter)
 - smartctl-exporter DaemonSet (NVMe S.M.A.R.T. health on all 3 nodes — temp, wear, spare, TBW)
 - Longhorn + cert-manager ServiceMonitors (volume robustness alerts + TLS certificate expiry alerts)
@@ -89,7 +89,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Cloudflare Tunnel (HA, 2 replicas) for public services
 - Tailscale Operator (WireGuard subnet router) for private remote access
 - AdGuard DNS as primary for all VLANs + Tailscale global nameserver
-- CiliumNetworkPolicy for Cloudflare namespace (per-namespace coverage in Phase 5.3)
+- CiliumNetworkPolicy microsegmentation (117 policies across 23 namespaces, implicit default-deny)
 
 **Applications**
 - GitLab CE (Runner, Container Registry, SSH) with CI/CD pipelines
@@ -154,8 +154,8 @@ Things that bit us and might save you time:
 
 ## Next Steps
 
-1. **RBAC & Encryption** — RBAC audit, etcd encryption at rest, least-privilege access (Phase 5.2)
-2. **Network Policies** — CiliumNetworkPolicy per namespace, zero-trust networking (Phase 5.3)
+1. **Network Policies** — CiliumNetworkPolicy microsegmentation complete (Phase 5.3, v0.33.0)
+2. **Resilience & Backup** — Disaster recovery, backup validation, chaos testing (Phase 5.4)
 3. **CKA Certification** — September 2026 target
 
 ## Claude Code

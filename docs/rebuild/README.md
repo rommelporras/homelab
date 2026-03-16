@@ -39,7 +39,8 @@
 | v0.29.0 | Phase 4.29 | Vault + External Secrets Operator (HashiCorp Vault, ESO, 30 ExternalSecrets, auto-unseal, NFS snapshots) | [v0.29.0-vault-eso.md](v0.29.0-vault-eso.md) |
 | v0.30.0 | Phase 5.0 | Namespace & Pod Security (PSS labels, SA token hardening, ESO restrictions) | *Hardening — baked into existing guides* |
 | v0.31.0 | Phase 5.1 | Control Plane Hardening (CIS benchmark, audit logging, cert lifecycle) | *Hardening — baked into [v0.2.0-bootstrap.md](v0.2.0-bootstrap.md)* |
-| v0.32.0 | Phase 5.2 | RBAC & Secrets Hardening (etcd encryption, claude-code RBAC, restricted kubeconfig) | *Hardening — baked into [v0.2.0-bootstrap.md](v0.2.0-bootstrap.md)* |
+| v0.32.0 | Phase 5.2 | RBAC & Secrets Hardening (etcd encryption, claude-code RBAC, restricted kubeconfig) | *Hardening - baked into [v0.2.0-bootstrap.md](v0.2.0-bootstrap.md)* |
+| v0.33.0 | Phase 5.3 | Network Policies (117 CiliumNetworkPolicies, 23 namespaces, implicit default-deny) | *Hardening - baked into per-namespace networkpolicy.yaml files* |
 
 > **Note:** v0.30.0+ are hardening phases that modify configs on existing components rather than
 > deploying new ones. Their settings are baked into the Ansible playbooks and kubeadm config
