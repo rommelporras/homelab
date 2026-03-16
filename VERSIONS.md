@@ -171,13 +171,13 @@ helm-homelab repo update
 | Portfolio Stg | portfolio.stg.k8s.rommelporras.com | stg | portfolio-staging |
 | Ghost Prod | blog.k8s.rommelporras.com | base | ghost-prod |
 | Ghost Dev | blog.dev.k8s.rommelporras.com | dev | ghost-dev |
-| Ghost Prod (public) | blog.rommelporras.com (Cloudflare Tunnel) | — | ghost-prod |
-| Ghost Analytics (public) | blog-api.rommelporras.com (Cloudflare Tunnel) | — | ghost-prod |
+| Ghost Prod (public) | blog.rommelporras.com (Cloudflare Tunnel) | - | ghost-prod |
+| Ghost Analytics (public) | blog-api.rommelporras.com (Cloudflare Tunnel) | - | ghost-prod |
 | Invoicetron Prod | invoicetron.k8s.rommelporras.com | base | invoicetron-prod |
 | Invoicetron Dev | invoicetron.dev.k8s.rommelporras.com | dev | invoicetron-dev |
-| Invoicetron (public) | invoicetron.rommelporras.com (Cloudflare Tunnel) | — | invoicetron-prod |
+| Invoicetron (public) | invoicetron.rommelporras.com (Cloudflare Tunnel) | - | invoicetron-prod |
 | Uptime Kuma | uptime.k8s.rommelporras.com | base | uptime-kuma |
-| Uptime Kuma (public) | status.rommelporras.com (Cloudflare Tunnel) | — | uptime-kuma |
+| Uptime Kuma (public) | status.rommelporras.com (Cloudflare Tunnel) | - | uptime-kuma |
 | MySpeed | myspeed.k8s.rommelporras.com | base | home |
 | Firefox Browser | browser.k8s.rommelporras.com | base | browser |
 | Karakeep | karakeep.k8s.rommelporras.com | base | karakeep |
@@ -199,6 +199,7 @@ helm-homelab repo update
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |
 |---------|-----|------|-----------|
+| Homelab Gateway | 10.10.30.20 | 80/TCP, 443/TCP | default |
 | AdGuard DNS | 10.10.30.53 | 53/UDP, 53/TCP | home |
 | GitLab SSH | 10.10.30.21 | 22/TCP | gitlab |
 | OTel Collector | 10.10.30.22 | 4317/TCP, 4318/TCP, 8889/TCP | monitoring |
@@ -299,7 +300,7 @@ helm-homelab repo update
 | Info | (silenced) | None |
 
 **Silenced Alerts:**
-- `KubeProxyDown` — Cilium replaces kube-proxy (permanent)
+- `KubeProxyDown` - Cilium replaces kube-proxy (permanent)
 
 > etcd, scheduler, and controller-manager silences removed in Phase 5.1 (all targets now UP).
 

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-03-15
+updated: 2026-03-16
 ---
 
 # Conventions
@@ -13,7 +13,7 @@ Rules and patterns for working with this homelab cluster.
 
 | Command | Uses | Purpose |
 |---------|------|---------|
-| `kubectl-homelab` | ~/.kube/homelab.yaml | Homelab cluster |
+| `kubectl-homelab` | ~/.kube/homelab-claude.yaml | Homelab cluster (restricted: read-only, no secret get) |
 | `kubectl` | ~/.kube/config | Work AWS EKS (DO NOT USE) |
 | `helm-homelab` | ~/.kube/homelab.yaml | Homelab Helm |
 | `helm` | ~/.kube/config | Work AWS EKS (DO NOT USE) |

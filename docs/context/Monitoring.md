@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-03-15
+updated: 2026-03-16
 ---
 
 # Monitoring
@@ -13,11 +13,11 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 |-----------|---------|-----------|
 | kube-prometheus-stack | 81.0.0 | monitoring |
 | Prometheus | v0.88.0 | monitoring |
-| Grafana | — | monitoring |
+| Grafana | - | monitoring |
 | Alertmanager | v0.30.1 | monitoring |
 | Loki | v3.6.3 | monitoring |
 | Alloy | v1.12.2 | monitoring |
-| node-exporter | — | monitoring |
+| node-exporter | - | monitoring |
 | nut-exporter | 3.1.1 | monitoring |
 | blackbox-exporter | v0.28.0 | monitoring |
 | smartctl-exporter | v0.14.0 | monitoring |
@@ -84,7 +84,7 @@ Query logs:
 | healthchecks-heartbeat | healthchecks.io ping | Watchdog (1m) |
 | null | Nowhere | Silenced alerts |
 
-**Note:** All Discord receivers have `send_resolved: true`. RESOLVED notifications are delayed up to `group_interval: 5m` after the alert clears — this is normal Alertmanager behavior, not a bug. Config lives in both `helm/prometheus/values.yaml` and `scripts/upgrade-prometheus.sh` (the script's temp file fully overrides receivers during Helm upgrade).
+**Note:** All Discord receivers have `send_resolved: true`. RESOLVED notifications are delayed up to `group_interval: 5m` after the alert clears - this is normal Alertmanager behavior, not a bug. Config lives in both `helm/prometheus/values.yaml` and `scripts/upgrade-prometheus.sh` (the script's temp file fully overrides receivers during Helm upgrade).
 
 ### Alert Routing
 
@@ -107,7 +107,7 @@ Permanently silenced (routed to `null`):
 
 | Alert | Reason |
 |-------|--------|
-| KubeProxyDown | kube-proxy removed (Cilium eBPF) — permanent |
+| KubeProxyDown | kube-proxy removed (Cilium eBPF) - permanent |
 
 > etcd, scheduler, and controller-manager silences removed in Phase 5.1.
 > All control plane targets are now scraped (bind-address=0.0.0.0) and healthy.
@@ -171,8 +171,8 @@ Events (Loki):
 Every new service should include a Grafana dashboard ConfigMap in `manifests/monitoring/dashboards/`.
 
 **Required labels:**
-- `grafana_dashboard: "1"` — auto-provisioned by Grafana sidecar
-- `grafana_folder: "Homelab"` annotation — all dashboards appear in the Homelab folder (enabled via `folderAnnotation` in helm/prometheus/values.yaml)
+- `grafana_dashboard: "1"` - auto-provisioned by Grafana sidecar
+- `grafana_folder: "Homelab"` annotation - all dashboards appear in the Homelab folder (enabled via `folderAnnotation` in helm/prometheus/values.yaml)
 
 **Standard sections:**
 
@@ -206,7 +206,7 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 
 **Nova CronJob** uses an init container to copy the Nova binary from the official image to a shared emptyDir. The main container (Alpine) installs curl+jq, runs Nova, parses JSON, builds Discord embeds, and sends via webhook. Runs as root (apk needs it).
 
-**Renovate Bot** is a GitHub App with `dependencyDashboardApproval: true` — PRs require manual approval via the Dependency Dashboard issue. Major bumps get separate PRs; minor/patch are grouped weekly.
+**Renovate Bot** is a GitHub App with `dependencyDashboardApproval: true` - PRs require manual approval via the Dependency Dashboard issue. Major bumps get separate PRs; minor/patch are grouped weekly.
 
 ## Configuration Files
 
@@ -230,8 +230,8 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 | `nut-exporter.yaml` | NUT UPS exporter Deployment + Service |
 
 > ARR-stack exporters live in their service directory (they target `arr-stack` namespace):
-> - `manifests/arr-stack/tdarr/tdarr-exporter.yaml` — Tdarr stats API → Prometheus metrics
-> - `manifests/arr-stack/qbittorrent/qbittorrent-exporter.yaml` — qBittorrent WebUI API → Prometheus metrics
+> - `manifests/arr-stack/tdarr/tdarr-exporter.yaml` - Tdarr stats API → Prometheus metrics
+> - `manifests/arr-stack/qbittorrent/qbittorrent-exporter.yaml` - qBittorrent WebUI API → Prometheus metrics
 
 ### OTel Collector (`manifests/monitoring/otel/`)
 
@@ -269,7 +269,7 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 | `bazarr-probe.yaml` | Bazarr | HTTP (bazarr.arr-stack.svc:6767) | 60s |
 | `vault-probe.yaml` | Vault | HTTP /v1/sys/health (vault.vault.svc:8200) | 60s |
 
-**Vault probe note:** `/v1/sys/health` returns 200=active, 503=sealed. `http_2xx` treats sealed as probe failure — used by VaultSealed alert's `absent()` guard to prevent false positives when metrics are temporarily unavailable.
+**Vault probe note:** `/v1/sys/health` returns 200=active, 503=sealed. `http_2xx` treats sealed as probe failure - used by VaultSealed alert's `absent()` guard to prevent false positives when metrics are temporarily unavailable.
 
 All probes use the `http_2xx` module (Blackbox Exporter at `blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115`).
 
@@ -289,7 +289,7 @@ All probes use the `http_2xx` module (Blackbox Exporter at `blackbox-exporter-pr
 
 All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kube-prometheus-stack` labels for Prometheus Operator discovery.
 
-**Vault ServiceMonitor note:** Requires `unauthenticated_metrics_access = true` in the `listener.telemetry {}` HCL block (Vault 1.16+ — top-level `telemetry {}` block no longer works).
+**Vault ServiceMonitor note:** Requires `unauthenticated_metrics_access = true` in the `listener.telemetry {}` HCL block (Vault 1.16+ - top-level `telemetry {}` block no longer works).
 
 ### Alert Rules (`manifests/monitoring/alerts/`)
 
@@ -318,14 +318,16 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | `cpu-throttling-alerts.yaml` | CPUThrottlingHigh (>50%, arr-stack excluded, info) | v0.27.0 |
 | `node-alerts.yaml` | NodeMemoryMajorPagesFaults (>2000/s + <15% mem available, warning) | v0.27.0 |
 | `cluster-janitor-alerts.yaml` | ClusterJanitorFailing (CronJob last result failed, warning) | v0.28.2 |
-| `dotctl-alerts.yaml` | DotctlCollectionStale (>30min, warning), DotctlDriftDetected (>1hr, warning) | — |
+| `dotctl-alerts.yaml` | DotctlCollectionStale (>30min, warning), DotctlDriftDetected (>1hr, warning) | - |
 | `vault-alerts.yaml` | VaultSealed (critical, 2m), VaultMetricsMissing (warning, 15m), VaultAuditFailure (critical, 1m), VaultDown (warning, 5m), VaultHighLatency (warning, 10m), ESOSecretNotSynced (critical, 10m), ESOSyncErrors (warning, 5m), VaultSnapshotFailing (warning, 30m) | v0.29.0 |
+| `atuin-alerts.yaml` | AtuinDown, AtuinPostgresDown, AtuinHighRestarts, AtuinHighMemory | v0.28.0 |
+| `audit-alerts.yaml` | AuditSecretAccessByNonSystem, AuditPodExec, AuditRBACChange, AuditHighAuthFailureRate (LogQL - requires Loki ruler, currently deferred) | v0.31.0 |
 
 **Severity routing:**
 - `critical` → Discord #incidents + Email (3 recipients)
 - `warning` (infra regex match) → Discord #infra
 - `warning` (catch-all) → Discord #apps
-- `info` → null (silenced — visible in Alertmanager UI only)
+- `info` → null (silenced - visible in Alertmanager UI only)
 
 ### Grafana Dashboards (`manifests/monitoring/dashboards/`)
 
@@ -346,13 +348,14 @@ All dashboards are auto-provisioned via Grafana sidecar. All have `grafana_folde
 | `service-health-dashboard-configmap.yaml` | Service Health | 12-service UP/DOWN grid, uptime history, response times |
 | `dotctl-dashboard-configmap.yaml` | Dotfiles Status | Machine status, drift tracking, tool inventory, collection health |
 | `vault-dashboard-configmap.yaml` | Vault + ESO | Seal status, ESO sync state, Raft storage, resource usage, snapshot health |
+| `atuin-dashboard-configmap.yaml` | Atuin Shell History | Pod status, sync activity, database size, resource usage |
 
 ### Version Checker (`manifests/monitoring/version-checker/`)
 
 | File | Purpose |
 |------|---------|
 | `version-checker-deployment.yaml` | version-checker Deployment + Service |
-| `version-checker-rbac.yaml` | RBAC (ClusterRole, ClusterRoleBinding — pods + apps read) |
+| `version-checker-rbac.yaml` | RBAC (ClusterRole, ClusterRoleBinding - pods + apps read) |
 | `version-check-cronjob.yaml` | Nova CronJob (weekly Helm drift → Discord #versions) |
 | `version-check-script.yaml` | Nova CronJob script ConfigMap |
 | `version-check-rbac.yaml` | Nova CronJob RBAC (secrets read for Helm) |

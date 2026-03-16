@@ -133,7 +133,7 @@ Things that bit us and might save you time:
 
 - **Cloudflare free SSL wildcard depth** — Free plans only cover `*.rommelporras.com`, NOT `*.blog.rommelporras.com`. We use single-level subdomains like `blog-api.rommelporras.com` for analytics endpoints to stay on the free tier.
 
-- **Rebuild guides as a pattern** — Every release (v0.1.0 through v0.31.0) has a [complete rebuild guide](docs/rebuild/README.md). If the cluster dies, we can rebuild everything from scratch by following the guides in order. This also serves as living documentation that never goes stale.
+- **Rebuild guides as a pattern** - Every release (v0.1.0 through v0.29.0) has a [complete rebuild guide](docs/rebuild/README.md), with v0.30.0+ hardening phases baked into existing guides. If the cluster dies, we can rebuild everything from scratch by following the guides in order. This also serves as living documentation that never goes stale.
 
 - **CiliumNetworkPolicy vs forwarded traffic** — CiliumNetworkPolicy filters forwarded/routed packets, not just local pod traffic. This means a network policy on a Tailscale Connector pod will break subnet routing entirely. Only apply policies to the operator, not the proxy.
 
@@ -144,7 +144,7 @@ Things that bit us and might save you time:
 | Document | Purpose |
 |----------|---------|
 | [docs/context/Cluster.md](docs/context/Cluster.md) | **Source of truth** — nodes, IPs, hardware |
-| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (v0.1.0 to v0.31.0) |
+| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (v0.1.0 to v0.29.0, v0.30.0+ baked in) |
 | [docs/context/](docs/context/) | Knowledge base (12 topic files: Architecture, Gateway, Networking, Security, etc.) |
 | [docs/todo/](docs/todo/README.md) | Phase plans (active + [completed](docs/todo/completed/)) |
 | [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md) | Decision history and project timeline |
