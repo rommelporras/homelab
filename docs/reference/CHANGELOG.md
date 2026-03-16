@@ -23,6 +23,10 @@
 - DNS TCP/53 added to uptime-kuma, cloudflare, arr-stack egress policies
 - nut-exporter/kube-vip: toCIDR changed to toEntities: [remote-node] (Cilium identity fix)
 - Pinned cert-manager cainjector host ingress to port 9402 (had no probes, was unrestricted)
+- invoicetron deployment: automountServiceAccountToken set to false (was deferred since Phase 5.0
+  due to CI/CD placeholder image - fixed via kubectl patch to avoid image rollback)
+- AdGuard Home: L4-only egress policy (L7 envoy proxy intermittently broke upstream DNS
+  forwarding, causing network-wide DNS failures for *.home.rommelporras.com services)
 
 ### Cilium Discoveries
 - toCIDR silently fails for cluster node IPs (remote-node identity) - use toEntities: [remote-node]

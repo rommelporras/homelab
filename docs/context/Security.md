@@ -148,7 +148,11 @@ Destination pods must explicitly allow ingress from these namespaces:
 
 ### Known Limitations
 
-**Gateway LB hairpin + L7 policy conflict:** Pods with `toPorts` rules in their egress policy trigger Cilium's L7 envoy proxy interception. The L7 proxy returns HTTP 403 "Access denied" for traffic hairpinning through the Gateway LoadBalancer VIP. Workaround: use L4-only policy (no `toPorts`) for pods that need Gateway access. Homepage uses this approach.
+**L7 envoy proxy interference:** Pods with `toPorts` rules in their egress policy trigger Cilium's L7 envoy proxy interception. This causes two known issues:
+- **Gateway LB hairpin:** L7 proxy returns HTTP 403 "Access denied" for traffic hairpinning through the Gateway LoadBalancer VIP.
+- **Upstream DNS forwarding:** L7 proxy intermittently disrupts DNS forwarding, causing network-wide DNS failures when AdGuard is the primary resolver.
+
+Workaround: use L4-only policy (no `toPorts`) for critical pods that need reliable external connectivity. Currently applied to: Homepage (Gateway widgets), AdGuard Home (DNS forwarding).
 
 ### Coverage
 
@@ -179,10 +183,6 @@ Most app pods have `automountServiceAccountToken: false` — they don't call the
 | vault | snapshot (CronJob) | Reads SA token for Vault Kubernetes auth login |
 
 Helm-managed workloads (Cilium, cert-manager, Longhorn, Vault, NFD, Intel device plugins) control their own `automountServiceAccountToken` via chart defaults.
-
-### Deferred
-
-- `invoicetron/deployment.yaml` - `automountServiceAccountToken: false` commented out due to image registry issue. Apply when image is fixed.
 
 ## ESO Hardening
 

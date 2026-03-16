@@ -32,8 +32,8 @@ spec:
       labels:
         app: invoicetron
     spec:
-      # automountServiceAccountToken: false — deferred until image registry is fixed
-      # (registry.k8s.rommelporras.com/0xwsh/invoicetron:latest not found, rollout triggers ImagePullBackOff)
+      automountServiceAccountToken: false
+      # Note: CI/CD patches the image field - do not kubectl apply this manifest directly
       imagePullSecrets:
       - name: gitlab-registry
       securityContext:

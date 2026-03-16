@@ -74,8 +74,13 @@ spec:
             - port: "3000"
               protocol: TCP
 ---
-# AdGuard egress: DNS forwarding to upstream resolvers + blocklist updates
-# CRITICAL: AdGuard must be able to forward DNS queries to upstream DNS servers
+# AdGuard egress: L4-only (no toPorts) - critical network DNS server
+#
+# IMPORTANT: No toPorts on any rule. AdGuard is the primary DNS server for the
+# entire LAN (10.10.30.53). Cilium's L7 envoy proxy (triggered by toPorts)
+# can intermittently interfere with upstream DNS forwarding, causing network-wide
+# DNS failures. L4-only policy avoids L7 proxy entirely.
+# Same pattern as Homepage - see Security.md "Known Limitations" section.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -91,34 +96,17 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system
             k8s-app: kube-dns
-      toPorts:
-        - ports:
-            - port: "53"
-              protocol: UDP
-            - port: "53"
-              protocol: TCP
-    # Forward DNS queries to upstream resolvers (public DNS: 1.1.1.1, 8.8.8.8, etc.)
+    # Forward DNS queries to upstream resolvers (1.1.1.1, 8.8.8.8, DoH, DoT)
+    # Includes 0.0.0.0/0 because upstream resolvers can be any public IP
     - toCIDRSet:
         - cidr: 0.0.0.0/0
-      toPorts:
-        - ports:
-            - port: "53"
-              protocol: UDP
-            - port: "53"
-              protocol: TCP
-    # Blocklist updates from internet
+    # Blocklist updates from internet (443/80)
     - toCIDRSet:
         - cidr: 0.0.0.0/0
           except:
             - 10.0.0.0/8
             - 172.16.0.0/12
             - 192.168.0.0/16
-      toPorts:
-        - ports:
-            - port: "443"
-              protocol: TCP
-            - port: "80"
-              protocol: TCP
 
 # ============================================================
 # Homepage
