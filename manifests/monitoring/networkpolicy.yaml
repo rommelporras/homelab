@@ -99,9 +99,11 @@ spec:
         - ports:
             - port: "6443"
               protocol: TCP
-    # kube-vip metrics (hostNetwork pod, accessed via node IP on port 2112)
-    - toCIDR:
-        - 10.10.30.0/24
+    # kube-vip metrics (hostNetwork static pod, accessed via node IP on port 2112)
+    # Must use remote-node entity, not toCIDR - Cilium assigns nodes a
+    # remote-node identity, so toCIDR with node IPs silently fails.
+    - toEntities:
+        - remote-node
       toPorts:
         - ports:
             - port: "2112"
@@ -333,9 +335,11 @@ spec:
     matchLabels:
       app: nut-exporter
   egress:
-    # NUT protocol to NAS/UPS (port 3493)
-    - toCIDR:
-        - 10.10.30.4/32
+    # NUT protocol to k8s-cp1 NUT server (USB-connected UPS)
+    # Must use remote-node entity, not toCIDR - Cilium assigns nodes a
+    # remote-node identity, so toCIDR with node IPs silently fails.
+    - toEntities:
+        - remote-node
       toPorts:
         - ports:
             - port: "3493"

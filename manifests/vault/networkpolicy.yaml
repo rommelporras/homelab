@@ -47,6 +47,14 @@ spec:
         - ports:
             - port: "8200"
               protocol: TCP
+    # Homepage: Vault customapi widget (direct health check)
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: home
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
     # Vault-internal: unsealer + snapshot CronJob (same namespace)
     - fromEndpoints:
         - matchLabels:

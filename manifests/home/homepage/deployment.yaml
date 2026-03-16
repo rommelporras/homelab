@@ -29,7 +29,7 @@ spec:
       labels:
         app: homepage
     spec:
-      automountServiceAccountToken: false
+      automountServiceAccountToken: true
       serviceAccountName: homepage
       securityContext:
         # Note: Homepage image runs as root, cannot use runAsNonRoot

@@ -60,6 +60,8 @@ spec:
         - ports:
             - port: "53"
               protocol: UDP
+            - port: "53"
+              protocol: TCP
 
     # Intra-namespace (ARR apps communicating with each other)
     - toEndpoints:

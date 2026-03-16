@@ -897,12 +897,12 @@ Consider whether OPNsense firewall rules on the K8s VLAN (10.10.30.0/24) should 
 
 ## 5.3.8 Documentation
 
-- [ ] 5.3.8.1 Update `docs/context/Security.md` with NetworkPolicy strategy
+- [x] 5.3.8.1 Update `docs/context/Security.md` with NetworkPolicy strategy
   - Document CiliumNetworkPolicy-only approach and rationale
   - Traffic matrix summary per namespace
   - Cilium-specific limitations (Gateway identity, FQDN, pod CIDR)
   - Node-level port exposure and firewall decisions (if stretch goals completed)
-- [ ] 5.3.8.2 Update `docs/reference/CHANGELOG.md`
+- [x] 5.3.8.2 Update `docs/reference/CHANGELOG.md`
 
 ---
 
@@ -924,7 +924,7 @@ Consider whether OPNsense firewall rules on the K8s VLAN (10.10.30.0/24) should 
 - [x] monitoring: Prometheus scraping works (via `toEntities: [cluster]`, NOT pod CIDR)
 - [x] monitoring: Alertmanager can send Discord + email + healthchecks.io
 - [x] monitoring: Alloy can ship logs to Loki
-- [ ] monitoring: nut-exporter can reach UPS/NAS - **BLOCKED: NAS NUT daemon not running (pre-existing)**
+- [ ] monitoring: nut-exporter can reach UPS/NAS - **BLOCKED: NUT never installed on NAS (no nut packages in dpkg)**
 - [x] cert-manager egress allows Let's Encrypt + Cloudflare only
 
 ### Applications
@@ -942,7 +942,7 @@ Consider whether OPNsense firewall rules on the K8s VLAN (10.10.30.0/24) should 
 - [ ] All 9 CronJobs complete successfully after policies applied
   - [x] arr-stall-resolver, configarr (arr-stack) - no policies applied (arr-stack deferred)
   - [x] atuin-backup (atuin) - no new policies (pre-existing)
-  - [ ] invoicetron-db-backup (invoicetron-prod) - **pre-existing failure since 2026-03-14**
+  - [x] invoicetron-db-backup (invoicetron-prod) - **fixed: added fsGroup: 70 for PVC write access**
   - [x] cert-expiry-check, cluster-janitor, pki-backup (kube-system) - all completed post-policy
   - [x] version-check (monitoring) - completed post-policy
   - [x] vault-snapshot (vault) - completed post-policy

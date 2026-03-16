@@ -29,6 +29,8 @@ spec:
     - ports:
       - port: "53"
         protocol: UDP
+      - port: "53"
+        protocol: TCP
 
   # Internet egress for monitoring external endpoints (HTTPS)
   - toCIDRSet:
@@ -79,15 +81,13 @@ spec:
       - port: "2368"
         protocol: TCP
 
-  # Gateway VIP (for monitoring services via external URLs like *.k8s.rommelporras.com)
-  - toCIDR:
-    - 10.10.30.20/32
-    toPorts:
-    - ports:
-      - port: "443"
-        protocol: TCP
-      - port: "80"
-        protocol: TCP
+  # Gateway service (for monitoring services via external URLs like *.k8s.rommelporras.com)
+  # Must use toServices, not toCIDR - Cilium-managed LB VIPs have service identity.
+  # Note: toServices does not support toPorts (Cilium limitation).
+  - toServices:
+    - k8sService:
+        serviceName: cilium-gateway-homelab-gateway
+        namespace: default
 
   # Home network services (outside cluster)
   # AdGuard failover (10.10.30.80), OPNsense (10.10.10.1), NAS Glances (10.10.30.4)

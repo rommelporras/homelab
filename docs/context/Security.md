@@ -1,6 +1,6 @@
 ---
-tags: [homelab, kubernetes, security, pss, eso, vault, service-accounts, cis, hardening]
-updated: 2026-03-15
+tags: [homelab, kubernetes, security, pss, eso, vault, service-accounts, cis, hardening, network-policies]
+updated: 2026-03-16
 ---
 
 # Security
@@ -95,8 +95,68 @@ These pods run as root due to upstream image constraints (baseline PSS allows th
 | Portfolio (nginx) | Needs CHOWN, SETUID, SETGID, NET_BIND_SERVICE — root required for port 80 bind and file ownership |
 | MySpeed | Upstream image runs as root, no non-root option |
 | version-check CronJob | Main container uses `apk` which needs write access to `/lib/apk/db` |
+| Homepage | Upstream image runs as root, no non-root option |
 | cert-expiry-check CronJob | Reads hostPath `/etc/kubernetes/pki` (root-owned mode 600) |
 | pki-backup CronJob | Reads hostPath `/etc/kubernetes/pki` + `admin.conf` (root-owned) |
+
+## Network Policy Strategy (Phase 5.3)
+
+All network policies use **CiliumNetworkPolicy only** - no Kubernetes NetworkPolicy except those bundled by Helm (e.g., gitlab-redis). This approach enables identity-based access control and FQDN filtering unavailable in vanilla K8s NetworkPolicy.
+
+### Cilium enable-policy=default Mode
+
+Cilium runs with `enable-policy=default`, which means:
+- Endpoints without any matching policy allow all ingress/egress traffic
+- Once any policy selects an endpoint, default-deny activates for that direction
+- Policies are additive (unioned if multiple policies select the same endpoint)
+
+### Cilium Identity Reference
+
+Cilium assigns identities to different network entities. Using the wrong rule type silently fails.
+
+| Destination | Cilium Identity | Correct Egress Rule |
+|-------------|----------------|-------------------|
+| Pods (managed endpoints) | identity-based | `toEndpoints` or `toEntities: [cluster]` |
+| Local node (where pod runs) | `reserved:host` | `toEntities: [host]` |
+| Other cluster nodes | `remote-node` | `toEntities: [remote-node]` |
+| kube-apiserver | `reserved:kube-apiserver` | `toEntities: [kube-apiserver]` |
+| Gateway proxy | `reserved:ingress` | `fromEntities: [ingress]` (ingress rules) |
+| External IPs (internet, NAS, LAN devices) | `world` | `toCIDR` / `toCIDRSet` |
+
+**Common mistakes:**
+- `toCIDR` with node IPs (10.10.30.11-13) silently fails - nodes have `remote-node` identity
+- `toCIDR` with pod CIDR (10.244.0.0/16) silently fails - pods have managed identity
+- `toCIDR` with Gateway LB VIP (10.10.30.20) silently fails - service has its own identity
+
+### FQDN Egress Rules
+
+FQDN-based egress requires a DNS inspection rule (`rules.dns`) in the **same policy** as the `toFQDNs` rules - a cluster-wide DNS allow in a separate policy does NOT work.
+
+| Namespace | FQDNs | Ports |
+|-----------|-------|-------|
+| monitoring (Alertmanager) | smtp.mail.me.com, discord.com, healthchecks.io, hc-ping.com | 587, 443 |
+| cert-manager | acme-v02.api.letsencrypt.org, api.cloudflare.com | 443 |
+| ghost-dev, ghost-prod | smtp.mail.me.com | 587 |
+
+### Cross-Namespace Ingress Patterns
+
+Destination pods must explicitly allow ingress from these namespaces:
+- `monitoring` - blackbox probes, Prometheus scraping
+- `cloudflare` - Cloudflare tunnel proxying to portfolio, ghost, invoicetron, uptime-kuma
+- `uptime-kuma` - health monitoring (home namespace pods)
+- `home` - Homepage Vault widget (direct API access on port 8200)
+
+### Known Limitations
+
+**Gateway LB hairpin + L7 policy conflict:** Pods with `toPorts` rules in their egress policy trigger Cilium's L7 envoy proxy interception. The L7 proxy returns HTTP 403 "Access denied" for traffic hairpinning through the Gateway LoadBalancer VIP. Workaround: use L4-only policy (no `toPorts`) for pods that need Gateway access. Homepage uses this approach.
+
+### Coverage
+
+23 namespaces with CiliumNetworkPolicy + 1 CiliumClusterwideNetworkPolicy (Gateway `reserved:ingress` identity).
+
+Covered: ai, arr-stack, atuin, browser, cert-manager, cloudflare, external-secrets, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, portfolio-dev, portfolio-prod, portfolio-staging, tailscale, uptime-kuma, vault
+
+Deferred: longhorn-system, intel-device-plugins, node-feature-discovery (high breakage risk, low attack surface)
 
 ## automountServiceAccountToken
 
@@ -115,13 +175,14 @@ Most app pods have `automountServiceAccountToken: false` — they don't call the
 | monitoring | loki | Log ingestion |
 | monitoring | version-checker | Queries container image versions |
 | monitoring | version-check-cronjob | Nova reads Helm release Secrets (`helm.sh/release.v1`) cluster-wide for chart drift |
+| home | homepage | Kubernetes cluster/node widgets + Longhorn storage widget |
 | vault | snapshot (CronJob) | Reads SA token for Vault Kubernetes auth login |
 
 Helm-managed workloads (Cilium, cert-manager, Longhorn, Vault, NFD, Intel device plugins) control their own `automountServiceAccountToken` via chart defaults.
 
 ### Deferred
 
-- `invoicetron/deployment.yaml` — image not in registry. Change commented out; apply when image is fixed.
+- `invoicetron/deployment.yaml` - `automountServiceAccountToken: false` commented out due to image registry issue. Apply when image is fixed.
 
 ## ESO Hardening
 

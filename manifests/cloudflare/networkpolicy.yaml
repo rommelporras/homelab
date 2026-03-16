@@ -27,6 +27,8 @@ spec:
     - ports:
       - port: "53"
         protocol: UDP
+      - port: "53"
+        protocol: TCP
 
   # Cloudflare Edge only (blocks all private IPs)
   - toCIDRSet:

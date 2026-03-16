@@ -113,8 +113,9 @@ spec:
             - port: "6443"
               protocol: TCP
 ---
-# cainjector ingress: monitoring (9402 metrics) + kubelet (any port - healthcheck port unknown)
-# Note: cainjector healthcheck named port not defined in container ports - allow host broadly
+# cainjector ingress: monitoring (9402 metrics) + kubelet (9402 only)
+# Cainjector has NO liveness/readiness/startup probes (verified). Only port is 9402 (metrics).
+# Pinned host ingress to 9402 instead of unrestricted.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -134,6 +135,10 @@ spec:
               protocol: TCP
     - fromEntities:
         - host
+      toPorts:
+        - ports:
+            - port: "9402"
+              protocol: TCP
 
 # ============================================================
 # cert-manager-webhook (app=webhook, app.kubernetes.io/name=webhook)

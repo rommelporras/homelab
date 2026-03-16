@@ -33,6 +33,7 @@ spec:
             runAsNonRoot: true
             runAsUser: 70
             runAsGroup: 70
+            fsGroup: 70
             seccompProfile:
               type: RuntimeDefault
           containers:

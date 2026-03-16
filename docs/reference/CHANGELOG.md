@@ -4,6 +4,21 @@
 
 ---
 
+## March 16, 2026 — Network Policies (v0.33.0)
+
+- CiliumNetworkPolicies for 20 namespaces (implicit default-deny)
+- CiliumClusterwideNetworkPolicy for Gateway reserved:ingress identity
+- FQDN egress for Alertmanager (Discord, SMTP, healthchecks.io) and cert-manager (Let's Encrypt, Cloudflare)
+- LoadBalancer ingress for AdGuard DNS (53), GitLab SSH (22), OTel Collector (4317/4318)
+- Cross-namespace ingress for monitoring probes, Cloudflare tunnel, uptime-kuma
+- Deferred: longhorn-system, intel-device-plugins, node-feature-discovery
+- Fixed invoicetron backup CronJob (fsGroup for non-root PVC write access)
+- Fixed DNS TCP/53 in uptime-kuma, cloudflare, arr-stack egress policies
+- Pinned cert-manager cainjector host ingress to port 9402
+- Added cert-expiry-check and pki-backup to Security.md non-root exceptions
+
+---
+
 ## March 15, 2026 — RBAC & Secrets Hardening (v0.32.0)
 
 ### Summary

@@ -157,7 +157,18 @@ spec:
             - port: "3000"
               protocol: TCP
 ---
-# Homepage egress: complex - widgets access many services across cluster and LAN
+# Homepage egress: L4-only (no toPorts) - dashboard with broad access needs
+#
+# Homepage widgets connect to 20+ services via Gateway external URLs
+# (*.k8s.rommelporras.com), kube-apiserver, LAN devices, and internet APIs.
+#
+# IMPORTANT: No toPorts on any rule. Cilium's L7 proxy (triggered by toPorts)
+# intercepts all traffic from the pod and returns 403 "Access denied" for
+# Gateway LB hairpin traffic. This is a Cilium limitation - the L7 envoy
+# can't handle Gateway hairpin when it's also doing policy inspection.
+# L4-only policy avoids L7 proxy entirely. Security comes from destination
+# restrictions (entities/CIDRs), not port granularity.
+#
 # Ref: manifests/home/homepage/config/services.yaml for full widget inventory
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -169,70 +180,25 @@ spec:
     matchLabels:
       app: homepage
   egress:
-    # DNS (kube-dns)
+    # DNS
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system
             k8s-app: kube-dns
-      toPorts:
-        - ports:
-            - port: "53"
-              protocol: UDP
-            - port: "53"
-              protocol: TCP
-    # Kubernetes API (cluster/node/pod widgets) - SA has ClusterRole bound
+    # Kubernetes API (cluster/node/pod widgets)
     - toEntities:
         - kube-apiserver
-      toPorts:
-        - ports:
-            - port: "6443"
-              protocol: TCP
-    # In-cluster services: Vault direct connection (customapi widget)
-    # vault.vault.svc.cluster.local:8200
+    # In-cluster services: Vault (customapi widget), Longhorn (storage widget)
     - toEntities:
         - cluster
-      toPorts:
-        - ports:
-            - port: "8200"
-              protocol: TCP
-    # Gateway VIP (10.10.30.20) - services at *.k8s.rommelporras.com route here
-    # Covers: Grafana, Prometheus, Alertmanager, Sonarr, Radarr, Jellyfin, qBittorrent,
-    # Prowlarr, Bazarr, Tdarr, Recommendarr, Seerr, Karakeep, AdGuard, Longhorn,
-    # Uptime Kuma, GitLab, Browser, Atuin, Blog (dev+prod), MySpeed
+    # Gateway LB hairpin + node exporters + kubelet
+    # Gateway envoy runs in hostNetwork - after LB DNAT, destination is host/remote-node
+    - toEntities:
+        - host
+        - remote-node
+    # LAN services: Proxmox, OPNsense, NAS OMV, OpenWRT, AdGuard failover, NAS Glances
     - toCIDR:
-        - 10.10.30.20/32
-      toPorts:
-        - ports:
-            - port: "443"
-              protocol: TCP
-            - port: "80"
-              protocol: TCP
-    # LAN services (Proxmox, OPNsense, NAS OMV, OpenWRT, AdGuard failover)
-    # Accessed via private IPs or private DNS names
-    - toCIDR:
-        - 10.10.0.0/16  # All VLANs: nodes, NAS, router, switches
-      toPorts:
-        - ports:
-            - port: "443"
-              protocol: TCP
-            - port: "80"
-              protocol: TCP
-    # Node exporters (Prometheus metrics widgets)
-    - toCIDR:
-        - 10.10.30.11/32  # k8s-cp1
-        - 10.10.30.12/32  # k8s-cp2
-        - 10.10.30.13/32  # k8s-cp3
-      toPorts:
-        - ports:
-            - port: "9100"
-              protocol: TCP
-    # NAS Glances (direct HTTP widget)
-    - toCIDR:
-        - 10.10.30.4/32
-      toPorts:
-        - ports:
-            - port: "61208"
-              protocol: TCP
+        - 10.10.0.0/16
     # External internet: Tailscale API, OpenWeather API
     - toCIDRSet:
         - cidr: 0.0.0.0/0
@@ -240,10 +206,6 @@ spec:
             - 10.0.0.0/8
             - 172.16.0.0/12
             - 192.168.0.0/16
-      toPorts:
-        - ports:
-            - port: "443"
-              protocol: TCP
 
 # ============================================================
 # MySpeed
