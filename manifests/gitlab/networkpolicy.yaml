@@ -212,8 +212,18 @@ spec:
       app: gitlab-shell
   ingress:
     # LAN clients via LoadBalancer 10.10.30.21:22 → container port 2222
+    # LoadBalancer traffic needs host/remote-node/world entities in addition
+    # to CIDR - Cilium LB rewrites source identity (same as AdGuard DNS fix)
     - fromCIDRSet:
         - cidr: 10.10.0.0/16
+      toPorts:
+        - ports:
+            - port: "2222"
+              protocol: TCP
+    - fromEntities:
+        - host
+        - remote-node
+        - world
       toPorts:
         - ports:
             - port: "2222"

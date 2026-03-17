@@ -31,6 +31,18 @@ spec:
               protocol: UDP
             - port: "53"
               protocol: TCP
+    # LoadBalancer traffic via Cilium L2 announcement arrives with host/remote-node/world
+    # identity, not the original client CIDR. Without this, DNS via 10.10.30.53 fails.
+    - fromEntities:
+        - host
+        - remote-node
+        - world
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
     # Monitoring: blackbox exporter DNS probes
     - fromEndpoints:
         - matchLabels:

@@ -184,7 +184,7 @@ See [[Security]] for policy strategy, Cilium identity reference, and known limit
 
 | Namespace | Ingress From | Egress To |
 |-----------|-------------|-----------|
-| home (AdGuard) | LAN 10.10.0.0/16 (53 UDP/TCP), monitoring (53), Gateway (3000), host, uptime-kuma (3000) | **L4-only** (no toPorts): kube-dns, upstream DNS (0.0.0.0/0), internet (443/80) |
+| home (AdGuard) | LAN 10.10.0.0/16 + host/remote-node/world (53 UDP/TCP), monitoring (53), Gateway (3000), host, uptime-kuma (3000) | **L4-only** (no toPorts): kube-dns, upstream DNS (0.0.0.0/0), internet (443/80) |
 | home (Homepage) | Gateway (3000), uptime-kuma (3000), host | **L4-only** (no toPorts): kube-dns, kube-apiserver, cluster, host+remote-node (Gateway hairpin + node exporters), LAN (10.10.0.0/16), internet (443) |
 | home (MySpeed) | Gateway (5216), host, uptime-kuma (5216) | kube-dns, internet (443/80/8080 speedtest) |
 | ghost-dev | Gateway (2368), host | DNS (with FQDN inspection), MySQL (3306), FQDN: SMTP smtp.mail.me.com (587) |
@@ -197,7 +197,7 @@ See [[Security]] for policy strategy, Cilium identity reference, and known limit
 | browser | Gateway (3000), host | DNS, internet (world entity) |
 | uptime-kuma | Gateway (3001), cloudflare (3001), monitoring (3001), host | DNS, internet (443/80), monitoring (3000), home (3000/5216), longhorn (8000), ghost-dev/prod (2368), Gateway (toServices), LAN IPs (NPM/OPNsense/NAS:443/80), NAS Glances (61208) |
 | arr-stack | Gateway (9 HTTPRoutes), monitoring, host, intra-namespace | DNS, intra-namespace, internet (indexers/torrents), NAS NFS (2049), ai/ollama (11434) |
-| gitlab | Gateway (webservice:8181, registry:5000), gitlab-runner (8181/8080/5000), monitoring (metrics), LAN (SSH:2222), host, intra-namespace | DNS, intra-namespace, kube-apiserver, internet (webhooks:443/80/587) |
+| gitlab | Gateway (webservice:8181, registry:5000), gitlab-runner (8181/8080/5000), monitoring (metrics), LAN + host/remote-node/world (SSH:2222), host, intra-namespace | DNS, intra-namespace, kube-apiserver, internet (webhooks:443/80/587) |
 | gitlab-runner | monitoring (9252), host | DNS, kube-apiserver, internet (443/80), gitlab ns (8181/8080/5000) |
 | ai | monitoring, karakeep, arr-stack (11434), host | DNS, internet (443 model downloads) |
 | karakeep | intra-namespace, Gateway, monitoring, host | DNS, intra-namespace, ai/ollama (11434), internet (chrome web scraping:443/80) |
@@ -221,12 +221,19 @@ karakeep    --> ai (11434)         (AI tagging -> Ollama)
 
 ### Cilium Identity Gotchas (from Phase 5.3)
 
+**CRITICAL - LoadBalancer ingress:** All LoadBalancer ingress policies MUST include
+`fromEntities: [host, remote-node, world]` alongside `fromCIDRSet`. Cilium LB rewrites
+the source identity on incoming traffic. `fromCIDRSet` alone appears to work because
+Cilium conntrack entries from before the policy carry existing flows through. After ~34h
+when conntrack expires, new connections are silently dropped. Affected services: AdGuard
+DNS (10.10.30.53), GitLab SSH (10.10.30.21), OTel Collector (10.10.30.22).
+
 | What you want | Wrong approach | Right approach |
 |---------------|---------------|----------------|
 | Reach k8s nodes (NUT, node-exporter, kube-vip) | `toCIDR: 10.10.30.11/32` | `toEntities: [remote-node]` |
 | Reach pods in other namespaces | `toCIDR: 10.244.0.0/16` | `toEndpoints` or `toEntities: [cluster]` |
 | Reach Gateway LB VIP from pods | `toCIDR: 10.10.30.20/32` | L4-only policy (no toPorts) - L7 envoy interferes |
-| Accept external LoadBalancer traffic | `fromCIDRSet: 10.10.0.0/16` only | Add `fromEntities: [world, host, remote-node]` |
+| Accept external LoadBalancer traffic | `fromCIDRSet` only | Add `fromEntities: [host, remote-node, world]` (conntrack masks bug for ~34h) |
 | Reach external LAN IPs (NAS, NPM, router) | (works correctly) | `toCIDR: 10.10.30.4/32` etc. |
 | Avoid L7 envoy proxy interference | Policy with `toPorts` | Remove `toPorts` (L4-only) for critical services |
 
