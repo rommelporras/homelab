@@ -143,7 +143,8 @@ Things that bit us and might save you time:
 
 | Document | Purpose |
 |----------|---------|
-| [docs/context/Cluster.md](docs/context/Cluster.md) | **Source of truth** — nodes, IPs, hardware |
+| [docs/SETUP.md](docs/SETUP.md) | **New machine setup** - clone-and-go guide for any workstation |
+| [docs/context/Cluster.md](docs/context/Cluster.md) | **Source of truth** - nodes, IPs, hardware |
 | [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (v0.1.0 to v0.29.0, v0.30.0+ baked in) |
 | [docs/context/](docs/context/) | Knowledge base (12 topic files: Architecture, Gateway, Networking, Security, etc.) |
 | [docs/todo/](docs/todo/README.md) | Phase plans (active + [completed](docs/todo/completed/)) |
