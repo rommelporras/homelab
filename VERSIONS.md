@@ -99,7 +99,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** v0.32.0 released. RBAC & secrets hardening (etcd encryption, claude-code RBAC, restricted kubeconfig).
+> **Status:** v0.33.1 released. Network policy hotfix (LoadBalancer ingress identity fix for AdGuard DNS + GitLab SSH).
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|

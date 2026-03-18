@@ -33,7 +33,7 @@
   ```
 
 - [ ] 5.4.0.3 Fix timezone inconsistency on CronJobs
-  **Convention:** `Asia/Manila` everywhere — never UTC. 3 of 7 CronJobs violate this:
+  **Convention:** `Asia/Manila` everywhere — never UTC. 2 of 9 CronJobs violate this:
 
   | CronJob | Current | Fix |
   |---------|---------|-----|
@@ -57,8 +57,8 @@
   **Current state (13 PDBs already exist):**
   | Namespace | PDBs | Details |
   |-----------|------|---------|
-  | gitlab | 7 | gitaly, gitlab-pages, kas, minio, redis, webservice, sidekiq |
-  | longhorn-system | 5 | csi-attacher, csi-provisioner, csi-resizer, csi-snapshotter, admission-webhook |
+  | gitlab | 7 | gitaly, gitlab-shell, kas, minio-v1, registry-v1, sidekiq-all-in-1-v1, webservice-default |
+  | longhorn-system | 5 | csi-attacher, csi-provisioner, instance-manager (x3, one per node) |
   | cloudflare | 1 | cloudflared |
 
 - [ ] 5.4.0.5 Inventory existing resource limits
@@ -73,9 +73,13 @@
   **Known gaps (most manifest workloads already have limits):**
   | Category | Without Limits |
   |----------|---------------|
-  | Helm-managed | cert-manager (3 pods), external-secrets (3 pods), GitLab sidecars (config-reloader, exporter, etc.) |
+  | Helm-managed | cert-manager (3 pods), GitLab (exporter, shell, kas, minio, postgresql, redis, toolbox) |
   | System | All kube-system pods, all longhorn-system pods, cilium agent/operator |
+  | Monitoring | alertmanager, alloy (3 pods), loki, grafana, prometheus |
+  | Other | tailscale |
   | Manifest | Minimal gaps — most already set in prior phases |
+
+  > **Note:** external-secrets limits were already set in Phase 5.0 — no longer a gap.
 
 - [ ] 5.4.0.6 Check node memory overcommit
   ```bash
@@ -84,6 +88,55 @@
   **Known issue:** Nodes are at 115-175% memory overcommit on limits. This means under
   full load, OOMKiller will intervene. Adding limits to currently-unlimited pods will
   increase overcommit further. Plan limit values carefully.
+
+- [ ] 5.4.0.7 Inventory all PVCs and backup coverage
+  ```bash
+  kubectl-homelab get pvc -A -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name,STORAGE:.spec.resources.requests.storage,STORAGECLASS:.spec.storageClassName,STATUS:.status.phase' --sort-by='.metadata.namespace'
+  ```
+
+  **PVC Backup Coverage Matrix (as of 2026-03-17):**
+
+  **Critical (user data, hard/impossible to recreate):**
+  | Namespace | PVC | Size | What's In It | DB Dump? | Longhorn Backup? |
+  |-----------|-----|------|-------------|----------|------------------|
+  | ghost-prod | ghost-content | 5Gi | Blog posts, images, themes | N/A (files) | Yes |
+  | ghost-prod | mysql-data-ghost-mysql-0 | 10Gi | Ghost MySQL database | Phase 5.4 | Yes |
+  | invoicetron-prod | data-invoicetron-db-0 | 10Gi | Invoice data PostgreSQL | Yes (migrating to NFS) | Yes |
+  | invoicetron-prod | invoicetron-backups | 2Gi | pg_dump destination (migrating to NFS in 5.4.4.1a) | N/A (is the backup) | Yes |
+  | gitlab | repo-data-gitlab-gitaly-0 | 50Gi | All git repos | Phase 5.4 | Yes |
+  | gitlab | data-gitlab-postgresql-0 | 15Gi | GitLab metadata DB | Phase 5.4 | Yes |
+  | gitlab | gitlab-minio | 20Gi | GitLab artifacts, uploads | Phase 5.4 | Yes |
+  | vault | data-vault-0 | 5Gi | All secrets (Raft) | Yes (snapshots to NFS) | Yes |
+  | atuin | postgres-data | 5Gi | Shell history DB | Yes (pg_dump to NFS) | Yes |
+  | karakeep | karakeep-data | 2Gi | Bookmarks, tags | New CronJob | Yes |
+  | karakeep | meilisearch-data | 1Gi | Search index | New CronJob | Yes |
+
+  **Important (app state, painful to recreate):**
+  | Namespace | PVC | Size | What's In It | DB Dump? | Longhorn Backup? |
+  |-----------|-----|------|-------------|----------|------------------|
+  | home | adguard-data | 5Gi | DNS rules, clients, query logs | New CronJob | Yes |
+  | uptime-kuma | data-uptime-kuma-0 | 1Gi | Monitors, history, alerts | New CronJob | Yes |
+  | monitoring | prometheus-grafana | 10Gi | Dashboards, datasources | New CronJob | Yes |
+  | monitoring | prometheus-...-prometheus-0 | 50Gi | Metrics history | No (rebuildable, too large) | Yes |
+  | monitoring | storage-loki-0 | 10Gi | Log history | No (rebuildable) | Yes |
+  | monitoring | alertmanager-...-0 | 5Gi | Alert silences, state | No (small, rebuilds fast) | Yes |
+  | arr-stack | *-config PVCs (10 total) | 1-5Gi each | App configs, DBs, API keys | New CronJob | Yes |
+  | home | myspeed-data | 1Gi | Speedtest history | New CronJob | Yes |
+
+  **Low priority (rebuildable or dev):**
+  | Namespace | PVC | Size | What's In It | DB Dump? | Longhorn Backup? |
+  |-----------|-----|------|-------------|----------|------------------|
+  | ghost-dev | ghost-content + mysql-data | 15Gi | Dev copy of blog | No | Yes |
+  | invoicetron-dev | data-invoicetron-db-0 | 10Gi | Dev DB | No | Yes |
+  | ai | ollama-models | 10Gi | Downloaded models (re-pull) | No | No |
+  | browser | firefox-config | 2Gi | Browser profile (disposable) | No | No |
+  | gitlab | redis-data-gitlab-redis-master-0 | 5Gi | Cache (ephemeral) | No | Yes |
+  | atuin | atuin-config | 10Mi | Config file (in manifests) | No | Yes |
+  | arr-stack | arr-data (NFS) | 2Ti | Media files | No | N/A (on NAS) |
+
+  > **Gap:** Most Longhorn PVCs have no logical (DB dump) backup. Longhorn volume-level
+  > backup (5.4.4a) covers all PVCs at the block level, but a logical backup survives
+  > Longhorn corruption. New CronJobs in 5.4.4e address this gap.
 
 ---
 
@@ -690,6 +743,306 @@
   Expected restore time: 5-15 minutes for small namespaces
   ```
 
+### 5.4.4e New Application Backup CronJobs
+
+> **Why:** Most application PVCs have no logical (DB dump) backup. Longhorn volume-level
+> backup covers all PVCs at the block level, but a logical backup survives Longhorn
+> corruption. Together they form a two-layer safety net per the three-layer protection model.
+
+> **Three-Layer Protection Model:**
+> ```
+> PVC (live data)  ->  Longhorn snapshot to NAS  ->  DB dump to NAS  ->  Restic encrypted off-site
+>                      (block-level, fast)           (logical, portable)   (encrypted, off-NAS)
+> ```
+> Any single layer can fail and data is still recoverable.
+
+> **Pattern:** All CronJobs below follow the same template as existing Vault/Atuin backups:
+> NFS volume mount, nightly schedule, retention via `find -mtime`, `timeZone: "Asia/Manila"`,
+> `automountServiceAccountToken: false`, `seccompProfile: RuntimeDefault`.
+
+- [ ] 5.4.4.16 Create AdGuard backup CronJob
+  SQLite file copy + config directory to NFS.
+  ```bash
+  # Create NFS directory
+  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
+    sudo mkdir -p /tmp/nfs/adguard && sudo umount /tmp/nfs"
+  ```
+  - Manifest: `manifests/home/adguard/backup-cronjob.yaml`
+  - Schedule: `0 2 * * *` (daily 02:00 PHT)
+  - Source: PVC `adguard-data` mounted directly (not via subPath). Deployment uses two
+    subPath mounts (`conf/` and `work/`), but the backup CronJob must mount the raw PVC
+    to capture both directories.
+  - Target: NFS `10.10.30.4:/Kubernetes/Backups/adguard`
+  - Retention: 30 days
+
+- [ ] 5.4.4.17 Create UptimeKuma backup CronJob
+  SQLite file copy to NFS.
+  ```bash
+  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
+    sudo mkdir -p /tmp/nfs/uptime-kuma && sudo umount /tmp/nfs"
+  ```
+  - Manifest: `manifests/uptime-kuma/backup-cronjob.yaml`
+  - Schedule: `0 2 * * *` (daily 02:00 PHT)
+  - Source: `/app/data/kuma.db` (SQLite)
+  - Target: NFS `10.10.30.4:/Kubernetes/Backups/uptime-kuma`
+  - Retention: 30 days
+
+- [ ] 5.4.4.18 Create Karakeep backup CronJob
+  Data directory + meilisearch to NFS.
+  ```bash
+  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
+    sudo mkdir -p /tmp/nfs/karakeep && sudo umount /tmp/nfs"
+  ```
+  - Manifest: `manifests/karakeep/backup-cronjob.yaml`
+  - Schedule: `0 2 * * *` (daily 02:00 PHT)
+  - Source: Karakeep data PVC + meilisearch data PVC
+  - Target: NFS `10.10.30.4:/Kubernetes/Backups/karakeep`
+  - Retention: 30 days
+
+- [ ] 5.4.4.19 Create Grafana backup CronJob
+  SQLite file copy to NFS.
+  ```bash
+  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
+    sudo mkdir -p /tmp/nfs/grafana && sudo umount /tmp/nfs"
+  ```
+  - Manifest: `manifests/monitoring/grafana-backup-cronjob.yaml`
+  - Schedule: `0 2 * * *` (daily 02:00 PHT)
+  - Source: `/var/lib/grafana/grafana.db` (SQLite)
+  - Target: NFS `10.10.30.4:/Kubernetes/Backups/grafana`
+  - Retention: 30 days
+
+- [ ] 5.4.4.20 Create ARR configs backup CronJob
+  Config directory copy (all 9 apps) to NFS.
+  ```bash
+  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
+    sudo mkdir -p /tmp/nfs/arr-configs && sudo umount /tmp/nfs"
+  ```
+  - Manifest: `manifests/arr-stack/backup-cronjob.yaml`
+  - Schedule: `0 2 * * *` (daily 02:00 PHT)
+  - Source: All 10 Longhorn PVCs: sonarr-config, radarr-config, prowlarr-config, bazarr-config,
+    jellyfin-config, qbittorrent-config, tdarr-configs, tdarr-server, seerr-config, recommendarr-config
+  - Target: NFS `10.10.30.4:/Kubernetes/Backups/arr-configs`
+  - Retention: 30 days
+  - **Note:** Single CronJob with multiple volume mounts, or separate CronJobs per app.
+    Evaluate based on volume mount limits and scheduling simplicity.
+
+- [ ] 5.4.4.21 Create MySpeed backup CronJob
+  SQLite file copy to NFS.
+  ```bash
+  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
+    sudo mkdir -p /tmp/nfs/myspeed && sudo umount /tmp/nfs"
+  ```
+  - Manifest: `manifests/home/myspeed/backup-cronjob.yaml`
+  - Schedule: `0 2 * * *` (daily 02:00 PHT)
+  - Source: MySpeed data PVC (SQLite)
+  - Target: NFS `10.10.30.4:/Kubernetes/Backups/myspeed`
+  - Retention: 30 days
+
+- [ ] 5.4.4.22 Verify all new backup CronJobs run successfully
+  ```bash
+  # Trigger manual run of each new CronJob
+  kubectl-homelab create job --from=cronjob/<name> test-<name> -n <namespace>
+  # Verify backup files appear on NAS
+  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
+    find /tmp/nfs -type f -mmin -60 && sudo umount /tmp/nfs"
+  ```
+
+### 5.4.4f Off-Site Encrypted Backup
+
+> **Why:** All cluster backups (etcd, Vault, DB dumps, PKI, Longhorn volume snapshots,
+> app backups) land on a single NAS with one drive. If the NAS fails, all backups are lost.
+> This section adds an encrypted, off-site copy using restic + rclone.
+
+> **Tool:** Restic (AES-256-CTR + Poly1305-AES encryption, content-defined chunking dedup)
+> **Output:** Encrypted restic repo on local storage, optionally synced to OneDrive via rclone
+
+#### Architecture
+
+```
+NFS Mount (NAS)  ->  restic backup (encrypt + dedup)  ->  Local Repo  ->  rclone sync  ->  OneDrive folder
+10.10.30.4                                                /mnt/backup/    (native app syncs to cloud)
+```
+
+**Two restic repositories (separate repos, separate retention):**
+
+| Repo | Contents | Retention |
+|------|----------|-----------|
+| `k8s-configs` | All of `/Kubernetes/Backups/` (etcd, Vault, DB dumps, PKI, Longhorn snapshots, ARR configs, app SQLite backups) | `--keep-daily 7 --keep-weekly 4` |
+| `k8s-media` | Immich photos (future, ~300GB growing) | `--keep-last 3` + tagged on-demand snapshots |
+
+**Why two repos:** Different retention policies, different backup frequencies. Pruning the
+media repo (300GB+) should not block a quick config backup.
+
+**Explicitly excluded from restic:** `/Kubernetes/Media/` (torrents + media files)
+
+#### Network Requirements
+
+| Machine | VLAN | Subnet | NAS NFS Access |
+|---------|------|--------|----------------|
+| k8s nodes | SERVERS | 10.10.30.x | Yes (existing) |
+| Aurora | TRUSTED_WIFI | 10.10.20.x | Yes (NFS share widened to 10.10.0.0/16) |
+| Windows/WSL host | TRUSTED_WIFI | 10.10.20.x | Yes (network), No (WSL2 NFS mount blocked by kernel) |
+| Gaming desktop | LAN | 10.10.10.x | Yes (NFS share widened to 10.10.0.0/16) |
+
+NFS share `Kubernetes` on OMV widened to `10.10.0.0/16` (done 2026-03-17).
+WSL2 cannot NFS mount due to kernel restriction. Run script on Aurora or gaming desktop.
+
+NFS exports use UID/GID-based access. Verify read access for the backup user after
+first mount on each new machine (OMV root_squash, anonuid settings).
+
+#### Encryption & Key Management
+
+**Algorithm:** Restic AES-256-CTR + Poly1305-AES (encrypt-then-MAC). Every blob independently
+encrypted and authenticated. Master key derived via scrypt KDF from password.
+
+**Key lifecycle:**
+```
+restic init (create repo)
+    |
+    v
+Primary password generated (strong random, 32+ chars)
+    |
+    v
+Store in 1Password FIRST (source of truth):
+    Item: "Restic Backup Keys" in Kubernetes vault
+    Fields: k8s-configs-password, k8s-media-password
+    |
+    v
+Seed to Vault via seed-vault-from-1password.sh:
+    secret/backups/restic-k8s-configs password=<from 1P>
+    secret/backups/restic-k8s-media password=<from 1P>
+    |
+    v
+restic key add (create recovery password, different from primary)
+    |
+    v
+Store recovery key ONLY in 1Password: same item
+    Fields: k8s-configs-recovery, k8s-media-recovery
+```
+
+| Password | Stored In | Purpose |
+|----------|-----------|---------|
+| Primary (per repo) | Vault + 1Password | Daily operational use by script |
+| Recovery (per repo) | 1Password only | DR when Vault is unavailable |
+
+**Script auth fallback:** Vault (`vault kv get`) -> interactive prompt (paste from 1Password).
+`op read` not in fallback chain (Family plan has no Connect for unattended access).
+
+**Key rotation:** `restic key add` (new) -> `restic key remove` (old) -> update Vault + 1Password.
+Does not re-encrypt existing data blobs (restic limitation).
+
+#### Tasks
+
+- [ ] 5.4.4.23 Create 1Password item "Restic Backup Keys" in Kubernetes vault
+  Fields: `k8s-configs-password`, `k8s-media-password`, `k8s-configs-recovery`, `k8s-media-recovery`
+  > User creates this manually in 1Password (Claude cannot run `op` commands).
+
+- [ ] 5.4.4.24 Add restic Vault paths to seed-vault-from-1password.sh
+  Add `op://Kubernetes/Restic Backup Keys/k8s-configs-password` and
+  `op://Kubernetes/Restic Backup Keys/k8s-media-password` to the seed script.
+
+- [ ] 5.4.4.25 Create `scripts/homelab-backup.sh`
+  ```bash
+  # Usage:
+  ./scripts/homelab-backup.sh configs         # Backup configs
+  ./scripts/homelab-backup.sh media           # Backup media (Immich)
+  ./scripts/homelab-backup.sh all             # Backup everything
+  ./scripts/homelab-backup.sh restore configs # Restore (interactive)
+  ./scripts/homelab-backup.sh restore media   # Restore (interactive)
+  ./scripts/homelab-backup.sh prune media     # Explicit prune for media repo
+  ```
+
+  **Configuration file:** `~/.config/homelab-backup/config`
+  ```bash
+  NAS_HOST=10.10.30.4
+  NAS_BACKUPS_PATH=/Kubernetes/Backups
+  NAS_IMMICH_PATH=/Kubernetes/Immich
+  NFS_MOUNT=/tmp/homelab-backup-nfs
+  RESTIC_CONFIGS_REPO=/mnt/backup/restic-k8s-configs
+  RESTIC_MEDIA_REPO=/mnt/backup/restic-k8s-media
+  RCLONE_SYNC_ENABLED=false
+  RCLONE_REMOTE=onedrive:k8s-backups
+  ```
+
+  **Script flow:**
+  1. NFS mount the NAS (or verify already mounted)
+  2. Read restic password (Vault -> interactive prompt)
+  3. Initialize repo if first run (`restic init`)
+  4. `restic backup` the appropriate paths
+  5. `restic forget` with retention policy (`--prune` for configs only; media prune on-demand)
+  6. `restic check --with-cache` (quick, index-only)
+  7. Optionally `rclone sync` repo to OneDrive remote
+  8. Unmount NFS
+  9. Print summary (snapshot ID, size, duration)
+
+  **Portability:** Works on Aurora (Fedora), Ubuntu, or any Linux with `restic` + `nfs-common`.
+  Optional: `rclone`, `vault` CLI.
+
+- [ ] 5.4.4.26 Initialize restic repos and test first backup
+  ```bash
+  # Initialize both repos
+  restic -r /mnt/backup/restic-k8s-configs init
+  restic -r /mnt/backup/restic-k8s-media init
+
+  # Add recovery keys
+  restic -r /mnt/backup/restic-k8s-configs key add
+  restic -r /mnt/backup/restic-k8s-media key add
+
+  # Run first backup
+  ./scripts/homelab-backup.sh configs
+  restic -r /mnt/backup/restic-k8s-configs snapshots
+  ```
+
+- [ ] 5.4.4.27 Test restore from restic repo
+  ```bash
+  # Restore a single directory to verify
+  restic -r /mnt/backup/restic-k8s-configs restore latest \
+    --target /tmp/restic-restore-test \
+    --include /Kubernetes/Backups/vault
+  # Verify data integrity
+  ls -la /tmp/restic-restore-test/
+  rm -rf /tmp/restic-restore-test
+  ```
+
+- [ ] 5.4.4.28 Configure rclone OneDrive sync (optional, on Aurora)
+  ```bash
+  rclone config  # Set up OneDrive remote
+  # Test sync
+  rclone sync /mnt/backup/restic-k8s-configs onedrive:k8s-backups/configs --dry-run
+  # Enable in config
+  sed -i 's/RCLONE_SYNC_ENABLED=false/RCLONE_SYNC_ENABLED=true/' ~/.config/homelab-backup/config
+  ```
+
+#### Recovery Procedures
+
+**Scenario 1: Single app data corruption** (e.g., UptimeKuma SQLite corrupted)
+1. Check NAS first - restore from latest DB dump in `/Kubernetes/Backups/uptime-kuma/`
+2. If NAS backup is also bad - restore Longhorn volume from Longhorn UI snapshot
+3. If Longhorn snapshot is also bad - `restic restore` from off-site repo
+
+**Scenario 2: NAS failure** (single drive dies, all NFS data lost)
+1. Get restic repo from OneDrive folder (or local copy)
+2. Mount new/repaired NAS storage
+3. `restic restore --target /mnt/nas/Kubernetes/Backups latest`
+4. Longhorn volumes are independent (on NVMe) - still intact
+5. Reconfigure Longhorn backup target to new NAS
+
+**Scenario 3: Full cluster rebuild** (all 3 nodes lost)
+1. Get restic repo from OneDrive
+2. Retrieve restic password from 1Password (recovery key if Vault is gone)
+3. Restore etcd snapshot -> rebuild cluster from etcd
+4. Restore Vault snapshot -> unseal Vault (keys from 1Password)
+5. Restore DB dumps -> restore databases
+6. Apply manifests from git repo (GitLab/GitHub)
+7. Restore Longhorn backups -> restore PVC data
+
+**Scenario 4: Immich photo recovery**
+1. `restic restore --target /mnt/nas/Kubernetes/Immich latest`
+2. Or: `restic mount /mnt/restic-browse` for selective file recovery
+
+> **Key dependency:** Every scenario is recoverable using only OneDrive + 1Password.
+> No cluster access required.
+
 ---
 
 ## 5.4.5 Backup Monitoring & Alerting
@@ -1213,6 +1566,8 @@ the revert reminder is invisible. Quality stays as "Any" forever.
   ```
   | Velero | X.X.X | K8s resource backup and restore |
   | MinIO  | X.X.X | S3-compatible storage for Velero |
+  | Restic | X.X.X | Encrypted off-site backup |
+  | rclone | X.X.X | Cloud sync for off-site backup |
   ```
 
 - [ ] 5.4.11.2 Update `docs/context/Security.md` with:
@@ -1222,6 +1577,11 @@ the revert reminder is invisible. Quality stays as "Any" forever.
   - Recovery time documentation
   - Restore drill procedure and schedule (quarterly)
   - Automation hardening decisions (version-checker filtering, Renovate status, CronJob alerting)
+  - Off-site encrypted backup architecture (restic + rclone, two repos, three-layer model)
+  - PVC inventory and backup coverage matrix
+  - New application backup CronJobs (AdGuard, UptimeKuma, Karakeep, Grafana, ARR, MySpeed)
+  - Restic key management (1Password source of truth, Vault operational, recovery keys)
+  - Recovery procedures (4 scenarios: app corruption, NAS failure, full rebuild, Immich)
 
 - [ ] 5.4.11.3 Update `docs/reference/CHANGELOG.md`
 
@@ -1255,7 +1615,7 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [ ] GitLab HA evaluated (scaled if memory permits, or image pre-pull alternative)
 - [ ] Longhorn `replica-soft-anti-affinity` confirmed `false`
 - [ ] Stopped replica recovery procedure documented
-- [ ] All CronJobs have `timeZone: "Asia/Manila"` (3 fixed: version-check, configarr, invoicetron-db-backup)
+- [ ] All CronJobs have `timeZone: "Asia/Manila"` (2 to fix: version-check, configarr)
 - [ ] CronJob failure alerting deployed (covers all current and future CronJobs)
 - [ ] Stuck Longhorn volume alerting deployed (0 running replicas detection)
 - [ ] Invoicetron backup migrated from Longhorn PVC to NFS
@@ -1266,6 +1626,22 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [ ] Renovate decision made (activated, suspended, or deferred to Phase 6)
 - [ ] ARR Stall Resolver sends Discord notification on profile switches
 - [ ] CronJob `successfulJobsHistoryLimit` reduced to 1 where appropriate
+- [ ] PVC inventory documented with backup coverage matrix
+- [ ] AdGuard backup CronJob deployed (daily SQLite copy to NFS)
+- [ ] UptimeKuma backup CronJob deployed (daily SQLite copy to NFS)
+- [ ] Karakeep backup CronJob deployed (daily data copy to NFS)
+- [ ] Grafana backup CronJob deployed (daily SQLite copy to NFS)
+- [ ] ARR configs backup CronJob deployed (daily config copy to NFS)
+- [ ] MySpeed backup CronJob deployed (daily SQLite copy to NFS)
+- [ ] All new backup CronJobs verified (manual trigger + NFS file check)
+- [ ] Restic backup keys created in 1Password "Restic Backup Keys" item
+- [ ] Restic Vault paths added to seed-vault-from-1password.sh
+- [ ] `scripts/homelab-backup.sh` created and tested
+- [ ] Restic repos initialized (k8s-configs + k8s-media)
+- [ ] Restic recovery keys added (`restic key add`)
+- [ ] First restic backup completed and restore verified
+- [ ] rclone OneDrive sync configured (on Aurora, when ready)
+- [ ] NFS share widened to 10.10.0.0/16 on OMV (done 2026-03-17)
 
 ---
 
@@ -1309,6 +1685,26 @@ kubectl-homelab -n longhorn-system logs -l app=longhorn-manager --tail=100
 kubectl-homelab logs -n kube-system -l job-name=etcd-backup-<timestamp>
 # Common causes: etcd cert path changed, NFS mount failed,
 # etcd version mismatch with etcdctl image
+```
+
+**Restic backup fails:**
+```bash
+# Check restic logs (script prints to stdout)
+# Common causes: NFS mount failed, restic password wrong, repo corrupted
+restic -r /mnt/backup/restic-k8s-configs check
+# If repo is corrupted, rebuild from NAS data:
+restic -r /mnt/backup/restic-k8s-configs-new init
+./scripts/homelab-backup.sh configs  # backs up to new repo
+```
+
+**New app backup CronJobs fail:**
+```bash
+# Check job logs
+kubectl-homelab logs -n <namespace> job/<job-name>
+# Common causes: NFS mount failed, PVC not mounted, permission denied
+# Verify NFS target exists on NAS
+ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
+  ls /tmp/nfs/<app>/ && sudo umount /tmp/nfs"
 ```
 
 ---

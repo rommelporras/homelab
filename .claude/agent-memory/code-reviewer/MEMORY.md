@@ -52,3 +52,7 @@ Kubernetes homelab infrastructure repo (public). 3-node HA cluster (kubeadm, Cil
 - PostgreSQL PGDATA must use a subdirectory (top-level mount fails on non-empty dir)
 - CronJob NFS volumes need matching UID ownership on NAS directory
 - Cilium Gateway HTTPRoute may need operator restart to reconcile
+- Longhorn RecurringJob backups write to a configured backup target (S3/NFS S3-gateway), NOT directly to NFS paths — specs that assume Longhorn outputs to `/Kubernetes/Backups/longhorn/` need an explicit Minio or NFS-S3 bridge
+- Secret seeding always goes: 1Password → `scripts/seed-vault-from-1password.sh` → Vault. Never raw `vault kv put` in specs/docs; never `op read` in unattended/automated scripts (Family plan has no Connect)
+- `restic forget --prune` on large repos (300GB+) can run 30-60 min — don't run after every backup on media repos
+- `restic check` without `--with-cache` reads all pack files (slow on large repos); use `--with-cache` for routine post-backup checks

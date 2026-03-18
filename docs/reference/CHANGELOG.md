@@ -4,6 +4,26 @@
 
 ---
 
+## March 17, 2026 - Network Policy Hotfix (v0.33.1)
+
+### Bug Fixes
+- AdGuard DNS LoadBalancer ingress (10.10.30.53): added `fromEntities: [host, remote-node, world]`
+  alongside `fromCIDRSet`. Cilium LB rewrites source identity on incoming traffic - `fromCIDRSet`
+  alone appeared to work because conntrack entries from before the policy carried existing flows
+  through. After ~34h when conntrack expired, new DNS connections were silently dropped. Cascade:
+  AdGuard down -> all `*.home.rommelporras.com` resolution failed -> NPM proxy timeouts -> 6
+  services reported down by Uptime Kuma.
+- GitLab SSH LoadBalancer ingress (10.10.30.21): same `fromEntities` fix applied preemptively
+  (identical `fromCIDRSet`-only pattern).
+
+### Documentation
+- Networking.md: per-namespace traffic matrix (ingress/egress reference table), cross-namespace
+  flow diagram, Cilium identity gotchas cheat sheet. Added critical warning about LoadBalancer
+  ingress identity rewriting and conntrack masking behavior.
+- Security.md: added LoadBalancer ingress identity gotcha to "Common mistakes" section.
+
+---
+
 ## March 16, 2026 - Network Policies (v0.33.0)
 
 ### Network Policy Implementation

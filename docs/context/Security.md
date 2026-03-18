@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, security, pss, eso, vault, service-accounts, cis, hardening, network-policies]
-updated: 2026-03-16
+updated: 2026-03-18
 ---
 
 # Security
@@ -127,6 +127,7 @@ Cilium assigns identities to different network entities. Using the wrong rule ty
 - `toCIDR` with node IPs (10.10.30.11-13) silently fails - nodes have `remote-node` identity
 - `toCIDR` with pod CIDR (10.244.0.0/16) silently fails - pods have managed identity
 - `toCIDR` with Gateway LB VIP (10.10.30.20) silently fails - service has its own identity
+- `fromCIDRSet` alone on LoadBalancer ingress silently fails - Cilium LB rewrites source identity to `host`/`remote-node`/`world`. Appears to work for ~34h (conntrack from before the policy), then new connections drop. Must add `fromEntities: [host, remote-node, world]` alongside `fromCIDRSet`. Affected: AdGuard DNS (10.10.30.53), GitLab SSH (10.10.30.21), OTel Collector (10.10.30.22).
 
 ### FQDN Egress Rules
 
