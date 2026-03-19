@@ -207,6 +207,19 @@ alloy:
       memory: 256Mi
 
 # =============================================================================
+# Config Reloader
+# =============================================================================
+# Automatically reloads Alloy when config changes
+configReloader:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# =============================================================================
 # RBAC - Required for Kubernetes API access
 # =============================================================================
 # Alloy needs to read pods and their logs via the API

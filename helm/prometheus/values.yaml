@@ -108,6 +108,14 @@ grafana:
 
   # Dashboard sidecar — enables grafana_folder annotation for folder organization
   sidecar:
+    # Resource limits for all sidecar containers (dashboard + datasource loaders)
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
     dashboards:
       folderAnnotation: grafana_folder
       provider:
@@ -346,3 +354,13 @@ prometheusOperator:
     limits:
       cpu: 300m
       memory: 256Mi
+
+  # Config reloader sidecar (injected into Prometheus and Alertmanager pods)
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi

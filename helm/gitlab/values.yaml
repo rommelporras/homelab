@@ -120,6 +120,14 @@ postgresql:
       limits:
         cpu: 1000m
         memory: 1Gi
+  metrics:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
 
 # Redis subchart (Bitnami)
 redis:
@@ -136,6 +144,14 @@ redis:
       limits:
         cpu: 500m
         memory: 512Mi
+  metrics:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
 
 # Minio (S3-compatible object storage for registry, artifacts, backups, etc.)
 # Default chart size is 10Gi — too small once CI/CD pipelines push container images.
@@ -144,6 +160,13 @@ minio:
   persistence:
     storageClass: longhorn
     size: 20Gi
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
 
 # ─────────────────────────────────────────────────────────────────
 # GITLAB CORE COMPONENTS
@@ -201,14 +224,55 @@ gitlab:
   gitlab-shell:
     minReplicas: 1
     maxReplicas: 2
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+  # GitLab Exporter (metrics for Prometheus)
+  gitlab-exporter:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+  # KAS (Kubernetes Agent Server)
+  kas:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
 
   # Toolbox (for rails console, rake tasks, backups)
   toolbox:
     enabled: true
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
 
   # Migrations (database migrations on install/upgrade)
   migrations:
     enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
 
 # ─────────────────────────────────────────────────────────────────
 # CONTAINER REGISTRY

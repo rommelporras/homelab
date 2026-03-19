@@ -140,6 +140,13 @@ test:
 lokiCanary:
   enabled: false
 
+# Sidecar for loading recording/alerting rules from ConfigMaps
+# Disabled: Loki Ruler is not enabled (deferred to future phase).
+# Adding resources here without rules: { enabled: true } causes a CrashLoop.
+sidecar:
+  rules:
+    enabled: false
+
 # Disable self-monitoring (we use kube-prometheus-stack separately)
 monitoring:
   selfMonitoring:

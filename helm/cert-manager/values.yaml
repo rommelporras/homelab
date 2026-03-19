@@ -1,0 +1,42 @@
+# cert-manager Helm Values for Homelab
+# Docs: https://cert-manager.io/docs/installation/helm/
+#
+# Chart version: v1.19.2
+#
+# Install:
+#   helm-homelab install cert-manager jetstack/cert-manager \
+#     --namespace cert-manager \
+#     --version v1.19.2 \
+#     --values helm/cert-manager/values.yaml
+
+# =============================================================================
+# Resource Limits
+# =============================================================================
+# cert-manager controller
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# CA injector (injects CA bundles into webhooks)
+cainjector:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Webhook (validates cert-manager CRDs)
+webhook:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi

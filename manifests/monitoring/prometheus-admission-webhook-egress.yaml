@@ -1,0 +1,17 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prometheus-admission-webhook-egress
+  namespace: monitoring
+spec:
+  description: "Allow kube-webhook-certgen job to reach API server during Helm upgrades"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/instance: prometheus-kube-prometheus
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
