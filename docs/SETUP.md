@@ -220,7 +220,7 @@ For seeding secrets from 1Password into Vault, run in a **safe terminal** (not C
 
 ```bash
 eval $(op signin)
-./scripts/seed-vault-from-1password.sh
+./scripts/vault/seed-vault-from-1password.sh
 ```
 
 ## Ansible (cluster rebuild only)

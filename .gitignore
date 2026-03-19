@@ -17,8 +17,8 @@ ansible/inventory/*.bak
 # Allow external-secrets Helm values (no credentials, just chart config)
 !helm/external-secrets/
 # Allow secret-related scripts (contain op:// refs, not actual values)
-!scripts/seed-vault-from-1password.sh
-!scripts/configure-vault.sh
+!scripts/vault/seed-vault-from-1password.sh
+!scripts/vault/configure-vault.sh
 
 # IDE
 .vscode/

@@ -84,7 +84,7 @@ Query logs:
 | healthchecks-heartbeat | healthchecks.io ping | Watchdog (1m) |
 | null | Nowhere | Silenced alerts |
 
-**Note:** All Discord receivers have `send_resolved: true`. RESOLVED notifications are delayed up to `group_interval: 5m` after the alert clears - this is normal Alertmanager behavior, not a bug. Config lives in both `helm/prometheus/values.yaml` and `scripts/upgrade-prometheus.sh` (the script's temp file fully overrides receivers during Helm upgrade).
+**Note:** All Discord receivers have `send_resolved: true`. RESOLVED notifications are delayed up to `group_interval: 5m` after the alert clears - this is normal Alertmanager behavior, not a bug. Config lives in both `helm/prometheus/values.yaml` and `scripts/monitoring/upgrade-prometheus.sh` (the script's temp file fully overrides receivers during Helm upgrade).
 
 ### Alert Routing
 
@@ -219,7 +219,7 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 | `helm/prometheus/values.yaml` | Alertmanager config, routes, Grafana folderAnnotation |
 | `helm/blackbox-exporter/values.yaml` | Blackbox exporter modules (dns_udp, http_2xx) |
 | `helm/smartctl-exporter/values.yaml` | smartctl-exporter DaemonSet (NVMe S.M.A.R.T., /dev/nvme0, 60s interval) |
-| `scripts/upgrade-prometheus.sh` | Helm upgrade with 1Password secrets |
+| `scripts/monitoring/upgrade-prometheus.sh` | Helm upgrade with 1Password secrets |
 | `renovate.json` | Renovate Bot configuration (image update PRs) |
 
 ### Exporters (`manifests/monitoring/exporters/`)
@@ -364,7 +364,7 @@ All dashboards are auto-provisioned via Grafana sidecar. All have `grafana_folde
 
 ```bash
 # Uses 1Password for secrets
-./scripts/upgrade-prometheus.sh
+./scripts/monitoring/upgrade-prometheus.sh
 ```
 
 ## Related

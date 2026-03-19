@@ -121,7 +121,7 @@ CiliumNetworkPolicy restricts ingress to only authorized namespaces (`monitoring
 | Sealed Secrets | Asymmetric key tied to cluster — rebuild requires key backup |
 | **HashiCorp Vault + ESO** | **Centralized store, declarative ExternalSecret CRDs, K8s auth** |
 
-1Password is the human-readable seed source — `scripts/seed-vault-from-1password.sh` is run manually once. Vault serves secrets to ESO via Kubernetes auth (no credentials in automation). ESO creates K8s Secrets from ExternalSecret CRDs committed to git (no secret values, just references). Apps consume K8s Secrets unchanged — zero application changes needed.
+1Password is the human-readable seed source — `scripts/vault/seed-vault-from-1password.sh` is run manually once. Vault serves secrets to ESO via Kubernetes auth (no credentials in automation). ESO creates K8s Secrets from ExternalSecret CRDs committed to git (no secret values, just references). Apps consume K8s Secrets unchanged — zero application changes needed.
 
 **Only imperative secret:** `vault-unseal-keys` (bootstrap — Vault must exist before ESO can create secrets from it).
 

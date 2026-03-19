@@ -11,7 +11,7 @@ All secrets originate in 1Password and are delivered to Kubernetes via **HashiCo
 
 ```
 1Password (source of truth)
-    ↓ manual seed (scripts/seed-vault-from-1password.sh)
+    ↓ manual seed (scripts/vault/seed-vault-from-1password.sh)
 Vault KV v2 (secret/*)
     ↓ Kubernetes auth (ESO ServiceAccount)
 External Secrets Operator
@@ -29,13 +29,13 @@ K8s Secrets (auto-created, 1h refresh)
 
 ## Security Boundary
 
-**1Password is never accessed by automation.** The seed script (`scripts/seed-vault-from-1password.sh`) is run manually from a trusted terminal. Vault then serves secrets to ESO via Kubernetes auth — no `op` commands in any automated process.
+**1Password is never accessed by automation.** The seed script (`scripts/vault/seed-vault-from-1password.sh`) is run manually from a trusted terminal. Vault then serves secrets to ESO via Kubernetes auth — no `op` commands in any automated process.
 
 **Why:** The 1Password personal account (Family plan) has access to all vaults. Running `op` from automation risks exposing personal credentials.
 
 **Workflow:**
 1. Run `eval $(op signin)` in a trusted terminal
-2. Run `scripts/seed-vault-from-1password.sh` to populate Vault KV paths
+2. Run `scripts/vault/seed-vault-from-1password.sh` to populate Vault KV paths
 3. ESO syncs Vault → K8s Secrets automatically (1h refresh)
 4. Pods reference K8s Secrets as before — no application changes needed
 
@@ -89,7 +89,7 @@ Local backup: `~/.vault-keys` (chmod 600). Delete after confirming 1Password bac
 | monitoring/healthchecks | monitoring-healthchecks | monitoring | manifests/monitoring/externalsecret.yaml |
 
 **Note:** Grafana uses `existingSecret` (fully declarative). Alertmanager SMTP/webhooks/healthchecks
-are ESO-managed K8s Secrets read by `scripts/upgrade-prometheus.sh` at Helm upgrade time
+are ESO-managed K8s Secrets read by `scripts/monitoring/upgrade-prometheus.sh` at Helm upgrade time
 (Alertmanager raw config format requires literal values — can't reference K8s secrets directly).
 
 ## 1Password Vault
@@ -301,7 +301,7 @@ op read "op://Kubernetes/Grafana/password" >/dev/null && echo "OK"
 helm-homelab upgrade prometheus ... \
   --set grafana.adminPassword="$(op read 'op://Kubernetes/Grafana/password')"
 
-# Use in script (see scripts/upgrade-prometheus.sh)
+# Use in script (see scripts/monitoring/upgrade-prometheus.sh)
 GRAFANA_PASSWORD=$(op read "op://Kubernetes/Grafana/password")
 ```
 

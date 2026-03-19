@@ -97,13 +97,18 @@ homelab/
 │   ├── uptime-kuma/         # Uptime Kuma StatefulSet
 │   └── vault/               # Vault + auto-unsealer + snapshot CronJob
 ├── scripts/                 # Automation scripts
-│   ├── upgrade-prometheus.sh
-│   ├── sync-ghost-prod-to-dev.sh
-│   ├── sync-ghost-prod-to-local.sh
-│   ├── test-cloudflare-networkpolicy.sh
-│   ├── configure-vault.sh      # One-time Vault setup (KV v2, K8s auth, ESO policy)
-│   ├── seed-vault-from-1password.sh  # Seed Vault KV from 1Password (safe terminal only)
-│   └── verify-migration.sh    # Post-migration health check (ESO sync, Vault status)
+│   ├── backup/              # Off-site backup scripts
+│   ├── vault/
+│   │   ├── configure-vault.sh      # One-time Vault setup (KV v2, K8s auth, ESO policy)
+│   │   └── seed-vault-from-1password.sh  # Seed Vault KV from 1Password (safe terminal only)
+│   ├── ghost/
+│   │   ├── sync-ghost-prod-to-dev.sh
+│   │   └── sync-ghost-prod-to-local.sh
+│   ├── monitoring/
+│   │   └── upgrade-prometheus.sh
+│   └── test/
+│       ├── test-cloudflare-networkpolicy.sh
+│       └── verify-migration.sh    # Post-migration health check (ESO sync, Vault status)
 ├── docs/
 │   ├── context/             # This knowledge base (RAG source)
 │   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.31.0)
