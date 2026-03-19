@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.32.0 (RBAC & Secrets Hardening) - v0.33.0 pending release
+> **Latest Release:** v0.33.1 (Network Policy Hotfix) - v0.33.2 pending release
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -47,6 +47,9 @@
 | v0.30.0 | Namespace & Pod Security | Phase 5.0 | ✅ Released |
 | v0.31.0 | Control Plane Hardening | Phase 5.1 | ✅ Released |
 | v0.32.0 | RBAC & Secrets Hardening | Phase 5.2 | ✅ Released |
+| v0.33.0 | Network Policies | Phase 5.3 | ✅ Released |
+| v0.33.1 | Network Policy Hotfix | - | ✅ Released |
+| v0.33.2 | Loki Storage Fix | - | ⬜ Pending |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 
 ---
@@ -92,12 +95,12 @@
 | 5.0 | Namespace & Pod Security | [phase-5.0-namespace-pod-security.md](completed/phase-5.0-namespace-pod-security.md) |
 | 5.1 | Control Plane Hardening | [phase-5.1-control-plane-hardening.md](completed/phase-5.1-control-plane-hardening.md) |
 | 5.2 | RBAC & Secrets Hardening | [phase-5.2-rbac-and-encryption.md](completed/phase-5.2-rbac-and-encryption.md) |
+| 5.3 | Network Policies | [phase-5.3-network-policies.md](completed/phase-5.3-network-policies.md) |
 
 ### Planned
 
 | Phase | Description | File |
 |-------|-------------|------|
-| 5.3 | Network Policies | [phase-5.3-network-policies.md](phase-5.3-network-policies.md) |
 | 5.4 | Resilience & Backup | [phase-5.4-resilience-backup.md](phase-5.4-resilience-backup.md) |
 | 5.5 | Pre-GitOps Validation | [phase-5.5-pre-gitops-validation.md](phase-5.5-pre-gitops-validation.md) |
 | 6 | CKA Focused Learning | [phase-6-cka.md](phase-6-cka.md) |

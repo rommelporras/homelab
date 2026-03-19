@@ -52,8 +52,8 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 | Setting | Value |
 |---------|-------|
 | Mode | SingleBinary |
-| Retention | 90 days |
-| Storage | Longhorn PVC |
+| Retention | 60 days |
+| Storage | Longhorn PVC (12Gi) |
 
 Query logs:
 ```bash

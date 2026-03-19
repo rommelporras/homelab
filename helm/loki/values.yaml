@@ -54,9 +54,11 @@ loki:
       rules_directory: /var/loki/rules
 
   # Retention configuration
-  # 90 days = 2160 hours (based on storage analysis: ~4MB/day = 360MB for 90 days)
+  # 60 days = 1440 hours (actual usage: ~147 MiB/day, steady-state ~8.6 GiB on 10Gi PVC)
+  # Original 90-day estimate of 4MB/day was wrong - TSDB indexes, WAL, and compactor
+  # overhead bring real consumption to ~147 MiB/day. 90 days needs ~12.9 GiB.
   limits_config:
-    retention_period: 2160h
+    retention_period: 1440h
     # Reject logs older than 7 days (prevent backfill attacks)
     reject_old_samples: true
     reject_old_samples_max_age: 168h
@@ -105,7 +107,7 @@ singleBinary:
   persistence:
     enabled: true
     storageClass: longhorn
-    size: 10Gi
+    size: 12Gi
     accessModes:
       - ReadWriteOnce
 

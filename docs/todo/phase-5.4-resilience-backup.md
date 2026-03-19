@@ -118,7 +118,7 @@
   | uptime-kuma | data-uptime-kuma-0 | 1Gi | Monitors, history, alerts | New CronJob | Yes |
   | monitoring | prometheus-grafana | 10Gi | Dashboards, datasources | New CronJob | Yes |
   | monitoring | prometheus-...-prometheus-0 | 50Gi | Metrics history | No (rebuildable, too large) | Yes |
-  | monitoring | storage-loki-0 | 10Gi | Log history | No (rebuildable) | Yes |
+  | monitoring | storage-loki-0 | 12Gi | Log history | No (rebuildable) | Yes |
   | monitoring | alertmanager-...-0 | 5Gi | Alert silences, state | No (small, rebuilds fast) | Yes |
   | arr-stack | *-config PVCs (10 total) | 1-5Gi each | App configs, DBs, API keys | New CronJob | Yes |
   | home | myspeed-data | 1Gi | Speedtest history | New CronJob | Yes |

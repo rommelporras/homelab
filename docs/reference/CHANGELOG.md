@@ -4,6 +4,16 @@
 
 ---
 
+## March 19, 2026 - Loki Storage Fix (v0.33.2)
+
+### Bug Fixes
+- Loki PVC filling up alert (KubePersistentVolumeFillingUp): original estimate of ~4MB/day was wrong -
+  actual ingestion is ~147 MiB/day due to TSDB indexes, WAL, and compactor overhead. 90-day retention
+  needs ~12.9 GiB, exceeding the 10Gi PVC. Reduced retention from 2160h (90 days) to 1440h (60 days)
+  and expanded PVC from 10Gi to 12Gi. Steady-state at 60 days: ~8.6 GiB on 12Gi (~72%).
+
+---
+
 ## March 17, 2026 - Network Policy Hotfix (v0.33.1)
 
 ### Bug Fixes

@@ -32,6 +32,44 @@ immich/
 
 ---
 
+## Loki PVC Resize Observation
+
+**Status:** Observing - retention reduced, monitoring if PVC resize is needed
+**Priority:** Medium
+**Added:** 2026-03-19
+
+### Context
+
+Alert `KubePersistentVolumeFillingUp` fired for `storage-loki-0` (10Gi, 86.2% used, ~4 days to full).
+Root cause: original estimate of 4MB/day was wrong - actual is ~147 MiB/day (TSDB indexes, WAL,
+compactor overhead). 90-day retention needs ~12.9 GiB, exceeding the 10Gi PVC.
+
+### Action taken
+
+- Reduced retention from 2160h (90 days) to 1440h (60 days)
+- Expanded PVC from 10Gi to 12Gi (one-way, cannot shrink back)
+- Compactor cleaning data older than 60 days (runs every 10 min, 2h delete delay)
+- Expected steady-state at 60 days: ~8.6 GiB on 12Gi (~72%)
+
+### What to observe
+
+1. Watch PVC usage over the next 3-5 days after the Helm upgrade
+2. Confirm compactor is deleting old data (check Loki logs for compactor activity)
+3. If usage stabilizes below 80% on 12Gi - close this item
+4. If usage stays above 80% - investigate log volume reduction via Alloy drop rules
+5. Note: PVC expanded 10Gi -> 12Gi (one-way, cannot shrink)
+
+### Grafana query to monitor
+
+```promql
+kubelet_volume_stats_used_bytes{persistentvolumeclaim="storage-loki-0"} /
+kubelet_volume_stats_capacity_bytes{persistentvolumeclaim="storage-loki-0"} * 100
+```
+
+**When:** Check again around 2026-03-24 (5 days after retention change).
+
+---
+
 ## Loki Ruler for LogQL Alerts
 
 **Status:** Deferred — waiting for a phase that touches Loki/monitoring architecture
