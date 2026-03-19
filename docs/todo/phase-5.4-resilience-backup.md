@@ -37,7 +37,7 @@
 
   | CronJob | Current | Fix |
   |---------|---------|-----|
-  | `version-check` (monitoring) | `Etc/UTC` | Change to `Asia/Manila`, adjust cron to `0 0 * * 0` (midnight PHT) |
+  | `version-check` (monitoring) | `Etc/UTC` | Change to `Asia/Manila`, adjust cron to `0 8 * * 0` (08:00 Sunday PHT, same effective time as current 00:00 UTC) |
   | `configarr` (arr-stack) | not set (defaults to controller TZ) | Add `timeZone: "Asia/Manila"` |
   | ~~`invoicetron-db-backup`~~ | ~~not set~~ | ~~Fixed in Phase 5.0 (has `Asia/Manila`)~~ |
 
@@ -85,7 +85,7 @@
   ```bash
   kubectl-homelab describe nodes | grep -A5 "Allocated resources"
   ```
-  **Known issue:** Nodes are at 115-175% memory overcommit on limits. This means under
+  **Known issue:** Nodes are at 96-171% memory overcommit on limits (as of 2026-03-20). This means under
   full load, OOMKiller will intervene. Adding limits to currently-unlimited pods will
   increase overcommit further. Plan limit values carefully.
 
@@ -370,37 +370,77 @@
   # Set to: nfs://10.10.30.4:/Kubernetes/Backups/longhorn
   ```
 
-- [ ] 5.4.4.3 Create Longhorn RecurringJob for automated backups
+- [ ] 5.4.4.3 Create Longhorn RecurringJobs for automated backups
+  Two tiers: critical (prod data, longer retain) and important (app state, shorter retain).
+  Volumes are assigned to groups via Longhorn volume labels, not the `default` group.
+  See "Longhorn Exclusions" in the Retention Strategy section for volumes to skip.
+
   ```yaml
+  # Critical tier: prod databases, git repos, secrets
   apiVersion: longhorn.io/v1beta2
   kind: RecurringJob
   metadata:
-    name: daily-backup
+    name: daily-backup-critical
     namespace: longhorn-system
   spec:
     cron: "0 19 * * *"     # 03:00 Manila time (UTC+8)
     task: backup
-    retain: 30              # 30 daily backups
+    retain: 14              # 14 daily backups (deep history in restic)
     concurrency: 2
     groups:
-      - default             # Applies to all volumes in default group
-  ```
-
-- [ ] 5.4.4.4 Create weekly RecurringJob for longer retention
-  ```yaml
+      - critical
+  ---
   apiVersion: longhorn.io/v1beta2
   kind: RecurringJob
   metadata:
-    name: weekly-backup
+    name: weekly-backup-critical
     namespace: longhorn-system
   spec:
     cron: "0 19 * * 0"     # Sunday 03:00 Manila time
     task: backup
-    retain: 12              # 12 weekly backups (~3 months)
+    retain: 4               # 4 weekly backups (~1 month)
     concurrency: 2
     groups:
-      - default
+      - critical
   ```
+
+- [ ] 5.4.4.4 Create Longhorn RecurringJobs for important tier
+  ```yaml
+  # Important tier: app configs, monitoring, home services
+  apiVersion: longhorn.io/v1beta2
+  kind: RecurringJob
+  metadata:
+    name: daily-backup-important
+    namespace: longhorn-system
+  spec:
+    cron: "0 20 * * *"     # 04:00 Manila time (staggered from critical)
+    task: backup
+    retain: 7               # 7 daily backups
+    concurrency: 2
+    groups:
+      - important
+  ---
+  apiVersion: longhorn.io/v1beta2
+  kind: RecurringJob
+  metadata:
+    name: weekly-backup-important
+    namespace: longhorn-system
+  spec:
+    cron: "0 20 * * 0"     # Sunday 04:00 Manila time
+    task: backup
+    retain: 2               # 2 weekly backups
+    concurrency: 2
+    groups:
+      - important
+  ```
+
+  **Volume group assignments:**
+
+  | Group | Volumes |
+  |-------|---------|
+  | `critical` | ghost-prod/*, invoicetron-prod/data-db, gitlab/*, vault/data, atuin/postgres-data, karakeep/* |
+  | `important` | home/adguard-data, home/myspeed-data, monitoring/prometheus-grafana, uptime-kuma/*, arr-stack/*-config |
+  | (no group) | prometheus-db, loki, alertmanager, ghost-dev/*, invoicetron-dev/*, ollama, browser/firefox-config, atuin-config, invoicetron-backups, gitlab/redis |
 
 - [ ] 5.4.4.5 Test Longhorn backup and restore
   ```bash
@@ -414,9 +454,73 @@
   # 4. Clean up test resources
   ```
 
+### Retention Strategy: NAS as Short-Term Staging
+
+> **Principle:** NAS is a staging area, not the final archive. Keep NAS retention short
+> (just enough to survive between off-site pulls). The restic repo on OneDrive holds
+> the deep history.
+>
+> ```
+> CronJobs write to NAS daily  ->  Pull to WSL2 weekly  ->  Restic on OneDrive keeps history
+>       (short retention)           (7 days staging)          (deep retention)
+>       7-14 days on NAS            date folders              --keep-daily 7 --keep-weekly 4 --keep-monthly 6
+> ```
+
+**NAS Retention Tiers:**
+
+| Tier | NAS Retention | Applies To | Rationale |
+|------|--------------|------------|-----------|
+| **Critical (prod data)** | 14 days | Ghost MySQL, GitLab, Invoicetron, etcd, Atuin | 2x weekly pull buffer - safe if you miss one week |
+| **Critical (low-churn)** | 7 days | Vault snapshots | Changes rarely (~47KB/day), 7 days is generous |
+| **Important (app state)** | 7 days | AdGuard, Grafana, UptimeKuma, Karakeep, MySpeed | 1 week is enough with regular pulls |
+| **Config (rebuildable)** | 7 days | ARR configs | Painful but not catastrophic to lose |
+| **Infrastructure** | 30 days | PKI certs (weekly schedule) | PKI changes rarely, keep ~4 weekly backups |
+
+**Longhorn Block-Level Tiers:**
+
+| Tier | Daily Retain | Weekly Retain | Applies To |
+|------|-------------|---------------|------------|
+| **Critical** | 14 | 4 | ghost-prod, invoicetron-prod, gitlab, vault, atuin, karakeep |
+| **Important** | 7 | 2 | adguard, grafana, uptime-kuma, ARR configs, myspeed |
+
+**Longhorn Exclusions (do NOT back up):**
+
+| Volume | Actual Size | Why Excluded |
+|--------|------------|--------------|
+| prometheus-db | 59.9GB | Rebuildable, massive daily churn |
+| storage-loki-0 | 13GB | Rebuildable, high churn |
+| alertmanager-db | small | Rebuilds fast |
+| ghost-dev/* | 1.9GB | Dev copy of prod |
+| invoicetron-dev/* | 304MB | Dev data |
+| ollama-models | 5.8GB | Re-pull from registry |
+| firefox-config | 2.6GB | Disposable |
+| atuin-config | 5MB | Config in manifests |
+| invoicetron-backups PVC | 172MB | Migrating to NFS |
+| gitlab redis | 661MB | Ephemeral cache |
+
+**Restic (OneDrive) - Deep Archive Retention:**
+
+```
+RESTIC_KEEP_DAILY=7
+RESTIC_KEEP_WEEKLY=4
+RESTIC_KEEP_MONTHLY=6
+```
+
+This gives ~6 months of monthly snapshots on OneDrive - the real disaster recovery history.
+
 ### 5.4.4a.1 Existing Backup Hardening
 
 > **Problem:** 3 existing backup CronJobs need fixes before adding new ones.
+> Also reduce NAS retention on existing backups (NAS is staging, restic is archive).
+
+- [ ] 5.4.4.0a Reduce Vault snapshot NAS retention from 15 to 7 days
+  Update `manifests/vault/snapshot-cronjob.yaml`: `find -mtime +15` -> `find -mtime +7`
+
+- [ ] 5.4.4.0b Reduce Atuin backup NAS retention from 28 to 14 days
+  Update `manifests/atuin/backup-cronjob.yaml`: `find -mtime +28` -> `find -mtime +14`
+
+- [ ] 5.4.4.0c Reduce PKI backup NAS retention from 90 to 30 days
+  Update `manifests/kube-system/pki-backup.yaml`: `find -mtime +90` -> `find -mtime +30`
 
 - [ ] 5.4.4.1a Move invoicetron backup from Longhorn to NFS
   **Current:** `invoicetron-db-backup` writes pg_dump to a Longhorn PVC.
@@ -432,7 +536,8 @@
   Update `manifests/invoicetron/backup-cronjob.yaml`:
   - Replace Longhorn PVC volume with NFS volume (`10.10.30.4:/Kubernetes/Backups/invoicetron`)
   - Delete the old Longhorn PVC after verifying NFS backups work
-  - Add `timeZone: "Asia/Manila"` (fixes pre-work item too)
+  - `timeZone: "Asia/Manila"` already exists (confirmed in manifest)
+  - Reduce retention from 30 to 14 days (`find -mtime +14`). Deep history is in restic.
 
 - [ ] 5.4.4.1b Add Ghost MySQL backup CronJob (ghost-prod)
   **Current:** Ghost prod has MySQL with user content — NO backup CronJob exists.
@@ -471,13 +576,21 @@
                 command: ["/bin/bash", "-c"]
                 args:
                   - |
+                    # Write mysql config to avoid password on command line (/proc exposure)
+                    cat > /tmp/.my.cnf <<MYCNF
+                    [mysqldump]
+                    host=ghost-mysql
+                    user=root
+                    password=$MYSQL_ROOT_PASSWORD
+                    MYCNF
                     BACKUP_FILE="/backup/ghost-$(date +%Y%m%d-%H%M%S).sql.gz"
-                    mysqldump -h ghost-mysql -u root -p"$MYSQL_ROOT_PASSWORD" \
+                    mysqldump --defaults-extra-file=/tmp/.my.cnf \
                       --single-transaction --routines --triggers ghost \
                       | gzip > "$BACKUP_FILE"
+                    rm -f /tmp/.my.cnf
                     echo "Backup created: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
-                    # Prune backups older than 30 days
-                    find /backup -name "ghost-*.sql.gz" -mtime +30 -delete
+                    # Prune backups older than 14 days (deep history in restic)
+                    find /backup -name "ghost-*.sql.gz" -mtime +14 -delete
                 env:
                   - name: MYSQL_ROOT_PASSWORD
                     valueFrom:
@@ -521,13 +634,19 @@
   | Velero namespace backup (5.4.4b) | Already planned | Doesn't cover Gitaly internal state |
   | Manual `gitlab-backup create` CronJob | Flexible retention | More manifests to maintain |
 
-  **Decision:** Use GitLab's built-in `backup.cronSchedule` in `helm/gitlab/values.yaml`:
+  **Decision:** Use GitLab's built-in backup schedule in `helm/gitlab/values.yaml`.
+  > **IMPORTANT:** Verify the exact Helm value path against GitLab chart docs before implementing.
+  > The path may be `gitlab.toolbox.backups.cron.schedule` (not `global.appConfig.backups.schedule`).
   ```yaml
-  global:
-    appConfig:
+  # Verify path - one of these:
+  # Option A: gitlab.toolbox.backups.cron.schedule
+  # Option B: global.appConfig.backups.schedule
+  gitlab:
+    toolbox:
       backups:
-        bucket: gitlab-backups
-        schedule: "0 3 * * *"   # Daily 03:00
+        cron:
+          enabled: true
+          schedule: "0 3 * * *"   # Daily 03:00 Manila (verify chart supports timeZone)
   ```
   > Verify this works with the existing MinIO in the gitlab namespace before adding
   > a separate CronJob. If GitLab's MinIO already has backup capability, use it.
@@ -592,12 +711,12 @@
 
 - [ ] 5.4.4.9 Create scheduled backup for K8s resources
   ```bash
-  # Daily backup at 03:30 Manila time (staggered from Longhorn at 03:00)
-  # Retain 30 days (not 7 — corruption may not be noticed for weeks)
+  # Daily backup at 04:30 Manila time (staggered: Longhorn critical 03:00, important 04:00)
+  # Retain 30 days (not 7 - corruption may not be noticed for weeks)
   velero schedule create daily-k8s-backup \
-    --schedule="0 19 * * *" \
+    --schedule="30 20 * * *" \
     --ttl 720h \
-    --include-namespaces portfolio-prod,portfolio-dev,portfolio-staging,invoicetron-prod,invoicetron-dev,ghost-prod,ghost-dev,home,monitoring,arr-stack,atuin,karakeep,ai,uptime-kuma,vault,cloudflare,external-secrets \
+    --include-namespaces portfolio-prod,portfolio-dev,portfolio-staging,invoicetron-prod,invoicetron-dev,ghost-prod,ghost-dev,home,monitoring,arr-stack,atuin,karakeep,ai,uptime-kuma,vault,cloudflare,external-secrets,gitlab \
     --default-volumes-to-fs-backup=false
   ```
   > **Note:** `--default-volumes-to-fs-backup=false` because Longhorn handles volume
@@ -627,7 +746,7 @@
   # Option A: CronJob with hostPath mount to etcd PKI
   # Option B: Ansible cron task on cp1 running etcdctl snapshot save
   #
-  # CronJob approach (runs in-cluster):
+  # CronJob approach (runs in-cluster, ON control plane node):
   apiVersion: batch/v1
   kind: CronJob
   metadata:
@@ -635,18 +754,30 @@
     namespace: kube-system
   spec:
     schedule: "30 19 * * *"       # 03:30 Manila time
+    timeZone: "Asia/Manila"
+    concurrencyPolicy: Forbid
+    successfulJobsHistoryLimit: 1
+    failedJobsHistoryLimit: 3
     jobTemplate:
       spec:
+        backoffLimit: 0
+        activeDeadlineSeconds: 300
         template:
           spec:
+            restartPolicy: Never
+            automountServiceAccountToken: false
             nodeSelector:
               node-role.kubernetes.io/control-plane: ""
             tolerations:
               - key: node-role.kubernetes.io/control-plane
                 effect: NoSchedule
+            securityContext:
+              seccompProfile:
+                type: RuntimeDefault
             containers:
               - name: etcd-backup
-                image: registry.k8s.io/etcd:3.5.16-0  # Match cluster etcd version
+                image: registry.k8s.io/etcd:3.6.6-0  # Match cluster etcd version
+                # Verify: kubectl get pods -n kube-system -l component=etcd -o jsonpath='{.items[0].spec.containers[0].image}'
                 command:
                   - /bin/sh
                   - -c
@@ -658,8 +789,16 @@
                       --cert=/etc/kubernetes/pki/etcd/server.crt \
                       --key=/etc/kubernetes/pki/etcd/server.key
                     etcdctl snapshot status "$BACKUP_FILE" --write-table
-                    # Prune backups older than 30 days
-                    find /backup -name "etcd-*.db" -mtime +30 -delete
+                    echo "Backup created: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
+                    # Prune backups older than 14 days (deep history in restic)
+                    find /backup -name "etcd-*.db" -mtime +14 -delete
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop: ["ALL"]
+                resources:
+                  requests: { cpu: 50m, memory: 64Mi }
+                  limits: { cpu: 200m, memory: 256Mi }
                 volumeMounts:
                   - name: etcd-certs
                     mountPath: /etc/kubernetes/pki/etcd
@@ -674,7 +813,6 @@
                 nfs:
                   server: 10.10.30.4
                   path: /Kubernetes/Backups/etcd
-            restartPolicy: OnFailure
   ```
 
 - [ ] 5.4.4.13 Test etcd backup and document restore procedure
@@ -752,13 +890,20 @@
 > **Three-Layer Protection Model:**
 > ```
 > PVC (live data)  ->  Longhorn snapshot to NAS  ->  DB dump to NAS  ->  Restic encrypted off-site
->                      (block-level, fast)           (logical, portable)   (encrypted, off-NAS)
+>                      (block-level, fast)           (logical, portable)   (DB dumps + app backups only)
 > ```
 > Any single layer can fail and data is still recoverable.
+> Note: Restic off-site covers DB dumps, app file backups, etcd, Vault, and PKI from
+> `/Kubernetes/Backups/`. Longhorn block-level snapshots stay on NAS only (too large for off-site).
 
 > **Pattern:** All CronJobs below follow the same template as existing Vault/Atuin backups:
 > NFS volume mount, nightly schedule, retention via `find -mtime`, `timeZone: "Asia/Manila"`,
 > `automountServiceAccountToken: false`, `seccompProfile: RuntimeDefault`.
+>
+> **Schedule staggering:** Existing vault-snapshot runs at 02:00. Stagger new CronJobs
+> across 02:00-02:30 to avoid NFS contention (all write to the same NAS):
+> Ghost MySQL 02:00, AdGuard 02:05, UptimeKuma 02:10, Karakeep 02:15,
+> Grafana 02:20, ARR configs 02:25, MySpeed 02:30. Atuin (weekly) stays at 02:00.
 
 - [ ] 5.4.4.16 Create AdGuard backup CronJob
   SQLite file copy + config directory to NFS.
@@ -773,7 +918,7 @@
     subPath mounts (`conf/` and `work/`), but the backup CronJob must mount the raw PVC
     to capture both directories.
   - Target: NFS `10.10.30.4:/Kubernetes/Backups/adguard`
-  - Retention: 30 days
+  - Retention: 7 days (deep history in restic)
 
 - [ ] 5.4.4.17 Create UptimeKuma backup CronJob
   SQLite file copy to NFS.
@@ -785,7 +930,7 @@
   - Schedule: `0 2 * * *` (daily 02:00 PHT)
   - Source: `/app/data/kuma.db` (SQLite)
   - Target: NFS `10.10.30.4:/Kubernetes/Backups/uptime-kuma`
-  - Retention: 30 days
+  - Retention: 7 days (deep history in restic)
 
 - [ ] 5.4.4.18 Create Karakeep backup CronJob
   Data directory + meilisearch to NFS.
@@ -797,7 +942,7 @@
   - Schedule: `0 2 * * *` (daily 02:00 PHT)
   - Source: Karakeep data PVC + meilisearch data PVC
   - Target: NFS `10.10.30.4:/Kubernetes/Backups/karakeep`
-  - Retention: 30 days
+  - Retention: 7 days (deep history in restic)
 
 - [ ] 5.4.4.19 Create Grafana backup CronJob
   SQLite file copy to NFS.
@@ -809,7 +954,7 @@
   - Schedule: `0 2 * * *` (daily 02:00 PHT)
   - Source: `/var/lib/grafana/grafana.db` (SQLite)
   - Target: NFS `10.10.30.4:/Kubernetes/Backups/grafana`
-  - Retention: 30 days
+  - Retention: 7 days (deep history in restic)
 
 - [ ] 5.4.4.20 Create ARR configs backup CronJob
   Config directory copy (all 9 apps) to NFS.
@@ -822,7 +967,7 @@
   - Source: All 10 Longhorn PVCs: sonarr-config, radarr-config, prowlarr-config, bazarr-config,
     jellyfin-config, qbittorrent-config, tdarr-configs, tdarr-server, seerr-config, recommendarr-config
   - Target: NFS `10.10.30.4:/Kubernetes/Backups/arr-configs`
-  - Retention: 30 days
+  - Retention: 7 days
   - **Note:** Single CronJob with multiple volume mounts, or separate CronJobs per app.
     Evaluate based on volume mount limits and scheduling simplicity.
 
@@ -836,7 +981,7 @@
   - Schedule: `0 2 * * *` (daily 02:00 PHT)
   - Source: MySpeed data PVC (SQLite)
   - Target: NFS `10.10.30.4:/Kubernetes/Backups/myspeed`
-  - Retention: 30 days
+  - Retention: 7 days (deep history in restic)
 
 - [ ] 5.4.4.22 Verify all new backup CronJobs run successfully
   ```bash
@@ -851,49 +996,209 @@
 
 > **Why:** All cluster backups (etcd, Vault, DB dumps, PKI, Longhorn volume snapshots,
 > app backups) land on a single NAS with one drive. If the NAS fails, all backups are lost.
-> This section adds an encrypted, off-site copy using restic + rclone.
+> This section adds an encrypted, off-site copy using restic on WSL2.
 
 > **Tool:** Restic (AES-256-CTR + Poly1305-AES encryption, content-defined chunking dedup)
-> **Output:** Encrypted restic repo on local storage, optionally synced to OneDrive via rclone
+> **Trigger:** Manual on-demand (not automated - WSL2 is not always running)
 
 #### Architecture
 
 ```
-NFS Mount (NAS)  ->  restic backup (encrypt + dedup)  ->  Local Repo  ->  rclone sync  ->  OneDrive folder
-10.10.30.4                                                /mnt/backup/    (native app syncs to cloud)
+WSL2 --SSH--> cp1 --NFS mount--> NAS (/Kubernetes/Backups)
+                                       |
+                                  rsync back to WSL2
+                                       |
+                                       v
+                        Staging: /mnt/c/rcporras/homelab/backup/
+                                  YYYY-MM-DD/<app>/files...
+                                       |
+                                  restic backup (encrypt + dedup)
+                                       |
+                                       v
+                        Restic repo: /mnt/c/Users/rcporras/
+                          OneDrive - Hexagon/Personal/Homelab/Backup/
+                                       |
+                                  Windows OneDrive client syncs to cloud
+                                       |
+                                  (optional) manual copy to Google Drive via browser
 ```
 
-**Two restic repositories (separate repos, separate retention):**
-
-| Repo | Contents | Retention |
-|------|----------|-----------|
-| `k8s-configs` | All of `/Kubernetes/Backups/` (etcd, Vault, DB dumps, PKI, Longhorn snapshots, ARR configs, app SQLite backups) | `--keep-daily 7 --keep-weekly 4` |
-| `k8s-media` | Immich photos (future, ~300GB growing) | `--keep-last 3` + tagged on-demand snapshots |
-
-**Why two repos:** Different retention policies, different backup frequencies. Pruning the
-media repo (300GB+) should not block a quick config backup.
+**One restic repository:** `k8s-configs` only. Media repo (Immich) deferred - no data yet.
 
 **Explicitly excluded from restic:** `/Kubernetes/Media/` (torrents + media files)
 
-#### Network Requirements
+#### Machine Constraints
 
-| Machine | VLAN | Subnet | NAS NFS Access |
-|---------|------|--------|----------------|
-| k8s nodes | SERVERS | 10.10.30.x | Yes (existing) |
-| Aurora | TRUSTED_WIFI | 10.10.20.x | Yes (NFS share widened to 10.10.0.0/16) |
-| Windows/WSL host | TRUSTED_WIFI | 10.10.20.x | Yes (network), No (WSL2 NFS mount blocked by kernel) |
-| Gaming desktop | LAN | 10.10.10.x | Yes (NFS share widened to 10.10.0.0/16) |
+| Machine | Storage | NAS Access | Cloud Target | Status |
+|---------|---------|------------|-------------|--------|
+| WSL2 (work laptop) | 2TB NVMe | No NFS (corporate blocker), SSH to cp1 | OneDrive (auto-sync) + Google Drive (manual browser) | Active |
+| Aurora (Fedora Kinoite) | 500GB | Direct NFS | Google Drive (rclone or manual) | Deferred |
+
+WSL2 cannot NFS-mount the NAS due to corporate network restrictions. Instead, it SSHes
+to k8s-cp1 (which can NFS-mount), rsyncs the backup data back, then encrypts locally.
 
 NFS share `Kubernetes` on OMV widened to `10.10.0.0/16` (done 2026-03-17).
-WSL2 cannot NFS mount due to kernel restriction. Run script on Aurora or gaming desktop.
 
-NFS exports use UID/GID-based access. Verify read access for the backup user after
-first mount on each new machine (OMV root_squash, anonuid settings).
+#### Scripts Directory Reorganization
+
+> **Why:** `scripts/` has 7 files at the root level. Adding backup files would make it
+> cluttered. Group by purpose before adding new scripts.
+
+**Before (flat):**
+```
+scripts/
+├── configure-vault.sh
+├── seed-vault-from-1password.sh
+├── sync-ghost-prod-to-dev.sh
+├── sync-ghost-prod-to-local.sh
+├── test-cloudflare-networkpolicy.sh
+├── upgrade-prometheus.sh
+└── verify-migration.sh
+```
+
+**After (grouped):**
+```
+scripts/
+├── backup/
+│   ├── homelab-backup.sh
+│   ├── config.example          (versioned template)
+│   ├── config                  (.gitignored)
+│   └── .password               (.gitignored)
+├── vault/
+│   ├── configure-vault.sh
+│   ├── seed-vault-from-1password.sh
+│   └── verify-migration.sh
+├── ghost/
+│   ├── sync-ghost-prod-to-dev.sh
+│   └── sync-ghost-prod-to-local.sh
+├── monitoring/
+│   └── upgrade-prometheus.sh
+└── test/
+    └── test-cloudflare-networkpolicy.sh
+```
+
+**Active docs to update after reorg** (completed/historical docs stay as-is):
+- `docs/SETUP.md` - seed-vault path
+- `docs/context/Architecture.md` - seed-vault path
+- `docs/context/Secrets.md` - seed-vault, upgrade-prometheus paths
+- `docs/context/Monitoring.md` - upgrade-prometheus path
+- `docs/context/Conventions.md` - scripts directory listing
+
+#### Two-Step Backup Workflow
+
+**Step 1: `pull`** - SSH to cp1, NFS mount on cp1, rsync FROM cp1 TO WSL2 staging
+**Step 2: `encrypt`** - restic backup staging folder to OneDrive-synced restic repo
+
+`pull` flow: script runs `ssh cp1 "sudo mount -t nfs4 ..."`, then
+`rsync -avz wawashi@cp1:/tmp/homelab-backup-nfs/ staging/YYYY-MM-DD/`,
+then `ssh cp1 "sudo umount ..."`. rsync pulls data TO WSL2, never pushes TO NAS.
+
+Two steps give a checkpoint to inspect pulled data before encrypting. Each step
+can be run independently (e.g., re-encrypt without re-pulling).
+
+**Subcommands:**
+```bash
+./scripts/backup/homelab-backup.sh setup     # One-time: seed password, init repo
+./scripts/backup/homelab-backup.sh pull      # SSH to cp1 -> NFS mount -> rsync to staging
+./scripts/backup/homelab-backup.sh encrypt   # restic backup staging -> OneDrive repo + forget/prune
+./scripts/backup/homelab-backup.sh status    # Show last pull date, staging size, repo stats
+./scripts/backup/homelab-backup.sh prune     # Delete staging folders older than N days (checks encryption first)
+./scripts/backup/homelab-backup.sh restore   # List snapshots, select one, restore to target dir
+```
+
+**Typical usage (weekly habit):**
+```bash
+./scripts/backup/homelab-backup.sh pull
+./scripts/backup/homelab-backup.sh encrypt
+./scripts/backup/homelab-backup.sh prune
+```
+
+#### Staging Directory Structure
+
+Date-stamped folders so you can browse and delete specific days:
+
+```
+/mnt/c/rcporras/homelab/backup/
+├── 2026-03-19/
+│   ├── atuin/
+│   │   └── atuin-backup-2026-03-15.pg_dump
+│   ├── vault/
+│   │   ├── vault-20260318.snap
+│   │   └── vault-20260317.snap
+│   ├── pki/
+│   │   └── pki-20260315-120002/
+│   ├── ghost/
+│   │   └── ghost-20260319-020000.sql.gz
+│   ├── invoicetron/
+│   │   └── invoicetron-20260319.sql.gz
+│   ├── etcd/
+│   │   └── etcd-20260319-033000.db
+│   ├── adguard/
+│   ├── grafana/
+│   ├── arr-configs/
+│   ├── uptime-kuma/
+│   ├── karakeep/
+│   └── myspeed/
+├── 2026-03-18/
+│   └── ... (previous pull)
+└── 2026-03-17/
+    └── ... (older pull)
+```
+
+Restic repo (OneDrive) is machine-managed encrypted blobs - not human-browsable.
+
+#### Configuration & Secrets
+
+**`scripts/backup/config.example`** (versioned, no secrets):
+```bash
+# Copy to config and edit for your machine
+# cp config.example config
+
+# SSH access to NAS (via k8s node)
+SSH_HOST=wawashi@10.10.30.11
+NFS_SERVER=10.10.30.4
+NFS_EXPORT=/Kubernetes/Backups
+NFS_MOUNT=/tmp/homelab-backup-nfs
+
+# Local staging (raw backups, human-browsable)
+STAGING_DIR=/mnt/c/rcporras/homelab/backup
+
+# Restic repo (encrypted, synced to cloud)
+RESTIC_REPO="/mnt/c/Users/rcporras/OneDrive - Hexagon/Personal/Homelab/Backup"
+
+# Retention
+STAGING_KEEP_DAYS=7
+RESTIC_KEEP_DAILY=7
+RESTIC_KEEP_WEEKLY=4
+RESTIC_KEEP_MONTHLY=6
+
+# Vault address (for fetching restic password)
+VAULT_ADDR=https://vault.k8s.rommelporras.com
+VAULT_SECRET_PATH=secret/backups/restic-k8s-configs
+VAULT_SECRET_KEY=password
+
+# Backup sources to pull from NFS
+BACKUP_SOURCES="atuin vault pki ghost invoicetron etcd adguard grafana arr-configs uptime-kuma karakeep myspeed"
+```
+
+**`scripts/backup/config`** + **`scripts/backup/.password`** - `.gitignored`, machine-specific.
+
+**`setup` subcommand flow:**
+1. Verify `config` exists (error if not - tell user to copy from `config.example`)
+2. Try Vault: `vault kv get -field=password secret/backups/restic-k8s-configs`
+3. If Vault unavailable: prompt user to paste from 1Password (`op://Kubernetes/Restic Backup Keys/k8s-configs-password`)
+4. Write password to `scripts/backup/.password`
+5. Initialize restic repo if first run
+6. Print confirmation with config, repo path, and status
+
+Password file is read by restic via `--password-file` (never CLI argument).
 
 #### Encryption & Key Management
 
 **Algorithm:** Restic AES-256-CTR + Poly1305-AES (encrypt-then-MAC). Every blob independently
 encrypted and authenticated. Master key derived via scrypt KDF from password.
+
+IT admins with OneDrive access see encrypted blobs - cannot read backup content.
 
 **Key lifecycle:**
 ```
@@ -905,25 +1210,24 @@ Primary password generated (strong random, 32+ chars)
     v
 Store in 1Password FIRST (source of truth):
     Item: "Restic Backup Keys" in Kubernetes vault
-    Fields: k8s-configs-password, k8s-media-password
+    Fields: k8s-configs-password, k8s-configs-recovery
     |
     v
-Seed to Vault via seed-vault-from-1password.sh:
+Seed to Vault via scripts/vault/seed-vault-from-1password.sh:
     secret/backups/restic-k8s-configs password=<from 1P>
-    secret/backups/restic-k8s-media password=<from 1P>
     |
     v
 restic key add (create recovery password, different from primary)
     |
     v
 Store recovery key ONLY in 1Password: same item
-    Fields: k8s-configs-recovery, k8s-media-recovery
+    Field: k8s-configs-recovery
 ```
 
 | Password | Stored In | Purpose |
 |----------|-----------|---------|
-| Primary (per repo) | Vault + 1Password | Daily operational use by script |
-| Recovery (per repo) | 1Password only | DR when Vault is unavailable |
+| Primary | Vault + 1Password | Daily operational use by script |
+| Recovery | 1Password only | DR when Vault is unavailable |
 
 **Script auth fallback:** Vault (`vault kv get`) -> interactive prompt (paste from 1Password).
 `op read` not in fallback chain (Family plan has no Connect for unattended access).
@@ -931,86 +1235,125 @@ Store recovery key ONLY in 1Password: same item
 **Key rotation:** `restic key add` (new) -> `restic key remove` (old) -> update Vault + 1Password.
 Does not re-encrypt existing data blobs (restic limitation).
 
+#### NAS Storage Budget
+
+**Current:** 1.8TB total, 578GB available (69% used). Media: 842GB. Backups: 11MB.
+
+> **Principle:** NAS holds short-term staging only. Deep history lives in restic on OneDrive.
+> See Retention Strategy section above for tier definitions.
+
+**Projected NAS backup usage (all CronJobs deployed, short retention):**
+
+| Category | Retention | Estimated Steady-State |
+|----------|-----------|----------------------|
+| DB dumps - critical (Ghost, GitLab, Invoicetron, Atuin) | 14 days | ~4GB |
+| DB dumps - critical (etcd 14d, Vault 7d) | 14/7 days | ~800MB |
+| App file backups (AdGuard, Grafana, UptimeKuma, Karakeep, MySpeed) | 7 days | ~5GB |
+| ARR configs (10 PVCs) | 7 days | ~35GB |
+| PKI certs | 30 days weekly | ~65KB |
+| Longhorn critical tier (14 daily + 4 weekly, excl. prometheus/loki/dev) | tiered | ~40-55GB |
+| Longhorn important tier (7 daily + 2 weekly) | tiered | ~15-25GB |
+| **Total** | | **~100-125GB** |
+
+578GB available vs ~125GB needed = **~455GB headroom**. Media can grow comfortably.
+
+> **Key savings vs original plan:** Excluding prometheus (60GB, high churn) and loki (13GB)
+> from Longhorn backups + shorter NAS retention saves ~200-250GB. All history preserved
+> in restic on OneDrive (deep archive: 7 daily + 4 weekly + 6 monthly).
+
+#### Error Handling
+
+**`pull` failures:**
+
+| Failure | Behavior |
+|---------|----------|
+| SSH to cp1 fails | Error + exit: `Cannot reach k8s-cp1. Check VPN/network.` |
+| NFS mount fails on cp1 | Error + exit: `NFS mount failed on cp1. Check NAS is online.` |
+| rsync partial failure | Continue with warnings. Missing source dirs skipped (CronJob may not be deployed yet). |
+| Today's date folder exists | rsync overwrites (idempotent): `Updating existing pull for 2026-03-19` |
+| NFS umount fails on cp1 | Warn but don't error (stale mount cleans up on reboot) |
+
+**`encrypt` failures:**
+
+| Failure | Behavior |
+|---------|----------|
+| No staging folder | Error: `No backup data found. Run ./homelab-backup.sh pull first` |
+| Password file missing | Error: `Run ./homelab-backup.sh setup first` |
+| Restic repo locked | Warn, suggest `restic unlock`. Don't auto-unlock. |
+| OneDrive path missing | Error: `OneDrive path not found. Is OneDrive running?` |
+
+**`prune` safety:**
+
+| Scenario | Behavior |
+|----------|----------|
+| Would delete all folders | Refuse: `Would delete all staging data. Keep at least 1 folder.` |
+| No folders older than N days | No-op: `Nothing to prune.` |
+| Folder not yet encrypted | Warn: `2026-03-19 has not been encrypted yet. Skipping.` (check if restic has a snapshot tagged with that date) |
+
+**General:**
+- Every subcommand validates config exists before proceeding
+- All operations print what they will do before doing it
+- Non-zero exit codes propagate (`pull && encrypt` works)
+- No `set -e` (too brittle for SSH + mount + rsync). Explicit error checks per operation.
+
 #### Tasks
 
-- [ ] 5.4.4.23 Create 1Password item "Restic Backup Keys" in Kubernetes vault
-  Fields: `k8s-configs-password`, `k8s-media-password`, `k8s-configs-recovery`, `k8s-media-recovery`
+- [ ] 5.4.4.23 Reorganize `scripts/` directory
+  Move existing scripts into subdirectories: `vault/`, `ghost/`, `monitoring/`, `test/`.
+  Update all active doc references (SETUP.md, Architecture.md, Secrets.md, Monitoring.md,
+  Conventions.md). Do NOT update completed/historical docs.
+  **Update `.gitignore` allowlist entries** for moved scripts (e.g.,
+  `!scripts/seed-vault-from-1password.sh` -> `!scripts/vault/seed-vault-from-1password.sh`).
+  The `*secret*` and `*password*` glob patterns will hide the moved files without this.
+  Separate commit from backup script work.
+
+- [ ] 5.4.4.24 Create 1Password item "Restic Backup Keys" in Kubernetes vault
+  Fields: `k8s-configs-password`, `k8s-configs-recovery`
   > User creates this manually in 1Password (Claude cannot run `op` commands).
 
-- [ ] 5.4.4.24 Add restic Vault paths to seed-vault-from-1password.sh
-  Add `op://Kubernetes/Restic Backup Keys/k8s-configs-password` and
-  `op://Kubernetes/Restic Backup Keys/k8s-media-password` to the seed script.
+- [ ] 5.4.4.25 Add restic Vault path to `scripts/vault/seed-vault-from-1password.sh`
+  Add `op://Kubernetes/Restic Backup Keys/k8s-configs-password` to the seed script.
+  Seed only the primary password, NOT the recovery key (recovery stays in 1Password only).
 
-- [ ] 5.4.4.25 Create `scripts/homelab-backup.sh`
+- [ ] 5.4.4.26 Create `scripts/backup/config.example` and `.gitignore` entries
+  Add `scripts/backup/config` to `.gitignore` (explicit entry needed).
+  `scripts/backup/.password` is already caught by the existing `*password*` glob.
+
+- [ ] 5.4.4.27 Create `scripts/backup/homelab-backup.sh`
+  Implement all 6 subcommands: `setup`, `pull`, `encrypt`, `status`, `prune`, `restore`.
+  See Two-Step Backup Workflow and Error Handling sections above for full specification.
+
+- [ ] 5.4.4.28 Install restic on WSL2
   ```bash
-  # Usage:
-  ./scripts/homelab-backup.sh configs         # Backup configs
-  ./scripts/homelab-backup.sh media           # Backup media (Immich)
-  ./scripts/homelab-backup.sh all             # Backup everything
-  ./scripts/homelab-backup.sh restore configs # Restore (interactive)
-  ./scripts/homelab-backup.sh restore media   # Restore (interactive)
-  ./scripts/homelab-backup.sh prune media     # Explicit prune for media repo
+  sudo apt update && sudo apt install -y restic
+  restic version
   ```
 
-  **Configuration file:** `~/.config/homelab-backup/config`
+- [ ] 5.4.4.29 Initialize restic repo and test first backup
   ```bash
-  NAS_HOST=10.10.30.4
-  NAS_BACKUPS_PATH=/Kubernetes/Backups
-  NAS_IMMICH_PATH=/Kubernetes/Immich
-  NFS_MOUNT=/tmp/homelab-backup-nfs
-  RESTIC_CONFIGS_REPO=/mnt/backup/restic-k8s-configs
-  RESTIC_MEDIA_REPO=/mnt/backup/restic-k8s-media
-  RCLONE_SYNC_ENABLED=false
-  RCLONE_REMOTE=onedrive:k8s-backups
+  ./scripts/backup/homelab-backup.sh setup
+  ./scripts/backup/homelab-backup.sh pull
+  ./scripts/backup/homelab-backup.sh encrypt
+  ./scripts/backup/homelab-backup.sh status
   ```
 
-  **Script flow:**
-  1. NFS mount the NAS (or verify already mounted)
-  2. Read restic password (Vault -> interactive prompt)
-  3. Initialize repo if first run (`restic init`)
-  4. `restic backup` the appropriate paths
-  5. `restic forget` with retention policy (`--prune` for configs only; media prune on-demand)
-  6. `restic check --with-cache` (quick, index-only)
-  7. Optionally `rclone sync` repo to OneDrive remote
-  8. Unmount NFS
-  9. Print summary (snapshot ID, size, duration)
-
-  **Portability:** Works on Aurora (Fedora), Ubuntu, or any Linux with `restic` + `nfs-common`.
-  Optional: `rclone`, `vault` CLI.
-
-- [ ] 5.4.4.26 Initialize restic repos and test first backup
+- [ ] 5.4.4.30 Add recovery key to restic repo
   ```bash
-  # Initialize both repos
-  restic -r /mnt/backup/restic-k8s-configs init
-  restic -r /mnt/backup/restic-k8s-media init
-
-  # Add recovery keys
-  restic -r /mnt/backup/restic-k8s-configs key add
-  restic -r /mnt/backup/restic-k8s-media key add
-
-  # Run first backup
-  ./scripts/homelab-backup.sh configs
-  restic -r /mnt/backup/restic-k8s-configs snapshots
+  restic -r "<RESTIC_REPO path>" key add
+  # Store recovery key in 1Password "Restic Backup Keys" k8s-configs-recovery field
   ```
 
-- [ ] 5.4.4.27 Test restore from restic repo
+- [ ] 5.4.4.31 Test restore from restic repo
   ```bash
-  # Restore a single directory to verify
-  restic -r /mnt/backup/restic-k8s-configs restore latest \
-    --target /tmp/restic-restore-test \
-    --include /Kubernetes/Backups/vault
-  # Verify data integrity
-  ls -la /tmp/restic-restore-test/
-  rm -rf /tmp/restic-restore-test
+  ./scripts/backup/homelab-backup.sh restore
+  # Restore a single directory (e.g., vault/) to /tmp and verify data integrity
   ```
 
-- [ ] 5.4.4.28 Configure rclone OneDrive sync (optional, on Aurora)
+- [ ] 5.4.4.32 Clean up stale `/Kubernetes/vault-snapshots/` on NAS
+  Empty directory, superseded by `/Kubernetes/Backups/vault/`.
   ```bash
-  rclone config  # Set up OneDrive remote
-  # Test sync
-  rclone sync /mnt/backup/restic-k8s-configs onedrive:k8s-backups/configs --dry-run
-  # Enable in config
-  sed -i 's/RCLONE_SYNC_ENABLED=false/RCLONE_SYNC_ENABLED=true/' ~/.config/homelab-backup/config
+  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes /tmp/nfs && \
+    sudo rmdir /tmp/nfs/vault-snapshots && sudo umount /tmp/nfs"
   ```
 
 #### Recovery Procedures
@@ -1021,24 +1364,20 @@ Does not re-encrypt existing data blobs (restic limitation).
 3. If Longhorn snapshot is also bad - `restic restore` from off-site repo
 
 **Scenario 2: NAS failure** (single drive dies, all NFS data lost)
-1. Get restic repo from OneDrive folder (or local copy)
+1. Get restic repo from OneDrive sync folder (or staging copy on WSL2 2TB NVMe)
 2. Mount new/repaired NAS storage
 3. `restic restore --target /mnt/nas/Kubernetes/Backups latest`
 4. Longhorn volumes are independent (on NVMe) - still intact
 5. Reconfigure Longhorn backup target to new NAS
 
 **Scenario 3: Full cluster rebuild** (all 3 nodes lost)
-1. Get restic repo from OneDrive
+1. Get restic repo from OneDrive (synced on work laptop)
 2. Retrieve restic password from 1Password (recovery key if Vault is gone)
 3. Restore etcd snapshot -> rebuild cluster from etcd
 4. Restore Vault snapshot -> unseal Vault (keys from 1Password)
 5. Restore DB dumps -> restore databases
 6. Apply manifests from git repo (GitLab/GitHub)
 7. Restore Longhorn backups -> restore PVC data
-
-**Scenario 4: Immich photo recovery**
-1. `restic restore --target /mnt/nas/Kubernetes/Immich latest`
-2. Or: `restic mount /mnt/restic-browse` for selective file recovery
 
 > **Key dependency:** Every scenario is recoverable using only OneDrive + 1Password.
 > No cluster access required.
@@ -1471,7 +1810,7 @@ The `ContainerImageOutdated` alert fires on everything, making it useless.
   scans individually. Reduce to `1` where 3 isn't needed:
   - `invoicetron-db-backup`: 3 → 1 (don't need 3 completed backup pods)
   - `version-check`: 3 → 1
-  - `arr-stall-resolver`: 3 → 1
+  - `arr-stall-resolver`: 3 → 1 (runs 48x/day, 3 completed pods per run creates excessive version-checker noise)
 
 ### 5.4.10.2 Fix Nova CronJob Network Fragility
 
@@ -1567,7 +1906,6 @@ the revert reminder is invisible. Quality stays as "Any" forever.
   | Velero | X.X.X | K8s resource backup and restore |
   | MinIO  | X.X.X | S3-compatible storage for Velero |
   | Restic | X.X.X | Encrypted off-site backup |
-  | rclone | X.X.X | Cloud sync for off-site backup |
   ```
 
 - [ ] 5.4.11.2 Update `docs/context/Security.md` with:
@@ -1577,7 +1915,7 @@ the revert reminder is invisible. Quality stays as "Any" forever.
   - Recovery time documentation
   - Restore drill procedure and schedule (quarterly)
   - Automation hardening decisions (version-checker filtering, Renovate status, CronJob alerting)
-  - Off-site encrypted backup architecture (restic + rclone, two repos, three-layer model)
+  - Off-site encrypted backup architecture (restic on WSL2, OneDrive sync, two-step pull/encrypt)
   - PVC inventory and backup coverage matrix
   - New application backup CronJobs (AdGuard, UptimeKuma, Karakeep, Grafana, ARR, MySpeed)
   - Restic key management (1Password source of truth, Vault operational, recovery keys)
@@ -1598,7 +1936,8 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [ ] LimitRange defaults on application namespaces (deployed BEFORE quotas)
 - [ ] ResourceQuotas on application namespaces (validated against actual usage)
 - [ ] Longhorn backup target configured (NFS)
-- [ ] Longhorn RecurringJobs: daily (30 retention) + weekly (12 retention)
+- [ ] Longhorn RecurringJobs: critical tier (14 daily + 4 weekly) + important tier (7 daily + 2 weekly)
+- [ ] Longhorn volume group assignments applied (critical, important, excluded)
 - [ ] Longhorn backup tested and restore verified
 - [ ] MinIO deployed for Velero S3 backend
 - [ ] Velero installed with Kopia FSB engine
@@ -1618,7 +1957,7 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [ ] All CronJobs have `timeZone: "Asia/Manila"` (2 to fix: version-check, configarr)
 - [ ] CronJob failure alerting deployed (covers all current and future CronJobs)
 - [ ] Stuck Longhorn volume alerting deployed (0 running replicas detection)
-- [ ] Invoicetron backup migrated from Longhorn PVC to NFS
+- [ ] Invoicetron backup migrated from Longhorn PVC to NFS (retention: 14 days)
 - [ ] Ghost MySQL backup CronJob deployed (daily to NFS)
 - [ ] GitLab backup strategy evaluated and implemented
 - [ ] version-checker `ContainerImageOutdated` alert excludes init containers
@@ -1634,13 +1973,18 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [ ] ARR configs backup CronJob deployed (daily config copy to NFS)
 - [ ] MySpeed backup CronJob deployed (daily SQLite copy to NFS)
 - [ ] All new backup CronJobs verified (manual trigger + NFS file check)
+- [ ] Scripts directory reorganized (vault/, ghost/, monitoring/, test/, backup/)
+- [ ] `.gitignore` allowlist updated for moved script paths
+- [ ] Active doc references updated for script path changes
 - [ ] Restic backup keys created in 1Password "Restic Backup Keys" item
-- [ ] Restic Vault paths added to seed-vault-from-1password.sh
-- [ ] `scripts/homelab-backup.sh` created and tested
-- [ ] Restic repos initialized (k8s-configs + k8s-media)
-- [ ] Restic recovery keys added (`restic key add`)
-- [ ] First restic backup completed and restore verified
-- [ ] rclone OneDrive sync configured (on Aurora, when ready)
+- [ ] Restic Vault path added to `scripts/vault/seed-vault-from-1password.sh`
+- [ ] `scripts/backup/homelab-backup.sh` created with all 6 subcommands
+- [ ] `scripts/backup/config.example` versioned, `config` + `.password` gitignored
+- [ ] Restic repo initialized (k8s-configs)
+- [ ] Restic recovery key added (`restic key add`)
+- [ ] First backup completed: pull -> encrypt -> status verified
+- [ ] Restore tested from restic repo
+- [ ] Stale `/Kubernetes/vault-snapshots/` cleaned up on NAS
 - [ ] NFS share widened to 10.10.0.0/16 on OMV (done 2026-03-17)
 
 ---
@@ -1690,11 +2034,12 @@ kubectl-homelab logs -n kube-system -l job-name=etcd-backup-<timestamp>
 **Restic backup fails:**
 ```bash
 # Check restic logs (script prints to stdout)
-# Common causes: NFS mount failed, restic password wrong, repo corrupted
-restic -r /mnt/backup/restic-k8s-configs check
-# If repo is corrupted, rebuild from NAS data:
-restic -r /mnt/backup/restic-k8s-configs-new init
-./scripts/homelab-backup.sh configs  # backs up to new repo
+# Common causes: SSH failed, restic password wrong, repo corrupted, OneDrive not running
+restic -r "<RESTIC_REPO>" --password-file scripts/backup/.password check
+# If repo is corrupted, rebuild:
+# 1. Move old repo aside
+# 2. Run ./scripts/backup/homelab-backup.sh setup (re-initializes)
+# 3. Run ./scripts/backup/homelab-backup.sh pull && ./scripts/backup/homelab-backup.sh encrypt
 ```
 
 **New app backup CronJobs fail:**

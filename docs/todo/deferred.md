@@ -213,3 +213,56 @@ fix applied to kube-vip metrics (port 2112). Both now working.
 | Local node | `toEntities: [host]` |
 | Pods | `toEndpoints` or `toEntities: [cluster]` |
 | External IPs (NAS, LAN) | `toCIDR` (this one is correct) |
+
+---
+
+## Aurora Off-Site Backup (Google Drive)
+
+**Status:** Deferred - waiting for Aurora NFS + rclone setup
+**Priority:** Medium
+**Added:** 2026-03-19 (Phase 5.4 brainstorming)
+
+### Context
+
+The off-site backup script (`scripts/backup/homelab-backup.sh`) is initially WSL2-only.
+Aurora DX (Fedora Atomic Kinoite, 500GB NVMe) can directly NFS-mount the OMV NAS and
+would use Google Drive as the cloud target instead of OneDrive.
+
+### What's needed
+
+- Set up NFS access on Aurora (mount `10.10.30.4:/Kubernetes/Backups`)
+- Install rclone via `brew install rclone` or distrobox
+- Configure rclone Google Drive remote (`rclone config` with OAuth)
+- Add `pull` NFS-direct mode to `homelab-backup.sh` (no SSH hop needed)
+- Add `rclone sync` step after `encrypt` for Google Drive upload
+- Create Aurora-specific `scripts/backup/config` with local paths
+
+### Alternative
+
+Manual: run `pull` + `encrypt` on Aurora, then drag restic repo folder into Google Drive
+via Nautilus/GNOME Files. No rclone needed but not automated.
+
+**When:** After Aurora machine is set up with NFS access and a Google Drive plan is decided.
+
+---
+
+## Restic k8s-media Repository (Immich Photos)
+
+**Status:** Deferred - no Immich data exists yet
+**Priority:** Low
+**Added:** 2026-03-19 (Phase 5.4 brainstorming)
+
+### Context
+
+Phase 5.4 originally planned two restic repos: `k8s-configs` (backup data) and `k8s-media`
+(Immich photos). Since Immich is not deployed and `/Kubernetes/Immich/` is empty (8KB),
+the media repo is deferred.
+
+### What's needed when Immich is deployed
+
+- Create second restic repo with separate password (add to 1Password + Vault)
+- Different retention: `--keep-last 3` + tagged on-demand snapshots
+- Separate prune schedule (300GB+ repo prune is slow, shouldn't block config backups)
+- Add `media` subcommand to `homelab-backup.sh`
+
+**When:** After Immich is deployed and has data worth backing up.
