@@ -32,7 +32,7 @@
   # Resolve any stuck pods before starting resilience work
   ```
 
-- [ ] 5.4.0.3 Fix timezone inconsistency on CronJobs
+- [x] 5.4.0.3 Fix timezone inconsistency on CronJobs
   **Convention:** `Asia/Manila` everywhere — never UTC. 2 of 9 CronJobs violate this:
 
   | CronJob | Current | Fix |
@@ -1595,14 +1595,9 @@ Does not re-encrypt existing data blobs (restic limitation).
 
 #### Tasks
 
-- [ ] 5.4.4.23 Reorganize `scripts/` directory
-  Move existing scripts into subdirectories: `vault/`, `ghost/`, `monitoring/`, `test/`.
-  Update all active doc references (SETUP.md, Architecture.md, Secrets.md, Monitoring.md,
-  Conventions.md). Do NOT update completed/historical docs.
-  **Update `.gitignore` allowlist entries** for moved scripts (e.g.,
-  `!scripts/seed-vault-from-1password.sh` -> `!scripts/vault/seed-vault-from-1password.sh`).
-  The `*secret*` and `*password*` glob patterns will hide the moved files without this.
-  Separate commit from backup script work.
+- [x] 5.4.4.23 Reorganize `scripts/` directory (vault/, ghost/, monitoring/, test/, backup/)
+  Moved 7 scripts via `git mv`. Updated .gitignore allowlist, SETUP.md, Architecture.md,
+  Secrets.md, Monitoring.md, Conventions.md. Empty `scripts/backup/` created for Phase E.
 
 - [ ] 5.4.4.24 Create 1Password item "Restic Backup Keys" in Kubernetes vault
   Fields: `k8s-configs-password`, `k8s-configs-recovery`
@@ -2257,7 +2252,7 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [ ] GitLab HA evaluated (scaled if memory permits, or image pre-pull alternative)
 - [ ] Longhorn `replica-soft-anti-affinity` confirmed `false`
 - [ ] Stopped replica recovery procedure documented
-- [ ] All CronJobs have `timeZone: "Asia/Manila"` (2 to fix: version-check, configarr)
+- [x] All CronJobs have `timeZone: "Asia/Manila"` (fixed: version-check, configarr)
 - [ ] CronJob failure alerting deployed (covers all current and future CronJobs)
 - [ ] Stuck Longhorn volume alerting deployed (0 running replicas detection)
 - [ ] Invoicetron backup migrated from Longhorn PVC to NFS (retention: 3 days)
@@ -2276,9 +2271,9 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [ ] ARR configs backup CronJob deployed (daily config copy to NFS)
 - [ ] MySpeed backup CronJob deployed (daily SQLite copy to NFS)
 - [ ] All new backup CronJobs verified (manual trigger + NFS file check)
-- [ ] Scripts directory reorganized (vault/, ghost/, monitoring/, test/, backup/)
-- [ ] `.gitignore` allowlist updated for moved script paths
-- [ ] Active doc references updated for script path changes
+- [x] Scripts directory reorganized (vault/, ghost/, monitoring/, test/, backup/)
+- [x] `.gitignore` allowlist updated for moved script paths
+- [x] Active doc references updated for script path changes
 - [ ] Restic backup keys created in 1Password "Restic Backup Keys" item
 - [ ] Restic Vault path added to `scripts/vault/seed-vault-from-1password.sh`
 - [ ] `scripts/backup/homelab-backup.sh` created with all 6 subcommands

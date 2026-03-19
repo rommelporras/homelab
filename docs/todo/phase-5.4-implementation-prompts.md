@@ -54,7 +54,7 @@ You are implementing Phase 5.4 (Resilience & Backup) for a Kubernetes homelab. T
 
 ## Phase-Specific Prompts
 
-### Session 1: Phase A - Pre-work & Inventory
+### Session 1: Phase A - Pre-work & Inventory (COMPLETED)
 
 ```
 This session: Phase A (Pre-work & Inventory)
@@ -69,7 +69,7 @@ Tasks:
 These are READ-ONLY audit tasks. Run the commands in the plan, capture the output, and report findings. Do not modify any manifests or cluster state. Compare results against what the plan documents - flag any discrepancies.
 ```
 
-### Session 2: Phase B - Resource Management
+### Session 2: Phase B - Resource Management (COMPLETED)
 
 ```
 This session: Phase B (Resource Management) - STRICT ORDER: limits -> limitrange -> quota
@@ -95,7 +95,7 @@ For Helm-managed workloads (5.4.1.3): cert-manager has no helm/cert-manager/valu
 Wait for my confirmation before applying each of: resource limit changes, LimitRange, ResourceQuota. These affect pod scheduling.
 ```
 
-### Session 3: Phase C - Scripts Reorg + Timezone Fixes
+### Session 3: Phase C - Scripts Reorg + Timezone Fixes (COMPLETED)
 
 ```
 This session: Phase C (Scripts Reorg + Timezone Fixes)
