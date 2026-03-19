@@ -1,7 +1,7 @@
 # Version Check CronJob
 # Weekly Discord digest of Helm chart drift using Nova
 #
-# Schedule: Sunday 00:00 UTC = 08:00 PHT
+# Schedule: Sunday 08:00 PHT (Asia/Manila)
 # Init container: copies Nova binary from official image to shared emptyDir
 # Main container: runs the version-check script with curl + jq
 #
@@ -18,8 +18,8 @@ metadata:
   labels:
     app: version-check
 spec:
-  schedule: "0 0 * * 0"
-  timeZone: "Etc/UTC"
+  schedule: "0 8 * * 0"
+  timeZone: "Asia/Manila"
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid
