@@ -164,7 +164,19 @@ CRITICAL NOTES:
 For each CronJob: create the NFS directory on NAS first (SSH pattern), then create the manifest, then trigger a manual test run and verify the backup file appears.
 ```
 
-### Session 6: Phase D3 - Velero
+### Session 6: Phase D3 - Velero (COMPLETED)
+
+> **Versions upgraded:** Velero v1.15.x -> v1.18.0 (chart 12.0.0), plugin v1.11.1 -> v1.14.0,
+> CLI v1.15.2 -> v1.18.0. v1.15.x charts no longer available in Helm repo.
+>
+> **Implementation notes:**
+> - All resources deployed as declarative manifests in `manifests/velero/` (ArgoCD-ready)
+> - velero-s3-credentials via ExternalSecret with template (not imperative kubectl create)
+> - Schedule via Schedule CRD manifest (not `velero schedule create` CLI)
+> - Garage v2 admin API required python3 for JSON construction (shell escaping corrupted bodies)
+> - Garage /health returns 503 until layout assigned - required startupProbe + publishNotReadyAddresses
+> - ESO webhook CiliumNP fix: port 443->10250 (container port vs service port) + host entity
+> - Test backup: 34 items from portfolio-dev, 0 errors
 
 ```
 This session: Phase D3 (Velero)
@@ -200,7 +212,7 @@ Key Garage details:
 - Post-deploy init MUST run: layout assign + layout apply before any S3 operations work
 
 Velero details:
-- velero-plugin-for-aws:v1.11.1 (compatible with Velero v1.15.x, NOT v1.14.0)
+- velero-plugin-for-aws:v1.14.0 (compatible with Velero v1.18.0)
 - deployNodeAgent: false (Longhorn handles volume backups)
 - checksumAlgorithm: "" in BSL config (AWS SDK v2 CRC32 breaks Garage)
 - --exclude-resources secrets (prevent vault-unseal-keys in Garage)

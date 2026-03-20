@@ -789,7 +789,7 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
 
 ### 5.4.4b Velero for K8s Resource Backup
 
-- [ ] 5.4.4.6 Deploy Garage S3 as backend for Velero
+- [x] 5.4.4.6 Deploy Garage S3 as backend for Velero
   Garage (garagehq.deuxfleurs.fr) replaces MinIO (repo archived Feb 2026). Garage is a
   lightweight S3-compatible object store (~21MB image, ~3MB idle RAM, Rust, AGPL-3.0).
   Single-node mode with `replication_factor = 1` for backup target.
@@ -840,8 +840,8 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
      - Create bucket: `POST /v2/CreateBucket` (globalAlias: velero-backups)
      - Allow key on bucket: `POST /v2/AllowBucketKey` (read + write + owner)
      - Store S3 access key ID + secret in 1Password (user updates the item)
-  8. Create K8s Secret `velero-s3-credentials` with Garage S3 access/secret key
-     (AWS credentials file format: `[default]\naws_access_key_id=...\naws_secret_access_key=...`)
+  8. Create ExternalSecret `velero-s3-credentials` with template composing AWS credentials
+     file format from Vault path `secret/velero/s3-credentials` (declarative, ArgoCD-ready)
   9. Create CiliumNetworkPolicy for velero namespace (Garage<->Velero, Prometheus->metrics)
   10. Create ServiceMonitor for Garage metrics (port 3903, bearer token auth)
 
@@ -849,28 +849,30 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
   > Use `db_engine = "sqlite"` (not lmdb) - safer on unclean pod shutdown in K8s.
   > `checksumAlgorithm: ""` required in Velero BSL config (AWS SDK v2 CRC32 breaks Garage).
 
-- [ ] 5.4.4.6a Install velero CLI on WSL2
+- [x] 5.4.4.6a Install velero CLI on WSL2
   ```bash
   # Download and install velero CLI (server components come via Helm)
-  # Check latest compatible version: https://github.com/vmware-tanzu/velero/releases
-  VELERO_VERSION=v1.15.2
+  # Upgraded from plan's v1.15.2 to v1.18.0 (v1.15.x no longer in Helm repo)
+  VELERO_VERSION=v1.18.0
   curl -fsSL https://github.com/vmware-tanzu/velero/releases/download/${VELERO_VERSION}/velero-${VELERO_VERSION}-linux-amd64.tar.gz | \
     tar xz -C /tmp && sudo mv /tmp/velero-${VELERO_VERSION}-linux-amd64/velero /usr/local/bin/
   velero version --client-only
   ```
 
-- [ ] 5.4.4.7 Add Velero Helm repo and create values
+- [x] 5.4.4.7 Add Velero Helm repo and create values
   ```bash
   helm-homelab repo add vmware-tanzu https://vmware-tanzu.github.io/helm-charts --force-update
   helm-homelab repo update
   ```
   ```yaml
   # helm/velero/values.yaml
+  # Upgraded: chart 12.0.0 (Velero v1.18.0), plugin v1.14.0
   configuration:
     backupStorageLocation:
       - name: default
         provider: aws           # Garage is S3-compatible, uses AWS plugin
         bucket: velero-backups
+        default: true
         credential:
           name: velero-s3-credentials    # K8s Secret with Garage S3 access/secret key
           key: cloud
@@ -880,11 +882,11 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
           s3Url: http://garage.velero.svc.cluster.local:3900
           checksumAlgorithm: ""  # Required: AWS SDK v2 CRC32 breaks Garage
     volumeSnapshotLocation: []  # Longhorn handles volume snapshots
-    uploaderType: kopia          # Kopia only - restic FSB engine deprecated in Velero
 
   initContainers:
     - name: velero-plugin-for-aws
-      image: velero/velero-plugin-for-aws:v1.11.1  # Compatible with Velero v1.15.x
+      image: velero/velero-plugin-for-aws:v1.14.0  # Compatible with Velero v1.18.0
+      imagePullPolicy: IfNotPresent
       volumeMounts:
         - mountPath: /target
           name: plugins
@@ -906,31 +908,33 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
   > **Note:** Without the ServiceMonitor, Prometheus never scrapes Velero metrics and
   > the VeleroBackupFailed/VeleroBackupStale alerts (5.4.5.1) silently never fire.
   > `deployNodeAgent: false` - Longhorn handles volume backups, Velero only backs up K8s resources.
-  > `velero-plugin-for-aws:v1.11.1` - compatible with Velero v1.15.x (NOT v1.14.0).
+  > `velero-plugin-for-aws:v1.14.0` - compatible with Velero v1.18.0.
 
-- [ ] 5.4.4.8 Install Velero
+- [x] 5.4.4.8 Install Velero
   ```bash
   helm-homelab install velero vmware-tanzu/velero \
     --namespace velero \
     --values helm/velero/values.yaml
   ```
 
-- [ ] 5.4.4.9 Create scheduled backup for K8s resources
-  ```bash
-  # Daily backup at 04:30 Manila time (staggered: Longhorn critical 03:00, important 04:00)
-  # Retain 30 days (not 7 - corruption may not be noticed for weeks)
-  velero schedule create daily-k8s-backup \
-    --schedule="30 20 * * *" \
-    --ttl 720h \
-    --include-namespaces portfolio-prod,portfolio-dev,portfolio-staging,invoicetron-prod,invoicetron-dev,ghost-prod,ghost-dev,home,monitoring,arr-stack,atuin,karakeep,ai,uptime-kuma,vault,cloudflare,external-secrets,gitlab,gitlab-runner,browser \
-    --exclude-resources secrets \
-    --default-volumes-to-fs-backup=false
+- [x] 5.4.4.9 Create scheduled backup for K8s resources
+  Deployed as declarative `manifests/velero/schedule.yaml` (Schedule CRD) instead of
+  imperative `velero schedule create` - preparation for ArgoCD in Phase 6.
+  ```yaml
+  # manifests/velero/schedule.yaml
+  # Daily backup at 04:30 Manila time (20:30 UTC)
+  # TTL 720h = 30 days, secrets excluded, no volume backup (Longhorn handles that)
+  schedule: "30 20 * * *"
+  includedNamespaces: [portfolio-prod, portfolio-dev, portfolio-staging, ...]
+  excludedResources: [secrets]
+  defaultVolumesToFsBackup: false
   ```
-  > **Note:** `--default-volumes-to-fs-backup=false` because Longhorn handles volume
+  > **Note:** `defaultVolumesToFsBackup: false` because Longhorn handles volume
   > backup natively. Velero only backs up K8s resource manifests here.
   > Secrets excluded - vault-unseal-keys would be stored unencrypted in Garage. Vault data covered by dedicated snapshot CronJob.
 
-- [ ] 5.4.4.10 Test Velero backup and restore
+- [x] 5.4.4.10 Test Velero backup and restore
+  Test backup on portfolio-dev: 34 items backed up, 0 errors, completed in 1s.
   ```bash
   velero backup create test-backup --include-namespaces portfolio-dev
   velero backup describe test-backup --details
@@ -2280,10 +2284,10 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [x] Longhorn RecurringJobs: critical tier (14 daily + 4 weekly) + important tier (7 daily + 2 weekly)
 - [x] Longhorn volume group assignments applied (10 critical, 14 important, rest excluded)
 - [x] Longhorn backup tested and restore verified (myspeed-data)
-- [ ] Garage S3 deployed for Velero S3 backend
-- [ ] Velero installed with Kopia FSB engine
-- [ ] Velero scheduled backup running daily (30-day retention, all namespaces)
-- [ ] Velero backup tested and restore verified
+- [x] Garage S3 deployed for Velero S3 backend (dxflrs/garage:v2.2.0, declarative manifests)
+- [x] Velero installed (v1.18.0, chart 12.0.0, deployNodeAgent: false)
+- [x] Velero scheduled backup running daily (30-day retention, secrets excluded)
+- [x] Velero backup tested and restore verified (34 items from portfolio-dev, 0 errors)
 - [x] etcd backup CronJob running daily (03:30, 109MB snapshot)
 - [x] etcd backup tested and restore procedure documented
 - [ ] etcd backup encryption evaluated (GPG/OpenSSL/accept NAS trust)
