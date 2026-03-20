@@ -3,6 +3,7 @@
 #
 # Permissions (least privilege):
 #   - pods: get, list, delete (all namespaces) — clean up Failed pods
+#   - jobs.batch: get, list, delete — clean up Failed Jobs (clears CronJobFailed alerts)
 #   - replicas.longhorn.io: get, list, delete — clean up stopped replicas
 #   - volumes.longhorn.io: get, list — check healthy replica count before deletion
 ---
@@ -20,6 +21,10 @@ rules:
   # Task 1: Delete Failed pods
   - apiGroups: [""]
     resources: ["pods"]
+    verbs: ["get", "list", "delete"]
+  # Task 3: Delete Failed Jobs
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
     verbs: ["get", "list", "delete"]
   # Task 2: Get/delete Longhorn replicas, get volumes
   - apiGroups: ["longhorn.io"]

@@ -49,6 +49,8 @@ spec:
             kubernetes.io/hostname: k8s-cp2
           securityContext:
             runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
             seccompProfile:
               type: RuntimeDefault
           containers:
@@ -71,16 +73,18 @@ spec:
                     fi
                   done
                   # Copy non-DB data files (assets, uploads)
+                  # Use cp -r (not -a): ownership preservation fails as non-root on NFS
+                  # Skip lost+found (mode 770, not world-readable) and other unreadable dirs
                   for dir in /data/*/; do
+                    DIRNAME=$(basename "$dir")
+                    [ "$DIRNAME" = "lost+found" ] && continue
                     if [ -d "$dir" ]; then
-                      DIRNAME=$(basename "$dir")
-                      cp -a "$dir" "${BACKUP_DIR}/${DIRNAME}/"
-                      echo "Directory backup: ${DIRNAME}/"
+                      cp -r "$dir" "${BACKUP_DIR}/${DIRNAME}/" && echo "Directory backup: ${DIRNAME}/" || echo "Directory backup skipped (unreadable): ${DIRNAME}/"
                     fi
                   done
-                  echo "Backup created: $BACKUP_DIR ($(du -sh "$BACKUP_DIR" | cut -f1))"
-                  # Prune backups older than 3 days
-                  find /backup -maxdepth 1 -name "karakeep-*" -type d -mtime +3 -exec rm -rf {} +
+                  echo "Backup created: $BACKUP_DIR ($(du -sh "$BACKUP_DIR" 2>/dev/null | cut -f1 || echo "unknown size"))"
+                  # Prune backups older than 3 days (|| true: old root-owned dirs may not be deletable)
+                  find /backup -maxdepth 1 -name "karakeep-*" -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
                   echo "Current backups:"
                   ls -lh /backup/
               securityContext:

@@ -69,7 +69,9 @@ spec:
               - ALL
       containers:
       - name: invoicetron
-        # CI/CD patches this image on deploy. Keep in sync with latest prod tag.
+        # CI/CD patches this image on deploy via `kubectl set image`.
+        # WARNING: Do not apply this manifest directly - dev and prod use different
+        # image paths (invoicetron/dev vs invoicetron/prod). CI handles this per-env.
         image: registry.k8s.rommelporras.com/0xwsh/invoicetron/prod:41b280b8
         ports:
         - containerPort: 3000

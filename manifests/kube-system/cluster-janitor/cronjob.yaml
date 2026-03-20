@@ -4,7 +4,8 @@
 # Tasks:
 #   1. Delete Failed pods (UnexpectedAdmissionError, OOMKilled leftovers)
 #   2. Delete stopped Longhorn replicas (only if volume has >=1 healthy replica)
-#   3. Post cleanup summary to Discord #janitor (only when something was cleaned)
+#   3. Delete Failed Jobs older than 1 hour (clears CronJobFailed alerts)
+#   4. Post cleanup summary to Discord #janitor (only when something was cleaned)
 #
 # Safety:
 #   - Never deletes the last replica (data loss prevention)
@@ -99,12 +100,40 @@ spec:
                     echo "[Task 2] No stopped replicas found."
                   fi
 
-                  # Task 3: Post summary to Discord #janitor (only if something was cleaned)
-                  TOTAL=$((FAILED_PODS + STOPPED_REPLICAS))
+                  # Task 3: Delete Failed Jobs older than 1 hour
+                  # CronJobFailed alert fires on kube_job_status_failed > 0.
+                  # The janitor cleans Failed pods but the parent Job stays in Failed state.
+                  # This cleans Jobs that have been Failed for >1h (gives time to inspect logs).
+                  # Uses BusyBox date (no GNU -d relative strings).
+                  echo "[Task 3] Checking for stale Failed jobs..."
+                  FAILED_JOBS=0
+                  NOW_EPOCH=$(date +%s)
+                  ONE_HOUR=3600
+                  FAILED_JOB_LIST=$(kubectl get jobs -A -o jsonpath='{range .items[?(@.status.failed)]}{.metadata.namespace}{" "}{.metadata.name}{" "}{.metadata.creationTimestamp}{"\n"}{end}' 2>/dev/null || echo "")
+                  if [ -n "$FAILED_JOB_LIST" ]; then
+                    while read -r NS JOB_NAME CREATED; do
+                      [ -z "$NS" ] && continue
+                      # BusyBox date -D parses ISO format: 2026-03-20T18:25:00Z
+                      CREATED_EPOCH=$(date -D '%Y-%m-%dT%H:%M:%SZ' -d "$CREATED" +%s 2>/dev/null || echo "0")
+                      AGE=$((NOW_EPOCH - CREATED_EPOCH))
+                      if [ "$AGE" -gt "$ONE_HOUR" ]; then
+                        echo "  Deleting Failed job $NS/$JOB_NAME (age: $((AGE / 60))m)"
+                        kubectl delete job "$JOB_NAME" -n "$NS" || true
+                        FAILED_JOBS=$((FAILED_JOBS + 1))
+                      else
+                        echo "  Keeping $NS/$JOB_NAME (age: $((AGE / 60))m, <1h)"
+                      fi
+                    done <<< "$FAILED_JOB_LIST"
+                  else
+                    echo "[Task 3] No Failed jobs found."
+                  fi
+
+                  # Task 4: Post summary to Discord #janitor (only if something was cleaned)
+                  TOTAL=$((FAILED_PODS + STOPPED_REPLICAS + FAILED_JOBS))
                   if [ "$TOTAL" -gt 0 ] && [ -f /etc/janitor/webhook-url ]; then
                     WEBHOOK_URL=$(cat /etc/janitor/webhook-url)
-                    SUMMARY="Cluster Janitor cleaned ${FAILED_PODS} failed pod(s), ${STOPPED_REPLICAS} stopped replica(s)"
-                    echo "[Task 3] Posting to Discord: $SUMMARY"
+                    SUMMARY="Cluster Janitor cleaned ${FAILED_PODS} failed pod(s), ${STOPPED_REPLICAS} stopped replica(s), ${FAILED_JOBS} failed job(s)"
+                    echo "[Task 4] Posting to Discord: $SUMMARY"
                     curl -sf -H "Content-Type: application/json" \
                       -d "{\"content\":\"**$SUMMARY** at $(date +%I:%M%p) PHT\"}" \
                       "$WEBHOOK_URL" || echo "  Warning: Discord notification failed"

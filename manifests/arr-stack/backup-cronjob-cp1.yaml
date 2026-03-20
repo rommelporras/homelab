@@ -44,6 +44,8 @@ spec:
             kubernetes.io/hostname: k8s-cp1
           securityContext:
             runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
             seccompProfile:
               type: RuntimeDefault
           containers:
