@@ -69,8 +69,8 @@ spec:
               - ALL
       containers:
       - name: invoicetron
-        # Placeholder image - CI/CD will patch this with actual image
-        image: registry.k8s.rommelporras.com/0xwsh/invoicetron:latest
+        # CI/CD patches this image on deploy. Keep in sync with latest prod tag.
+        image: registry.k8s.rommelporras.com/0xwsh/invoicetron/prod:41b280b8
         ports:
         - containerPort: 3000
           name: http
