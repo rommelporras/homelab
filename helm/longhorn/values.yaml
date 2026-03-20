@@ -90,6 +90,12 @@ defaultSettings:
   # GUARANTEED REPLICA MANAGER CPU
   guaranteedReplicaManagerCPU: 12
 
+# Default Backup Store
+# Configures where Longhorn sends volume backups (v1.10+ replaces the old backup-target setting)
+# NFS target on OMV NAS - short-term staging before off-site pull
+defaultBackupStore:
+  backupTarget: "nfs://10.10.30.4:/Kubernetes/Backups/longhorn"
+
 # Persistence Settings
 # Controls the default StorageClass behavior
 persistence:

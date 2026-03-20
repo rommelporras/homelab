@@ -1,0 +1,28 @@
+# Longhorn RecurringJobs - Critical Tier
+# Prod databases, git repos, secrets - longer retention
+# NOTE: Longhorn RecurringJob has no timeZone field - cron is always UTC
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: daily-backup-critical
+  namespace: longhorn-system
+spec:
+  cron: "0 19 * * *"       # 03:00 Manila (UTC+8) = 19:00 UTC
+  task: backup
+  retain: 14
+  concurrency: 2
+  groups:
+    - critical
+---
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: weekly-backup-critical
+  namespace: longhorn-system
+spec:
+  cron: "0 21 * * 6"       # Sunday 05:00 Manila = Saturday 21:00 UTC
+  task: backup
+  retain: 4
+  concurrency: 2
+  groups:
+    - critical

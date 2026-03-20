@@ -56,7 +56,9 @@ spec:
               command: ["/bin/bash", "-c"]
               args:
                 - |
-                  export TZ=Asia/Manila
+                  # TZ=Asia/Manila doesn't work - alpine/k8s has no tzdata
+                  # POSIX TZ convention: UTC-8 means UTC+8 hours (Manila/PHT)
+                  export TZ=UTC-8
                   echo "=== Cluster Janitor $(date +%Y-%m-%dT%H:%M:%S%z) ==="
                   FAILED_PODS=0
                   STOPPED_REPLICAS=0

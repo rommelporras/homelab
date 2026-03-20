@@ -1,0 +1,28 @@
+# Longhorn RecurringJobs - Important Tier
+# App configs, monitoring, home services - shorter retention
+# NOTE: Longhorn RecurringJob has no timeZone field - cron is always UTC
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: daily-backup-important
+  namespace: longhorn-system
+spec:
+  cron: "0 20 * * *"       # 04:00 Manila (UTC+8) = 20:00 UTC
+  task: backup
+  retain: 7
+  concurrency: 2
+  groups:
+    - important
+---
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: weekly-backup-important
+  namespace: longhorn-system
+spec:
+  cron: "0 22 * * 6"       # Sunday 06:00 Manila = Saturday 22:00 UTC
+  task: backup
+  retain: 2
+  concurrency: 2
+  groups:
+    - important
