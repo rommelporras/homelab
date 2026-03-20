@@ -91,17 +91,17 @@ All K8s NFS storage uses a **single export** (`/export/Kubernetes`) with **one s
 | `Media/` | `/Kubernetes/Media` | `arr-data-nfs` | `arr-stack` | Deployed |
 | `Backups/atuin/` | `/Kubernetes/Backups/atuin` | inline NFS volume | `atuin` | Deployed (v0.28.1) |
 | `Backups/vault/` | `/Kubernetes/Backups/vault` | `vault-snapshots-nfs` | `vault` | Deployed (v0.29.0) |
-| `Backups/pki/` | `/Kubernetes/Backups/pki` | inline NFS volume | `kube-system` | Phase 5.4 |
-| `Backups/longhorn/` | `/Kubernetes/Backups/longhorn` | Longhorn backup target | `longhorn-system` | Phase 5.4 |
-| `Backups/etcd/` | `/Kubernetes/Backups/etcd` | inline NFS volume | `kube-system` | Phase 5.4 |
-| `Backups/adguard/` | `/Kubernetes/Backups/adguard` | inline NFS volume | `adguard` | Phase 5.4 |
-| `Backups/uptime-kuma/` | `/Kubernetes/Backups/uptime-kuma` | inline NFS volume | `monitoring` | Phase 5.4 |
-| `Backups/grafana/` | `/Kubernetes/Backups/grafana` | inline NFS volume | `monitoring` | Phase 5.4 |
-| `Backups/karakeep/` | `/Kubernetes/Backups/karakeep` | inline NFS volume | `karakeep` | Phase 5.4 |
-| `Backups/myspeed/` | `/Kubernetes/Backups/myspeed` | inline NFS volume | `myspeed` | Phase 5.4 |
-| `Backups/arr/` | `/Kubernetes/Backups/arr` | inline NFS volume | `arr-stack` | Phase 5.4 |
-| `Backups/invoicetron/` | `/Kubernetes/Backups/invoicetron` | inline NFS volume | `invoicetron` | Phase 5.4 |
-| `Backups/ghost-mysql/` | `/Kubernetes/Backups/ghost-mysql` | inline NFS volume | `ghost` | Phase 5.4 |
+| `Backups/pki/` | `/Kubernetes/Backups/pki` | inline NFS volume | `kube-system` | Deployed |
+| `Backups/longhorn/` | `/Kubernetes/Backups/longhorn` | Longhorn backup target | `longhorn-system` | Deployed |
+| `Backups/etcd/` | `/Kubernetes/Backups/etcd` | inline NFS volume | `kube-system` | Deployed |
+| `Backups/adguard/` | `/Kubernetes/Backups/adguard` | inline NFS volume | `home` | Deployed |
+| `Backups/uptime-kuma/` | `/Kubernetes/Backups/uptime-kuma` | inline NFS volume | `uptime-kuma` | Deployed |
+| `Backups/grafana/` | `/Kubernetes/Backups/grafana` | inline NFS volume | `monitoring` | Deployed |
+| `Backups/karakeep/` | `/Kubernetes/Backups/karakeep` | inline NFS volume | `karakeep` | Deployed |
+| `Backups/myspeed/` | `/Kubernetes/Backups/myspeed` | inline NFS volume | `home` | Deployed |
+| `Backups/arr/` | `/Kubernetes/Backups/arr` | inline NFS volume | `arr-stack` | Deployed |
+| `Backups/invoicetron/` | `/Kubernetes/Backups/invoicetron` | inline NFS volume | `invoicetron-prod` | Deployed |
+| `Backups/ghost-mysql/` | `/Kubernetes/Backups/ghost-mysql` | inline NFS volume | `ghost-prod` | Deployed |
 | `Documents/` | `/Kubernetes/Documents` | TBD | TBD | Future (Nextcloud/Paperless-ngx) |
 
 **NFSv4 path note:** OMV has `/export` with `fsid=0` as the pseudo-root. Filesystem path `/export/Kubernetes/Media` becomes NFSv4 mount path `/Kubernetes/Media`.
@@ -147,6 +147,16 @@ Velero backs up Kubernetes resources (manifests, PV snapshots) to S3-compatible 
 | Scope | K8s resource backups (not application data) |
 
 Garage is a lightweight self-hosted S3-compatible store running in the cluster. Velero uses it as the object store backend for schedule-based resource backups. Application data backups (SQLite dumps, PostgreSQL pg_dump, etcd snapshots) go to NFS under `Backups/` via CronJobs.
+
+### Longhorn RecurringJob Backups
+
+| Tier | Volumes | Daily Retention | Weekly Retention |
+|------|---------|----------------|-----------------|
+| Critical | ghost-content, ghost-mysql, invoicetron-db, gitlab-gitaly, gitlab-postgresql, gitlab-minio, vault, atuin-postgres, karakeep-data, meilisearch-data | 14 | 4 |
+| Important | adguard-data, uptime-kuma, prometheus-grafana, alertmanager, loki, arr-stack configs, myspeed-data, invoicetron-backups | 7 | 2 |
+| Excluded | prometheus-db (50Gi, rebuildable), ollama-models (re-pull), firefox-config (disposable), dev PVCs, redis | - | - |
+
+Backup target: NFS NAS `/Kubernetes/Backups/longhorn/` (configured via Helm `defaultBackupStore.backupTarget`).
 
 ## When to Use What
 
@@ -201,6 +211,7 @@ kubectl-homelab -n longhorn-system get volumes.longhorn.io -w
 
 ## Related
 
-- [[Architecture]] - Why Longhorn on NVMe
+- [[Architecture]] - Why Longhorn on NVMe, three-layer backup strategy
 - [[Cluster]] - Node storage specs
+- [[Security]] - Backup retention, etcd backup security, recovery procedures
 - [[Versions]] - Longhorn version

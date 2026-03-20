@@ -4,6 +4,130 @@
 
 ---
 
+## March 21, 2026 - Resilience & Backup (v0.34.0)
+
+### Summary
+
+Full backup infrastructure, resource management, resilience hardening, and automation improvements.
+Three-layer backup strategy: Longhorn volume snapshots, Velero K8s resource backups, CronJob database
+dumps. Off-site encrypted backup via restic to OneDrive. Resource limits, LimitRange, and ResourceQuota
+on all application namespaces. PodDisruptionBudgets, pod eviction tuning, and automation hardening.
+
+### Resource Management (Phase B)
+
+- Resource limits set on all workload pods (Helm-managed and manifest workloads)
+- LimitRange defaults deployed to all application namespaces (prevents quota rejection)
+- ResourceQuota on 14 namespaces (CPU, memory, PVC, pod count limits)
+- bazarr memory limit increased (256Mi -> 512Mi, OOMKill fix)
+- Node memory overcommit documented (cp1 168%, cp2 99%, cp3 170% on limits; 58-66% actual usage)
+
+### Scripts Reorg (Phase C)
+
+- scripts/ reorganized into subdirectories: backup/, vault/, ghost/, monitoring/, test/
+- .gitignore allowlist updated for new paths
+- Active doc references updated (Architecture.md, Secrets.md, Monitoring.md, Conventions.md)
+- CronJob timezones standardized: version-check (Etc/UTC -> Asia/Manila), configarr (added timeZone)
+
+### Longhorn Volume Backups (Phase D1)
+
+- NFS backup target configured via Helm `defaultBackupStore.backupTarget` -> `/Kubernetes/Backups/longhorn/`
+- RecurringJobs: critical tier (14 daily + 4 weekly), important tier (7 daily + 2 weekly)
+- Volume group assignments: 10 critical, 14 important volumes, rest excluded
+- Backup and restore tested (myspeed-data)
+
+### In-Cluster CronJob Backups (Phase D2)
+
+- 11 new backup CronJobs: Ghost MySQL, AdGuard, UptimeKuma, Karakeep, Grafana, ARR (3 per-node), MySpeed, etcd
+- Invoicetron backup migrated from Longhorn PVC to NFS (3-day retention)
+- GitLab backup strategy evaluated (deferred native backup, covered by Longhorn + Velero)
+- etcd backup CronJob: distroless initContainer + alpine/k8s, daily 03:30, hostNetwork for etcd access
+- SQLite backups use `keinos/sqlite3:3.46.1` (secure: runAsNonRoot, readOnlyRootFilesystem, no internet)
+- All CronJobs verified via manual trigger + NFS file check
+
+### Velero + Garage S3 (Phase D3)
+
+- Garage S3 deployed (dxflrs/garage:v2.2.0) as self-hosted S3 backend (replaces archived MinIO)
+- Velero v1.18.0 (chart 12.0.0) with velero-plugin-for-aws v1.14.0
+- Daily scheduled backup (30-day retention, Secrets excluded)
+- Declarative manifests in manifests/velero/ (namespace, ESO, ConfigMap, StatefulSet, CiliumNP)
+- velero-s3-credentials via ExternalSecret with template (not imperative kubectl)
+- Backup tested on portfolio-dev (34 items, 0 errors)
+
+### Off-Site Backup (Phase E)
+
+- `scripts/backup/homelab-backup.sh` (6 subcommands: setup, pull, encrypt, status, prune, restore)
+- Two-step WSL2 workflow: SSH rsync from NAS -> restic encrypt to OneDrive
+- Restic repo initialized, first backup completed (426MB pull, encrypted snapshot)
+- Recovery key stored separately in 1Password (survives Vault loss)
+- .offsite-manifest.json written to NAS after pull/encrypt for visibility
+
+### Retention Reductions (Phase F)
+
+- Vault snapshot retention: 15 -> 3 days (off-site backup covers history)
+- Atuin backup retention: 28 -> 3 days
+- PKI backup retention: 90 -> 14 days
+
+### Monitoring & Alerting (Phase G)
+
+- 12 new Prometheus alert rules across 3 files (backup-alerts.yaml, pod-alerts.yaml, storage-alerts.yaml)
+- Velero backup failure/partial/missing alerts
+- etcd backup staleness alert (>26h)
+- CronJob failure and not-scheduled alerts
+- Stuck pod alerts (Init, Pending, CrashLoop, ImagePull)
+- ResourceQuota nearing limit alerts (>80%)
+- LonghornVolumeAllReplicasStopped (deduplicated with existing storage-alerts.yaml)
+
+### Resilience Hardening (Phase H)
+
+- 28 deployments got 60s tolerationSeconds for not-ready/unreachable (faster pod rescheduling)
+- 8 new PDBs (21 total): AdGuard, Homepage, Grafana, Prometheus, Portfolio (x3), Vault
+- GitLab HA evaluation: skipped (170%+ memory overcommit, insufficient headroom for 2 replicas)
+- Longhorn replica-soft-anti-affinity confirmed false
+- Node failure recovery times documented in Architecture.md
+- Stuck stopped replica recovery procedure documented in Storage.md
+
+### Automation Hardening (Phase I)
+
+- version-checker: ContainerImageOutdated alert filtered to container_type="container" (excludes init containers)
+- version-check CronJob: switched from alpine+apk to alpine/k8s:1.35.0 (no network dependency)
+- version-check CronJob: CiliumNetworkPolicy added (pre-existing bug from Phase 5.3)
+- version-check CronJob: TZ fixed from Asia/Manila to UTC-8 (alpine/k8s has no tzdata)
+- Renovate Bot suspended (version-checker + Nova sufficient for single-admin homelab)
+- ARR stall resolver: Discord notification added (needs 1P field + vault seed for webhook)
+- Cluster janitor: stuck volumes covered by LonghornVolumeAllReplicasStopped alert
+
+### Bug Fixes
+
+- CiliumNP prometheus-operator-ingress: added remote-node entity (cross-node webhook traffic)
+- Grafana sidecar resources: set per-sidecar (dashboards + datasources), not shared sidecar.resources
+- Loki sidecar CrashLoop: set sidecar.rules.enabled=false (rules sidecar crashes without Ruler)
+- Invoicetron image tag: fixed from placeholder to actual prod SHA
+- ESO webhook CiliumNP: port 443->10250 (container port vs service port) + host entity
+
+### Documentation (Phase J)
+
+- Stale /Kubernetes/vault-snapshots/ removed from NAS (superseded by Backups/vault/)
+- etcd backup encryption: accept NAS trust (same VLAN, off-site copy encrypted, short retention)
+- VERSIONS.md: added velero-plugin-for-aws, keinos/sqlite3, Velero CLI, restic
+- Security.md: backup architecture, retention, recovery procedures, resource quotas, PDBs, automation hardening
+- Architecture.md: three-layer backup strategy, Garage S3 decision, recovery times
+- Storage.md: Longhorn RecurringJob tiers, NFS backup directories status updated to Deployed
+- Secrets.md: Garage S3 and restic 1Password items, Vault KV paths
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| Garage over MinIO | MinIO repo archived Feb 2026. Garage: 21MB image, ~3MB idle RAM, actively maintained |
+| SQLite .backup over raw cp | Raw cp corrupts WAL-mode databases. sqlite3 .backup is atomic |
+| Per-node ARR backup CronJobs | RWO PVCs can't cross nodes. Each CronJob runs on the node hosting its PVC |
+| Secrets excluded from Velero | vault-unseal-keys must not be stored in Garage S3 |
+| etcd backup unencrypted on NAS | Same trusted VLAN, off-site copy encrypted via restic, short 3-day retention |
+| 60s pod eviction for stateless | Faster recovery (7min vs 11min). Databases keep default 300s for consistency |
+| GitLab HA deferred | Memory overcommit too high (170%). Would push nodes past safe limits |
+
+---
+
 ## March 19, 2026 - Loki Storage Fix (v0.33.2)
 
 ### Bug Fixes

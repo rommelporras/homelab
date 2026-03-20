@@ -1,6 +1,6 @@
 ---
-tags: [homelab, kubernetes, security, pss, eso, vault, service-accounts, cis, hardening, network-policies]
-updated: 2026-03-18
+tags: [homelab, kubernetes, security, pss, eso, vault, service-accounts, cis, hardening, network-policies, backup, resilience]
+updated: 2026-03-21
 ---
 
 # Security
@@ -56,7 +56,7 @@ Every namespace has an `enforce` level plus `audit: restricted` and `warn: restr
 | Level | Namespaces |
 |-------|------------|
 | **restricted** | cloudflare |
-| **baseline** | ai, arr-stack, atuin, browser, cert-manager, external-secrets, ghost-dev, ghost-prod, gitlab, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, vault |
+| **baseline** | ai, arr-stack, atuin, browser, cert-manager, external-secrets, ghost-dev, ghost-prod, gitlab, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, vault, velero |
 | **privileged** | gitlab-runner, intel-device-plugins, kube-system, longhorn-system, monitoring, node-feature-discovery, tailscale |
 | **no labels** | cilium-secrets, default, kube-node-lease, kube-public |
 
@@ -340,3 +340,130 @@ Even if RBAC were misconfigured, the PreToolUse hook blocks the Bash command bef
 ### Token Rotation
 
 If `claude-code` token is compromised: delete `claude-code-token` Secret in kube-system (k8s immediately revokes it), create new Secret, rebuild `homelab-claude.yaml`, update 1Password "Kubeconfig" item.
+
+## Resource Management (Phase 5.4)
+
+### LimitRange
+
+All application namespaces have a LimitRange that sets default requests/limits for pods without explicit values. This prevents unbounded resource consumption and ensures the ResourceQuota admission controller accepts all pods.
+
+### ResourceQuota
+
+14 namespaces have ResourceQuota enforcing CPU, memory, PVC, and pod count limits:
+
+| Namespace | Purpose |
+|-----------|---------|
+| ai, arr-stack, atuin, ghost-dev, ghost-prod, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, velero | Prevent resource exhaustion |
+
+System namespaces (kube-system, monitoring, longhorn-system, gitlab) are excluded - their resource needs are variable and operator-managed.
+
+## Backup Architecture (Phase 5.4)
+
+### Three-Layer Strategy
+
+| Layer | Tool | What It Backs Up | Where | Retention |
+|-------|------|-----------------|-------|-----------|
+| Volume snapshots | Longhorn RecurringJobs | All Longhorn PVCs (block-level) | NFS NAS `/Kubernetes/Backups/longhorn/` | Critical: 14 daily + 4 weekly, Important: 7 daily + 2 weekly |
+| K8s resources | Velero + Garage S3 | Namespace manifests, ConfigMaps, CRDs (excludes Secrets) | In-cluster Garage S3 (Longhorn PVC) | 30 days |
+| Database dumps | CronJob (per-app) | SQLite `.backup`, PostgreSQL `pg_dump`, MySQL `mysqldump`, etcd `etcdctl snapshot` | NFS NAS `/Kubernetes/Backups/<app>/` | 3 days (NAS staging) |
+
+**Off-site:** restic on WSL2 pulls all NAS backups via SSH, encrypts with AES-256, stores in OneDrive sync folder. Retention: 7 daily + 4 weekly + 6 monthly.
+
+### Backup Schedule (Asia/Manila)
+
+| Time | CronJob | Target |
+|------|---------|--------|
+| 02:00 | vault-snapshot | Vault Raft snapshot |
+| 02:00 | ghost-mysql-backup | Ghost MySQL |
+| 02:05 | adguard-backup | AdGuard SQLite |
+| 02:10 | uptime-kuma-backup | Uptime Kuma SQLite |
+| 02:15 | karakeep-backup | Karakeep SQLite |
+| 02:20 | grafana-backup | Grafana SQLite |
+| 02:25 | arr-backup-cp1/cp2/cp3 | ARR config SQLite (per-node) |
+| 02:30 | myspeed-backup | MySpeed SQLite |
+| 03:00 | Longhorn daily critical | Block-level volume snapshots |
+| 03:00 | configarr | TRaSH Guide sync (not a backup) |
+| 03:30 | etcd-backup | etcd snapshot |
+| 04:00 | Longhorn daily important | Block-level volume snapshots |
+
+### etcd Backup Security
+
+**Architecture:** etcd backup CronJob runs with `hostNetwork: true` and `hostPID: false` on a control plane node. It uses an initContainer with the distroless etcd image to copy `etcdctl` to a shared emptyDir, then `alpine/k8s` runs the snapshot and copies to NFS.
+
+**Encryption decision:** Accept NAS trust (no additional encryption on NAS). Rationale:
+- NAS is on the same trusted VLAN (30) as cluster nodes - NAS compromise implies network compromise
+- Off-site copy via restic is encrypted (AES-256) - covers the external threat model
+- Adding GPG/OpenSSL to the backup CronJob adds a failure mode (key unavailable = silent backup failure)
+- NAS retention is 3 days - short exposure window
+- Homelab single-admin environment - threat model does not include insider attacks
+
+**Accepted risk:** etcd snapshots on NAS contain the secretbox encryption key and encrypted secret data. A NAS-only compromise (without node access) could extract secrets. Mitigated by VLAN isolation and short retention.
+
+### Grafana Backup - CAP_DAC_READ_SEARCH
+
+The Grafana backup CronJob adds `CAP_DAC_READ_SEARCH` capability. `grafana.db` has mode 660 owned by uid 472 (grafana user). The backup container runs as root with `readOnlyRootFilesystem: true` and all capabilities dropped except `DAC_READ_SEARCH`, which allows reading files without matching UID/GID.
+
+**Accepted risk:** `DAC_READ_SEARCH` allows the container to bypass file permission checks for reading. Scope is limited to the Grafana PVC mount. The container has no network access (CiliumNetworkPolicy restricts to NFS only), `readOnlyRootFilesystem`, and drops all other capabilities.
+
+### Off-Site Backup Workflow
+
+```
+NAS (NFS)                    WSL2                         OneDrive
+Backups/<app>/  ──rsync──>  staging/YYYY-MM-DD/  ──restic──>  Homelab/Backup/
+                  (SSH)       /mnt/c/rcporras/              (synced to cloud)
+                              homelab/backup/
+```
+
+1. `homelab-backup.sh pull` - SSH to cp1, NFS mount, rsync all backups to WSL2 staging
+2. `homelab-backup.sh encrypt` - restic backup staging to OneDrive repo
+3. `.offsite-manifest.json` written to NAS after each step (visibility, not consumed by automation)
+
+**Key management:**
+- Repository password in 1Password "Restic Backup Keys" item, seeded to Vault at `restic/backup-keys`
+- Recovery key stored separately in 1Password (survives Vault loss)
+- Password file at `scripts/backup/.password` (gitignored, caught by `*password*` glob)
+
+### Recovery Procedures
+
+| Scenario | Steps | RTO |
+|----------|-------|-----|
+| Single app corruption | Restore from NAS CronJob dump, or Longhorn snapshot, or restic | Minutes |
+| NAS failure | Restore from restic (OneDrive), Longhorn volumes unaffected | Hours |
+| Single node failure | Pods reschedule (60s stateless, 300s databases), Longhorn rebuilds replicas | ~7-11 min |
+| Full cluster rebuild | restic restore etcd snapshot, rebuild with kubeadm, restore Longhorn volumes | Hours |
+
+**Restore drill:** Quarterly on `portfolio-dev` namespace (manual only, never automated). Delete namespace, restore from Velero, restore PVC from Longhorn, verify.
+
+### Velero Security
+
+| Setting | Value | Reason |
+|---------|-------|--------|
+| `--exclude-resources` | `secrets` | Prevent vault-unseal-keys from being stored in Garage S3 |
+| `deployNodeAgent` | `false` | Longhorn handles volume-level backups |
+| Garage S3 credentials | ExternalSecret from Vault | No imperative `kubectl create secret` |
+| PSS | baseline | Standard app-level security posture |
+
+## PodDisruptionBudgets (Phase 5.4)
+
+21 PDBs across the cluster. Strategy:
+
+| Category | PDB Setting | Rationale |
+|----------|-------------|-----------|
+| Multi-replica (Homepage, Portfolio, cloudflared) | `minAvailable: 1` | At least 1 pod stays up during drain |
+| Single-replica critical (Vault, Grafana, Prometheus, AdGuard) | `maxUnavailable: 1` | Allows drain to proceed (0 would block forever) |
+| Helm-managed (GitLab, Longhorn) | Chart defaults | 7 GitLab + 5 Longhorn PDBs from Helm |
+
+## Automation Hardening (Phase 5.4)
+
+### version-checker
+
+- Container image tag filter excludes init containers (Velero plugin init, etcd backup init) to reduce false-positive alerts
+- `ContainerImageOutdated` alert filtered to `container_type="container"` only
+
+### Renovate
+
+Suspended (GitHub App). Decision: version-checker + Nova covers drift detection. Renovate PRs add noise without value in a single-admin homelab where upgrades are intentional.
+
+### CronJob Monitoring
+
+All CronJobs monitored by `KubeCronJobNotScheduled` and `KubeJobFailed` Prometheus alerts. Backup-specific: `VeleroBackupFailure`, `EtcdBackupStale`, `LonghornVolumeAllReplicasStopped`.

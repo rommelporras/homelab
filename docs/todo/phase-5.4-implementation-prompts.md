@@ -329,7 +329,15 @@ For PDBs (5.4.9): use maxUnavailable: 1 for single-replica services (NOT 0 - tha
 For drain test (5.4.9.3): use --dry-run=client ONLY. Do not actually drain a node.
 ```
 
-### Session 10: Phase J - Documentation + Cleanup
+### Session 10: Phase J - Documentation + Cleanup (DONE)
+
+> Completed 2026-03-21. Stale vault-snapshots removed from NAS. etcd backup encryption
+> decision: accept NAS trust (same VLAN, off-site encrypted, short retention). VERSIONS.md
+> updated (velero-plugin-for-aws, keinos/sqlite3, Velero CLI, restic). Security.md updated
+> (backup architecture, retention, recovery, resource quotas, PDBs, automation). Architecture.md
+> updated (three-layer backup, Garage S3 decision). Storage.md updated (NFS directories Deployed,
+> Longhorn RecurringJob tiers, namespace fixes). Secrets.md updated (Garage S3, restic paths).
+> CHANGELOG.md updated with full Phase 5.4 summary.
 
 ```
 This session: Phase J (Cleanup + Documentation)

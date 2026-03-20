@@ -1,6 +1,6 @@
 ---
-tags: [homelab, kubernetes, architecture, decisions]
-updated: 2026-03-12
+tags: [homelab, kubernetes, architecture, decisions, backup]
+updated: 2026-03-21
 ---
 
 # Architecture
@@ -142,9 +142,31 @@ Expected recovery timeline when a node goes down (e.g., reboot, hardware failure
 
 Stateless services (Ghost, Portfolio, Homepage, ARR apps, etc.) use 60s tolerationSeconds for faster rescheduling. Databases (PostgreSQL, MySQL, Redis), Vault, and StatefulSets keep the default 300s to preserve data consistency.
 
+## Why Three-Layer Backup
+
+| Approach | Problem |
+|----------|---------|
+| Longhorn snapshots only | Corrupted data gets replicated - no logical backup |
+| Database dumps only | No namespace/manifest state recovery |
+| Velero only | No application data (Secrets excluded, volumes handled by Longhorn) |
+| **All three** | **Defense in depth: volume, resource, and logical backups** |
+
+Longhorn handles block-level volume snapshots to NFS. Velero handles K8s resource manifests to Garage S3. CronJobs handle application-level dumps (SQLite, PostgreSQL, MySQL, etcd) to NFS. Off-site: restic encrypts and syncs NAS backups to OneDrive.
+
+## Why Garage S3 (Not MinIO)
+
+| Approach | Problem |
+|----------|---------|
+| MinIO | Repository archived Feb 2026 |
+| External S3 (AWS/Backblaze) | Adds external dependency, cost, latency |
+| **Garage** | **21MB image, ~3MB idle RAM, S3-compatible, actively maintained** |
+
+Garage runs as a single-replica StatefulSet in the velero namespace. Velero uses it as the S3 backend for daily resource backups.
+
 ## Related
 
 - [[Cluster]] - Current nodes
-- [[Storage]] - Longhorn details
+- [[Storage]] - Longhorn details, NFS backup directories
 - [[Networking]] - kube-vip, Gateway
 - [[Secrets]] - Vault KV paths, ESO ExternalSecrets, 1Password items
+- [[Security]] - Backup architecture, retention, recovery procedures

@@ -1054,19 +1054,11 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
   # 5. Verify cluster state: kubectl get nodes, kubectl get pods -A
   ```
 
-- [ ] 5.4.4.14 Encrypt etcd backup before writing to NFS
-  **Problem:** After Phase 5.2 enables etcd encryption at rest, etcd snapshots contain
-  the encryption key AND encrypted data. If the NAS is compromised, the attacker has both.
-
-  **Options:**
-  | Option | Pros | Cons |
-  |--------|------|------|
-  | GPG encryption with passphrase from Vault | Strong, standard | Requires GPG in container |
-  | OpenSSL AES-256-CBC | No extra tooling | Key management needed |
-  | Skip (accept NAS trust) | Simple | NAS compromise = full secret exposure |
-
-  > **Decision needed:** Evaluate whether the NAS is trusted enough. If it's on a separate
-  > VLAN with restricted access, the risk may be acceptable for a homelab.
+- [x] 5.4.4.14 Encrypt etcd backup before writing to NFS
+  **Decision: Accept NAS trust (no additional encryption).** NAS is on same trusted VLAN as
+  cluster nodes. Off-site copy via restic is encrypted (AES-256). Adding encryption to the
+  CronJob adds a failure mode. 3-day NAS retention limits exposure window. Documented in
+  Security.md.
 
 ### 5.4.4d Restore Drill Procedure
 
@@ -1662,12 +1654,8 @@ Does not re-encrypt existing data blobs (restic limitation).
 
 - [x] 5.4.4.31 Test restore from restic repo (vault/ restored, md5 checksum matches original)
 
-- [ ] 5.4.4.32 Clean up stale `/Kubernetes/vault-snapshots/` on NAS
-  Empty directory, superseded by `/Kubernetes/Backups/vault/`.
-  ```bash
-  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes /tmp/nfs && \
-    sudo rmdir /tmp/nfs/vault-snapshots && sudo umount /tmp/nfs"
-  ```
+- [x] 5.4.4.32 Clean up stale `/Kubernetes/vault-snapshots/` on NAS
+  Empty directory removed via `rmdir`. Superseded by `/Kubernetes/Backups/vault/`.
 
 #### Recovery Procedures
 
@@ -2224,14 +2212,14 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 
 ## 5.4.11 Documentation
 
-- [ ] 5.4.11.1 Update VERSIONS.md
+- [x] 5.4.11.1 Update VERSIONS.md
   ```
   | Velero | X.X.X | K8s resource backup and restore |
   | Garage | v2.2.0 | S3-compatible storage for Velero (replaces MinIO, archived Feb 2026) |
   | Restic | X.X.X | Encrypted off-site backup |
   ```
 
-- [ ] 5.4.11.2 Update `docs/context/Security.md` with:
+- [x] 5.4.11.2 Update `docs/context/Security.md` with:
   - Resource quota strategy and namespace coverage
   - Backup architecture (3-layer: Longhorn, Velero, etcd)
   - Backup schedule, retention policy, and storage locations
@@ -2247,7 +2235,7 @@ the revert reminder is invisible. Quality stays as "Any" forever.
   - `docs/context/Storage.md` (Longhorn backup target, NFS backup directories)
   - `docs/context/Secrets.md` (Restic Backup Keys 1Password item, Vault paths)
 
-- [ ] 5.4.11.3 Update `docs/reference/CHANGELOG.md`
+- [x] 5.4.11.3 Update `docs/reference/CHANGELOG.md`
 
 ---
 
@@ -2271,27 +2259,27 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [x] Velero backup tested and restore verified (34 items from portfolio-dev, 0 errors)
 - [x] etcd backup CronJob running daily (03:30, 109MB snapshot)
 - [x] etcd backup tested and restore procedure documented
-- [ ] etcd backup encryption evaluated (GPG/OpenSSL/accept NAS trust)
+- [x] etcd backup encryption evaluated (accept NAS trust - same VLAN, off-site encrypted, 3-day retention)
 - [ ] Restore drill completed on non-prod namespace
-- [ ] Backup health alerts in Prometheus (Velero, Longhorn, etcd, quota)
-- [ ] Stuck pod alerts deployed (Init, Pending, CrashLoop, ImagePull)
-- [ ] Pod eviction timing tuned (60s stateless, 300s databases)
-- [ ] PodDisruptionBudgets on services without existing PDBs
-- [ ] GitLab HA evaluated (scaled if memory permits, or image pre-pull alternative)
-- [ ] Longhorn `replica-soft-anti-affinity` confirmed `false`
-- [ ] Stopped replica recovery procedure documented
+- [x] Backup health alerts in Prometheus (Velero, Longhorn, etcd, quota)
+- [x] Stuck pod alerts deployed (Init, Pending, CrashLoop, ImagePull)
+- [x] Pod eviction timing tuned (60s stateless, 300s databases)
+- [x] PodDisruptionBudgets on services without existing PDBs (21 total: 8 new + 13 existing)
+- [x] GitLab HA evaluated (deferred - 170%+ memory overcommit, insufficient headroom)
+- [x] Longhorn `replica-soft-anti-affinity` confirmed `false`
+- [x] Stopped replica recovery procedure documented (Storage.md)
 - [x] All CronJobs have `timeZone: "Asia/Manila"` (fixed: version-check, configarr)
-- [ ] CronJob failure alerting deployed (covers all current and future CronJobs)
-- [ ] Stuck Longhorn volume alerting deployed (0 running replicas detection)
+- [x] CronJob failure alerting deployed (covers all current and future CronJobs)
+- [x] Stuck Longhorn volume alerting deployed (0 running replicas detection)
 - [x] Invoicetron backup migrated from Longhorn PVC to NFS (retention: 3 days)
 - [x] Ghost MySQL backup CronJob deployed (daily to NFS, 02:00)
 - [x] GitLab backup strategy evaluated (deferred native backup, covered by Longhorn + Velero)
-- [ ] version-checker `ContainerImageOutdated` alert excludes init containers
-- [ ] Nova CronJob no longer depends on `apk add` for curl
-- [ ] Renovate decision made (activated, suspended, or deferred to Phase 6)
-- [ ] ARR Stall Resolver sends Discord notification on profile switches
-- [ ] CronJob `successfulJobsHistoryLimit` reduced to 1 where appropriate
-- [ ] PVC inventory documented with backup coverage matrix
+- [x] version-checker `ContainerImageOutdated` alert excludes init containers
+- [x] Nova CronJob no longer depends on `apk add` for curl (switched to alpine/k8s:1.35.0)
+- [x] Renovate decision made (suspended - version-checker + Nova sufficient)
+- [x] ARR Stall Resolver sends Discord notification on profile switches (needs 1P field + vault seed)
+- [x] CronJob `successfulJobsHistoryLimit` reduced to 1 where appropriate
+- [x] PVC inventory documented with backup coverage matrix
 - [x] AdGuard backup CronJob deployed (daily SQLite .backup to NFS, 02:05)
 - [x] UptimeKuma backup CronJob deployed (daily SQLite .backup to NFS, 02:10)
 - [x] Karakeep backup CronJob deployed (daily data copy to NFS, 02:15)
@@ -2311,11 +2299,11 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [x] Restic recovery key added (stored in 1Password k8s-configs-recovery)
 - [x] First backup completed: pull (426MB) -> encrypt (snapshot d09b2244) -> status verified
 - [x] Restore tested from restic repo (vault/ md5 checksum match)
-- [ ] Stale `/Kubernetes/vault-snapshots/` cleaned up on NAS
-- [ ] NFS share widened to 10.10.0.0/16 on OMV (done 2026-03-17)
-- [ ] Vault snapshot NAS retention reduced (15 -> 3 days) after restic pull
-- [ ] Atuin backup NAS retention reduced (28 -> 3 days) after restic pull
-- [ ] PKI backup NAS retention reduced (90 -> 14 days) after restic pull
+- [x] Stale `/Kubernetes/vault-snapshots/` cleaned up on NAS (rmdir, empty directory)
+- [x] NFS share widened to 10.10.0.0/16 on OMV (done 2026-03-17)
+- [x] Vault snapshot NAS retention reduced (15 -> 3 days) after restic pull
+- [x] Atuin backup NAS retention reduced (28 -> 3 days) after restic pull
+- [x] PKI backup NAS retention reduced (90 -> 14 days) after restic pull
 - [x] Off-site manifest (.offsite-manifest.json) created on NAS after first pull
 
 ---

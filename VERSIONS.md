@@ -154,7 +154,9 @@ helm-homelab repo update
 | External Secrets Operator | v2.1.0 | Running | Syncs K8s Secrets from Vault via ExternalSecret CRDs |
 | Vault Snapshot CronJob | 1.21.2 | Running | Daily Raft backup to NFS NAS (02:00 PHT, 3-day retention) |
 | Velero | v1.18.0 | Running | Cluster backup + restore (Helm chart, velero namespace) |
+| velero-plugin-for-aws | v1.14.0 | Running | S3-compatible storage plugin for Velero |
 | Garage S3 | v2.2.0 (dxflrs/garage) | Running | Self-hosted S3-compatible object store for Velero backend (velero namespace) |
+| keinos/sqlite3 | 3.46.1 | Running | SQLite backup image for CronJobs (AdGuard, UptimeKuma, Karakeep, Grafana, ARR, MySpeed) |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -321,3 +323,14 @@ helm-homelab repo update
 | Renovate Bot | GitHub App | Suspended | Automated image update PRs |
 
 > **Note:** For detailed change history with decisions and rationale, see [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md).
+
+---
+
+## Backup Tools (Phase 5.4)
+
+> **Status:** Deployed. Three-layer backup strategy: Longhorn volume snapshots, Velero K8s resources, CronJob database dumps.
+
+| Component | Version | Location | Purpose |
+|-----------|---------|----------|---------|
+| Velero CLI | v1.18.0 | WSL2 | Velero backup management from workstation |
+| restic | 0.16.4 | WSL2 | Encrypted off-site backup to OneDrive (pull from NAS, encrypt, sync) |
