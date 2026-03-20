@@ -113,7 +113,7 @@ For the scripts reorg: the plan lists the exact directory structure and which fi
 Tell me all files changed when done so I can commit in two batches: scripts reorg first, then timezone fixes.
 ```
 
-### Session 4: Phase D1 - Longhorn Volume Backups
+### Session 4: Phase D1 - Longhorn Volume Backups (COMPLETED)
 
 ```
 This session: Phase D1 (Longhorn Volume Backups)

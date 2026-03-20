@@ -480,20 +480,20 @@ Phase K ─── Restore Drill (MANUAL ONLY - DO NOT AUTOMATE)
 
 ### 5.4.4a Longhorn Volume Backups
 
-- [ ] 5.4.4.1 Create NFS backup target directory on NAS
+- [x] 5.4.4.1 Create NFS backup target directory on NAS (/Kubernetes/Backups/longhorn)
   ```bash
   ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
     sudo mkdir -p /tmp/nfs/longhorn && sudo umount /tmp/nfs"
   ```
 
-- [ ] 5.4.4.2 Configure Longhorn backup target
+- [x] 5.4.4.2 Configure Longhorn backup target (via Helm defaultBackupStore.backupTarget, not settings CRD - removed in v1.10)
   ```bash
   # Set backup target in Longhorn settings
   kubectl-homelab -n longhorn-system edit settings backup-target
   # Set to: nfs://10.10.30.4:/Kubernetes/Backups/longhorn
   ```
 
-- [ ] 5.4.4.3 Create Longhorn RecurringJobs for automated backups
+- [x] 5.4.4.3 Create Longhorn RecurringJobs for critical tier (14 daily + 4 weekly, 10 volumes labeled)
   Two tiers: critical (prod data, longer retain) and important (app state, shorter retain).
   Volumes are assigned to groups via Longhorn volume labels, not the `default` group.
   See "Longhorn Exclusions" in the Retention Strategy section for volumes to skip.
@@ -527,7 +527,7 @@ Phase K ─── Restore Drill (MANUAL ONLY - DO NOT AUTOMATE)
       - critical
   ```
 
-- [ ] 5.4.4.4 Create Longhorn RecurringJobs for important tier
+- [x] 5.4.4.4 Create Longhorn RecurringJobs for important tier (7 daily + 2 weekly, 14 volumes labeled)
   ```yaml
   # Important tier: app configs, monitoring, home services
   apiVersion: longhorn.io/v1beta2
@@ -565,7 +565,7 @@ Phase K ─── Restore Drill (MANUAL ONLY - DO NOT AUTOMATE)
   | `important` | home/adguard-data, home/myspeed-data, monitoring/prometheus-grafana, uptime-kuma/*, arr-stack/*-config, arr-stack/tdarr-server |
   | (no group) | prometheus-db, loki, alertmanager, ghost-dev/*, invoicetron-dev/*, ollama, browser/firefox-config, atuin-config, invoicetron-backups, gitlab/redis |
 
-- [ ] 5.4.4.5 Test Longhorn backup and restore
+- [x] 5.4.4.5 Test Longhorn backup and restore (myspeed-data: backup 1.3MB, restore verified)
   ```bash
   # Trigger manual backup of a non-critical volume
   # Via Longhorn UI or CLI: create backup of portfolio-prod PVC
@@ -2188,9 +2188,9 @@ the revert reminder is invisible. Quality stays as "Any" forever.
   > alert (5.4.5.4) instead of modifying the janitor. The alert covers this case
   > cluster-wide without per-CronJob logic.
 
-- [ ] 5.4.10.5b Remove redundant `export TZ=Asia/Manila` from janitor script
-  The CronJob already has `timeZone: "Asia/Manila"` — the env var is redundant.
-  (Low priority, cosmetic.)
+- [x] 5.4.10.5b Fix janitor timezone - `TZ=Asia/Manila` replaced with `TZ=UTC-8`
+  `alpine/k8s` has no tzdata installed, so `Asia/Manila` was silently ignored.
+  Discord messages showed UTC time with "PHT" label. Fixed: POSIX `UTC-8` = UTC+8 hours.
 
 ---
 
@@ -2233,10 +2233,10 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [x] Node memory overcommit assessed and documented (cp1 168%, cp2 99%, cp3 170%)
 - [x] LimitRange defaults on application namespaces (deployed BEFORE quotas)
 - [x] ResourceQuotas on application namespaces (validated against actual usage)
-- [ ] Longhorn backup target configured (NFS)
-- [ ] Longhorn RecurringJobs: critical tier (14 daily + 4 weekly) + important tier (7 daily + 2 weekly)
-- [ ] Longhorn volume group assignments applied (critical, important, excluded)
-- [ ] Longhorn backup tested and restore verified
+- [x] Longhorn backup target configured (NFS via Helm defaultBackupStore)
+- [x] Longhorn RecurringJobs: critical tier (14 daily + 4 weekly) + important tier (7 daily + 2 weekly)
+- [x] Longhorn volume group assignments applied (10 critical, 14 important, rest excluded)
+- [x] Longhorn backup tested and restore verified (myspeed-data)
 - [ ] MinIO deployed for Velero S3 backend
 - [ ] Velero installed with Kopia FSB engine
 - [ ] Velero scheduled backup running daily (30-day retention, all namespaces)
