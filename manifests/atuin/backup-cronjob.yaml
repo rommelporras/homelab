@@ -2,7 +2,7 @@
 # Phase 4.30: Weekly pg_dump to NAS via NFS
 #
 # Schedule: 0 2 * * 0 Asia/Manila (Sunday 2 AM Manila time)
-# Retention: 28 days (~4 weekly backups)
+# Retention: 3 days (off-site copy in restic)
 # Backup format: custom (-Fc), includes schema + data, compressed
 #
 # Manual test run:
@@ -57,8 +57,8 @@ spec:
                     --format=c \
                     --file="/backup/atuin-backup-$(date +'%Y-%m-%d').pg_dump" \
                     atuin
-                  echo "Backup complete. Cleaning up old backups (>28 days)..."
-                  find /backup -name '*.pg_dump' -mtime +28 -delete
+                  echo "Backup complete. Cleaning up old backups (>3 days)..."
+                  find /backup -name '*.pg_dump' -mtime +3 -delete
                   echo "Done. Current backups:"
                   ls -lh /backup/
               env:

@@ -1,0 +1,86 @@
+# PrometheusRule for Stuck Pod Alerts
+# Phase 5.4.5.5: Catches pods the cluster-janitor doesn't handle
+# (janitor only cleans Failed pods - these states need human investigation)
+#
+# Metrics sources:
+#   kube_pod_init_container_status_waiting - kube-state-metrics
+#   kube_pod_init_container_status_running - kube-state-metrics
+#   kube_pod_status_phase - kube-state-metrics
+#   kube_pod_container_status_waiting_reason - kube-state-metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: stuck-pod-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: stuck-pods
+      rules:
+        # WARNING: Pod stuck in Init for >30 minutes (e.g., Grafana Init:0/1 stale pod)
+        - alert: PodStuckInInit
+          expr: |
+            sum by (namespace, pod) (
+              kube_pod_init_container_status_waiting{reason="CrashLoopBackOff"} == 1
+              or
+              (kube_pod_init_container_status_running == 1
+               and on(namespace, pod) kube_pod_status_phase{phase="Pending"} == 1)
+            ) > 0
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} stuck in Init for >30m"
+            description: "Init container is not completing. Check events: kubectl describe pod {{ $labels.pod }} -n {{ $labels.namespace }}"
+
+        # WARNING: Pod stuck Pending for >15 minutes (scheduling failure, PVC not bound, etc.)
+        - alert: PodStuckPending
+          expr: |
+            kube_pod_status_phase{phase="Pending"} == 1
+            unless on(namespace, pod) kube_pod_init_container_status_running == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} stuck Pending for >15m"
+            description: "Pod cannot be scheduled. Check events and resource availability."
+            runbook: |
+              1. Describe pod: kubectl-homelab describe pod {{ $labels.pod }} -n {{ $labels.namespace }}
+              2. Check events: kubectl-homelab get events -n {{ $labels.namespace }} --field-selector involvedObject.name={{ $labels.pod }}
+              3. Check node resources: kubectl-homelab top nodes
+              4. Check PVC bindings: kubectl-homelab get pvc -n {{ $labels.namespace }}
+
+        # CRITICAL: CrashLoopBackOff for >1 hour (escalation beyond kube-prometheus-stack's 15m alert)
+        - alert: PodCrashLoopingExtended
+          expr: |
+            max_over_time(kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff"}[5m]) == 1
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} crash-looping for >1h"
+            description: "Container {{ $labels.container }} has been in CrashLoopBackOff for over 1 hour. This will not self-heal - investigate root cause."
+            runbook: |
+              1. Check pod logs: kubectl-homelab logs {{ $labels.pod }} -n {{ $labels.namespace }} -c {{ $labels.container }} --previous
+              2. Describe pod: kubectl-homelab describe pod {{ $labels.pod }} -n {{ $labels.namespace }}
+              3. Check if config/secret changed: kubectl-homelab get events -n {{ $labels.namespace }}
+
+        # WARNING: ImagePullBackOff for >15 minutes
+        - alert: PodImagePullBackOff
+          expr: |
+            kube_pod_container_status_waiting_reason{reason="ImagePullBackOff"} == 1
+            or
+            kube_pod_container_status_waiting_reason{reason="ErrImagePull"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} ImagePullBackOff for >15m"
+            description: "Image pull failing for container {{ $labels.container }}. Check image name, tag, and registry accessibility."
+            runbook: |
+              1. Check pod events: kubectl-homelab describe pod {{ $labels.pod }} -n {{ $labels.namespace }}
+              2. Verify image exists: check registry for the exact tag
+              3. Check network: ensure nodes can reach the container registry

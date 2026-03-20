@@ -41,8 +41,8 @@ spec:
                   cp /etc/kubernetes/admin.conf "$BACKUP_DIR/"
                   echo "PKI backup created: $BACKUP_DIR"
                   ls -la "$BACKUP_DIR/"
-                  # Prune backups older than 90 days
-                  find /backup -name "pki-*" -type d -mtime +90 -exec rm -rf {} +
+                  # Prune backups older than 14 days (off-site copy in restic)
+                  find /backup -name "pki-*" -type d -mtime +14 -exec rm -rf {} +
               resources:
                 requests: { cpu: 50m, memory: 64Mi }
                 limits: { cpu: 100m, memory: 128Mi }

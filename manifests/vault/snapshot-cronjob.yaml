@@ -1,5 +1,5 @@
 # manifests/vault/snapshot-cronjob.yaml
-# Daily Raft snapshot to NFS NAS — 15-day retention
+# Daily Raft snapshot to NFS NAS — 3-day retention (off-site in restic)
 #
 # Schedule: 02:00 Asia/Manila daily
 # Auth: Kubernetes auth via vault-snapshot ServiceAccount + snapshot-policy
@@ -115,9 +115,9 @@ spec:
                   vault operator raft snapshot save "$SNAPSHOT_FILE"
                   echo "  Saved: $SNAPSHOT_FILE ($(du -h "$SNAPSHOT_FILE" | cut -f1))"
 
-                  # Prune snapshots older than 15 days
-                  echo "  Pruning snapshots older than 15 days..."
-                  find /snapshots -name "vault-*.snap" -mtime +15 -delete -print | \
+                  # Prune snapshots older than 3 days (off-site copy in restic)
+                  echo "  Pruning snapshots older than 3 days..."
+                  find /snapshots -name "vault-*.snap" -mtime +3 -delete -print | \
                     while read f; do echo "  Deleted: $f"; done
 
                   # Cleanup token

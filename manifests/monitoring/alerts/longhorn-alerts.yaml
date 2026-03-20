@@ -1,0 +1,44 @@
+# PrometheusRule for Longhorn Volume Health Alerts
+# Phase 5.4.5.4: Stuck volumes that need human intervention
+#
+# Metrics sources (all numeric gauges, no state/robustness labels):
+#   longhorn_volume_robustness - 0=unknown, 1=healthy, 2=degraded, 3=faulted
+#   longhorn_volume_state - 2=attached, 3=detached
+#
+# Note: LonghornVolumeDegraded (robustness==2) and LonghornVolumeReplicaFailed
+# (robustness==3) already exist in storage-alerts.yaml. This file only covers
+# the stuck/unknown case not handled elsewhere.
+#
+# Context: Cluster Janitor skips volumes with 0 running replicas (safety).
+# This alert catches volumes that need human intervention.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: longhorn-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: longhorn.rules
+      rules:
+        # WARNING: Longhorn volume has no running replicas
+        # robustness=0 (unknown) AND state=3 (detached) means all replicas stopped.
+        # Cluster Janitor cannot clean this (safety). Manual intervention needed.
+        - alert: LonghornVolumeAllReplicasStopped
+          expr: |
+            longhorn_volume_robustness == 0
+            and longhorn_volume_state == 3
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Longhorn volume {{ $labels.volume }} has no running replicas"
+            description: "All replicas stopped for PVC {{ $labels.pvc }} in {{ $labels.pvc_namespace }}. Cluster Janitor cannot clean this (safety). Manual intervention needed."
+            runbook: |
+              1. Check volume: kubectl-homelab get volumes.longhorn.io {{ $labels.volume }} -n longhorn-system
+              2. Check if PVC is still in use: kubectl-homelab get pvc -A | grep {{ $labels.pvc }}
+              3. If orphaned: delete PVC and volume via Longhorn UI
+              4. If needed: kubectl-admin delete volume {{ $labels.volume }} -n longhorn-system
