@@ -1,0 +1,15 @@
+# Velero namespace for K8s resource backups and Garage S3 object store
+# Phase 5.4 D3 - Velero + Garage S3
+#
+# PSS: enforce baseline (Garage + Velero run as non-root, no privileged features)
+#      audit + warn restricted (guidance for future hardening)
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: velero
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    eso-enabled: "true"

@@ -1,0 +1,27 @@
+# ServiceMonitor - Garage S3 object store metrics
+# Phase 5.4 D3 - Scrapes Garage metrics in velero namespace
+#
+# Garage exposes metrics on port 3903 at /metrics with bearer token auth
+# Token stored in garage-secrets K8s Secret (key: metrics-token)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: garage
+  namespace: velero
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: garage
+  endpoints:
+    - port: admin
+      interval: 30s
+      path: /metrics
+      authorization:
+        type: Bearer
+        credentials:
+          name: garage-secrets
+          key: metrics-token

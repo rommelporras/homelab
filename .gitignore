@@ -13,7 +13,10 @@ ansible/inventory/*.bak
 # Allow ExternalSecret CRDs (Vault path references, no real values)
 !manifests/**/externalsecret.yaml
 !manifests/**/externalsecret-*.yaml
+!manifests/**/*-externalsecret.yaml
 !manifests/**/clustersecretstore.yaml
+# Allow external-secrets namespace manifests (CiliumNP, not credentials)
+!manifests/external-secrets/
 # Allow external-secrets Helm values (no credentials, just chart config)
 !helm/external-secrets/
 # Allow secret-related scripts (contain op:// refs, not actual values)

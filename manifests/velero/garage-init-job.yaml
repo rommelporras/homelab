@@ -1,0 +1,168 @@
+# Garage S3 initialization Job
+# Phase 5.4 D3 - One-time setup after Garage StatefulSet is running
+#
+# This Job uses python3 for all JSON construction to avoid shell escaping issues.
+# Uses Garage v2 admin API exclusively.
+#
+# Run once after Garage is healthy. Delete the Job after capturing the S3 keys.
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: garage-init
+  namespace: velero
+  labels:
+    app: garage-init
+    app.kubernetes.io/part-of: velero
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 180
+  template:
+    metadata:
+      labels:
+        app: garage-init
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: init
+          image: alpine/k8s:1.35.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: GARAGE_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: garage-secrets
+                  key: admin-token
+            - name: GARAGE_URL
+              value: "http://garage.velero.svc.cluster.local:3903"
+          command:
+            - python3
+            - -c
+            - |
+              import json, os, subprocess, sys, time
+
+              TOKEN = os.environ["GARAGE_ADMIN_TOKEN"]
+              URL = os.environ["GARAGE_URL"]
+
+              def api(method, path, body=None):
+                  cmd = ["curl", "-s", "-w", "\n%{http_code}",
+                         "-H", f"Authorization: Bearer {TOKEN}",
+                         "-H", "Content-Type: application/json",
+                         "-X", method, f"{URL}{path}"]
+                  if body is not None:
+                      cmd += ["-d", json.dumps(body)]
+                  result = subprocess.run(cmd, capture_output=True, text=True)
+                  lines = result.stdout.strip().rsplit("\n", 1)
+                  code = int(lines[-1]) if len(lines) > 1 else 0
+                  resp = lines[0] if len(lines) > 1 else ""
+                  if resp:
+                      try:
+                          return json.loads(resp), code
+                      except json.JSONDecodeError:
+                          return resp, code
+                  return None, code
+
+              print("=== Garage S3 Initialization ===")
+
+              # Wait for Garage admin API
+              print("Waiting for Garage admin API...")
+              for i in range(1, 31):
+                  _, code = api("GET", "/v2/GetClusterStatus")
+                  if code == 200:
+                      print(f"Garage admin API reachable (attempt {i})")
+                      break
+                  print(f"  attempt {i}/30 (HTTP {code})")
+                  time.sleep(2)
+              else:
+                  print("ERROR: Garage not reachable after 60s")
+                  sys.exit(1)
+
+              # Step 1: Get node ID
+              print("\n--- Step 1: Get cluster status ---")
+              status, _ = api("GET", "/v2/GetClusterStatus")
+              node_id = [n["id"] for n in status["nodes"] if n["isUp"]][0]
+              print(f"Node ID: {node_id}")
+
+              # Step 2: Assign layout (10GB SI = 10000000000)
+              print("\n--- Step 2: Assign layout ---")
+              body = {"roles": [{"id": node_id, "zone": "dc1", "capacity": 10000000000, "tags": ["velero"]}]}
+              resp, code = api("POST", "/v2/UpdateClusterLayout", body)
+              print(f"HTTP {code}")
+              if code != 200:
+                  print(f"ERROR: {resp}")
+                  sys.exit(1)
+              print("Layout staged.")
+
+              # Step 3: Apply layout
+              print("\n--- Step 3: Apply layout ---")
+              layout, _ = api("GET", "/v2/GetClusterLayout")
+              version = layout["version"] + 1
+              resp, code = api("POST", "/v2/ApplyClusterLayout", {"version": version})
+              print(f"HTTP {code}")
+              if code != 200:
+                  print(f"ERROR: {resp}")
+                  sys.exit(1)
+              print(f"Layout applied (version {version}).")
+              time.sleep(3)
+
+              # Step 4: Create API key
+              print("\n--- Step 4: Create API key ---")
+              key_resp, code = api("POST", "/v2/CreateKey", {"name": "velero-key"})
+              print(f"HTTP {code}")
+              if code != 200:
+                  print(f"ERROR: {key_resp}")
+                  sys.exit(1)
+              access_key = key_resp["accessKeyId"]
+              secret_key = key_resp["secretAccessKey"]
+              print(f"Key created: {access_key}")
+
+              # Step 5: Create bucket
+              print("\n--- Step 5: Create bucket ---")
+              bucket_resp, code = api("POST", "/v2/CreateBucket", {"globalAlias": "velero-backups"})
+              print(f"HTTP {code}")
+              if code != 200:
+                  print(f"ERROR: {bucket_resp}")
+                  sys.exit(1)
+              bucket_id = bucket_resp["id"]
+              print(f"Bucket created: {bucket_id}")
+
+              # Step 6: Grant permissions
+              print("\n--- Step 6: Grant permissions ---")
+              perm_body = {
+                  "bucketId": bucket_id,
+                  "accessKeyId": access_key,
+                  "permissions": {"read": True, "write": True, "owner": True}
+              }
+              resp, code = api("POST", "/v2/AllowBucketKey", perm_body)
+              print(f"HTTP {code}")
+              if code != 200:
+                  print(f"ERROR: {resp}")
+                  sys.exit(1)
+              print("Permissions granted.")
+
+              # Step 7: Output credentials
+              print("\n=========================================")
+              print("SAVE THESE S3 CREDENTIALS IN 1PASSWORD:")
+              print(f"  Item: Garage S3")
+              print(f"  s3-access-key-id: {access_key}")
+              print(f"  s3-secret-access-key: {secret_key}")
+              print("=========================================")
+              print("\n=== Initialization complete ===")
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL

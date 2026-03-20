@@ -1,0 +1,50 @@
+# Velero Helm values
+# Phase 5.4 D3 - K8s resource backup to Garage S3
+#
+# Chart: vmware-tanzu/velero 12.0.0 (app v1.18.0)
+# Docs: https://github.com/vmware-tanzu/helm-charts/tree/main/charts/velero
+#
+# Design: Velero backs up K8s resource manifests only.
+# Longhorn handles volume snapshots separately.
+# Secrets excluded to prevent vault-unseal-keys in Garage.
+
+configuration:
+  backupStorageLocation:
+    - name: default
+      provider: aws
+      bucket: velero-backups
+      default: true
+      credential:
+        name: velero-s3-credentials
+        key: cloud
+      config:
+        region: garage
+        s3ForcePathStyle: "true"
+        s3Url: http://garage.velero.svc.cluster.local:3900
+        checksumAlgorithm: ""  # Required: AWS SDK v2 CRC32 breaks Garage
+  volumeSnapshotLocation: []   # Longhorn handles volume snapshots
+
+initContainers:
+  - name: velero-plugin-for-aws
+    image: velero/velero-plugin-for-aws:v1.14.0
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+
+deployNodeAgent: false  # Longhorn handles volume backups
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    additionalLabels:
+      release: prometheus

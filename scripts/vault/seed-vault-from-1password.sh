@@ -211,6 +211,18 @@ vault kv put secret/invoicetron/deploy-token \
   username="$(op read 'op://Kubernetes/Invoicetron Deploy Token/username')" \
   password="$(op read 'op://Kubernetes/Invoicetron Deploy Token/password')"
 
+# velero (Garage S3 object store for Velero backups)
+echo "  velero/garage"
+vault kv put secret/velero/garage \
+  rpc-secret="$(op read 'op://Kubernetes/Garage S3/rpc-secret')" \
+  admin-token="$(op read 'op://Kubernetes/Garage S3/admin-token')" \
+  metrics-token="$(op read 'op://Kubernetes/Garage S3/metrics-token')"
+
+echo "  velero/s3-credentials"
+vault kv put secret/velero/s3-credentials \
+  aws_access_key_id="$(op read 'op://Kubernetes/Garage S3/s3-access-key-id')" \
+  aws_secret_access_key="$(op read 'op://Kubernetes/Garage S3/s3-secret-access-key')"
+
 echo ""
 echo "=== Verification ==="
 vault kv list secret/

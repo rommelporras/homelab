@@ -1,0 +1,137 @@
+# Garage S3 StatefulSet and Service
+# Phase 5.4 D3 - Lightweight S3-compatible object store for Velero backups
+#
+# Image: dxflrs/garage:v2.2.0 (~21MB, Rust, AGPL-3.0)
+# Ports: 3900 (S3 API), 3901 (RPC), 3903 (admin + metrics)
+# Storage: Longhorn PVC (single-node, replication_factor=1)
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: garage
+  namespace: velero
+  labels:
+    app: garage
+    app.kubernetes.io/part-of: velero
+spec:
+  replicas: 1
+  serviceName: garage
+  selector:
+    matchLabels:
+      app: garage
+  template:
+    metadata:
+      labels:
+        app: garage
+        app.kubernetes.io/part-of: velero
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: garage
+          image: dxflrs/garage:v2.2.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: s3
+              containerPort: 3900
+              protocol: TCP
+            - name: rpc
+              containerPort: 3901
+              protocol: TCP
+            - name: admin
+              containerPort: 3903
+              protocol: TCP
+          env:
+            - name: GARAGE_RPC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: garage-secrets
+                  key: rpc-secret
+            - name: GARAGE_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: garage-secrets
+                  key: admin-token
+            - name: GARAGE_METRICS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: garage-secrets
+                  key: metrics-token
+          # Startup probe: allows up to 5 minutes for init Job to assign layout
+          # before liveness begins. /health returns 503 until layout is assigned.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: admin
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: admin
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: admin
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: garage-data
+              mountPath: /var/lib/garage
+            - name: config
+              mountPath: /etc/garage.toml
+              subPath: garage.toml
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: garage-config
+  volumeClaimTemplates:
+    - metadata:
+        name: garage-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: garage
+  namespace: velero
+  labels:
+    app: garage
+    app.kubernetes.io/part-of: velero
+spec:
+  type: ClusterIP
+  # Route to pod even when not ready (layout must be assigned before /health returns 200)
+  publishNotReadyAddresses: true
+  selector:
+    app: garage
+  ports:
+    - name: s3
+      port: 3900
+      targetPort: s3
+      protocol: TCP
+    - name: admin
+      port: 3903
+      targetPort: admin
+      protocol: TCP

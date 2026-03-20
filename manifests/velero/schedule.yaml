@@ -1,0 +1,40 @@
+# Velero scheduled backup for K8s resources
+# Phase 5.4 D3 - Daily backup at 04:30 Manila time (20:30 UTC)
+#
+# Backs up K8s resource manifests only (not volumes - Longhorn handles those).
+# Secrets excluded to prevent vault-unseal-keys in Garage.
+# TTL 720h = 30 days retention.
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-k8s-backup
+  namespace: velero
+spec:
+  schedule: "30 20 * * *"
+  template:
+    ttl: 720h
+    includedNamespaces:
+      - portfolio-prod
+      - portfolio-dev
+      - portfolio-staging
+      - invoicetron-prod
+      - invoicetron-dev
+      - ghost-prod
+      - ghost-dev
+      - home
+      - monitoring
+      - arr-stack
+      - atuin
+      - karakeep
+      - ai
+      - uptime-kuma
+      - vault
+      - cloudflare
+      - external-secrets
+      - gitlab
+      - gitlab-runner
+      - browser
+    excludedResources:
+      - secrets
+    defaultVolumesToFsBackup: false

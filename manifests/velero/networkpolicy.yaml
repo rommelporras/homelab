@@ -1,0 +1,192 @@
+# CiliumNetworkPolicy - Velero namespace ingress and egress rules
+# Phase 5.4 D3 - Velero + Garage S3
+#
+# Security model:
+#   - Garage: accepts S3 traffic from Velero, admin/metrics from init Job + Prometheus, probes from kubelet
+#   - Velero: DNS + Garage S3 + K8s API (for backup operations)
+#   - Garage init Job: DNS + Garage admin API
+#
+# CKA topics: CiliumNetworkPolicy, intra-namespace communication, cross-namespace metrics
+---
+# Garage ingress: Velero S3 + Prometheus metrics + kubelet probes + init Job admin API
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: garage-ingress
+  namespace: velero
+  labels:
+    app: garage
+    app.kubernetes.io/part-of: velero
+spec:
+  endpointSelector:
+    matchLabels:
+      app: garage
+
+  ingress:
+    # Velero server -> Garage S3 API (intra-namespace)
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: velero
+      toPorts:
+        - ports:
+            - port: "3900"
+              protocol: TCP
+
+    # Garage init Job -> admin API (intra-namespace)
+    - fromEndpoints:
+        - matchLabels:
+            app: garage-init
+      toPorts:
+        - ports:
+            - port: "3903"
+              protocol: TCP
+
+    # Prometheus metrics scraping (monitoring namespace)
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "3903"
+              protocol: TCP
+
+    # Kubelet health probes (liveness/readiness from host)
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "3903"
+              protocol: TCP
+---
+# Garage egress: DNS only (passive S3 store, no outbound needed)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: garage-egress
+  namespace: velero
+  labels:
+    app: garage
+    app.kubernetes.io/part-of: velero
+spec:
+  endpointSelector:
+    matchLabels:
+      app: garage
+
+  egress:
+    # DNS (required for internal service resolution)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+---
+# Velero server ingress: kubelet probes + Prometheus metrics
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: velero-ingress
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/part-of: velero
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: velero
+
+  ingress:
+    # Kubelet health probes
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "8085"
+              protocol: TCP
+
+    # Prometheus metrics scraping (monitoring namespace)
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8085"
+              protocol: TCP
+---
+# Velero server egress: DNS + Garage S3 + K8s API
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: velero-egress
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/part-of: velero
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: velero
+
+  egress:
+    # DNS
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+
+    # Garage S3 API (intra-namespace)
+    - toEndpoints:
+        - matchLabels:
+            app: garage
+      toPorts:
+        - ports:
+            - port: "3900"
+              protocol: TCP
+
+    # K8s API server (for backup/restore operations)
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+---
+# Garage init Job egress: DNS + Garage admin API
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: garage-init-egress
+  namespace: velero
+  labels:
+    app: garage-init
+    app.kubernetes.io/part-of: velero
+spec:
+  endpointSelector:
+    matchLabels:
+      app: garage-init
+
+  egress:
+    # DNS
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+
+    # Garage admin API (intra-namespace)
+    - toEndpoints:
+        - matchLabels:
+            app: garage
+      toPorts:
+        - ports:
+            - port: "3903"
+              protocol: TCP
