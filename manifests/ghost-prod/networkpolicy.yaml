@@ -159,6 +159,8 @@ spec:
     - fromEndpoints:
         - matchLabels:
             app: ghost
+        - matchLabels:
+            app: ghost-mysql-backup
       toPorts:
         - ports:
             - port: "3306"
@@ -184,4 +186,39 @@ spec:
             - port: "53"
               protocol: UDP
             - port: "53"
+              protocol: TCP
+---
+# Ghost MySQL backup egress: DNS + MySQL + NFS (NAS)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ghost-backup-egress
+  namespace: ghost-prod
+spec:
+  endpointSelector:
+    matchLabels:
+      app: ghost-mysql-backup
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app: ghost-mysql
+      toPorts:
+        - ports:
+            - port: "3306"
+              protocol: TCP
+    - toCIDR:
+        - 10.10.30.4/32
+      toPorts:
+        - ports:
+            - port: "2049"
               protocol: TCP

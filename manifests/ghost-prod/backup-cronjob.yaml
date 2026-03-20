@@ -1,0 +1,97 @@
+# Ghost MySQL Backup CronJob
+# Phase 5.4 D2: Daily mysqldump to NAS via NFS
+#
+# Schedule: Daily 02:00 Manila time (staggered with other backups)
+# Retention: 3 days (deep history in restic off-site)
+# Database: ghost (MySQL 8.4)
+#
+# Manual test run:
+#   kubectl-homelab create job --from=cronjob/ghost-mysql-backup ghost-backup-test -n ghost-prod
+#   kubectl-homelab logs -n ghost-prod job/ghost-backup-test
+#
+# CKA topics: CronJob, NFS volume, Secret envFrom
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ghost-mysql-backup
+  namespace: ghost-prod
+  labels:
+    app: ghost-mysql-backup
+    app.kubernetes.io/part-of: ghost
+spec:
+  schedule: "0 2 * * *"
+  timeZone: "Asia/Manila"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: ghost-mysql-backup
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: mysql:8.4.8
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -eo pipefail
+                  # Write mysql config to avoid password on command line (/proc exposure)
+                  cat > /tmp/.my.cnf <<MYCNF
+                  [mysqldump]
+                  host=ghost-mysql
+                  user=root
+                  password=$MYSQL_ROOT_PASSWORD
+                  MYCNF
+                  BACKUP_FILE="/backup/ghost-$(TZ=Asia/Manila date +%Y%m%d-%H%M%S).sql.gz"
+                  mysqldump --defaults-extra-file=/tmp/.my.cnf \
+                    --single-transaction --routines --triggers ghost \
+                    | gzip > "$BACKUP_FILE"
+                  rm -f /tmp/.my.cnf
+                  if [ ! -s "$BACKUP_FILE" ]; then
+                    echo "ERROR: Backup file is empty" >&2
+                    rm -f "$BACKUP_FILE"
+                    exit 1
+                  fi
+                  echo "Backup created: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
+                  # Prune backups older than 3 days (deep history in restic off-site)
+                  find /backup -name "ghost-*.sql.gz" -mtime +3 -delete
+              env:
+                - name: MYSQL_ROOT_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: ghost-mysql
+                      key: root-password
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { cpu: 200m, memory: 256Mi }
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: backup
+              nfs:
+                server: 10.10.30.4
+                path: /Kubernetes/Backups/ghost
+            - name: tmp
+              emptyDir: {}

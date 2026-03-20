@@ -1,0 +1,97 @@
+# MySpeed Backup CronJob
+# Phase 5.4 D2: Daily SQLite backup to NAS via NFS
+#
+# Schedule: Daily 02:30 Manila time (staggered with other backups)
+# Retention: 3 days (deep history in restic off-site)
+#
+# MySpeed stores speedtest history in SQLite at /myspeed/data/.
+# The PVC is mounted at /myspeed/data in the deployment.
+#
+# IMPORTANT: SQLite backup uses .backup API (NOT raw cp).
+# Raw file copy of live SQLite with WAL mode causes corruption.
+#
+# Manual test run:
+#   kubectl-homelab create job --from=cronjob/myspeed-backup myspeed-backup-test -n home
+#   kubectl-homelab logs -n home job/myspeed-backup-test
+#
+# CKA topics: CronJob, NFS volume, SQLite backup, nodeSelector
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: myspeed-backup
+  namespace: home
+  labels:
+    app: myspeed-backup
+    app.kubernetes.io/part-of: myspeed
+spec:
+  schedule: "30 2 * * *"
+  timeZone: "Asia/Manila"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: myspeed-backup
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          # Must run on same node as myspeed (RWO PVC)
+          nodeSelector:
+            kubernetes.io/hostname: k8s-cp3
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: keinos/sqlite3:3.46.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  export TZ=UTC-8
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  # Find and backup all SQLite DB files
+                  FOUND=0
+                  for db in /data/*.db; do
+                    [ -f "$db" ] || continue
+                    DBNAME=$(basename "$db")
+                    sqlite3 "file:${db}?immutable=1" ".backup /backup/${DBNAME%.db}-${TIMESTAMP}.db"
+                    echo "Backup: ${DBNAME} -> ${DBNAME%.db}-${TIMESTAMP}.db ($(du -h /backup/${DBNAME%.db}-${TIMESTAMP}.db | cut -f1))"
+                    FOUND=1
+                  done
+                  if [ "$FOUND" = "0" ]; then
+                    echo "WARNING: No .db files found in /data/"
+                    ls -la /data/
+                  fi
+                  # Prune backups older than 3 days
+                  find /backup -name "*-*.db" -mtime +3 -delete
+                  echo "Current backups:"
+                  ls -lh /backup/
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: 200m, memory: 128Mi }
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: myspeed-data
+            - name: backup
+              nfs:
+                server: 10.10.30.4
+                path: /Kubernetes/Backups/myspeed

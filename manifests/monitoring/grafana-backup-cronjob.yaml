@@ -1,0 +1,89 @@
+# Grafana Backup CronJob
+# Phase 5.4 D2: Daily SQLite backup to NAS via NFS
+#
+# Schedule: Daily 02:20 Manila time (staggered with other backups)
+# Retention: 3 days (deep history in restic off-site)
+#
+# Grafana stores dashboards, datasources, and settings in
+# /var/lib/grafana/grafana.db (SQLite). PVC: prometheus-grafana.
+#
+# IMPORTANT: SQLite backup uses .backup API (NOT raw cp).
+# Raw file copy of live SQLite with WAL mode causes corruption.
+#
+# Manual test run:
+#   kubectl-homelab create job --from=cronjob/grafana-backup grafana-backup-test -n monitoring
+#   kubectl-homelab logs -n monitoring job/grafana-backup-test
+#
+# CKA topics: CronJob, NFS volume, SQLite backup, nodeSelector
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: grafana-backup
+  namespace: monitoring
+  labels:
+    app: grafana-backup
+    app.kubernetes.io/part-of: grafana
+spec:
+  schedule: "20 2 * * *"
+  timeZone: "Asia/Manila"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: grafana-backup
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          # Must run on same node as Grafana (RWO PVC)
+          nodeSelector:
+            kubernetes.io/hostname: k8s-cp2
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: keinos/sqlite3:3.46.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  export TZ=UTC-8
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  sqlite3 /data/grafana.db ".backup /backup/grafana-${TIMESTAMP}.db"
+                  echo "Backup created: /backup/grafana-${TIMESTAMP}.db ($(du -h /backup/grafana-${TIMESTAMP}.db | cut -f1))"
+                  # Prune backups older than 3 days
+                  find /backup -name "grafana-*.db" -mtime +3 -delete
+                  echo "Current backups:"
+                  ls -lh /backup/
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+                  # DAC_READ_SEARCH: grafana.db has mode 660 (uid 472),
+                  # root needs this to read files without world-read permission
+                  add: ["DAC_READ_SEARCH"]
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: 200m, memory: 128Mi }
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: prometheus-grafana
+            - name: backup
+              nfs:
+                server: 10.10.30.4
+                path: /Kubernetes/Backups/grafana

@@ -1,0 +1,135 @@
+# etcd Backup CronJob
+# Phase 5.4 D2: Daily etcd snapshot to NAS via NFS
+#
+# CRITICAL: etcd contains ALL cluster state. Losing etcd = rebuild from scratch.
+# Neither Velero nor Longhorn backs up etcd. This is the only etcd backup.
+#
+# Architecture:
+#   initContainer (alpine/k8s) downloads etcdctl from GitHub release
+#   main container (alpine/k8s) runs etcdctl snapshot save with etcd PKI certs
+#
+# Why not use registry.k8s.io/etcd:3.6.6-0 directly?
+#   The etcd image is DISTROLESS - no shell, no cp, no coreutils.
+#   We download etcdctl into a shared emptyDir volume instead.
+#
+# Schedule: Daily 03:30 Manila time (staggered after app backups)
+# Retention: 3 days (deep history in restic off-site)
+#
+# Manual test run:
+#   kubectl-admin create job --from=cronjob/etcd-backup etcd-backup-test -n kube-system
+#   kubectl-admin logs -n kube-system job/etcd-backup-test -c etcd-backup
+#
+# Restore procedure (DO NOT test on live cluster):
+#   1. Stop kube-apiserver: mv /etc/kubernetes/manifests/kube-apiserver.yaml /tmp/
+#   2. Stop etcd: mv /etc/kubernetes/manifests/etcd.yaml /tmp/
+#   3. Backup current data: mv /var/lib/etcd /var/lib/etcd.bak
+#   4. Restore: etcdctl snapshot restore <backup>.db --data-dir=/var/lib/etcd
+#   5. Restore manifests: mv /tmp/etcd.yaml /etc/kubernetes/manifests/
+#   6. Wait for etcd to start, then: mv /tmp/kube-apiserver.yaml /etc/kubernetes/manifests/
+#   7. Verify: kubectl get nodes && kubectl get pods -A
+#
+# CKA topics: etcd backup/restore, CronJob, hostPath, initContainers
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-backup
+  namespace: kube-system
+spec:
+  schedule: "30 3 * * *"
+  timeZone: "Asia/Manila"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: etcd-backup
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          # hostNetwork required: etcdctl connects to 127.0.0.1:2379 (host loopback)
+          hostNetwork: true
+          dnsPolicy: ClusterFirstWithHostNet
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              effect: NoSchedule
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: get-etcdctl
+              image: alpine/k8s:1.35.0
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  ETCD_VER=v3.6.6
+                  echo "Downloading etcdctl ${ETCD_VER}..."
+                  wget -q "https://github.com/etcd-io/etcd/releases/download/${ETCD_VER}/etcd-${ETCD_VER}-linux-amd64.tar.gz" -O /tmp/etcd.tar.gz
+                  tar xzf /tmp/etcd.tar.gz -C /tmp
+                  cp "/tmp/etcd-${ETCD_VER}-linux-amd64/etcdctl" /tools/etcdctl
+                  chmod +x /tools/etcdctl
+                  /tools/etcdctl version
+                  echo "etcdctl ready"
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: 200m, memory: 256Mi }
+              volumeMounts:
+                - name: tools
+                  mountPath: /tools
+          containers:
+            - name: etcd-backup
+              image: alpine/k8s:1.35.0
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  export TZ=UTC-8
+                  BACKUP_FILE="/backup/etcd-$(date +%Y%m%d-%H%M%S).db"
+                  echo "Starting etcd backup..."
+                  /tools/etcdctl snapshot save "$BACKUP_FILE" \
+                    --endpoints=https://127.0.0.1:2379 \
+                    --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+                    --cert=/etc/kubernetes/pki/etcd/server.crt \
+                    --key=/etc/kubernetes/pki/etcd/server.key
+                  /tools/etcdctl snapshot status "$BACKUP_FILE" --write-out=table
+                  echo "Backup created: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
+                  # Prune backups older than 3 days (deep history in restic off-site)
+                  find /backup -name "etcd-*.db" -mtime +3 -delete
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: 200m, memory: 256Mi }
+              volumeMounts:
+                - name: tools
+                  mountPath: /tools
+                  readOnly: true
+                - name: etcd-certs
+                  mountPath: /etc/kubernetes/pki/etcd
+                  readOnly: true
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: tools
+              emptyDir: {}
+            - name: etcd-certs
+              hostPath:
+                path: /etc/kubernetes/pki/etcd
+            - name: backup
+              nfs:
+                server: 10.10.30.4
+                path: /Kubernetes/Backups/etcd

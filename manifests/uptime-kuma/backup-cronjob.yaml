@@ -1,0 +1,86 @@
+# Uptime Kuma Backup CronJob
+# Phase 5.4 D2: Daily SQLite backup to NAS via NFS
+#
+# Schedule: Daily 02:10 Manila time (staggered with other backups)
+# Retention: 3 days (deep history in restic off-site)
+#
+# Uptime Kuma stores all data in /app/data/kuma.db (SQLite).
+# The PVC is mounted at /app/data in the StatefulSet.
+#
+# IMPORTANT: SQLite backup uses .backup API (NOT raw cp).
+# Raw file copy of live SQLite with WAL mode causes corruption.
+#
+# Manual test run:
+#   kubectl-homelab create job --from=cronjob/uptime-kuma-backup uptime-kuma-backup-test -n uptime-kuma
+#   kubectl-homelab logs -n uptime-kuma job/uptime-kuma-backup-test
+#
+# CKA topics: CronJob, NFS volume, SQLite backup, nodeSelector
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: uptime-kuma-backup
+  namespace: uptime-kuma
+  labels:
+    app: uptime-kuma-backup
+    app.kubernetes.io/part-of: uptime-kuma
+spec:
+  schedule: "10 2 * * *"
+  timeZone: "Asia/Manila"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: uptime-kuma-backup
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          # Must run on same node as uptime-kuma-0 (RWO PVC)
+          nodeSelector:
+            kubernetes.io/hostname: k8s-cp1
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: keinos/sqlite3:3.46.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  export TZ=UTC-8
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  sqlite3 "file:/data/kuma.db?immutable=1" ".backup /backup/kuma-${TIMESTAMP}.db"
+                  echo "Backup created: /backup/kuma-${TIMESTAMP}.db ($(du -h /backup/kuma-${TIMESTAMP}.db | cut -f1))"
+                  # Prune backups older than 3 days
+                  find /backup -name "kuma-*.db" -mtime +3 -delete
+                  echo "Current backups:"
+                  ls -lh /backup/
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: 200m, memory: 128Mi }
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: data-uptime-kuma-0
+            - name: backup
+              nfs:
+                server: 10.10.30.4
+                path: /Kubernetes/Backups/uptime-kuma

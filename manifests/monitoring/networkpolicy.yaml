@@ -469,3 +469,22 @@ spec:
         - ports:
             - port: "6443"
               protocol: TCP
+---
+# Grafana backup egress: NFS (NAS backup target)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: grafana-backup-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: grafana-backup
+  egress:
+    # NFS to NAS (no internet needed - keinos/sqlite3 has sqlite3 baked in)
+    - toCIDR:
+        - 10.10.30.4/32
+      toPorts:
+        - ports:
+            - port: "2049"
+              protocol: TCP
