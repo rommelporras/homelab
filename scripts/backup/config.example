@@ -1,0 +1,28 @@
+# Copy to config and edit for your machine
+# cp config.example config
+
+# SSH access to NAS (via k8s node)
+SSH_HOST=wawashi@10.10.30.11
+NFS_SERVER=10.10.30.4
+NFS_EXPORT=/Kubernetes/Backups
+NFS_MOUNT=/tmp/homelab-backup-nfs
+
+# Local staging (raw backups, human-browsable)
+STAGING_DIR=/mnt/c/rcporras/homelab/backup
+
+# Restic repo (encrypted, synced to cloud)
+RESTIC_REPO="/mnt/c/Users/rcporras/OneDrive - Hexagon/Personal/Homelab/Backup"
+
+# Retention
+STAGING_KEEP_DAYS=7
+RESTIC_KEEP_DAILY=7
+RESTIC_KEEP_WEEKLY=4
+RESTIC_KEEP_MONTHLY=6
+
+# Vault address (for fetching restic password)
+VAULT_ADDR=https://vault.k8s.rommelporras.com
+VAULT_SECRET_PATH=secret/backups/restic-k8s-configs
+VAULT_SECRET_KEY=password
+
+# Backup sources to pull from NFS
+BACKUP_SOURCES="atuin vault pki ghost invoicetron etcd adguard grafana arr-configs uptime-kuma karakeep myspeed"

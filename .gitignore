@@ -22,6 +22,10 @@ ansible/inventory/*.bak
 # Allow secret-related scripts (contain op:// refs, not actual values)
 !scripts/vault/seed-vault-from-1password.sh
 !scripts/vault/configure-vault.sh
+# Allow backup config example (template, no secrets)
+!scripts/backup/config.example
+# Block machine-specific backup config (has no secrets but is personal)
+scripts/backup/config
 
 # IDE
 .vscode/

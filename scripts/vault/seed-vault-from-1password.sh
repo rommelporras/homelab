@@ -4,7 +4,7 @@
 # Prerequisites:
 #   - 1Password CLI (op) installed and signed in: eval $(op signin)
 #   - vault CLI installed
-#   - Port-forward running: kubectl --kubeconfig ~/.kube/homelab.yaml port-forward -n vault vault-0 8200:8200
+#   - VAULT_ADDR set (via .zshrc or export) or port-forward running on localhost:8200
 #   - Vault initialized, unsealed, and configured (scripts/configure-vault.sh)
 #   - Logged into vault: vault login <root-token>
 #
@@ -13,7 +13,7 @@
 # WARNING: Run in safe terminal only — reads secrets from 1Password
 set -euo pipefail
 
-export VAULT_ADDR=http://localhost:8200
+export VAULT_ADDR="${VAULT_ADDR:-http://localhost:8200}"
 
 echo "=== Seeding Vault from 1Password ==="
 echo "Ensure you have: eval \$(op signin) && vault login"
@@ -222,6 +222,11 @@ echo "  velero/s3-credentials"
 vault kv put secret/velero/s3-credentials \
   aws_access_key_id="$(op read 'op://Kubernetes/Garage S3/s3-access-key-id')" \
   aws_secret_access_key="$(op read 'op://Kubernetes/Garage S3/s3-secret-access-key')"
+
+# backups (restic off-site encryption)
+echo "  backups/restic-k8s-configs"
+vault kv put secret/backups/restic-k8s-configs \
+  password="$(op read 'op://Kubernetes/Restic Backup Keys/k8s-configs-password')"
 
 echo ""
 echo "=== Verification ==="
