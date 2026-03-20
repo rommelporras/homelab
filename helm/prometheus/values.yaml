@@ -108,18 +108,25 @@ grafana:
 
   # Dashboard sidecar — enables grafana_folder annotation for folder organization
   sidecar:
-    # Resource limits for all sidecar containers (dashboard + datasource loaders)
-    resources:
-      requests:
-        cpu: 10m
-        memory: 64Mi
-      limits:
-        cpu: 100m
-        memory: 128Mi
     dashboards:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
       folderAnnotation: grafana_folder
       provider:
         foldersFromFilesStructure: true
+    datasources:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
 
   # Grafana configuration
   grafana.ini:

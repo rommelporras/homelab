@@ -430,7 +430,9 @@ spec:
             - port: "6443"
               protocol: TCP
 ---
-# Operator ingress: kube-apiserver webhook calls (10250) + intra-ns (already covered)
+# Operator ingress: API server webhook calls on port 10250.
+# Needs both kube-apiserver and remote-node: cross-node API server traffic
+# arrives with remote-node identity in Cilium (SNAT through tunnel).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -443,6 +445,7 @@ spec:
   ingress:
     - fromEntities:
         - kube-apiserver
+        - remote-node
       toPorts:
         - ports:
             - port: "10250"
@@ -487,4 +490,32 @@ spec:
       toPorts:
         - ports:
             - port: "2049"
+              protocol: TCP
+---
+# Grafana sidecar egress: API server for ConfigMap/Secret watching (dashboard + datasource sync)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: grafana-sidecar-apiserver-egress
+  namespace: monitoring
+spec:
+  description: "Allow Grafana sidecars to reach API server for ConfigMap/Secret watching"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  egress:
+    - toEntities:
+        - kube-apiserver
+        - host
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "6443"
+              protocol: TCP
+    - toCIDR:
+        - 10.96.0.1/32
+      toPorts:
+        - ports:
+            - port: "443"
               protocol: TCP

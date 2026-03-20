@@ -33,7 +33,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 TEMP_SECRETS_FILE=$(mktemp)
 
 # Cleanup on exit
