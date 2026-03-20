@@ -1,7 +1,7 @@
 # Phase 5.4: Resilience & Backup
 
-> **Status:** Planned
-> **Target:** v0.34.0
+> **Status:** Complete (v0.34.0, 2026-03-21)
+> **Released:** v0.34.0
 > **Prerequisite:** Phase 5.3 (v0.33.0 — network policies in place)
 > **DevOps Topics:** Resource management, disaster recovery, operational resilience, automation hardening
 > **CKA Topics:** ResourceQuota, LimitRange, PodDisruptionBudget, Velero, tolerations, etcd backup, CronJob
@@ -1064,7 +1064,7 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
 
 > **Why:** A backup that hasn't been tested is not a backup. Run this drill quarterly.
 
-- [ ] 5.4.4.15 Document full restore drill
+- [x] 5.4.4.15 Document full restore drill (portfolio-dev: deleted namespace, Velero restore 32 items/0 errors/4s, site verified)
   ```
   Drill Procedure (use portfolio-dev as test target):
 
@@ -2260,7 +2260,7 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [x] etcd backup CronJob running daily (03:30, 109MB snapshot)
 - [x] etcd backup tested and restore procedure documented
 - [x] etcd backup encryption evaluated (accept NAS trust - same VLAN, off-site encrypted, 3-day retention)
-- [ ] Restore drill completed on non-prod namespace
+- [x] Restore drill completed on non-prod namespace (portfolio-dev, 2026-03-21)
 - [x] Backup health alerts in Prometheus (Velero, Longhorn, etcd, quota)
 - [x] Stuck pod alerts deployed (Init, Pending, CrashLoop, ImagePull)
 - [x] Pod eviction timing tuned (60s stateless, 300s databases)
@@ -2387,7 +2387,7 @@ These items are explicitly NOT in Phase 5:
 
 ## Final: Commit and Release
 
-- [ ] `/audit-security` then `/commit`
-- [ ] `/audit-docs` then `/commit`
-- [ ] `/release v0.34.0 "Resilience & Backup"`
-- [ ] `mv docs/todo/phase-5.4-resilience-backup.md docs/todo/completed/`
+- [x] `/audit-security` then `/commit`
+- [x] `/audit-docs` then `/commit`
+- [x] `/release v0.34.0 "Resilience & Backup"`
+- [x] `mv docs/todo/phase-5.4-resilience-backup.md docs/todo/completed/`
