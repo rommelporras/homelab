@@ -175,9 +175,10 @@ Phase D ─── Backup Infrastructure (3 parallel tracks)
    │   │       5.4.4.16-21 New app backups (AdGuard, UptimeKuma, Karakeep,
    │   │                   Grafana, ARR configs, MySpeed)
    │   │       5.4.4.22    Verify all new CronJobs
+   │   │       5.4.4.22a   Replace alpine+apk with keinos/sqlite3 image
    │   │
    │   └── D3: Velero
-   │           5.4.4.6     Deploy MinIO (1P + ESO + bucket + NetworkPolicy)
+   │           5.4.4.6     Deploy Garage S3 (1P + ESO + bucket + NetworkPolicy)
    │           5.4.4.6a    Install velero CLI on WSL2
    │           5.4.4.7     Create Velero Helm values
    │           5.4.4.8     Install Velero
@@ -465,14 +466,14 @@ Phase K ─── Restore Drill (MANUAL ONLY - DO NOT AUTOMATE)
 | Layer | Tool | What it backs up | Target |
 |-------|------|-----------------|--------|
 | **Volume data** | Longhorn native backup | PVC data (efficient block-level) | NFS on NAS |
-| **K8s resources** | Velero + MinIO | Deployments, Services, ConfigMaps, Secrets (namespace-scoped only) | MinIO on NFS PVC |
+| **K8s resources** | Velero + Garage S3 | Deployments, Services, ConfigMaps, Secrets (namespace-scoped only) | Garage on Longhorn PVC |
 | **etcd** | CronJob + etcdctl | Cluster state (the most critical backup) | NFS on NAS |
 
 > **Note:** CRDs are cluster-scoped and require `--include-cluster-resources=true` if needed.
 
 > **Why this split?**
 > - Velero does NOT natively support NFS as a BackupStorageLocation — it requires an
->   S3-compatible API. MinIO provides that API backed by NFS storage.
+>   S3-compatible API. Garage provides that API backed by Longhorn storage.
 > - Longhorn native backup is more efficient than Velero FSB for volume data —
 >   block-level incremental vs file-level copy.
 > - etcd is NOT backed up by Velero — it requires separate `etcdctl snapshot save`.
@@ -650,7 +651,7 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
   Update `manifests/kube-system/pki-backup.yaml`: `find -mtime +90` -> `find -mtime +14`
   (PKI runs weekly - 3 days would keep only 0-1 backups; 14 days keeps ~2 weekly)
 
-- [ ] 5.4.4.1a Move invoicetron backup from Longhorn to NFS
+- [x] 5.4.4.1a Move invoicetron backup from Longhorn to NFS (PVC->NFS, 30d->3d retention)
   **Current:** `invoicetron-db-backup` writes pg_dump to a Longhorn PVC.
   **Problem:** Backup lives on the same storage system as the data. If Longhorn has issues,
   you lose both. Vault and Atuin correctly use NFS (off-cluster).
@@ -674,7 +675,7 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
   - `timeZone: "Asia/Manila"` already exists (confirmed in manifest)
   - Reduce retention from 30 to 3 days (`find -mtime +3`). Deep history is in restic.
 
-- [ ] 5.4.4.1b Add Ghost MySQL backup CronJob (ghost-prod)
+- [x] 5.4.4.1b Add Ghost MySQL backup CronJob (ghost-prod, 02:00, 3d retention, NetworkPolicy updated)
   **Current:** Ghost prod has MySQL with user content — NO backup CronJob exists.
   This is the blog with real content. Data loss = lost posts.
 
@@ -760,7 +761,7 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
     sudo mkdir -p /tmp/nfs/ghost && sudo umount /tmp/nfs"
   ```
 
-- [ ] 5.4.4.1c Evaluate GitLab backup strategy
+- [x] 5.4.4.1c Evaluate GitLab backup strategy (deferred native backup - chart v9.8.2 doesn't expose cron schedule; covered by Longhorn + Velero)
   GitLab has its own backup rake task. Evaluate options:
 
   | Option | Pros | Cons |
@@ -788,32 +789,71 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
 
 ### 5.4.4b Velero for K8s Resource Backup
 
-- [ ] 5.4.4.6 Deploy MinIO as S3 backend for Velero
-  MinIO provides the S3-compatible API that Velero requires for BackupStorageLocation.
-  ```bash
-  # Create NFS directory on NAS
-  ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
-    sudo mkdir -p /tmp/nfs/velero-minio && sudo umount /tmp/nfs"
-  ```
-  **Required components:**
-  1. Create `velero` namespace with PSS label (`pod-security.kubernetes.io/enforce: baseline`)
-  2. Create 1Password item fields for MinIO credentials (or reuse existing if available)
-  3. Add MinIO credentials to `scripts/vault/seed-vault-from-1password.sh`
-  4. Create ExternalSecret for MinIO admin credentials in `velero` namespace
-  5. Deploy MinIO (Helm `minio/minio` or manifest) with:
-     - NFS-backed PVC (`10.10.30.4:/Kubernetes/Backups/velero-minio`)
-     - Admin credentials from ESO ExternalSecret
-     - Resource limits
-  6. Create `velero` bucket in MinIO (via `mc` CLI or init job)
-  7. Create K8s Secret `velero-s3-credentials` with MinIO access/secret key for Velero
-  8. Create CiliumNetworkPolicy for velero namespace (MinIO<->Velero, Prometheus->metrics)
+- [ ] 5.4.4.6 Deploy Garage S3 as backend for Velero
+  Garage (garagehq.deuxfleurs.fr) replaces MinIO (repo archived Feb 2026). Garage is a
+  lightweight S3-compatible object store (~21MB image, ~3MB idle RAM, Rust, AGPL-3.0).
+  Single-node mode with `replication_factor = 1` for backup target.
+  Image: `dxflrs/garage:v2.2.0`
+
+  **Deployment components:**
+  1. Create `velero` namespace manifest with PSS label (`pod-security.kubernetes.io/enforce: baseline`)
+  2. Create 1Password item "Garage S3" in Kubernetes vault with fields:
+     `rpc-secret` (openssl rand -hex 32), `admin-token` (openssl rand -base64 32),
+     `metrics-token` (openssl rand -base64 32), `s3-access-key-id`, `s3-secret-access-key`
+     > User creates in 1Password. Generate S3 keys after Garage is running via admin API.
+  3. Add Garage Vault paths to `scripts/vault/seed-vault-from-1password.sh`
+  4. Create ExternalSecret for Garage secrets in `velero` namespace
+  5. Create ConfigMap with `garage.toml`:
+     ```toml
+     metadata_dir = "/var/lib/garage/meta"
+     data_dir = "/var/lib/garage/data"
+     db_engine = "sqlite"
+     replication_factor = 1
+     compression_level = 1
+
+     rpc_bind_addr = "[::]:3901"
+     rpc_public_addr = "127.0.0.1:3901"
+     # rpc_secret from GARAGE_RPC_SECRET env var
+
+     [s3_api]
+     s3_region = "garage"
+     api_bind_addr = "[::]:3900"
+     root_domain = ".s3.garage.localhost"
+
+     [admin]
+     api_bind_addr = "0.0.0.0:3903"
+     # admin_token from GARAGE_ADMIN_TOKEN env var
+     # metrics_token from GARAGE_METRICS_TOKEN env var
+     ```
+  6. Deploy Garage StatefulSet (single replica) with:
+     - Longhorn PVC for data (NFS optional - Longhorn is simpler for single-node)
+     - Secrets from ESO ExternalSecret via env vars (GARAGE_RPC_SECRET, GARAGE_ADMIN_TOKEN, GARAGE_METRICS_TOKEN)
+     - Resource limits: requests 50m/64Mi, limits 500m/256Mi
+     - Ports: 3900 (S3 API), 3901 (RPC), 3903 (admin + metrics)
+     - Readiness probe: `GET /health` on port 3903
+     - Service: ClusterIP exposing ports 3900 + 3903
+  7. Post-deploy init Job (via admin API on port 3903):
+     - Get node ID: `GET /v2/GetClusterStatus`
+     - Assign layout: `POST /v2/UpdateClusterLayout` with zone + capacity
+     - Apply layout: `POST /v2/ApplyClusterLayout` with version 1
+     - Create API key: `POST /v2/CreateKey` (name: velero-key)
+     - Create bucket: `POST /v2/CreateBucket` (globalAlias: velero-backups)
+     - Allow key on bucket: `POST /v2/AllowBucketKey` (read + write + owner)
+     - Store S3 access key ID + secret in 1Password (user updates the item)
+  8. Create K8s Secret `velero-s3-credentials` with Garage S3 access/secret key
+     (AWS credentials file format: `[default]\naws_access_key_id=...\naws_secret_access_key=...`)
+  9. Create CiliumNetworkPolicy for velero namespace (Garage<->Velero, Prometheus->metrics)
+  10. Create ServiceMonitor for Garage metrics (port 3903, bearer token auth)
 
   > **Note:** Don't use `kubectl create namespace` - create via manifest with PSS labels.
+  > Use `db_engine = "sqlite"` (not lmdb) - safer on unclean pod shutdown in K8s.
+  > `checksumAlgorithm: ""` required in Velero BSL config (AWS SDK v2 CRC32 breaks Garage).
 
 - [ ] 5.4.4.6a Install velero CLI on WSL2
   ```bash
   # Download and install velero CLI (server components come via Helm)
-  VELERO_VERSION=v1.15.2  # Check latest: https://github.com/vmware-tanzu/velero/releases
+  # Check latest compatible version: https://github.com/vmware-tanzu/velero/releases
+  VELERO_VERSION=v1.15.2
   curl -fsSL https://github.com/vmware-tanzu/velero/releases/download/${VELERO_VERSION}/velero-${VELERO_VERSION}-linux-amd64.tar.gz | \
     tar xz -C /tmp && sudo mv /tmp/velero-${VELERO_VERSION}-linux-amd64/velero /usr/local/bin/
   velero version --client-only
@@ -829,31 +869,27 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
   configuration:
     backupStorageLocation:
       - name: default
-        provider: aws           # MinIO is S3-compatible
-        bucket: velero
+        provider: aws           # Garage is S3-compatible, uses AWS plugin
+        bucket: velero-backups
         credential:
-          name: velero-s3-credentials    # K8s Secret with MinIO access/secret key
+          name: velero-s3-credentials    # K8s Secret with Garage S3 access/secret key
           key: cloud
         config:
-          region: minio
-          s3ForcePathStyle: true
-          s3Url: http://minio.velero.svc:9000
+          region: garage
+          s3ForcePathStyle: "true"
+          s3Url: http://garage.velero.svc.cluster.local:3900
+          checksumAlgorithm: ""  # Required: AWS SDK v2 CRC32 breaks Garage
     volumeSnapshotLocation: []  # Longhorn handles volume snapshots
-    defaultSnapshotsEnabled: false
-    uploaderType: kopia          # Kopia only - restic FSB engine deprecated in v1.14, removed in v1.15
+    uploaderType: kopia          # Kopia only - restic FSB engine deprecated in Velero
 
   initContainers:
     - name: velero-plugin-for-aws
-      image: velero/velero-plugin-for-aws:v1.14.0  # Match Velero version compatibility
+      image: velero/velero-plugin-for-aws:v1.11.1  # Compatible with Velero v1.15.x
       volumeMounts:
         - mountPath: /target
           name: plugins
 
-  deployNodeAgent: true          # Required for Kopia FSB
-  nodeAgent:
-    resources:
-      requests: { cpu: 100m, memory: 256Mi }
-      limits: { cpu: 500m, memory: 1Gi }
+  deployNodeAgent: false         # Not needed - Longhorn handles volume backups
 
   resources:
     requests: { cpu: 100m, memory: 256Mi }
@@ -869,6 +905,8 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
 
   > **Note:** Without the ServiceMonitor, Prometheus never scrapes Velero metrics and
   > the VeleroBackupFailed/VeleroBackupStale alerts (5.4.5.1) silently never fire.
+  > `deployNodeAgent: false` - Longhorn handles volume backups, Velero only backs up K8s resources.
+  > `velero-plugin-for-aws:v1.11.1` - compatible with Velero v1.15.x (NOT v1.14.0).
 
 - [ ] 5.4.4.8 Install Velero
   ```bash
@@ -890,7 +928,7 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
   ```
   > **Note:** `--default-volumes-to-fs-backup=false` because Longhorn handles volume
   > backup natively. Velero only backs up K8s resource manifests here.
-  > Secrets excluded - vault-unseal-keys would be stored unencrypted in MinIO. Vault data covered by dedicated snapshot CronJob.
+  > Secrets excluded - vault-unseal-keys would be stored unencrypted in Garage. Vault data covered by dedicated snapshot CronJob.
 
 - [ ] 5.4.4.10 Test Velero backup and restore
   ```bash
@@ -904,13 +942,13 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
 > **CRITICAL:** etcd contains ALL cluster state. Losing etcd = rebuild from scratch.
 > Neither Velero nor Longhorn backs up etcd. This needs a separate solution.
 
-- [ ] 5.4.4.11 Create NFS directory for etcd backups
+- [x] 5.4.4.11 Create NFS directory for etcd backups (/Kubernetes/Backups/etcd)
   ```bash
   ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
     sudo mkdir -p /tmp/nfs/etcd && sudo umount /tmp/nfs"
   ```
 
-- [ ] 5.4.4.12 Create etcd backup CronJob
+- [x] 5.4.4.12 Create etcd backup CronJob (03:30, alpine initContainer downloads etcdctl, hostNetwork for localhost:2379)
   ```yaml
   # The etcd backup must run ON the control plane node (needs access to etcd certs)
   # Option A: CronJob with hostPath mount to etcd PKI
@@ -998,7 +1036,7 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
                   path: /Kubernetes/Backups/etcd
   ```
 
-- [ ] 5.4.4.13 Test etcd backup and document restore procedure
+- [x] 5.4.4.13 Test etcd backup and document restore procedure (109MB snapshot verified)
   ```bash
   # Verify backup was created
   ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
@@ -1092,7 +1130,7 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
 > Ghost MySQL 02:00, AdGuard 02:05, UptimeKuma 02:10, Karakeep 02:15,
 > Grafana 02:20, ARR configs 02:25, MySpeed 02:30. Atuin (weekly) stays at 02:00.
 
-- [ ] 5.4.4.16 Create AdGuard backup CronJob
+- [x] 5.4.4.16 Create AdGuard backup CronJob (02:05, SQLite .backup, 17MB verified)
   SQLite backup via `.backup` API (NOT raw file copy - raw cp of live SQLite corrupts on WAL mode).
   Container needs `sqlite3` installed (alpine + `apk add sqlite`).
   ```bash
@@ -1110,7 +1148,7 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
   - Target: NFS `10.10.30.4:/Kubernetes/Backups/adguard`
   - Retention: 3 days (deep history in restic, manifest tracks off-site)
 
-- [ ] 5.4.4.17 Create UptimeKuma backup CronJob
+- [x] 5.4.4.17 Create UptimeKuma backup CronJob (02:10, SQLite .backup, 19MB verified)
   SQLite backup via `.backup` API (NOT raw file copy).
   ```bash
   ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
@@ -1123,7 +1161,7 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
   - Target: NFS `10.10.30.4:/Kubernetes/Backups/uptime-kuma`
   - Retention: 3 days (deep history in restic, manifest tracks off-site)
 
-- [ ] 5.4.4.18 Create Karakeep backup CronJob
+- [x] 5.4.4.18 Create Karakeep backup CronJob (02:15, karakeep-data only, meilisearch rebuildable, 33MB verified)
   Data directory + meilisearch to NFS.
   ```bash
   ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
@@ -1135,7 +1173,7 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
   - Target: NFS `10.10.30.4:/Kubernetes/Backups/karakeep`
   - Retention: 3 days (deep history in restic, manifest tracks off-site)
 
-- [ ] 5.4.4.19 Create Grafana backup CronJob
+- [x] 5.4.4.19 Create Grafana backup CronJob (02:20, SQLite .backup, NetworkPolicy updated, 3.5MB verified)
   SQLite backup via `.backup` API (NOT raw file copy).
   ```bash
   ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
@@ -1148,7 +1186,7 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
   - Target: NFS `10.10.30.4:/Kubernetes/Backups/grafana`
   - Retention: 3 days (deep history in restic, manifest tracks off-site)
 
-- [ ] 5.4.4.20 Create ARR configs backup CronJobs
+- [x] 5.4.4.20 Create ARR configs backup CronJobs (3 per-node CronJobs: cp1/cp2/cp3, 02:25, 244MB total verified)
   **IMPORTANT:** ARR pods are spread across all 3 nodes (cp1: prowlarr/qbittorrent,
   cp2: bazarr/radarr/sonarr/tdarr, cp3: jellyfin). A single CronJob CANNOT mount
   all 10 RWO PVCs - they're attached to different nodes.
@@ -1170,7 +1208,7 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
   - **Note:** If apps move between nodes (rescheduled), nodeSelector needs updating.
     Consider using podAffinity matching each app's labels instead for resilience.
 
-- [ ] 5.4.4.21 Create MySpeed backup CronJob
+- [x] 5.4.4.21 Create MySpeed backup CronJob (02:30, SQLite .backup, 100KB verified)
   SQLite backup via `.backup` API (NOT raw file copy).
   ```bash
   ssh wawashi@10.10.30.11 "sudo mount -t nfs4 10.10.30.4:/Kubernetes/Backups /tmp/nfs && \
@@ -1183,7 +1221,7 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
   - Target: NFS `10.10.30.4:/Kubernetes/Backups/myspeed`
   - Retention: 3 days (deep history in restic, manifest tracks off-site)
 
-- [ ] 5.4.4.22 Verify all new backup CronJobs run successfully
+- [x] 5.4.4.22 Verify all new backup CronJobs run successfully (all 11 CronJobs tested, backups on NAS)
   ```bash
   # Trigger manual run of each new CronJob
   kubectl-homelab create job --from=cronjob/<name> test-<name> -n <namespace>
@@ -1194,6 +1232,11 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
   # sqlite3 <backup-file> "PRAGMA integrity_check;"
   # For gzipped dumps, verify: gzip -t <file>
   ```
+
+- [x] 5.4.4.22a Replace `alpine:3.21` + `apk add sqlite` with `keinos/sqlite3:3.46.1`
+  8 CronJobs updated. Added runAsNonRoot: true + readOnlyRootFilesystem: true (no more
+  root needed). Removed internet egress from Grafana backup NetworkPolicy (no more CDN fetch).
+  Eliminates runtime internet dependency and 2-min Grafana latency.
 
 ### 5.4.4f Off-Site Encrypted Backup
 
@@ -2199,7 +2242,7 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [ ] 5.4.11.1 Update VERSIONS.md
   ```
   | Velero | X.X.X | K8s resource backup and restore |
-  | MinIO  | X.X.X | S3-compatible storage for Velero |
+  | Garage | v2.2.0 | S3-compatible storage for Velero (replaces MinIO, archived Feb 2026) |
   | Restic | X.X.X | Encrypted off-site backup |
   ```
 
@@ -2237,12 +2280,12 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [x] Longhorn RecurringJobs: critical tier (14 daily + 4 weekly) + important tier (7 daily + 2 weekly)
 - [x] Longhorn volume group assignments applied (10 critical, 14 important, rest excluded)
 - [x] Longhorn backup tested and restore verified (myspeed-data)
-- [ ] MinIO deployed for Velero S3 backend
+- [ ] Garage S3 deployed for Velero S3 backend
 - [ ] Velero installed with Kopia FSB engine
 - [ ] Velero scheduled backup running daily (30-day retention, all namespaces)
 - [ ] Velero backup tested and restore verified
-- [ ] etcd backup CronJob running daily
-- [ ] etcd backup tested and restore procedure documented
+- [x] etcd backup CronJob running daily (03:30, 109MB snapshot)
+- [x] etcd backup tested and restore procedure documented
 - [ ] etcd backup encryption evaluated (GPG/OpenSSL/accept NAS trust)
 - [ ] Restore drill completed on non-prod namespace
 - [ ] Backup health alerts in Prometheus (Velero, Longhorn, etcd, quota)
@@ -2255,22 +2298,23 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [x] All CronJobs have `timeZone: "Asia/Manila"` (fixed: version-check, configarr)
 - [ ] CronJob failure alerting deployed (covers all current and future CronJobs)
 - [ ] Stuck Longhorn volume alerting deployed (0 running replicas detection)
-- [ ] Invoicetron backup migrated from Longhorn PVC to NFS (retention: 3 days)
-- [ ] Ghost MySQL backup CronJob deployed (daily to NFS)
-- [ ] GitLab backup strategy evaluated and implemented
+- [x] Invoicetron backup migrated from Longhorn PVC to NFS (retention: 3 days)
+- [x] Ghost MySQL backup CronJob deployed (daily to NFS, 02:00)
+- [x] GitLab backup strategy evaluated (deferred native backup, covered by Longhorn + Velero)
 - [ ] version-checker `ContainerImageOutdated` alert excludes init containers
 - [ ] Nova CronJob no longer depends on `apk add` for curl
 - [ ] Renovate decision made (activated, suspended, or deferred to Phase 6)
 - [ ] ARR Stall Resolver sends Discord notification on profile switches
 - [ ] CronJob `successfulJobsHistoryLimit` reduced to 1 where appropriate
 - [ ] PVC inventory documented with backup coverage matrix
-- [ ] AdGuard backup CronJob deployed (daily SQLite copy to NFS)
-- [ ] UptimeKuma backup CronJob deployed (daily SQLite copy to NFS)
-- [ ] Karakeep backup CronJob deployed (daily data copy to NFS)
-- [ ] Grafana backup CronJob deployed (daily SQLite copy to NFS)
-- [ ] ARR configs backup CronJob deployed (daily config copy to NFS)
-- [ ] MySpeed backup CronJob deployed (daily SQLite copy to NFS)
-- [ ] All new backup CronJobs verified (manual trigger + NFS file check)
+- [x] AdGuard backup CronJob deployed (daily SQLite .backup to NFS, 02:05)
+- [x] UptimeKuma backup CronJob deployed (daily SQLite .backup to NFS, 02:10)
+- [x] Karakeep backup CronJob deployed (daily data copy to NFS, 02:15)
+- [x] Grafana backup CronJob deployed (daily SQLite .backup to NFS, 02:20)
+- [x] ARR configs backup CronJob deployed (3 per-node CronJobs, 02:25)
+- [x] MySpeed backup CronJob deployed (daily SQLite .backup to NFS, 02:30)
+- [x] All new backup CronJobs verified (manual trigger + NFS file check, all 11 verified)
+- [x] SQLite backup CronJobs use keinos/sqlite3 image (runAsNonRoot, readOnlyRootFilesystem, no internet)
 - [x] Scripts directory reorganized (vault/, ghost/, monitoring/, test/, backup/)
 - [x] `.gitignore` allowlist updated for moved script paths
 - [x] Active doc references updated for script path changes
@@ -2315,7 +2359,7 @@ kubectl-homelab delete resourcequota resource-quota -n <ns>
 ```bash
 kubectl-homelab logs -n velero -l app.kubernetes.io/name=velero
 velero backup describe <name> --details
-# Common causes: MinIO unreachable, Kopia node agent not running,
+# Common causes: Garage unreachable, Kopia node agent not running,
 # insufficient disk space on NFS
 ```
 

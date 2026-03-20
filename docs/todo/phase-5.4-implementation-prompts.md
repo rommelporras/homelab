@@ -134,7 +134,12 @@ For 5.4.4.2: this is a Longhorn setting change, not a manifest.
 For 5.4.4.5: test with a non-critical volume (portfolio-prod or similar). Verify backup appears on NAS.
 ```
 
-### Session 5: Phase D2 - In-Cluster CronJob Backups
+### Session 5: Phase D2 - In-Cluster CronJob Backups (COMPLETED)
+
+> **Follow-up task 5.4.4.22a** (sqlite3 image fix) can be done in Session 6 or a quick
+> standalone session. Replace `alpine:3.21` + `apk add sqlite` with `keinos/sqlite3:3.46.1`
+> in 8 CronJobs: AdGuard, UptimeKuma, Karakeep, Grafana, ARR (cp1/cp2/cp3), MySpeed.
+> Then re-trigger one test to verify.
 
 ```
 This session: Phase D2 (In-Cluster CronJob Backups)
@@ -164,31 +169,45 @@ For each CronJob: create the NFS directory on NAS first (SSH pattern), then crea
 ```
 This session: Phase D3 (Velero)
 
+IMPORTANT: MinIO was replaced with Garage S3 (MinIO repo archived Feb 2026).
+Garage: dxflrs/garage:v2.2.0, lightweight S3-compatible store (~21MB image, ~3MB idle RAM).
+
 Tasks:
-- 5.4.4.6 Deploy MinIO as S3 backend for Velero
+- 5.4.4.6 Deploy Garage S3 as backend for Velero (10-step checklist in plan)
 - 5.4.4.6a Install velero CLI on WSL2
 - 5.4.4.7 Add Velero Helm repo and create values
 - 5.4.4.8 Install Velero
 - 5.4.4.9 Create scheduled backup for K8s resources
 - 5.4.4.10 Test Velero backup and restore
 
-IMPORTANT: MinIO deployment is complex - the plan has an 8-step checklist in task 5.4.4.6:
-1. Create velero namespace with PSS label
-2. 1Password item for MinIO credentials (ask me to create this)
+Garage deployment (task 5.4.4.6 has full details):
+1. Create velero namespace manifest with PSS label
+2. 1Password item "Garage S3" with rpc-secret, admin-token, metrics-token, s3 keys (ask me to create)
 3. Vault seed script update
-4. ExternalSecret for MinIO admin credentials
-5. Deploy MinIO with NFS-backed PVC
-6. Create velero bucket
-7. K8s Secret for Velero S3 access
-8. CiliumNetworkPolicy
+4. ExternalSecret for Garage secrets
+5. ConfigMap with garage.toml (replication_factor=1, db_engine=sqlite, S3 on port 3900, admin on 3903)
+6. StatefulSet (single replica, Longhorn PVC, env vars from ESO secret)
+7. Post-deploy init Job via admin API: assign layout, create key, create bucket, allow permissions
+8. K8s Secret velero-s3-credentials (AWS format for Velero)
+9. CiliumNetworkPolicy
+10. ServiceMonitor for Garage metrics
 
-Velero Helm values MUST include metrics.serviceMonitor.enabled: true (without it, backup alerts in Phase G are dead).
+Key Garage details:
+- S3 API on port 3900, admin+metrics on port 3903
+- Readiness probe: GET /health on port 3903
+- Secrets via env vars: GARAGE_RPC_SECRET, GARAGE_ADMIN_TOKEN, GARAGE_METRICS_TOKEN
+- Use db_engine=sqlite (safer than lmdb on unclean K8s pod shutdown)
+- Post-deploy init MUST run: layout assign + layout apply before any S3 operations work
 
-The Velero schedule excludes secrets (--exclude-resources secrets) to prevent vault-unseal-keys from being stored unencrypted in MinIO.
+Velero details:
+- velero-plugin-for-aws:v1.11.1 (compatible with Velero v1.15.x, NOT v1.14.0)
+- deployNodeAgent: false (Longhorn handles volume backups)
+- checksumAlgorithm: "" in BSL config (AWS SDK v2 CRC32 breaks Garage)
+- --exclude-resources secrets (prevent vault-unseal-keys in Garage)
+- metrics.serviceMonitor.enabled: true (required for backup alerts in Phase G)
+- You CANNOT run op commands. Ask me to create the 1Password item.
 
-velero-plugin-for-aws version should be v1.14.0 (not v1.11.0). Verify compatibility with the Velero chart version.
-
-For 5.4.4.10: test backup on a small namespace (portfolio-dev). Verify with `velero backup describe`.
+For 5.4.4.10: test backup on portfolio-dev. Verify with `velero backup describe`.
 ```
 
 ### Session 7: Phase E - Off-Site Backup Script
@@ -286,7 +305,7 @@ This session: Phase J (Cleanup + Documentation)
 Tasks:
 - 5.4.4.32 Clean up stale /Kubernetes/vault-snapshots/ on NAS (verify empty first with ls, then rmdir)
 - 5.4.4.14 Decide on etcd backup encryption (GPG/OpenSSL/accept NAS trust)
-- 5.4.11.1 Update VERSIONS.md with Velero, MinIO, Restic versions
+- 5.4.11.1 Update VERSIONS.md with Velero, Garage, Restic versions
 - 5.4.11.2 Update docs/context/Security.md with backup architecture, retention, recovery procedures
 - 5.4.11.2 Also update: Architecture.md, Storage.md, Secrets.md
 - 5.4.11.3 Update docs/reference/CHANGELOG.md
