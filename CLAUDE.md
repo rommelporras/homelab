@@ -13,6 +13,7 @@ Kubernetes homelab for CKA prep. 3-node HA cluster (kubeadm, Cilium CNI, Longhor
 | Architecture decisions | docs/context/Architecture.md |
 | Network/switch setup | docs/context/Networking.md |
 | Storage setup | docs/context/Storage.md |
+| Backup schedules, restore, off-site | docs/context/Backups.md |
 | Gateway, HTTPRoutes, TLS | docs/context/Gateway.md |
 | Cloudflare, GA4, SMTP | docs/context/ExternalServices.md |
 | 1Password items | docs/context/Secrets.md |
