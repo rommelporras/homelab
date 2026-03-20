@@ -641,13 +641,13 @@ This gives ~6 months of monthly snapshots on OneDrive - the real disaster recove
 > Reducing `find -mtime +N` immediately deletes backups older than N days on the next
 > CronJob run. PKI (90->30 days) would lose ~8 weeks of history. Pull to restic first.
 
-- [ ] 5.4.4.0a Reduce Vault snapshot NAS retention from 15 to 3 days
+- [x] 5.4.4.0a Reduce Vault snapshot NAS retention from 15 to 3 days
   Update `manifests/vault/snapshot-cronjob.yaml`: `find -mtime +15` -> `find -mtime +3`
 
-- [ ] 5.4.4.0b Reduce Atuin backup NAS retention from 28 to 3 days
+- [x] 5.4.4.0b Reduce Atuin backup NAS retention from 28 to 3 days
   Update `manifests/atuin/backup-cronjob.yaml`: `find -mtime +28` -> `find -mtime +3`
 
-- [ ] 5.4.4.0c Reduce PKI backup NAS retention from 90 to 14 days
+- [x] 5.4.4.0c Reduce PKI backup NAS retention from 90 to 14 days
   Update `manifests/kube-system/pki-backup.yaml`: `find -mtime +90` -> `find -mtime +14`
   (PKI runs weekly - 3 days would keep only 0-1 backups; 14 days keeps ~2 weekly)
 
@@ -1701,7 +1701,7 @@ Does not re-encrypt existing data blobs (restic limitation).
 
 > **Why:** A backup that silently fails is worse than no backup — false sense of security.
 
-- [ ] 5.4.5.1 Add Prometheus alerts for backup health
+- [x] 5.4.5.1 Add Prometheus alerts for backup health
   ```yaml
   # manifests/monitoring/alerts/backup-alerts.yaml
   apiVersion: monitoring.coreos.com/v1
@@ -1746,8 +1746,10 @@ Does not re-encrypt existing data blobs (restic limitation).
             annotations:
               summary: "Namespace {{ $labels.namespace }} using >85% of resource quota"
   ```
+  > **Implementation note:** `longhorn_backup_state` is a numeric gauge (4=Error), not label-based.
+  > Actual expr: `longhorn_backup_state == 4`. Also added runbooks to all alerts.
 
-- [ ] 5.4.5.2 Add etcd backup age alert
+- [x] 5.4.5.2 Add etcd backup age alert
   ```yaml
   # Check via file age on NFS or a custom exporter
   # If etcd backup CronJob hasn't succeeded in 36 hours → critical
@@ -1761,7 +1763,7 @@ Does not re-encrypt existing data blobs (restic limitation).
       summary: "No successful etcd backup in 36 hours"
   ```
 
-- [ ] 5.4.5.3 Add CronJob failure alerting
+- [x] 5.4.5.3 Add CronJob failure alerting
   **Problem:** If `vault-snapshot`, `invoicetron-db-backup`, or `ghost-mysql-backup` starts
   failing silently, nobody gets notified. Only cluster-janitor and version-check have Discord.
 
@@ -1793,7 +1795,7 @@ Does not re-encrypt existing data blobs (restic limitation).
   > **Coverage:** This single alert covers ALL current and future CronJobs — no per-CronJob
   > configuration needed. The `CronJobNotScheduled` alert catches suspended or stuck CronJobs.
 
-- [ ] 5.4.5.4 Add stuck Longhorn volume alerting
+- [x] 5.4.5.4 Add stuck Longhorn volume alerting
   **Problem:** Cluster Janitor correctly skips volumes with 0 running replicas (safety),
   but nobody is notified about these stuck volumes. Currently `pvc-6ab4368a...`
   (invoicetron-backups) is detached with all replicas stopped — invisible to operators.
@@ -1819,8 +1821,13 @@ Does not re-encrypt existing data blobs (restic limitation).
     annotations:
       summary: "Longhorn volume {{ $labels.volume }} is degraded (missing replica)"
   ```
+  > **Implementation note:** Longhorn metrics are numeric gauges, not label-based.
+  > `longhorn_volume_robustness`: 0=unknown, 1=healthy, 2=degraded, 3=faulted.
+  > `longhorn_volume_state`: 2=attached, 3=detached.
+  > LonghornVolumeDegraded already exists in `storage-alerts.yaml` - only
+  > LonghornVolumeAllReplicasStopped was added to `longhorn-alerts.yaml` to avoid duplication.
 
-- [ ] 5.4.5.5 Add stuck pod alerts
+- [x] 5.4.5.5 Add stuck pod alerts
   ```yaml
   # manifests/monitoring/alerts/stuck-pod-alerts.yaml
   # Catches pods the cluster-janitor doesn't handle (it only cleans Failed pods)

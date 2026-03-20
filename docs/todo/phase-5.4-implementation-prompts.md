@@ -265,7 +265,11 @@ For 5.4.4.24: tell me to create the 1Password item, then I'll run the seed scrip
 For 5.4.4.29: run setup first, then pull, then encrypt, then status. Show output of each.
 ```
 
-### Session 8: Phase F+G - Retention Reductions + Monitoring
+### Session 8: Phase F+G - Retention Reductions + Monitoring (DONE)
+
+> Completed 2026-03-21. All 3 retention reductions applied, 12 alert rules across 3 files
+> created and verified in Prometheus. Longhorn metrics are numeric gauges (not label-based).
+> LonghornVolumeDegraded deduplicated (already in storage-alerts.yaml).
 
 ```
 This session: Phase F (Retention Reductions) + Phase G (Monitoring & Alerting)
