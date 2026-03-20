@@ -39,6 +39,15 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
       containers:
         - name: byparr
           image: ghcr.io/thephaseless/byparr:2.1.0

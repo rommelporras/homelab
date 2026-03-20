@@ -28,6 +28,15 @@ spec:
         runAsGroup: 65534
         seccompProfile:
           type: RuntimeDefault
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
       containers:
         - name: qbittorrent-exporter
           image: esanchezm/prometheus-qbittorrent-exporter:sha-2fcca94

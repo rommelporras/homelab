@@ -22,7 +22,7 @@ spec:
   schedule: "0 9 * * *"
   timeZone: "Asia/Manila"
   concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 3
+  successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:

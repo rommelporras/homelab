@@ -1,0 +1,13 @@
+# Vault PodDisruptionBudget
+# maxUnavailable: 1 for single-replica - allows drain but prevents accidental double-eviction
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vault-pdb
+  namespace: vault
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vault

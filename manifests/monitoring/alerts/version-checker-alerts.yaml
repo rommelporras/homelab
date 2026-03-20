@@ -20,7 +20,13 @@ spec:
     - name: version-checker
       rules:
         - alert: ContainerImageOutdated
-          expr: version_checker_is_latest_version == 0
+          # Exclude init containers (duplicates of main container) and cert-manager
+          # (Quay returns build numbers like "608111629" instead of semver tags)
+          expr: |
+            version_checker_is_latest_version{
+              container_type="container",
+              image!~"quay.io/jetstack/cert-manager.*"
+            } == 0
           for: 7d
           labels:
             severity: warning

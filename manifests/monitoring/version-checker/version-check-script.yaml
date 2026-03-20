@@ -17,9 +17,6 @@ data:
     #!/bin/sh
     set -e
 
-    # Install dependencies (~3 seconds)
-    apk add --no-cache curl jq -q
-
     # Run Nova for Helm chart drift
     NOVA_OUTPUT=$(/shared/nova find --helm --format=json 2>/dev/null || echo '[]')
 

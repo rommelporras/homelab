@@ -35,6 +35,15 @@ spec:
         # Note: Homepage image runs as root, cannot use runAsNonRoot
         seccompProfile:
           type: RuntimeDefault
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
       # Init container substitutes env vars in settings.yaml
       # Required because Homepage doesn't substitute {{HOMEPAGE_VAR_*}} in providers section
       initContainers:

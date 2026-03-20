@@ -1,0 +1,13 @@
+# Homepage PodDisruptionBudget
+# Ensures at least 1 replica remains during voluntary disruptions (drain, upgrade)
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: homepage-pdb
+  namespace: home
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: homepage

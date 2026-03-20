@@ -409,6 +409,42 @@ spec:
               protocol: TCP
 
 # ============================================================
+# version-check CronJob (app=version-check)
+# Weekly Nova + Discord digest. Needs:
+#   - External HTTPS (Helm repos for Nova, Discord webhook)
+#   - kube-apiserver (Nova reads Helm release secrets cluster-wide)
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: version-check-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: version-check
+  egress:
+    # External HTTPS (Helm repos + Discord webhook)
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # kube-apiserver (Nova reads Helm release secrets)
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+
+# ============================================================
 # kube-prometheus-stack operator (app=kube-prometheus-stack-operator)
 # Manages PrometheusRules, ServiceMonitors, PodMonitors, etc.
 # ============================================================

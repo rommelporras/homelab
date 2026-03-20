@@ -175,9 +175,11 @@ spec:
     # Admission webhook requests from kube-apiserver
     # Service maps 443->10250 (container port); Cilium enforces at pod level
     # kube-apiserver + host: kubeadm apiserver runs with hostNetwork=true
+    # remote-node: cross-node API server traffic in Cilium tunnel mode
     - fromEntities:
         - kube-apiserver
         - host
+        - remote-node
       toPorts:
         - ports:
             - port: "10250"

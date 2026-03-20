@@ -25,7 +25,7 @@ spec:
   schedule: "*/30 * * * *"  # Every 30 minutes
   timeZone: "Asia/Manila"
   concurrencyPolicy: Forbid          # Skip run if previous is still running
-  successfulJobsHistoryLimit: 3
+  successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
@@ -63,6 +63,12 @@ spec:
                     secretKeyRef:
                       name: arr-api-keys
                       key: RADARR_API_KEY
+                - name: DISCORD_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: arr-discord-webhook
+                      key: discord-webhook-url
+                      optional: true
                 - name: FALLBACK_PROFILE
                   value: "Any"
                 - name: DRY_RUN

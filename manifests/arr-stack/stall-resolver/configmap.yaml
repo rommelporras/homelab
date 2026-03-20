@@ -53,6 +53,7 @@ data:
       RADARR_URL         (default: http://radarr.arr-stack.svc:7878)
       RADARR_API_KEY     (required)
       FALLBACK_PROFILE   (default: Any)
+      DISCORD_WEBHOOK_URL (optional) — sends notification on profile switch
       DRY_RUN            (default: false) — log actions without executing
     """
     import os
@@ -67,6 +68,7 @@ data:
     RADARR_URL = os.environ.get("RADARR_URL", "http://radarr.arr-stack.svc:7878")
     RADARR_API_KEY = os.environ["RADARR_API_KEY"]
     FALLBACK_PROFILE = os.environ.get("FALLBACK_PROFILE", "Any")
+    DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
     DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
 
     # Only act when the download itself is stopped.
@@ -96,6 +98,31 @@ data:
         except urllib.error.HTTPError as e:
             body = e.read().decode(errors="replace")
             raise RuntimeError(f"HTTP {e.code} {method} {url}: {body[:300]}")
+
+
+    def send_discord(title, app_name):
+        """Send Discord notification when a profile is switched. Only on actual switches."""
+        if not DISCORD_WEBHOOK_URL:
+            return
+        payload = json.dumps({
+            "embeds": [{
+                "title": "ARR Stall Resolver",
+                "description": (
+                    f"Switched **{title}** to **{FALLBACK_PROFILE}** profile.\n"
+                    f"ACTION: Revert quality profile in {app_name} UI after download succeeds."
+                ),
+                "color": 16705372,
+            }]
+        }).encode()
+        req = urllib.request.Request(
+            DISCORD_WEBHOOK_URL, data=payload,
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10):
+                pass
+        except Exception as e:
+            print(f"    -> Discord notification failed: {e}")
 
 
     def get_fallback_profile_id(base_url, api_key):
@@ -196,6 +223,7 @@ data:
                             f"    -> ACTION REQUIRED: After download succeeds, manually revert "
                             f"'{title}' quality profile in {app_name} UI if you want HD-only."
                         )
+                        send_discord(title, app_name)
                     else:
                         print(f"    -> Already on '{FALLBACK_PROFILE}' profile")
                 except Exception as e:

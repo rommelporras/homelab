@@ -45,6 +45,15 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       automountServiceAccountToken: false  # Ollama doesn't need K8s API access
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
       containers:
         - name: ollama
           image: ollama/ollama:0.15.6

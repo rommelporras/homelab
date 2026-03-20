@@ -35,6 +35,15 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
       containers:
         - name: firefox
           image: lscr.io/linuxserver/firefox:1147.0.3build1-1xtradeb1.2404.1-ls69

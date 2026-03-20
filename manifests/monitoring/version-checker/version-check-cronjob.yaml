@@ -5,8 +5,8 @@
 # Init container: copies Nova binary from official image to shared emptyDir
 # Main container: runs the version-check script with curl + jq
 #
-# Note: Main container runs as root because apk needs write access to /lib/apk/db.
-# Other security controls remain: drop ALL capabilities, no privilege escalation, seccomp.
+# Uses alpine/k8s:1.35.0 which includes curl + jq (no apk add needed).
+# TZ=UTC-8 because alpine/k8s has no tzdata (POSIX UTC-8 = UTC+8 = Manila).
 #
 # CKA topics: CronJob, init containers, emptyDir, ConfigMap mount, Secret env
 ---
@@ -20,7 +20,7 @@ metadata:
 spec:
   schedule: "0 8 * * 0"
   timeZone: "Asia/Manila"
-  successfulJobsHistoryLimit: 3
+  successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid
   jobTemplate:
@@ -64,10 +64,12 @@ spec:
                   mountPath: /shared
           containers:
             - name: version-check
-              image: alpine:3.21
+              image: alpine/k8s:1.35.0
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/version-check.sh"]
               env:
+                - name: TZ
+                  value: "UTC-8"
                 - name: DISCORD_WEBHOOK_URL
                   valueFrom:
                     secretKeyRef:

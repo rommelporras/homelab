@@ -67,6 +67,15 @@ spec:
         supplementalGroups:
           - 44    # video
           - 993   # render
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
       containers:
         - name: jellyfin
           image: jellyfin/jellyfin:10.11.6

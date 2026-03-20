@@ -1,0 +1,14 @@
+# AdGuard Home PodDisruptionBudget
+# maxUnavailable: 1 for single-replica - allows drain but prevents accidental double-eviction
+# AdGuard is critical DNS infrastructure
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: adguard-home-pdb
+  namespace: home
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: adguard-home

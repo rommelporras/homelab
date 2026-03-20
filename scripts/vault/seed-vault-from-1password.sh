@@ -41,6 +41,10 @@ echo "  arr-stack/qbittorrent"
 vault kv put secret/arr-stack/qbittorrent \
   QBITTORRENT_PASS="$(op read 'op://Kubernetes/ARR Stack/password')"
 
+echo "  arr-stack/discord-webhook"
+vault kv put secret/arr-stack/discord-webhook \
+  discord-webhook-url="$(op read 'op://Kubernetes/ARR Stack/discord-webhook-url')"
+
 # atuin
 echo "  atuin/secrets"
 vault kv put secret/atuin/secrets \

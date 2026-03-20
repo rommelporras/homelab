@@ -80,6 +80,15 @@ spec:
         supplementalGroups:
           - 44    # video
           - 993   # render
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
       # Soft anti-affinity: prefer scheduling away from Jellyfin to reduce GPU contention
       affinity:
         podAntiAffinity:
