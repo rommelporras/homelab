@@ -76,8 +76,19 @@ Kubernetes homelab for CKA prep. 3-node HA cluster (kubeadm, Cilium CNI, Longhor
 - **qBittorrent CSRF blocks HTTP probes** — use `tcpSocket`, never `httpGet`.
 - **PostgreSQL PGDATA** — set `PGDATA=/var/lib/postgresql/data/pgdata` (subdirectory). Top-level mount breaks initdb.
 - **Longhorn `orphan-resource-auto-deletion`** — NOT a boolean. Semicolon-separated: `replica-data;instance`.
-- **Grafana RWO PVC on Helm upgrade** — new pod can't attach. Scale down old RS, delete old pod first.
+- **Grafana RWO PVC on Helm upgrade** — new pod can't attach. Scale down first: `kubectl-admin scale deployment/prometheus-grafana -n monitoring --replicas=0`, wait for termination, then upgrade.
 - **Cilium HTTPRoute `<none>` status** — `kubectl-homelab rollout restart deployment/cilium-operator -n kube-system`.
 - **Sonarr/Radarr API** — external HTTPRoute returns 404. Must port-forward from WSL.
 - **CiliumNP default-deny** — `ingress: [{}]` = allow-all (empty rule matches everything), `ingress: []` = deny-all. Opposite of K8s NP intuition where `{}` means deny.
 - **CiliumNP CIDR vs pod traffic** — `toCIDR`/`fromCIDR` with pod CIDR `10.244.0.0/16` silently fails for pod-to-pod traffic. Cilium uses identity-based matching for managed endpoints. Use `toEndpoints`/`toEntities` instead.
+- **CiliumNP `kube-apiserver` entity** — cross-node API server traffic (e.g. admission webhooks) arrives with `remote-node` identity in Cilium tunnel mode. Policies for webhook ports must allow both `kube-apiserver` and `remote-node`.
+- **rsync to NTFS (WSL2 `/mnt/c/`)** — Unix sockets and device files can't be created. Use `--no-specials --no-devices`. Root-owned NAS files need `--rsync-path="sudo rsync"`.
+- **jq with large file lists** — shell `ARG_MAX` limit breaks `--argjson` with 2000+ file JSON objects. Use temp files + `--slurpfile` instead.
+- **Grafana sidecar resources** — set per-sidecar (`sidecar.dashboards.resources` + `sidecar.datasources.resources`), not shared `sidecar.resources`. Shared key can cause port 8080 conflicts.
+- **Loki sidecar CrashLoop** — `sidecar:` key with only `resources:` enables the rules sidecar which crashes without Ruler. Set `sidecar.rules.enabled: false` if Ruler is not in use.
+- **alpine/k8s has no tzdata** — `TZ=Asia/Manila` silently falls back to UTC. Use `TZ=UTC-8` (POSIX: means UTC+8 = Manila).
+- **etcd image is distroless** — `registry.k8s.io/etcd:3.6.6-0` has no shell, no cp, no coreutils. Use initContainer to copy etcdctl, run backup from alpine/k8s.
+- **SQLite live backup** — never raw `cp` a live SQLite DB (WAL corruption). Use `sqlite3 <db> ".backup <dest>"` or `keinos/sqlite3:3.46.1` image.
+- **MinIO is dead** — repo archived Feb 2026. Use Garage S3 (`dxflrs/garage`) as replacement.
+- **Scripts REPO_ROOT after reorg** — scripts in subdirectories (`scripts/vault/`, `scripts/monitoring/`). `REPO_ROOT` needs double dirname: `"$(dirname "$(dirname "$SCRIPT_DIR")")"`.
+- **Longhorn v1.10 backup-target** — `backup-target` setting removed. Use Helm `defaultBackupStore.backupTarget` instead.

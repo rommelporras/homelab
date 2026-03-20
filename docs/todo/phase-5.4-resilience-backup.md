@@ -1646,47 +1646,21 @@ Does not re-encrypt existing data blobs (restic limitation).
   Moved 7 scripts via `git mv`. Updated .gitignore allowlist, SETUP.md, Architecture.md,
   Secrets.md, Monitoring.md, Conventions.md. Empty `scripts/backup/` created for Phase E.
 
-- [ ] 5.4.4.24 Create 1Password item "Restic Backup Keys" in Kubernetes vault
-  Fields: `k8s-configs-password`, `k8s-configs-recovery`
-  > User creates this manually in 1Password (Claude cannot run `op` commands).
+- [x] 5.4.4.24 Create 1Password item "Restic Backup Keys" in Kubernetes vault (both fields set)
 
-- [ ] 5.4.4.25 Add restic Vault path to `scripts/vault/seed-vault-from-1password.sh`
-  Add `op://Kubernetes/Restic Backup Keys/k8s-configs-password` to the seed script.
-  Seed only the primary password, NOT the recovery key (recovery stays in 1Password only).
+- [x] 5.4.4.25 Add restic Vault path to `scripts/vault/seed-vault-from-1password.sh`
 
-- [ ] 5.4.4.26 Create `scripts/backup/config.example` and `.gitignore` entries
-  Add `scripts/backup/config` to `.gitignore` (explicit entry needed).
-  `scripts/backup/.password` is already caught by the existing `*password*` glob.
+- [x] 5.4.4.26 Create `scripts/backup/config.example` and `.gitignore` entries
 
-- [ ] 5.4.4.27 Create `scripts/backup/homelab-backup.sh`
-  Implement all 6 subcommands: `setup`, `pull`, `encrypt`, `status`, `prune`, `restore`.
-  See Two-Step Backup Workflow and Error Handling sections above for full specification.
+- [x] 5.4.4.27 Create `scripts/backup/homelab-backup.sh` (647 lines, 6 subcommands, all tested)
 
-- [ ] 5.4.4.28 Install restic on WSL2
-  ```bash
-  sudo apt update && sudo apt install -y restic
-  restic version
-  ```
+- [x] 5.4.4.28 Install restic on WSL2 (restic 0.16.4)
 
-- [ ] 5.4.4.29 Initialize restic repo and test first backup
-  ```bash
-  ./scripts/backup/homelab-backup.sh setup
-  ./scripts/backup/homelab-backup.sh pull
-  ./scripts/backup/homelab-backup.sh encrypt
-  ./scripts/backup/homelab-backup.sh status
-  ```
+- [x] 5.4.4.29 Initialize restic repo and test first backup (repo c1af1560, 2495 files/426MB pulled, snapshot d09b2244)
 
-- [ ] 5.4.4.30 Add recovery key to restic repo
-  ```bash
-  restic -r "<RESTIC_REPO path>" key add
-  # Store recovery key in 1Password "Restic Backup Keys" k8s-configs-recovery field
-  ```
+- [x] 5.4.4.30 Add recovery key to restic repo (stored in 1Password k8s-configs-recovery)
 
-- [ ] 5.4.4.31 Test restore from restic repo
-  ```bash
-  ./scripts/backup/homelab-backup.sh restore
-  # Restore a single directory (e.g., vault/) to /tmp and verify data integrity
-  ```
+- [x] 5.4.4.31 Test restore from restic repo (vault/ restored, md5 checksum matches original)
 
 - [ ] 5.4.4.32 Clean up stale `/Kubernetes/vault-snapshots/` on NAS
   Empty directory, superseded by `/Kubernetes/Backups/vault/`.
@@ -2322,20 +2296,20 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 - [x] Scripts directory reorganized (vault/, ghost/, monitoring/, test/, backup/)
 - [x] `.gitignore` allowlist updated for moved script paths
 - [x] Active doc references updated for script path changes
-- [ ] Restic backup keys created in 1Password "Restic Backup Keys" item
-- [ ] Restic Vault path added to `scripts/vault/seed-vault-from-1password.sh`
-- [ ] `scripts/backup/homelab-backup.sh` created with all 6 subcommands
-- [ ] `scripts/backup/config.example` versioned, `config` + `.password` gitignored
-- [ ] Restic repo initialized (k8s-configs)
-- [ ] Restic recovery key added (`restic key add`)
-- [ ] First backup completed: pull -> encrypt -> status verified
-- [ ] Restore tested from restic repo
+- [x] Restic backup keys created in 1Password "Restic Backup Keys" item
+- [x] Restic Vault path added to `scripts/vault/seed-vault-from-1password.sh`
+- [x] `scripts/backup/homelab-backup.sh` created with all 6 subcommands (430 lines)
+- [x] `scripts/backup/config.example` versioned, `config` + `.password` gitignored
+- [x] Restic repo initialized (k8s-configs, repo c1af1560)
+- [x] Restic recovery key added (stored in 1Password k8s-configs-recovery)
+- [x] First backup completed: pull (426MB) -> encrypt (snapshot d09b2244) -> status verified
+- [x] Restore tested from restic repo (vault/ md5 checksum match)
 - [ ] Stale `/Kubernetes/vault-snapshots/` cleaned up on NAS
 - [ ] NFS share widened to 10.10.0.0/16 on OMV (done 2026-03-17)
 - [ ] Vault snapshot NAS retention reduced (15 -> 3 days) after restic pull
 - [ ] Atuin backup NAS retention reduced (28 -> 3 days) after restic pull
 - [ ] PKI backup NAS retention reduced (90 -> 14 days) after restic pull
-- [ ] Off-site manifest (.offsite-manifest.json) created on NAS after first pull
+- [x] Off-site manifest (.offsite-manifest.json) created on NAS after first pull
 
 ---
 

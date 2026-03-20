@@ -222,7 +222,17 @@ Velero details:
 For 5.4.4.10: test backup on portfolio-dev. Verify with `velero backup describe`.
 ```
 
-### Session 7: Phase E - Off-Site Backup Script
+### Session 7: Phase E - Off-Site Backup Script (COMPLETED)
+
+> **Implementation notes:**
+> - rsync needed `--rsync-path="sudo rsync"` (NAS backup files are root-owned by CronJobs)
+> - rsync needed `--no-specials --no-devices` (NTFS on WSL2 can't create Unix sockets)
+> - jq `--argjson` hit shell ARG_MAX with 2495 files - switched to temp files + `--slurpfile`
+> - Manifest writing uses temp files piped via SSH (avoids shell expansion limits)
+> - Seed script updated: `VAULT_ADDR="${VAULT_ADDR:-http://localhost:8200}"` (respects .zshrc)
+> - Bonus fix: CiliumNP `prometheus-operator-ingress` needed `remote-node` entity
+>   (cross-node API server webhook traffic uses `remote-node` identity in Cilium tunnel mode)
+> - Script grew from planned 430 to 647 lines due to bug fixes and robust error handling
 
 ```
 This session: Phase E (Off-Site Backup Script on WSL2)
