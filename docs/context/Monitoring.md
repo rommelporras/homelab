@@ -268,6 +268,7 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 | `byparr-probe.yaml` | Byparr | HTTP (byparr.arr-stack.svc:8191) | 60s |
 | `bazarr-probe.yaml` | Bazarr | HTTP (bazarr.arr-stack.svc:6767) | 60s |
 | `vault-probe.yaml` | Vault | HTTP /v1/sys/health (vault.vault.svc:8200) | 60s |
+| `atuin-probe.yaml` | Atuin | HTTP /healthz (atuin-server.atuin.svc:8888) | 60s |
 
 **Vault probe note:** `/v1/sys/health` returns 200=active, 503=sealed. `http_2xx` treats sealed as probe failure - used by VaultSealed alert's `absent()` guard to prevent false positives when metrics are temporarily unavailable.
 
@@ -286,6 +287,8 @@ All probes use the `http_2xx` module (Blackbox Exporter at `blackbox-exporter-pr
 | `tdarr-servicemonitor.yaml` | tdarr-exporter (:9090) | arr-stack | 60s |
 | `qbittorrent-servicemonitor.yaml` | qbittorrent-exporter (:8000) | arr-stack | 30s |
 | `manifests/vault/servicemonitor.yaml` | Vault /v1/sys/metrics (:8200) | vault | 30s |
+| `garage-servicemonitor.yaml` | Garage S3 /metrics (:3903, bearer auth) | velero | 30s |
+| `manifests/arr-stack/scraparr/servicemonitor.yaml` | Scraparr /metrics (:7100) | arr-stack | 5m |
 
 All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kube-prometheus-stack` labels for Prometheus Operator discovery.
 

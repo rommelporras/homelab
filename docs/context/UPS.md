@@ -96,9 +96,12 @@ nut-exporter runs in the monitoring namespace, scrapes NUT server.
 |-------|-----------|
 | UPSOnBattery | Status = OB (on battery) |
 | UPSLowBattery | Status contains LB |
+| UPSBatteryCritical | Charge < 30% |
+| UPSBatteryWarning | Charge < 50% (and >= 30%) |
 | UPSHighLoad | Load > 80% |
-| UPSBatteryLow | Charge < 50% |
-| UPSBatteryCritical | Charge < 20% |
+| UPSExporterDown | nut-exporter unreachable for 2m |
+| UPSOffline | Not OL and not OB (neither on power nor battery) |
+| UPSBackOnline | UPS returned to line power after battery |
 
 ## Grafana Dashboard
 

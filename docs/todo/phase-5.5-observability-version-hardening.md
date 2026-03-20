@@ -338,14 +338,34 @@ Done --- All services monitored, all images current, clean signal.
 
 ### B2: Janitor Discord Message Improvements
 
-- [ ] 5.5.2.3 Add context to janitor Discord messages
-  Current message: `"Cluster Janitor cleaned 3 failed pod(s), 1 stopped replica(s)"`
-  Improved: include which pods/replicas were cleaned, which namespaces affected.
-  ```bash
-  # Example: "Cleaned 3 failed pods: monitoring/prometheus-node-exporter-abc (OOMKilled),
-  #           arr-stack/radarr-xyz (UnexpectedAdmissionError), ..."
+- [ ] 5.5.2.3 Improve janitor Discord messages with context and detail
+  Current message is vague: `"Cluster Janitor cleaned 0 failed pod(s), 0 stopped replica(s), 6 failed job(s) at 07:16AM PHT"`
+  No indication of WHAT was cleaned, which namespaces, or WHY things failed.
+
+  Improvements needed:
+  1. **List what was cleaned** - namespace/name for each item, up to 5 per category, then "and N more"
+  2. **Include failure reason** - OOMKilled, CreateContainerConfigError, ImagePullBackOff, etc.
+  3. **Use Discord embeds** instead of plain text - color-coded (green=routine, yellow=unusual count)
+  4. **Separate "nothing cleaned" from "cleaned N items"** - only post when something was actually cleaned (already done), but when posting, include detail
+  5. **Add failed job context** - show which CronJob the failed job belongs to
+
+  Example improved message:
   ```
-  > Keep it concise. List up to 5 items, then "and N more" for the rest.
+  Cluster Janitor - 07:16AM PHT
+
+  Failed Jobs (6):
+  - arr-stack/arr-backup-cp1 (CronJob: arr-backup-cp1, age: 12h)
+  - arr-stack/arr-backup-cp2 (CronJob: arr-backup-cp2, age: 12h)
+  - arr-stack/arr-backup-cp3 (CronJob: arr-backup-cp3, age: 12h)
+  - home/adguard-backup (CronJob: adguard-backup, age: 13h)
+  - home/myspeed-backup (CronJob: myspeed-backup, age: 12h)
+  - monitoring/grafana-backup (CronJob: grafana-backup, age: 12h)
+
+  Stopped Replicas: 0 | Failed Pods: 0
+  ```
+
+  Implementation: collect names during cleanup loops, build a structured Discord embed payload
+  with fields per category. Use the same embed pattern as version-check Discord digest.
 
 ### B3: Backup Health Dashboard
 

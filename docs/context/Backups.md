@@ -1,3 +1,8 @@
+---
+tags: [homelab, kubernetes, backup, restic, velero, longhorn]
+updated: 2026-03-21
+---
+
 # Backups
 
 Three-layer backup strategy. Everything runs automatically except the off-site backup (WSL2 manual).
@@ -33,15 +38,25 @@ Backs up all K8s resources (deployments, services, configmaps, etc.) except Secr
 Covers 18 namespaces (all application + infrastructure except kube-system, longhorn-system, cilium, cert-manager).
 
 ```bash
+# All velero CLI commands from WSL2 need --kubeconfig
+alias velero='velero --kubeconfig ~/.kube/homelab.yaml'
+
 # Check backup status
 velero backup get
 velero schedule get
 
-# Restore a backup
-velero restore create --from-backup <name>
+# Restore a namespace from a backup
+velero restore create <restore-name> --from-backup <backup-name> --include-namespaces <namespace>
 
-# Describe a backup
+# Describe a backup or restore
 velero backup describe <name> --details
+velero restore describe <restore-name>
+
+# View restore/backup logs (requires port-forward - WSL2 can't resolve cluster DNS)
+kubectl-admin port-forward svc/garage 3900:3900 -n velero &
+velero restore logs <restore-name>
+velero backup logs <backup-name>
+# Kill the port-forward when done: kill %1
 ```
 
 ### Layer 3: CronJob Database/Config Dumps

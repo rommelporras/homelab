@@ -20,9 +20,9 @@
 | Component | Version | Status |
 |-----------|---------|--------|
 | Ubuntu Server | 24.04.3 LTS | Installed |
-| Kernel | 6.8.0-90-generic | Installed |
+| Kernel | 6.8.0-101-generic | Installed |
 | Kubernetes | v1.35.0 | Running (3 nodes) |
-| containerd | 1.7.x | Installed |
+| containerd | 1.7.28 | Installed |
 | Cilium | 1.18.6 | Installed |
 | Cilium CLI | v0.19.0 | Installed |
 | Longhorn | 1.10.1 | Installed |
@@ -123,7 +123,7 @@ helm-homelab repo update
 | Ollama | 0.15.6 | Running | CPU-only LLM inference server |
 | qwen2.5:3b | Q4_K_M | Running | Text model for Karakeep tagging (1.9 GB) |
 | qwen3:1.7b | Q4_K_M | Running | General text model (1.4 GB) |
-| moondream | Q4_K_M | Running | Vision model for image tagging (1.7 GB) |
+| moondream:latest | Q4_0 | Running | Vision model for image tagging (1.7 GB) |
 | gemma3:1b | Q4_K_M | Running | Fallback text model (0.8 GB) |
 | Tailscale Operator | v1.94.1 | Running | Watches CRDs, manages proxy pods |
 | Tailscale Proxy (Connector) | v1.94.1 | Running | WireGuard subnet router (homelab-subnet) |

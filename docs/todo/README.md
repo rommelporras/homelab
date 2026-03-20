@@ -102,7 +102,8 @@
 | Phase | Description | File |
 |-------|-------------|------|
 | 5.4 | Resilience & Backup | [phase-5.4-resilience-backup.md](phase-5.4-resilience-backup.md) |
-| 5.5 | Pre-GitOps Validation | [phase-5.5-pre-gitops-validation.md](phase-5.5-pre-gitops-validation.md) |
+| 5.5 | Observability & Version Hardening | [phase-5.5-observability-version-hardening.md](phase-5.5-observability-version-hardening.md) |
+| 5.6 | Pre-GitOps Validation | [phase-5.6-pre-gitops-validation.md](phase-5.6-pre-gitops-validation.md) |
 | 6 | CKA Focused Learning | [phase-6-cka.md](phase-6-cka.md) |
 
 ### Deferred

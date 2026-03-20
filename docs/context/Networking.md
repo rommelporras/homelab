@@ -161,7 +161,7 @@ Phone → WireGuard tunnel → Connector Pod → AdGuard DNS (10.10.30.53)
 
 ## CiliumNetworkPolicy Traffic Matrix (Phase 5.3)
 
-CiliumNetworkPolicies across 23 namespaces + 1 CiliumClusterwideNetworkPolicy.
+CiliumNetworkPolicies across 24 namespaces + 1 CiliumClusterwideNetworkPolicy.
 See [[Security]] for policy strategy, Cilium identity reference, and known limitations.
 
 ### Cluster-Wide

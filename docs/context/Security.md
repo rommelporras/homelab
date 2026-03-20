@@ -157,9 +157,9 @@ Workaround: use L4-only policy (no `toPorts`) for critical pods that need reliab
 
 ### Coverage
 
-23 namespaces with CiliumNetworkPolicy + 1 CiliumClusterwideNetworkPolicy (Gateway `reserved:ingress` identity).
+24 namespaces with CiliumNetworkPolicy + 1 CiliumClusterwideNetworkPolicy (Gateway `reserved:ingress` identity).
 
-Covered: ai, arr-stack, atuin, browser, cert-manager, cloudflare, external-secrets, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, portfolio-dev, portfolio-prod, portfolio-staging, tailscale, uptime-kuma, vault
+Covered: ai, arr-stack, atuin, browser, cert-manager, cloudflare, external-secrets, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, portfolio-dev, portfolio-prod, portfolio-staging, tailscale, uptime-kuma, vault, velero
 
 Deferred: longhorn-system, intel-device-plugins, node-feature-discovery (high breakage risk, low attack surface)
 
@@ -196,9 +196,9 @@ Helm-managed workloads (Cilium, cert-manager, Longhorn, Vault, NFD, Intel device
 | Webhook TLS ciphers | `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256` |
 | ClusterSecretStore namespaceSelector | Only namespaces with `eso-enabled: "true"` can sync secrets |
 
-### ESO-Enabled Namespaces (15)
+### ESO-Enabled Namespaces (16)
 
-arr-stack, atuin, browser, cert-manager, cloudflare, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring
+arr-stack, atuin, browser, cert-manager, cloudflare, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, velero
 
 ### Known Trade-offs
 

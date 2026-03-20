@@ -131,7 +131,7 @@ Dead man's switch — Alertmanager sends periodic pings to validate the alerting
 
 ## Discord
 
-Seven webhook channels for notification routing (single 1Password item: `Discord Webhooks`).
+Seven webhook channels for notification routing. Six use the `Discord Webhooks` 1Password item; #arr uses a separate `ARR Stack` item.
 
 | Channel | Purpose | Secret Field |
 |---------|---------|--------------|

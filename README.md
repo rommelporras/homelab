@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
-3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 40 releases with [29 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
+3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 59 releases with [29 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
 
 > **Owner:** Rommel Porras  |  **CKA Target:** September 2026
 
@@ -69,11 +69,11 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Longhorn distributed storage (2x replication across NVMe)
 - kube-vip HA VIP (ARP mode, Prometheus monitoring)
 - Gateway API + cert-manager (Let's Encrypt wildcard TLS)
-- Ansible-automated bootstrap ([8 playbooks](ansible/playbooks/))
+- Ansible-automated bootstrap ([10 playbooks](ansible/playbooks/))
 
 **Observability**
 - Prometheus + Grafana + Loki + Alloy (full metrics, logs, 41 Grafana dashboards)
-- Alertmanager (Discord + Email, severity routing) — 60 PrometheusRules across 30 alert files
+- Alertmanager (Discord + Email, severity routing) — 63 PrometheusRules across 30 alert files
 - Blackbox probes (14 services: Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr, Atuin, Vault)
 - Dead Man's Switch (healthchecks.io), UPS monitoring (NUT + nut-exporter)
 - smartctl-exporter DaemonSet (NVMe S.M.A.R.T. health on all 3 nodes — temp, wear, spare, TBW)
@@ -89,14 +89,14 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Cloudflare Tunnel (HA, 2 replicas) for public services
 - Tailscale Operator (WireGuard subnet router) for private remote access
 - AdGuard DNS as primary for all VLANs + Tailscale global nameserver
-- CiliumNetworkPolicy microsegmentation (117 policies across 23 namespaces, implicit default-deny)
+- CiliumNetworkPolicy microsegmentation (126 policies across 24 namespaces, implicit default-deny)
 
 **Applications**
 - GitLab CE (Runner, Container Registry, SSH) with CI/CD pipelines
 - Ghost Blog (dev/prod, MySQL, Tinybird analytics, Cloudflare Tunnel)
 - ARR Media Stack (Prowlarr, Sonarr, Radarr, qBittorrent, Jellyfin, Bazarr)
 - ARR Companions (Seerr, Configarr, Unpackerr, Scraparr, Tdarr, Recommendarr, Byparr)
-- Ollama (CPU-only LLM: qwen3, qwen2.5:3b, moondream, gemma3)
+- Ollama (CPU-only LLM: qwen3:1.7b, qwen2.5:3b, moondream, gemma3:1b)
 - Karakeep (bookmark manager with Ollama AI tagging + Meilisearch)
 - Portfolio (Next.js, 3-env GitLab CI/CD: dev/staging/prod)
 - Invoicetron (Next.js + PostgreSQL, Cloudflare Access)
@@ -105,7 +105,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 
 **Secrets Management**
 - HashiCorp Vault 1.21.2 (standalone, Raft on Longhorn, auto-unsealer, daily NFS snapshots)
-- External Secrets Operator v2.1.0 (30 ExternalSecrets, Kubernetes auth, all namespaces)
+- External Secrets Operator v2.1.0 (33 ExternalSecrets, Kubernetes auth, all namespaces)
 
 ---
 
@@ -146,7 +146,7 @@ Things that bit us and might save you time:
 | [docs/SETUP.md](docs/SETUP.md) | **New machine setup** - clone-and-go guide for any workstation |
 | [docs/context/Cluster.md](docs/context/Cluster.md) | **Source of truth** - nodes, IPs, hardware |
 | [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (v0.1.0 to v0.29.0, v0.30.0+ baked in) |
-| [docs/context/](docs/context/) | Knowledge base (12 topic files: Architecture, Gateway, Networking, Security, etc.) |
+| [docs/context/](docs/context/) | Knowledge base (13 topic files: Architecture, Gateway, Networking, Security, etc.) |
 | [docs/todo/](docs/todo/README.md) | Phase plans (active + [completed](docs/todo/completed/)) |
 | [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md) | Decision history and project timeline |
 | [VERSIONS.md](VERSIONS.md) | Component versions, Helm charts, HTTPRoutes |
@@ -156,7 +156,7 @@ Things that bit us and might save you time:
 ## Next Steps
 
 1. **Network Policies** — CiliumNetworkPolicy microsegmentation complete (Phase 5.3, v0.33.0)
-2. **Resilience & Backup** — Disaster recovery, backup validation, chaos testing (Phase 5.4)
+2. **Resilience & Backup** — Phase 5.4 complete (pending v0.34.0 release)
 3. **CKA Certification** — September 2026 target
 
 ## Claude Code

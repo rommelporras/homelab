@@ -135,8 +135,8 @@ The ~100W electricity covers all devices: 3 K8s nodes, Dell 3090, Topton firewal
 | Setting | Value |
 |---------|-------|
 | OS | Ubuntu 24.04.3 LTS |
-| Kernel | 6.8.0-90-generic |
-| Container Runtime | containerd 1.7.x |
+| Kernel | 6.8.0-101-generic |
+| Container Runtime | containerd 1.7.28 |
 | IP Assignment | DHCP with OPNsense reservations |
 
 ## Related

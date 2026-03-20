@@ -37,7 +37,7 @@ on all application namespaces. PodDisruptionBudgets, pod eviction tuning, and au
 
 ### In-Cluster CronJob Backups (Phase D2)
 
-- 11 new backup CronJobs: Ghost MySQL, AdGuard, UptimeKuma, Karakeep, Grafana, ARR (3 per-node), MySpeed, etcd
+- 10 new backup CronJobs: Ghost MySQL, AdGuard, UptimeKuma, Karakeep, Grafana, ARR (3 per-node), MySpeed, etcd
 - Invoicetron backup migrated from Longhorn PVC to NFS (3-day retention)
 - GitLab backup strategy evaluated (deferred native backup, covered by Longhorn + Velero)
 - etcd backup CronJob: distroless initContainer + alpine/k8s, daily 03:30, hostNetwork for etcd access
@@ -69,13 +69,14 @@ on all application namespaces. PodDisruptionBudgets, pod eviction tuning, and au
 
 ### Monitoring & Alerting (Phase G)
 
-- 12 new Prometheus alert rules across 3 files (backup-alerts.yaml, pod-alerts.yaml, storage-alerts.yaml)
-- Velero backup failure/partial/missing alerts
-- etcd backup staleness alert (>26h)
-- CronJob failure and not-scheduled alerts
-- Stuck pod alerts (Init, Pending, CrashLoop, ImagePull)
-- ResourceQuota nearing limit alerts (>80%)
-- LonghornVolumeAllReplicasStopped (deduplicated with existing storage-alerts.yaml)
+- 12 new Prometheus alert rules across 3 files (backup-alerts.yaml, longhorn-alerts.yaml, stuck-pod-alerts.yaml)
+- Velero backup failure/staleness alerts (VeleroBackupFailed, VeleroBackupStale >36h)
+- etcd backup staleness alert (>36h)
+- CronJob failure and not-scheduled alerts (generic, covers all CronJobs)
+- Stuck pod alerts (Init, Pending, CrashLoop >1h, ImagePull)
+- ResourceQuota nearing limit alert (>85%)
+- LonghornVolumeAllReplicasStopped (deduplicated LonghornVolumeDegraded - already in storage-alerts.yaml)
+- Longhorn metric expressions fixed: numeric gauges, not label-based (robustness==0, state==3, backup_state==4)
 
 ### Resilience Hardening (Phase H)
 
@@ -93,16 +94,21 @@ on all application namespaces. PodDisruptionBudgets, pod eviction tuning, and au
 - version-check CronJob: CiliumNetworkPolicy added (pre-existing bug from Phase 5.3)
 - version-check CronJob: TZ fixed from Asia/Manila to UTC-8 (alpine/k8s has no tzdata)
 - Renovate Bot suspended (version-checker + Nova sufficient for single-admin homelab)
-- ARR stall resolver: Discord notification added (needs 1P field + vault seed for webhook)
+- ARR stall resolver: Discord notification added (ExternalSecret + Vault seed completed)
 - Cluster janitor: stuck volumes covered by LonghornVolumeAllReplicasStopped alert
+- Cluster janitor: added Failed Job cleanup (Task 3, >1h age, clears CronJobFailed alerts automatically)
+- Cluster janitor: timezone fix (TZ=Asia/Manila -> TZ=UTC-8, alpine/k8s has no tzdata)
 
 ### Bug Fixes
 
-- CiliumNP prometheus-operator-ingress: added remote-node entity (cross-node webhook traffic)
+- CiliumNP prometheus-operator-ingress: added remote-node entity (cross-node webhook traffic in tunnel mode)
+- CiliumNP ESO webhook-ingress: added remote-node entity (same cross-node SNAT issue)
+- ESO webhook CiliumNP: port 443->10250 (container port vs service port) + host entity
 - Grafana sidecar resources: set per-sidecar (dashboards + datasources), not shared sidecar.resources
 - Loki sidecar CrashLoop: set sidecar.rules.enabled=false (rules sidecar crashes without Ruler)
-- Invoicetron image tag: fixed from placeholder to actual prod SHA
-- ESO webhook CiliumNP: port 443->10250 (container port vs service port) + host entity
+- Invoicetron image tag: fixed from placeholder `:latest` to actual prod SHA
+- SQLite backup CronJobs (8): added runAsUser/runAsGroup 65534 (keinos/sqlite3 uses non-numeric user `sqlite`, fails runAsNonRoot verification)
+- Karakeep backup: cp -a -> cp -r (NFS as non-root), skip lost+found directory
 
 ### Documentation (Phase J)
 

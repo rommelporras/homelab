@@ -95,10 +95,11 @@ homelab/
 │   ├── storage/             # Longhorn HTTPRoute, NFS PVs
 │   ├── tailscale/           # Tailscale Operator + Connector (subnet router)
 │   ├── uptime-kuma/         # Uptime Kuma StatefulSet
-│   └── vault/               # Vault + auto-unsealer + snapshot CronJob
+│   ├── vault/               # Vault + auto-unsealer + snapshot CronJob
+│   └── velero/              # Velero + Garage S3 backend (namespace, StatefulSet, Schedule, CiliumNP)
 ├── scripts/                 # Automation scripts
 │   ├── backup/              # Off-site backup scripts
-│   │   ├── homelab-backup.sh       # Main backup script (restic to Backblaze B2)
+│   │   ├── homelab-backup.sh       # Main backup script (restic to OneDrive)
 │   │   ├── config.example          # Template for local config
 │   │   └── config                  # Local config (gitignored)
 │   ├── vault/
