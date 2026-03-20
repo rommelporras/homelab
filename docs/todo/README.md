@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.33.1 (Network Policy Hotfix) - v0.33.2 pending release
+> **Latest Release:** v0.33.2 (Loki Storage Fix)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -49,7 +49,7 @@
 | v0.32.0 | RBAC & Secrets Hardening | Phase 5.2 | ✅ Released |
 | v0.33.0 | Network Policies | Phase 5.3 | ✅ Released |
 | v0.33.1 | Network Policy Hotfix | - | ✅ Released |
-| v0.33.2 | Loki Storage Fix | - | ⬜ Pending |
+| v0.33.2 | Loki Storage Fix | - | ✅ Released |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 
 ---
@@ -127,6 +127,7 @@
 | `cloudflare` | Cloudflare Tunnel (external access) |
 | `vault` | HashiCorp Vault secrets management |
 | `external-secrets` | External Secrets Operator (syncs K8s Secrets from Vault) |
+| `velero` | Velero backup + Garage S3 |
 
 ### CI/CD Namespaces
 | Namespace | Contents | Storage |

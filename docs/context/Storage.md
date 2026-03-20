@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, storage, longhorn, nfs]
-updated: 2026-03-11
+updated: 2026-03-21
 ---
 
 # Storage
@@ -69,7 +69,18 @@ All K8s NFS storage uses a **single export** (`/export/Kubernetes`) with **one s
 │   └── media/{movies,tv,music}/      (Sonarr/Radarr hardlinked library)
 ├── Backups/                          (service database backups & snapshots)
 │   ├── atuin/                        (Atuin PostgreSQL pg_dump, weekly CronJob)
-│   └── vault/                        (Vault Raft snapshots, daily CronJob)
+│   ├── vault/                        (Vault Raft snapshots, daily CronJob)
+│   ├── pki/                          (PKI certificate backups)
+│   ├── longhorn/                     (Longhorn volume backups - backup target)
+│   ├── etcd/                         (etcd snapshot backups)
+│   ├── adguard/                      (AdGuard Home SQLite backups)
+│   ├── uptime-kuma/                  (Uptime Kuma SQLite backups)
+│   ├── grafana/                      (Grafana SQLite backups)
+│   ├── karakeep/                     (Karakeep SQLite backups)
+│   ├── myspeed/                      (MySpeed SQLite backups)
+│   ├── arr/                          (ARR config SQLite backups)
+│   ├── invoicetron/                  (Invoicetron PostgreSQL backups)
+│   └── ghost-mysql/                  (Ghost MySQL backups)
 ├── Documents/                        (future — Nextcloud or Paperless-ngx)
 └── (future services)/
 ```
@@ -80,6 +91,17 @@ All K8s NFS storage uses a **single export** (`/export/Kubernetes`) with **one s
 | `Media/` | `/Kubernetes/Media` | `arr-data-nfs` | `arr-stack` | Deployed |
 | `Backups/atuin/` | `/Kubernetes/Backups/atuin` | inline NFS volume | `atuin` | Deployed (v0.28.1) |
 | `Backups/vault/` | `/Kubernetes/Backups/vault` | `vault-snapshots-nfs` | `vault` | Deployed (v0.29.0) |
+| `Backups/pki/` | `/Kubernetes/Backups/pki` | inline NFS volume | `kube-system` | Phase 5.4 |
+| `Backups/longhorn/` | `/Kubernetes/Backups/longhorn` | Longhorn backup target | `longhorn-system` | Phase 5.4 |
+| `Backups/etcd/` | `/Kubernetes/Backups/etcd` | inline NFS volume | `kube-system` | Phase 5.4 |
+| `Backups/adguard/` | `/Kubernetes/Backups/adguard` | inline NFS volume | `adguard` | Phase 5.4 |
+| `Backups/uptime-kuma/` | `/Kubernetes/Backups/uptime-kuma` | inline NFS volume | `monitoring` | Phase 5.4 |
+| `Backups/grafana/` | `/Kubernetes/Backups/grafana` | inline NFS volume | `monitoring` | Phase 5.4 |
+| `Backups/karakeep/` | `/Kubernetes/Backups/karakeep` | inline NFS volume | `karakeep` | Phase 5.4 |
+| `Backups/myspeed/` | `/Kubernetes/Backups/myspeed` | inline NFS volume | `myspeed` | Phase 5.4 |
+| `Backups/arr/` | `/Kubernetes/Backups/arr` | inline NFS volume | `arr-stack` | Phase 5.4 |
+| `Backups/invoicetron/` | `/Kubernetes/Backups/invoicetron` | inline NFS volume | `invoicetron` | Phase 5.4 |
+| `Backups/ghost-mysql/` | `/Kubernetes/Backups/ghost-mysql` | inline NFS volume | `ghost` | Phase 5.4 |
 | `Documents/` | `/Kubernetes/Documents` | TBD | TBD | Future (Nextcloud/Paperless-ngx) |
 
 **NFSv4 path note:** OMV has `/export` with `fsid=0` as the pseudo-root. Filesystem path `/export/Kubernetes/Media` becomes NFSv4 mount path `/Kubernetes/Media`.
@@ -114,12 +136,25 @@ spec:
     path: /Kubernetes/<Subdirectory>       # NFSv4 pseudo-root path
 ```
 
+## Velero
+
+Velero backs up Kubernetes resources (manifests, PV snapshots) to S3-compatible storage.
+
+| Setting | Value |
+|---------|-------|
+| Namespace | `velero` |
+| Backend | Garage S3 (`dxflrs/garage:v2.2.0`) |
+| Scope | K8s resource backups (not application data) |
+
+Garage is a lightweight self-hosted S3-compatible store running in the cluster. Velero uses it as the object store backend for schedule-based resource backups. Application data backups (SQLite dumps, PostgreSQL pg_dump, etcd snapshots) go to NFS under `Backups/` via CronJobs.
+
 ## When to Use What
 
 | Storage | Use For |
 |---------|---------|
 | Longhorn | Databases, stateful apps (HA needed) |
 | NFS | Media files, photos, backups (large, not HA-critical) |
+| Velero + Garage S3 | K8s resource backups (manifests, namespace state) |
 
 ## Commands
 
@@ -139,6 +174,30 @@ kubectl-homelab get pvc -A
 # Check StorageClass
 kubectl-homelab get storageclass
 ```
+
+## Longhorn: Stuck Stopped Replicas Recovery
+
+When a node reboots or goes NotReady briefly, Longhorn may mark some replicas as "stopped." The `LonghornVolumeAllReplicasStopped` alert fires when all replicas of a volume are stopped. The cluster janitor CronJob handles stopped replicas automatically, but manual intervention may be needed for edge cases.
+
+```bash
+# 1. Identify stopped replicas
+kubectl-homelab -n longhorn-system get replicas.longhorn.io \
+  -o custom-columns=NAME:.metadata.name,VOLUME:.spec.volumeName,NODE:.spec.nodeID,STATE:.status.currentState \
+  | grep stopped
+
+# 2. Verify the volume has at least 1 healthy replica before deleting
+kubectl-homelab -n longhorn-system get replicas.longhorn.io \
+  -o custom-columns=VOLUME:.spec.volumeName,STATE:.status.currentState \
+  | sort | uniq -c
+
+# 3. Delete stopped replicas (Longhorn auto-rebuilds replacement)
+kubectl-admin -n longhorn-system delete replicas.longhorn.io <name>
+
+# 4. Monitor rebuild progress
+kubectl-homelab -n longhorn-system get volumes.longhorn.io -w
+```
+
+**Volumes used only by CronJobs** show as detached with stopped replicas between runs - this is normal, not an error. The cluster janitor cleans these automatically.
 
 ## Related
 

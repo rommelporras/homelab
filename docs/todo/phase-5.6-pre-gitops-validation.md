@@ -1,8 +1,8 @@
-# Phase 5.5: Pre-GitOps Validation
+# Phase 5.6: Pre-GitOps Validation
 
 > **Status:** Planned
-> **Target:** v0.35.0
-> **Prerequisite:** Phase 5.4 (v0.34.0 — resilience and backup in place)
+> **Target:** v0.36.0
+> **Prerequisite:** Phase 5.5 (v0.35.0 - observability and version hardening in place)
 > **DevOps Topics:** CIS compliance, admission control, supply chain security, GitOps readiness
 > **CKA Topics:** ValidatingAdmissionPolicy, CIS Benchmark, security verification
 
@@ -461,5 +461,5 @@ kubectl-homelab delete cronjob kube-bench-weekly -n kube-system
 
 - [ ] `/audit-security` then `/commit`
 - [ ] `/audit-docs` then `/commit`
-- [ ] `/release v0.35.0 "Pre-GitOps Validation"`
-- [ ] `mv docs/todo/phase-5.5-pre-gitops-validation.md docs/todo/completed/`
+- [ ] `/release v0.36.0 "Pre-GitOps Validation"`
+- [ ] `mv docs/todo/phase-5.6-pre-gitops-validation.md docs/todo/completed/`

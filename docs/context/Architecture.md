@@ -125,6 +125,23 @@ CiliumNetworkPolicy restricts ingress to only authorized namespaces (`monitoring
 
 **Only imperative secret:** `vault-unseal-keys` (bootstrap — Vault must exist before ESO can create secrets from it).
 
+## Node Failure Recovery Times
+
+Expected recovery timeline when a node goes down (e.g., reboot, hardware failure):
+
+| Phase | Duration |
+|-------|----------|
+| M80q BIOS POST | ~5-7 min |
+| Kubernetes node NotReady detection | ~40s |
+| Pod eviction (default) | 300s |
+| Pod eviction (tuned stateless) | 60s |
+| Pod eviction (databases - keep default) | 300s |
+| Total worst-case stateless (default) | ~11 min |
+| Total worst-case stateless (tuned) | ~7 min |
+| Total worst-case database | ~11 min |
+
+Stateless services (Ghost, Portfolio, Homepage, ARR apps, etc.) use 60s tolerationSeconds for faster rescheduling. Databases (PostgreSQL, MySQL, Redis), Vault, and StatefulSets keep the default 300s to preserve data consistency.
+
 ## Related
 
 - [[Cluster]] - Current nodes

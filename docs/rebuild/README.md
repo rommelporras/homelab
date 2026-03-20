@@ -41,6 +41,8 @@
 | v0.31.0 | Phase 5.1 | Control Plane Hardening (CIS benchmark, audit logging, cert lifecycle) | *Hardening — baked into [v0.2.0-bootstrap.md](v0.2.0-bootstrap.md)* |
 | v0.32.0 | Phase 5.2 | RBAC & Secrets Hardening (etcd encryption, claude-code RBAC, restricted kubeconfig) | *Hardening - baked into [v0.2.0-bootstrap.md](v0.2.0-bootstrap.md)* |
 | v0.33.0 | Phase 5.3 | Network Policies (117 CiliumNetworkPolicies, 23 namespaces, implicit default-deny) | *Hardening - baked into per-namespace networkpolicy.yaml files* |
+| v0.33.1 | - | Network Policy Hotfix (CiliumNP operator ingress, Grafana sidecar, Prometheus upgrade) | *Hotfix - baked into per-namespace networkpolicy.yaml files* |
+| v0.33.2 | - | Loki Storage Fix (retention reductions, backup/pod alerts) | *Hotfix - baked into helm/loki/values.yaml and monitoring alerts* |
 
 > **Note:** v0.30.0+ are hardening phases that modify configs on existing components rather than
 > deploying new ones. Their settings are baked into the Ansible playbooks and kubeadm config
@@ -484,12 +486,16 @@ homelab/
 │           └── version-check-rbac.yaml         # v0.26.0
 │
 ├── scripts/
-│   ├── upgrade-prometheus.sh           # v0.5.0
+│   ├── monitoring/
+│   │   └── upgrade-prometheus.sh           # v0.5.0
+│   ├── vault/
+│   │   ├── configure-vault.sh             # v0.29.0 (🔒 safe terminal)
+│   │   └── seed-vault-from-1password.sh   # v0.29.0 (🔒 safe terminal)
+│   ├── backup/
+│   │   └── homelab-backup.sh              # v0.34.0
 │   ├── sync-ghost-prod-to-dev.sh      # v0.11.0
 │   ├── sync-ghost-prod-to-local.sh    # v0.11.0
-│   ├── test-cloudflare-networkpolicy.sh  # v0.7.0
-│   ├── configure-vault.sh             # v0.29.0 (🔒 safe terminal)
-│   └── seed-vault-from-1password.sh   # v0.29.0 (🔒 safe terminal)
+│   └── test-cloudflare-networkpolicy.sh  # v0.7.0
 │
 ├── renovate.json                      # v0.26.0
 ```
@@ -509,8 +515,7 @@ homelab/
 | Homepage | Kubernetes | v0.6.0 |
 | Healthchecks Ping URL | Kubernetes | v0.6.0 |
 | Cloudflare Tunnel | Kubernetes | v0.7.0 |
-| GitLab | Kubernetes | v0.8.0 |
-| GitLab Runner | Kubernetes | v0.8.0 |
+| GitLab (includes runner-token field) | Kubernetes | v0.8.0 |
 | Ghost Dev MySQL | Kubernetes | v0.11.0 |
 | Ghost Prod MySQL | Kubernetes | v0.11.0 |
 | Ghost Dev Admin API | Kubernetes | v0.11.0 |

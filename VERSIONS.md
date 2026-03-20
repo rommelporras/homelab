@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** March 16, 2026
+> **Last Updated:** March 21, 2026
 
 ---
 
@@ -54,6 +54,7 @@
 | prometheus-community/prometheus-smartctl-exporter | 0.16.0 | v0.14.0 | Installed | monitoring |
 | hashicorp/vault | 0.32.0 | v1.21.2 | Installed | vault |
 | external-secrets/external-secrets | 2.1.0 | v2.1.0 | Installed | external-secrets |
+| vmware-tanzu/velero | 12.0.0 | v1.18.0 | Installed | velero |
 
 > **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
 > Use `grafana/loki` + `grafana/alloy` instead.
@@ -151,7 +152,9 @@ helm-homelab repo update
 | HashiCorp Vault | 1.21.2 | Running | Secrets management (standalone, Raft on Longhorn 5Gi) |
 | Vault Auto-Unsealer | 1.21.2 | Running | Polls vault-0 every 30s, auto-unseals with 3 Shamir keys |
 | External Secrets Operator | v2.1.0 | Running | Syncs K8s Secrets from Vault via ExternalSecret CRDs |
-| Vault Snapshot CronJob | 1.21.2 | Running | Daily Raft backup to NFS NAS (02:00 PHT, 15-day retention) |
+| Vault Snapshot CronJob | 1.21.2 | Running | Daily Raft backup to NFS NAS (02:00 PHT, 3-day retention) |
+| Velero | v1.18.0 | Running | Cluster backup + restore (Helm chart, velero namespace) |
+| Garage S3 | v2.2.0 (dxflrs/garage) | Running | Self-hosted S3-compatible object store for Velero backend (velero namespace) |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -315,6 +318,6 @@ helm-homelab repo update
 | version-checker | v0.10.0 | Running | Container + K8s version drift (Prometheus metrics) |
 | Nova (CronJob) | v3.11.10 | Running | Weekly Helm chart drift digest (Discord) |
 | Nova (CLI) | v3.11.10 | Installed | Local Helm chart analysis |
-| Renovate Bot | GitHub App | Active | Automated image update PRs |
+| Renovate Bot | GitHub App | Suspended | Automated image update PRs |
 
 > **Note:** For detailed change history with decisions and rationale, see [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md).

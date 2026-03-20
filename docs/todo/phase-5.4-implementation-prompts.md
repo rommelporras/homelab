@@ -293,7 +293,13 @@ Phase G tasks:
 All alert manifests go in manifests/monitoring/alerts/. Must have labels `release: prometheus` for Prometheus Operator discovery. After applying, verify alerts appear in Prometheus UI.
 ```
 
-### Session 9: Phase H+I - Resilience + Automation Hardening
+### Session 9: Phase H+I - Resilience + Automation Hardening (DONE)
+
+> Completed 2026-03-21. 28 deployments got 60s tolerations, 8 PDBs created (21 total),
+> GitLab HA skipped (170%+ overcommit). Version-checker fixed: alpine/k8s (no apk),
+> container_type filter on alert, CiliumNP for CronJob (pre-existing bug from 5.3).
+> Renovate suspended. ARR stall resolver gets Discord (needs 1P field + vault seed).
+> Janitor stuck volumes covered by LonghornVolumeAllReplicasStopped alert.
 
 ```
 This session: Phase H (Resilience Hardening) + Phase I (Automation Hardening)

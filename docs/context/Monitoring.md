@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-03-16
+updated: 2026-03-21
 ---
 
 # Monitoring
@@ -200,7 +200,7 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 |------|-------|--------|----------|
 | version-checker | Container images + K8s version | Prometheus metrics → Grafana dashboard + alerts | Continuous (1h scrape) |
 | Nova CronJob | Helm chart drift | Discord #versions embed | Weekly (Sunday 08:00 PHT) |
-| Renovate Bot | Container image tags in manifests | GitHub PRs (dependency dashboard approval) | Continuous |
+| Renovate Bot | Container image tags in manifests | GitHub PRs (dependency dashboard approval) | Suspended (deferred to Phase 6/ArgoCD) |
 
 **version-checker** runs as a Deployment in `monitoring` with `--test-all-containers` (scans all pods). LinuxServer.io images use `match-regex` annotations for non-standard tag formats. Alerts fire after 7d outdated (containers) or 14d (K8s version).
 
@@ -322,6 +322,9 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | `vault-alerts.yaml` | VaultSealed (critical, 2m), VaultMetricsMissing (warning, 15m), VaultAuditFailure (critical, 1m), VaultDown (warning, 5m), VaultHighLatency (warning, 10m), ESOSecretNotSynced (critical, 10m), ESOSyncErrors (warning, 5m), VaultSnapshotFailing (warning, 30m) | v0.29.0 |
 | `atuin-alerts.yaml` | AtuinDown, AtuinPostgresDown, AtuinHighRestarts, AtuinHighMemory | v0.28.0 |
 | `audit-alerts.yaml` | AuditSecretAccessByNonSystem, AuditPodExec, AuditRBACChange, AuditHighAuthFailureRate (LogQL - requires Loki ruler, currently deferred) | v0.31.0 |
+| `backup-alerts.yaml` | Velero backup failures, etcd backup age, CronJob failures | v0.34.0 |
+| `stuck-pod-alerts.yaml` | Pods stuck in pending/crashloop states | v0.34.0 |
+| `longhorn-alerts.yaml` | Longhorn volume all replicas stopped | v0.34.0 |
 
 **Severity routing:**
 - `critical` → Discord #incidents + Email (3 recipients)
@@ -359,6 +362,8 @@ All dashboards are auto-provisioned via Grafana sidecar. All have `grafana_folde
 | `version-check-cronjob.yaml` | Nova CronJob (weekly Helm drift → Discord #versions) |
 | `version-check-script.yaml` | Nova CronJob script ConfigMap |
 | `version-check-rbac.yaml` | Nova CronJob RBAC (secrets read for Helm) |
+
+**Network policy:** `manifests/monitoring/networkpolicy.yaml` includes a `version-check-egress` CiliumNetworkPolicy for the Nova CronJob (egress to kube-apiserver and Discord webhook).
 
 ## Upgrade Prometheus Stack
 

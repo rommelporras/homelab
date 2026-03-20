@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, cluster, nodes]
-updated: 2026-03-13
+updated: 2026-03-21
 ---
 
 # Cluster
@@ -81,6 +81,7 @@ ssh wawashi@cp3.k8s.rommelporras.com
 | node-feature-discovery | NFD (auto-labels GPU nodes) |
 | intel-device-plugins | Intel GPU Plugin Operator + GPU Plugin DaemonSet |
 | vault | HashiCorp Vault secrets management |
+| velero | Velero backup operator + Garage S3 storage backend |
 | external-secrets | External Secrets Operator (syncs K8s Secrets from Vault) |
 
 ## Hardware Inventory & Cost

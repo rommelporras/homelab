@@ -1905,7 +1905,7 @@ Does not re-encrypt existing data blobs (restic limitation).
 
 > **Problem:** When a node goes down, pods take ~5-6 min to reschedule (300s default toleration).
 
-- [ ] 5.4.6.1 Set tolerationSeconds for stateless services
+- [x] 5.4.6.1 Set tolerationSeconds for stateless services (28 deployments updated)
   ```yaml
   # Add to stateless Deployments (Ghost, Portfolio, Homepage, etc.):
   spec:
@@ -1930,7 +1930,7 @@ Does not re-encrypt existing data blobs (restic limitation).
   > **Keep 300s for:** Databases (PostgreSQL, MySQL, Redis), StatefulSets with PVCs,
   > Vault (seal/unseal is expensive). Data consistency > speed for stateful workloads.
 
-- [ ] 5.4.6.2 Document expected recovery times
+- [x] 5.4.6.2 Document expected recovery times (added to Architecture.md)
   | Phase | Duration |
   |-------|----------|
   | M80q BIOS POST | ~5-7 min |
@@ -1949,7 +1949,7 @@ Does not re-encrypt existing data blobs (restic limitation).
 > **Problem:** GitLab webservice is single-replica. Node reboot takes down container registry,
 > causing ImagePullBackOff cascade for invoicetron and portfolio.
 
-- [ ] 5.4.7.1 Assess memory budget for 2 replicas
+- [x] 5.4.7.1 Assess memory budget for 2 replicas (NOT FEASIBLE: cp1 170%, cp3 171% overcommit)
   ```bash
   kubectl-homelab top pods -n gitlab --sort-by=memory
   # Actual: webservice pod uses ~2214Mi
@@ -1963,7 +1963,7 @@ Does not re-encrypt existing data blobs (restic limitation).
   - Alternative: pre-pull images to local containerd cache (mitigates ImagePullBackOff
     without adding memory pressure)
 
-- [ ] 5.4.7.2 If feasible: scale webservice + registry to 2 replicas
+- [x] 5.4.7.2 ~~Scale webservice + registry~~ - SKIPPED: memory overcommit too high (170%+ on 2/3 nodes)
   ```yaml
   # helm/gitlab/values.yaml
   gitlab:
@@ -1982,7 +1982,7 @@ Does not re-encrypt existing data blobs (restic limitation).
 - [x] 5.4.8.1 ~~`node-down-pod-deletion-policy`~~ — **Done in v0.28.2**
 - [x] 5.4.8.2 ~~`orphan-resource-auto-deletion`~~ — **Done in v0.28.2**
 
-- [ ] 5.4.8.3 Document manual recovery procedure for stuck stopped replicas
+- [x] 5.4.8.3 Document manual recovery procedure for stuck stopped replicas (added to Storage.md)
   ```bash
   # 1. Identify stopped replicas
   kubectl-homelab -n longhorn-system get replicas.longhorn.io \
@@ -2001,7 +2001,7 @@ Does not re-encrypt existing data blobs (restic limitation).
   kubectl-homelab -n longhorn-system get volumes.longhorn.io -w
   ```
 
-- [ ] 5.4.8.4 Verify `replica-soft-anti-affinity` is `false`
+- [x] 5.4.8.4 Verify `replica-soft-anti-affinity` is `false` (confirmed: false)
   ```bash
   kubectl-homelab -n longhorn-system get settings replica-soft-anti-affinity -o jsonpath='{.value}'
   # Must be: false
@@ -2018,7 +2018,7 @@ Without PDBs, `kubectl drain` or a rolling upgrade can terminate all replicas of
 > **Existing PDBs (13 total):** GitLab (7), Longhorn (5), Cloudflare (1) — already created
 > by their Helm charts. This section adds PDBs for namespaces that don't have them.
 
-- [ ] 5.4.9.1 Add PDBs for services with 2+ replicas
+- [x] 5.4.9.1 Add PDBs for services with 2+ replicas (homepage, portfolio x3)
   ```yaml
   apiVersion: policy/v1
   kind: PodDisruptionBudget
@@ -2034,7 +2034,7 @@ Without PDBs, `kubectl drain` or a rolling upgrade can terminate all replicas of
   - Apply to: any Deployment/StatefulSet with replicas >= 2 that doesn't already have a PDB
   - Check existing PDBs first: `kubectl-homelab get pdb -A`
 
-- [ ] 5.4.9.2 Add PDBs for critical single-replica services
+- [x] 5.4.9.2 Add PDBs for critical single-replica services (vault, grafana, prometheus, adguard)
   ```yaml
   # For single-replica services, use maxUnavailable: 1 (NOT 0)
   # maxUnavailable: 0 permanently blocks kubectl drain — operational footgun
@@ -2060,7 +2060,7 @@ Without PDBs, `kubectl drain` or a rolling upgrade can terminate all replicas of
   - Evaluate for: Vault, Prometheus, Grafana, AdGuard
   - Services that already have Helm-managed PDBs: skip (check with `kubectl-homelab get pdb -A`)
 
-- [ ] 5.4.9.3 Verify PDBs are respected during drain
+- [x] 5.4.9.3 Verify PDBs are respected during drain (dry-run on cp2: all PDBs respected, 21 total)
   ```bash
   kubectl-homelab get pdb -A
   # Test: cordon a node and attempt drain — PDB should block if it would violate budget
@@ -2091,7 +2091,7 @@ The `ContainerImageOutdated` alert fires on everything, making it useless.
 | Non-semver tags can't compare | ~10 | `alpine:3.21`, `python:3.12-alpine`, `busybox` |
 | Legitimate outdated | ~87 | Real drift (but buried in noise) |
 
-- [ ] 5.4.10.1a Evaluate version-checker filtering options
+- [x] 5.4.10.1a Evaluate version-checker filtering options (container_type label available, cert-manager broken Quay detection)
   ```bash
   # Check if version-checker supports container_type filtering
   kubectl-homelab -n monitoring exec deploy/version-checker -- \
@@ -2106,7 +2106,7 @@ The `ContainerImageOutdated` alert fires on everything, making it useless.
   | Add `version-checker.io/image-override` for cert-manager | Medium | Fixes broken Quay detection |
   | Replace with Renovate-only (Phase 6) | Deferred | Permanent fix |
 
-- [ ] 5.4.10.1b Fix `ContainerImageOutdated` alert to reduce noise
+- [x] 5.4.10.1b Fix `ContainerImageOutdated` alert to reduce noise (container_type=container + exclude cert-manager)
   ```yaml
   # Option A: Exclude init containers from the alert
   - alert: ContainerImageOutdated
@@ -2125,7 +2125,7 @@ The `ContainerImageOutdated` alert fires on everything, making it useless.
   ```
   > Pick the option that reduces false positives most with least maintenance burden.
 
-- [ ] 5.4.10.1c Reduce CronJob `successfulJobsHistoryLimit` where excessive
+- [x] 5.4.10.1c Reduce CronJob `successfulJobsHistoryLimit` where excessive (version-check, invoicetron-db-backup, arr-stall-resolver: 3 -> 1)
   CronJobs with `successfulJobsHistoryLimit: 3` create 3 completed pods that version-checker
   scans individually. Reduce to `1` where 3 isn't needed:
   - `invoicetron-db-backup`: 3 → 1 (don't need 3 completed backup pods)
@@ -2137,7 +2137,7 @@ The `ContainerImageOutdated` alert fires on everything, making it useless.
 **Current:** The version-check CronJob runs `apk add --no-cache curl jq` on every execution.
 If Alpine repos are unreachable at Sunday midnight, the job fails silently.
 
-- [ ] 5.4.10.2a Switch version-check main container to `alpine/k8s:1.35.0`
+- [x] 5.4.10.2a Switch version-check main container to `alpine/k8s:1.35.0` (curl+jq included, no apk add needed, added CiliumNP)
   `alpine/k8s` already includes curl. Only `jq` needs installing — or bundle the script
   differently.
 
@@ -2161,7 +2161,7 @@ means zero PRs are created until someone checks GitHub issue #2. Only 1 PR was e
 created (initial config PR, closed). Primary remote is GitLab — GitHub issues aren't
 checked regularly.
 
-- [ ] 5.4.10.3a Choose one of:
+- [x] 5.4.10.3a Choose: **Option B (suspend)** - added `"enabled": false` to renovate.json
 
   | Option | Action | Recommendation |
   |--------|--------|----------------|
@@ -2179,7 +2179,7 @@ checked regularly.
 `ACTION REQUIRED: manually revert`. But logs only go to Loki — if nobody queries them,
 the revert reminder is invisible. Quality stays as "Any" forever.
 
-- [ ] 5.4.10.4a Add Discord webhook to stall resolver
+- [x] 5.4.10.4a Add Discord webhook to stall resolver (ExternalSecret, seed script, resolve.py updated; needs 1Password field + vault seed)
   **Prerequisite:** Create 1Password field `discord-webhook-url` in the `ARR Stack` item,
   add Vault path to `scripts/vault/seed-vault-from-1password.sh`, and create ExternalSecret
   `arr-discord-webhook` in `arr-stack` namespace. The secret does not exist yet.
@@ -2201,7 +2201,7 @@ the revert reminder is invisible. Quality stays as "Any" forever.
 
 ### 5.4.10.5 Cluster Janitor Improvements
 
-- [ ] 5.4.10.5a Add Discord notification for stuck volumes (0 running replicas)
+- [x] 5.4.10.5a ~~Janitor stuck volume notification~~ - covered by `LonghornVolumeAllReplicasStopped` alert (5.4.5.4)
   Currently the janitor logs `SKIPPING ... has 0 running replicas` but doesn't notify.
   These stuck volumes need human attention.
 

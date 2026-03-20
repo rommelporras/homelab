@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password, vault, external-secrets]
-updated: 2026-03-15
+updated: 2026-03-21
 ---
 
 # Secrets
@@ -60,6 +60,7 @@ Local backup: `~/.vault-keys` (chmod 600). Delete after confirming 1Password bac
 | cert-manager/cloudflare-api-token | cloudflare-api-token | cert-manager | manifests/cert-manager/externalsecret.yaml |
 | cloudflare/cloudflared-token | cloudflared-token | cloudflare | manifests/cloudflare/externalsecret.yaml |
 | arr-stack/api-keys | arr-api-keys | arr-stack | manifests/arr-stack/externalsecret.yaml |
+| arr-stack/discord-webhook | arr-discord-webhook | arr-stack | manifests/arr-stack/externalsecret.yaml |
 | arr-stack/qbittorrent | qbittorrent-exporter-secret | arr-stack | manifests/arr-stack/externalsecret.yaml |
 | atuin/secrets | atuin-secrets | atuin | manifests/atuin/externalsecret.yaml |
 | browser/firefox-auth | firefox-auth | browser | manifests/browser/externalsecret.yaml |
@@ -128,6 +129,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Opensubtitles | `username`, `user[password_confirmation]` | Bazarr subtitle provider (OpenSubtitles.com) |
 | Atuin | `db-username`, `db-password`, `db-database`, `db-uri`, `personal-email`, `personal-password`, `encryption-key`, `eam-email`, `eam-password` | Atuin server (PostgreSQL + account credentials) |
 | Vault Unseal Keys | `unseal-key-1` thru `unseal-key-5`, `root-token` | Vault init break-glass (3 of 5 keys needed to unseal) |
+| Restic Backup Keys | `repository-password` | Restic off-site backup encryption (restic/backup-keys Vault path) |
 | Cloudflare Tunnel | `token` | cloudflared Deployment (cloudflare namespace) |
 | iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
 | etcd Encryption Key | `password` | etcd encryption at rest (secretbox). Passed to Ansible: `--extra-vars "etcd_encryption_key=$(op read '...')"` |
@@ -258,6 +260,9 @@ op://Kubernetes/Atuin/eam-password
 
 # etcd Encryption Key (rebuild — Ansible runtime variable)
 op://Kubernetes/etcd Encryption Key/password
+
+# Restic Backup Keys (off-site backup encryption)
+op://Kubernetes/Restic Backup Keys/repository-password
 
 # Kubeconfig (device sync — both kubeconfigs in one item)
 # op item get 'Kubeconfig' --vault=Kubernetes --fields admin-kubeconfig > ~/.kube/homelab.yaml

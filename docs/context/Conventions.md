@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-03-16
+updated: 2026-03-21
 ---
 
 # Conventions
@@ -98,6 +98,9 @@ homelab/
 │   └── vault/               # Vault + auto-unsealer + snapshot CronJob
 ├── scripts/                 # Automation scripts
 │   ├── backup/              # Off-site backup scripts
+│   │   ├── homelab-backup.sh       # Main backup script (restic to Backblaze B2)
+│   │   ├── config.example          # Template for local config
+│   │   └── config                  # Local config (gitignored)
 │   ├── vault/
 │   │   ├── configure-vault.sh      # One-time Vault setup (KV v2, K8s auth, ESO policy)
 │   │   └── seed-vault-from-1password.sh  # Seed Vault KV from 1Password (safe terminal only)
@@ -111,7 +114,7 @@ homelab/
 │       └── verify-migration.sh    # Post-migration health check (ESO sync, Vault status)
 ├── docs/
 │   ├── context/             # This knowledge base (RAG source)
-│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0–v0.31.0)
+│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0-v0.29.0)
 │   ├── todo/                # Active and completed phase plans
 │   └── reference/           # CHANGELOG, historical docs
 └── ansible/                 # Bootstrap automation

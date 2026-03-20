@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, ups, nut, power]
-updated: 2026-03-13
+updated: 2026-03-21
 ---
 
 # UPS
@@ -111,9 +111,9 @@ Shows: Battery charge, runtime, load, status history.
 | File | Location |
 |------|----------|
 | NUT config | /etc/nut/ on each node |
-| nut-exporter | manifests/monitoring/nut-exporter.yaml |
-| UPS alerts | manifests/monitoring/ups-alerts.yaml |
-| Dashboard | manifests/monitoring/ups-dashboard-configmap.yaml |
+| nut-exporter | manifests/monitoring/exporters/nut-exporter.yaml |
+| UPS alerts | manifests/monitoring/alerts/ups-alerts.yaml |
+| Dashboard | manifests/monitoring/dashboards/ups-dashboard-configmap.yaml |
 
 ## Related
 
