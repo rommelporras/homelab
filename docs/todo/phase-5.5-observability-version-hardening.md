@@ -434,8 +434,9 @@ Phase B --- Cluster Janitor & Operational Improvements
    |        B4: Create backup health Grafana dashboard
    v
 Phase C --- Fill Monitoring Gaps
+   |        C0: CiliumNP + blackbox prerequisites for blocked probes
    |        C1: Missing probes (Prowlarr, homepage, myspeed, infra webhooks)
-   |        C2: Add Garage health alert + GitLab ServiceMonitor
+   |        C2: Add Garage health alert + GitLab ServiceMonitors (3 services)
    |        C3: Database monitoring (postgres, mysql, redis)
    |        C4: Missing Grafana dashboards (critical/high priority)
    |        C5: Fix existing dashboard quality issues
@@ -535,7 +536,7 @@ Done --- All services monitored, all images current, clean signal.
 annotations:
   summary: "One-line with {{ $labels.x }} template vars"
   description: "Detailed explanation. Value: {{ $value }}. Affected: {{ $labels.namespace }}/{{ $labels.pod }}"
-  runbook_url: "https://gitlab.k8s.rommelporras.com/homelab/homelab/-/blob/main/docs/runbooks/<domain>.md#<AlertName>"
+  runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/<domain>.md#<AlertName>"
 ```
 
 - Key is `runbook_url` (industry standard), NOT `runbook` (non-standard inline text)
@@ -621,11 +622,13 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 - [ ] 5.5.S.3 Rename `ContainerImageOutdated` -> `VersionCheckerImageOutdated`
   **File:** `manifests/monitoring/alerts/version-checker-alerts.yaml`
   **Impact check:**
-  - Alertmanager: routes as warning to #apps (no regex). Adding `VersionChecker.*` to infra
-    regex would change routing - decide if version alerts are infra or apps. DECISION NEEDED.
-  - Dashboards: grep in version-checker dashboard JSON. CHECK BEFORE RENAMING.
+  - Alertmanager: routes as warning to #apps (no regex). SAFE - no routing change.
+  - Dashboards: verified - NOT referenced in any dashboard JSON (including version-checker).
   - Alert exclusion in cert-manager: `image!~"quay.io/jetstack/cert-manager.*"` is in the
     PromQL expression, not the alert name. SAFE.
+  **Routing decision (required before S.15):** Version-checker alerts stay in #apps.
+  Rationale: image drift is operational awareness, not infrastructure failure.
+  Do NOT add `VersionChecker.*` to the infra regex.
 
 - [ ] 5.5.S.4 Rename `KubernetesVersionOutdated` -> `VersionCheckerKubeOutdated`
   **File:** `manifests/monitoring/alerts/version-checker-alerts.yaml`
@@ -643,7 +646,7 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   For each alert that has inline `runbook:` annotation:
   1. Content was already extracted to runbook files in S1
   2. Replace `runbook: |` block with single-line
-     `runbook_url: "https://gitlab.k8s.rommelporras.com/homelab/homelab/-/blob/main/docs/runbooks/<domain>.md#<AlertName>"`
+     `runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/<domain>.md#<AlertName>"`
   3. Verify the anchor link matches the heading in the runbook file
 
 - [ ] 5.5.S.7 Add `runbook_url:` to 39 alerts that have no runbook
@@ -696,12 +699,19 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 ### S7: Update Alertmanager Routing (combines Phase S renames + routing gap fix)
 
-- [ ] 5.5.S.15 Update infra route regex in `helm/prometheus/values.yaml`
-  This is the SINGLE Helm upgrade that fixes both:
+- [ ] 5.5.S.15 Update infra route regex + Discord template in `helm/prometheus/values.yaml`
+  This is the SINGLE Helm upgrade that fixes:
   1. **Routing gap** (from Gap Analysis): add `Velero.*|Backup.*|ResourceQuota.*|CronJob.*|Garage.*`
-  2. **Renamed alerts** (from S2): add `VersionChecker.*` if version alerts route to #infra
-  Do both in one regex update + one Helm upgrade to avoid double-deploying.
-  > This replaces Phase A task 5.5.1.1 - that task is now handled here.
+  2. **Discord template** (from S3): add `runbook_url` rendering to all 3 Discord receivers:
+     ```
+     {{ if .Annotations.runbook_url }}Runbook: {{ .Annotations.runbook_url }}{{ end }}
+     ```
+     Without this template update, `runbook_url` annotations will exist on alerts but
+     never appear in Discord notifications.
+  3. `VersionChecker.*` stays OUT of infra regex (decision from S.3: routes to #apps).
+  > This replaces Phase A task 5.5.1.1 - routing fix is now handled here.
+  > The Discord template change must also be added to `scripts/monitoring/upgrade-prometheus.sh`
+  > since it injects the Alertmanager config at Helm upgrade time.
 
 - [ ] 5.5.S.16 Full verification pass
   1. Apply all standardization changes
@@ -811,7 +821,7 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   annotations:
     summary: "{{ $labels.image }} in {{ $labels.namespace }} is outdated"
     description: "Running {{ $labels.current_version }}, latest is {{ $labels.latest_version }}"
-    runbook_url: "https://gitlab.k8s.rommelporras.com/homelab/homelab/-/blob/main/docs/runbooks/cluster.md#VersionCheckerImageOutdated"
+    runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#VersionCheckerImageOutdated"
     release_url: "https://github.com/{{ $labels.image | reReplaceAll `(ghcr.io|docker.io)/` `` }}/releases"
   ```
   > Note: Prometheus template functions are limited. The URL may need to be a best-effort
@@ -911,31 +921,77 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 ## 5.5.3 Fill Monitoring Gaps (Phase C)
 
+### C0: CiliumNP & Blackbox Prerequisites for New Probes
+
+> These MUST be done before creating the probes in C1, or the probes will silently fail.
+
+- [ ] 5.5.3.0a Update home namespace CiliumNPs for monitoring access
+  `homepage-gateway-ingress` and `myspeed-gateway-ingress` don't allow monitoring namespace.
+  Add `fromEndpoints` rule allowing `monitoring` namespace to each policy.
+  **Without this, homepage and myspeed probes will silently return probe_success=0.**
+
+- [ ] 5.5.3.0b Add blackbox `https_2xx_insecure` module for self-signed TLS
+  Current `http_2xx` module has no `tls_config`. Probing cert-manager and ESO webhooks
+  on port 443 will fail TLS verification (self-signed certs).
+  Add to `helm/blackbox-exporter/values.yaml`:
+  ```yaml
+  modules:
+    https_2xx_insecure:
+      prober: http
+      timeout: 5s
+      http:
+        preferred_ip_protocol: ip4
+        valid_status_codes: []
+        follow_redirects: true
+        tls_config:
+          insecure_skip_verify: true
+  ```
+  Requires blackbox-exporter Helm upgrade.
+  **Alternative:** Probe non-TLS health ports instead (9402 for cert-manager, 8080 for ESO).
+
+- [ ] 5.5.3.0c Update cert-manager CiliumNP for monitoring on webhook port
+  Current policy allows monitoring namespace only on port 9402 (metrics), not 443.
+  Either: add port 443 to the monitoring ingress rule, OR change the probe to target
+  port 9402 instead and use `http_2xx` module (avoids TLS issue entirely).
+
+- [ ] 5.5.3.0d Update external-secrets CiliumNP for monitoring on webhook port
+  Current policy allows monitoring namespace only on port 8080, not 443.
+  Same decision as cert-manager: add port 443, OR probe port 8080 with `http_2xx`.
+
 ### C1: Missing Probes
 
 > Add blackbox probes for services that have HTTPRoutes or health endpoints but no monitoring.
 > All new probes MUST follow Phase S conventions: `release: prometheus` + `app: <service>-probe`
 > labels, 60s interval, same blackbox exporter endpoint as existing probes.
+> **Prerequisite: C0 tasks must be completed first.**
 
 - [ ] 5.5.3.1 Add probe for Prowlarr (`prowlarr.arr-stack.svc:9696/ping`)
   Critical ARR dependency - if Prowlarr goes down, all indexing stops and downloads
   dry up silently. The only current detection is `ArrQueueWarning` (60m stall).
+  CiliumNP: arr-stack already allows monitoring namespace. SAFE.
 
 - [ ] 5.5.3.2 Add probes for Sonarr (`sonarr.arr-stack.svc:8989/ping`) and
   Radarr (`radarr.arr-stack.svc:7878/ping`)
   Both expose `/ping` health endpoints. Currently only monitored indirectly via Scraparr.
+  CiliumNP: arr-stack already allows monitoring namespace. SAFE.
 
 - [ ] 5.5.3.3 Add probe for homepage (`homepage.home.svc:3000`)
   Has HTTPRoute at `portal.k8s.rommelporras.com` but no probe.
+  **Requires C0 task 5.5.3.0a (CiliumNP update) first.**
 
 - [ ] 5.5.3.4 Add probe for myspeed (`myspeed.home.svc:5216`)
   Has HTTPRoute at `myspeed.k8s.rommelporras.com` but no probe.
+  **Requires C0 task 5.5.3.0a (CiliumNP update) first.**
 
-- [ ] 5.5.3.5 Add probe for cert-manager webhook (`cert-manager-webhook.cert-manager.svc:443`)
-  Critical - if webhook fails, no certificates are issued.
+- [ ] 5.5.3.5 Add probe for cert-manager webhook
+  Use port 9402 (metrics, non-TLS) with `http_2xx` module if C0 chose the non-TLS approach.
+  Or port 443 with `https_2xx_insecure` module if C0 added TLS support.
+  **Requires C0 tasks 5.5.3.0b + 5.5.3.0c first.**
 
-- [ ] 5.5.3.6 Add probe for external-secrets webhook (`external-secrets-webhook.external-secrets.svc:443`)
-  Critical - if webhook fails, no secrets sync.
+- [ ] 5.5.3.6 Add probe for external-secrets webhook
+  Use port 8080 (non-TLS) with `http_2xx` module if C0 chose the non-TLS approach.
+  Or port 443 with `https_2xx_insecure` module if C0 added TLS support.
+  **Requires C0 task 5.5.3.0d first.**
 
 - [ ] 5.5.3.7 Add probe for longhorn-ui (`longhorn-frontend.longhorn-system.svc:80`)
   Web UI availability check.
@@ -953,7 +1009,9 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 > `app.kubernetes.io/part-of: kube-prometheus-stack` metadata labels.
 > All new ServiceMonitors: `release: prometheus` label, kebab-case name.
 
-- [ ] 5.5.3.10 Add `GarageDown` PrometheusRule
+- [ ] 5.5.3.10 Add `GarageDown` alert to `backup-alerts.yaml`
+  Add to the existing `backup-alerts.yaml` file (same domain as VeleroBackupFailed/Stale),
+  not a new standalone file. The Phase S group-name standardization already touches this file.
   ```yaml
   - alert: GarageDown
     expr: up{job="garage"} == 0
@@ -963,15 +1021,17 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
     annotations:
       summary: "Garage S3 backend is down"
       description: "Velero backup target unreachable. Backups will fail."
-      runbook_url: "https://gitlab.k8s.rommelporras.com/homelab/homelab/-/blob/main/docs/runbooks/backup.md#GarageDown"
+      runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/backup.md#GarageDown"
   ```
   Without this, Garage failure detection relies on `VeleroBackupStale` (36h delay).
 
-- [ ] 5.5.3.11 Add ServiceMonitor for GitLab metrics
-  GitLab Helm chart deploys `gitlab-exporter` (port 9168) and
-  `gitlab-postgresql-metrics` (port 9187 with `prometheus.io/scrape: true`).
-  Add ServiceMonitors for both. No sidecar needed - metrics already exposed.
-  Check: `kubectl-homelab get svc -n gitlab` for available metrics ports.
+- [ ] 5.5.3.11 Add ServiceMonitors for GitLab metrics (3 services)
+  GitLab Helm chart deploys metrics services that are already allowed by CiliumNPs:
+  - `gitlab-gitlab-exporter` port 9168 (CiliumNP `monitoring-metrics-ingress` allows it)
+  - `gitlab-postgresql-metrics` port 9187 (CiliumNP `postgresql-monitoring-ingress` allows it)
+  - `gitlab-redis-metrics` port 9121 (CiliumNP `redis-monitoring-ingress` allows it)
+  All three are free wins - no CiliumNP changes needed, no sidecars needed.
+  Create 3 ServiceMonitors (or 1 with multiple endpoints).
 
 - [ ] 5.5.3.12 Add PrometheusRules for GitLab health
   At minimum: webservice 5xx rate, Sidekiq queue depth, Gitaly errors,
@@ -1016,8 +1076,17 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 - [ ] 5.5.3.17 Implement database monitoring for production databases
   At minimum: ghost-prod/mysql, invoicetron-prod/postgres, atuin/postgres.
-  GitLab/postgresql via existing metrics service (no sidecar).
-  Create ServiceMonitors for each exporter sidecar.
+  GitLab/postgresql via existing metrics service (no sidecar - covered in 5.5.3.11).
+
+  **Prerequisites per database (do before adding sidecars):**
+  1. **Take Longhorn snapshot** of each database PVC before modifying StatefulSets.
+     Adding a sidecar container triggers a rolling restart of the StatefulSet pod.
+  2. **Update CiliumNPs** to allow monitoring namespace on exporter ports:
+     - ghost-prod: add monitoring -> ghost-mysql pod port 9104 (mysql-exporter)
+     - invoicetron-prod: add monitoring -> invoicetron-db pod port 9187 (postgres-exporter)
+     - atuin: add monitoring -> postgres pod port 9187 (postgres-exporter)
+     Current CiliumNPs in these namespaces only allow app-to-db and backup-to-db traffic.
+  3. Create ServiceMonitors for each exporter sidecar after the pods are running.
 
 ### C4: Grafana Dashboards (Critical + High Priority)
 
@@ -1118,9 +1187,16 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   Verify: Grafana log queries work, Alloy shipping logs.
 
 - [ ] 5.5.4.3 Update Prometheus stack (Prometheus, Alertmanager, Grafana)
-  Minor release - medium risk. Scale down Grafana first (RWO PVC gotcha).
-  Release notes: https://github.com/prometheus/prometheus/releases
-  Verify: all alerts evaluating, dashboards loading, Alertmanager routing.
+  Minor release - medium risk. Release notes: https://github.com/prometheus/prometheus/releases
+  **Explicit steps (RWO PVC gotcha - `upgrade-prometheus.sh` does NOT handle this):**
+  1. `kubectl-admin scale deployment/prometheus-grafana -n monitoring --replicas=0`
+  2. Wait for Grafana pod to fully terminate (verify with `kubectl-admin get pods -n monitoring`)
+  3. Update chart version in `scripts/monitoring/upgrade-prometheus.sh`
+  4. Run `./scripts/monitoring/upgrade-prometheus.sh`
+  5. `kubectl-admin scale deployment/prometheus-grafana -n monitoring --replicas=1`
+  6. Verify: all alerts evaluating, dashboards loading, Alertmanager routing
+  > Note: Phase S Helm upgrade does NOT need Grafana scale-down (config-only change,
+  > Grafana pod is unaffected by Alertmanager config changes).
 
 - [ ] 5.5.4.4 Update Alloy v1.12.2 -> latest
   Minor release - medium risk. Log collector - verify logs still flowing after.
@@ -1145,7 +1221,14 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 - [ ] 5.5.4.7 Update CoreDNS v1.13.1 -> v1.14.x
   Minor release - medium risk. Test DNS resolution after.
   Release notes: https://github.com/coredns/coredns/releases
-  > CoreDNS is managed by kubeadm. May need `kubeadm upgrade apply` or manual image edit.
+  **Method:** Direct image edit, NOT `kubeadm upgrade apply` (kubeadm would bump k8s version
+  which is out of scope - k8s stays at 1.35.0). The CoreDNS deployment has been directly
+  edited before (revision 3). Use:
+  ```bash
+  kubectl-admin set image deployment/coredns -n kube-system \
+    coredns=registry.k8s.io/coredns/coredns:v1.14.2
+  ```
+  Verify: `nslookup kubernetes.default.svc.cluster.local` from a pod.
 
 ---
 
@@ -1160,8 +1243,18 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 - [ ] 5.5.5.3 Update MeiliSearch v1.13.3 -> latest
   Release notes: https://github.com/meilisearch/meilisearch/releases
-  Karakeep dependency - test search functionality after upgrade.
-  > MeiliSearch major versions may require index rebuild.
+  **WARNING: This is a 26-minor-version jump (v1.13 -> v1.39). NOT a simple image swap.**
+  MeiliSearch requires dump export before upgrade and reimport after for cross-minor upgrades.
+  Procedure:
+  1. Create a dump: `curl -X POST http://meilisearch.karakeep.svc:7700/dumps`
+  2. Wait for dump completion
+  3. Take Longhorn snapshot of MeiliSearch PVC
+  4. Update image tag in manifest
+  5. Apply - MeiliSearch starts with the new version
+  6. Import the dump if needed (check MeiliSearch migration docs per version)
+  7. Verify Karakeep search functionality works
+  **Karakeep search will be broken during this window.** Schedule during low-usage period.
+  Check release notes for EACH minor version for breaking changes in the API.
 
 - [ ] 5.5.5.4 Update remaining outdated application images
   Run version-checker audit, update images that are genuinely behind.
@@ -1193,15 +1286,17 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 ### Phase S - Standardization
 - [ ] 11 runbook markdown files created in docs/runbooks/
+- [ ] Runbook URLs use `github.com/rommelporras/homelab` (NOT gitlab)
 - [ ] 4 alert names renamed (AdGuardDNSDown, VersionCheckerImageOutdated, VersionCheckerKubeOutdated, OllamaHighMemory)
 - [ ] All 96 alerts have summary + description + runbook_url annotations
 - [ ] No alerts use the old `runbook:` key (all converted to `runbook_url:`)
+- [ ] Discord message template renders `runbook_url` (added to all 3 receivers)
 - [ ] 2 PrometheusRules have `app.kubernetes.io/part-of` label
 - [ ] All 14 Probes have `release: prometheus` label
 - [ ] 2 dashboard ConfigMaps have `app.kubernetes.io/name: grafana` label
 - [ ] Group names standardized (no `.rules` suffix)
 - [ ] version-checker dashboard uid is `version-checker`, timezone is `Asia/Manila`
-- [ ] Alertmanager routing verified after renames
+- [ ] Alertmanager routing verified after renames (Velero/Backup/CronJob/Garage in #infra)
 - [ ] All dashboards load in Grafana after changes
 
 ### Phase A - Alerting & Version Signal
@@ -1218,11 +1313,15 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 - [ ] Backup health dashboard deployed and showing all backup systems
 
 ### Phase C - Monitoring Coverage
+- [ ] CiliumNPs updated for homepage, myspeed, cert-manager webhook, ESO webhook
+- [ ] Blackbox exporter TLS module added (or non-TLS probe ports chosen)
 - [ ] Prowlarr, Sonarr, Radarr have blackbox probes
-- [ ] homepage, myspeed have blackbox probes
+- [ ] homepage, myspeed have blackbox probes (verified probe_success=1)
 - [ ] cert-manager webhook, external-secrets webhook have probes
-- [ ] Garage has health probe AND `GarageDown` alert
-- [ ] GitLab has ServiceMonitor scraping gitlab-exporter + postgresql-metrics
+- [ ] Garage has health probe AND `GarageDown` alert in backup-alerts.yaml
+- [ ] GitLab has ServiceMonitors for gitlab-exporter + postgresql-metrics + redis-metrics
+- [ ] Database CiliumNPs updated before adding exporter sidecars
+- [ ] Longhorn snapshots taken before StatefulSet sidecar additions
 - [ ] All production databases monitored (exporter sidecars or equivalent)
 - [ ] 8 new dashboards created (cert-manager, ESO, velero, GitLab, ghost, invoicetron, home, uptime-kuma)
 - [ ] Dashboard quality issues fixed (arr-stack limits, claude-code descriptions, etc.)
