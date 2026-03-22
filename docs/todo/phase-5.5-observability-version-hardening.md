@@ -274,25 +274,36 @@ Updated regex:
 
 ### Version-Checker & Version-Check Gaps
 
-**Problem 1: Two separate systems, neither complete.**
-- `version-checker` (deployment, `quay.io/jetstack/version-checker:v0.10.0`) - monitors
-  container IMAGE versions via registry tags. Exports Prometheus metrics. Alert:
-  `ContainerImageOutdated` (7d threshold). No Discord notification. No release links.
-  No patch/minor/major classification.
-- `version-check` (weekly CronJob, Nova `v3.11.10` + `alpine/k8s:1.35.0`) - runs Nova
-  for HELM CHART drift only. Sends Discord digest to `#versions`. Does NOT cover
-  manifest-deployed images (majority of the cluster).
+**Problem 1: Three separate systems, overlapping and incomplete.**
+- `version-checker` (deployment) - monitors container IMAGE versions via registry tags.
+  Exports Prometheus metrics. Alert: `ContainerImageOutdated` (7d threshold).
+  No Discord notification. No release links. No patch/minor/major classification.
+- `version-check` (weekly CronJob, Nova) - HELM CHART drift only. Sends Discord digest
+  to `#versions`. Does NOT cover manifest-deployed images (majority of the cluster).
+- `Renovate Bot` (GitHub App, SUSPENDED) - scans repo for ALL dependencies (72 Kubernetes
+  manifests + 2 Helm values), creates PRs with exact version bumps. Currently suspended
+  per VERSIONS.md. GitHub Issue #2 is its Dependency Dashboard - open but stale.
+
+**Renovate detected 13+ images that version-checker missed or the plan didn't name:**
+  Configarr 1.20.0->1.24.0, Seerr v3.0.1->v3.1.0, Tdarr 2.58.02->2.64.02,
+  Unpackerr v0.14.5->0.15.2, AdGuard v0.107.71->v0.107.73, Homepage v1.9.0->v1.11.0,
+  Karakeep 0.30.0->0.31.0, alpine/k8s 1.35.0->1.35.2, Nova v3.11.10->v3.11.13,
+  NUT exporter 3.1.1->3.2.5, Python 3.12->3.14, busybox 1.36->1.37, alpine 3.21->3.23
+
+**Renovate also flagged major bumps that need blocking:**
+  - MySQL 8.4.8 -> 9.6.0 (major - same as Redis/PostgreSQL, pin-major needed)
+  - qBittorrent 5.1.4 -> 20.04.1 (LSIO date-based tag, not a real major bump - match-regex needed)
 
 **Problem 2: False positives pollute the signal.**
 - cert-manager: Quay returns build numbers ("608111629") instead of semver. Already excluded
   from `ContainerImageOutdated` alert via `image!~"quay.io/jetstack/cert-manager.*"`,
   but the metric still shows as outdated in Grafana dashboard.
-- grafana: Current image is `grafana/grafana:12.3.1` (standard semver). Verify if
-  version-checker correctly parses this - the original claim of tag parsing issues needs
-  re-verification since Grafana uses clean semver tags from Docker Hub.
-- Only 4 deployments have `match-regex` annotations (bazarr, radarr, sonarr, firefox -
-  all LSIO images with `-ls<N>` suffix tags). Zero deployments use `pin-major`.
-  The rest rely on default tag parsing which breaks for non-standard registries.
+- grafana: `grafana/grafana:12.3.1` -> "9799770991" (confirmed false positive - Docker Hub
+  build number tag, not a real version).
+- jellyfin: `jellyfin/jellyfin:10.11.6` -> "2026030905" (date-based build tag).
+- alpine: `alpine:3.21` -> "20260127" (date-based release tag).
+- Only 4 deployments have `match-regex` annotations (bazarr, radarr, sonarr, firefox).
+  Zero deployments use `pin-major`.
 
 **Problem 3: Alert message is not actionable.**
 - `ContainerImageOutdated` says "Running X, latest is Y" - but doesn't tell you:
@@ -304,7 +315,20 @@ Updated regex:
 **Problem 4: No unified upgrade digest.**
 - Helm chart drift goes to Discord weekly (Nova).
 - Container image drift only shows in Prometheus alerts (no Discord).
+- Renovate has the most complete view but is suspended.
 - No single place to see "here's everything that needs updating and how."
+
+**Problem 5: Renovate config is broken/incomplete.**
+- GitHub Issue #2 (Dependency Dashboard) is open but Renovate is suspended.
+- Config migration checkbox is unchecked (old config format).
+- No `packageRules` to block major bumps (MySQL 8->9, qBittorrent LSIO tags).
+- No grouping rules (would create 30+ individual PRs).
+- Renovate should complement version-checker, not replace it:
+  - version-checker: real-time Prometheus metrics + alerts (Renovate can't do this)
+  - Renovate: automated PRs with exact diffs (version-checker can't do this)
+  - Nova: Helm chart drift (Renovate handles Helm values but not chart versions)
+- Re-enabling Renovate properly is Phase 5.6 (GitOps) scope - ArgoCD + Renovate
+  is the standard GitOps workflow. For Phase 5.5, fix the config and close the issue.
 
 ### Cluster Janitor Gaps
 
@@ -326,6 +350,27 @@ Updated regex:
 - Current format: `**Cluster Janitor cleaned X failed pod(s), Y stopped replica(s), Z failed job(s)** at HH:MMam PHT`
 - Plain text (not Discord embed), only sent when `TOTAL > 0`
 - No detail on WHAT was cleaned, which namespaces, or failure reasons
+
+### Missing Loki Storage/Compaction Monitoring
+
+Loki has a ServiceMonitor and 6 alerts (LokiDown, LokiIngestionStopped, LokiHighErrorRate,
+AlloyNotOnAllNodes, AlloyNotSendingLogs, AlloyHighMemory) - but zero visibility into:
+- **Compaction health** - is the compactor running? When did it last succeed?
+- **Retention enforcement** - is old data being deleted? How much is pending?
+- **Storage growth rate** - how fast is ingestion growing? Will the PVC fill?
+- **WAL pressure** - is the write-ahead log close to filling?
+
+This is the exact gap that caused the v0.33.2 incident (KubePersistentVolumeFillingUp).
+The generic `KubePersistentVolumeFillingUp` alert uses a linear prediction model that
+can't account for compaction behavior - it predicted 4 days to fill but didn't know
+retention was about to start deleting old data.
+
+**Key Loki metrics available but unused:**
+- `loki_boltdb_shipper_compact_tables_operation_last_successful_run_timestamp_seconds`
+- `loki_compactor_apply_retention_last_successful_run_timestamp_seconds`
+- `retention_sweeper_marker_files_current`
+- `loki_ingester_wal_disk_usage_percent`
+- `rate(loki_ingester_chunk_stored_bytes_total[1h])` (ingestion rate)
 
 ### Missing Garage Health Alert
 
@@ -378,20 +423,33 @@ Phase 5.4 added 13 alert rules for backups, but there's no Grafana dashboard to 
 > "latest" versions). Grafana false positive needs re-verification. Fix these first
 > so the signal is clean.
 
-| Category | Image | Current | Latest |
-|----------|-------|---------|--------|
-| CNI | Cilium | v1.18.6 | v1.19.1 |
-| Storage | Longhorn | v1.10.1 | v1.11.1 |
-| Monitoring | Prometheus | v3.9.1 | v3.10.0 |
-| Monitoring | Alertmanager | v0.30.1 | v0.31.1 |
-| Monitoring | Grafana | 12.3.1 | (verify) |
-| Monitoring | Alloy | v1.12.2 | v1.14.1 |
-| Monitoring | Loki | 3.6.3 | 3.6.7 |
-| Secrets | Vault | 1.21.2 | 1.21.4 |
-| DNS | CoreDNS | v1.13.1 | v1.14.2 |
-| Apps | Ghost | 6.14.0 | 6.22.0 |
-| Apps | Ollama | 0.15.6 | 0.18.2 |
-| Apps | MeiliSearch | v1.13.3 | v1.39.0 |
+| Category | Image | Current | Latest | Risk | Method |
+|----------|-------|---------|--------|------|--------|
+| CNI | Cilium | v1.18.6 | v1.19.1 | HIGH | Helm |
+| Storage | Longhorn | v1.10.1 | v1.11.1 | HIGH | Helm |
+| Monitoring | Prometheus stack | v3.9.1 | v3.10.0 | Medium | Helm (includes Grafana sidecar 2.2.1->2.5.0) |
+| Monitoring | Alertmanager | v0.30.1 | v0.31.1 | Medium | Helm (same chart as Prometheus) |
+| Monitoring | Grafana | 12.3.1 | FALSE POSITIVE | - | match-regex fix in Phase A2 |
+| Monitoring | Alloy | v1.12.2 | v1.14.1 | Medium | Helm |
+| Monitoring | Loki | 3.6.3 | 3.6.7 | Low | Helm (patch, no breaking changes) |
+| Monitoring | OTel Collector | 0.144.0 | 0.147.0 | Low | Manifest edit (no breaking changes for our config) |
+| Secrets | Vault | 1.21.2 | 1.21.4 | Low | Helm (patch, security fixes only) |
+| DNS | CoreDNS | v1.13.1 | v1.14.2 | Medium | kubectl set image |
+| Infra | Intel GPU Plugin | 0.34.1 | 0.35.0 | Low | Helm (no GPU breaking changes) |
+| Infra | Intel Device Operator | 0.34.1 | 0.35.0 | Low | Helm (same chart) |
+| Infra | Cloudflared | 2026.1.1 | 2026.3.0 | Low | Manifest edit (proxy-dns removed, not used here) |
+| Apps | Ghost | 6.14.0 | 6.22.0 | Medium | Manifest edit (check DB migrations) |
+| Apps | Ghost Traffic Analytics | 1.0.72 | 1.0.148 | Low | Manifest edit |
+| Apps | Ollama | 0.15.6 | 0.18.0 | Low | Manifest edit |
+| Apps | MeiliSearch | v1.13.3 | v1.39.0 | HIGH | Manifest edit (dump/reimport required) |
+| Apps | Uptime Kuma | 2.0.2-rootless | 2.2.1 | Low | Manifest edit |
+| Apps | Postgres (invoicetron) | 18-alpine | 18.3-alpine | Low | Pin floating tag |
+| FALSE POSITIVE | jellyfin/jellyfin | 10.11.6 | "2026030905" | - | match-regex fix |
+| FALSE POSITIVE | alpine | 3.21 | "20260127" | - | match-regex fix |
+| FALSE POSITIVE | lscr.io/linuxserver/qbittorrent | 5.1.4 | "20.04.1" | - | match-regex fix (LSIO date tag, not real major) |
+| PIN MAJOR | bitnamilegacy/postgresql | 16.6.0 | 17.6.0 | - | pin-major (GitLab sub-chart - PG 17 IS stable, constraint is GitLab chart compat) |
+| PIN MAJOR | bitnamilegacy/redis | 7.2.4 | 8.2.1 | - | pin-major (GitLab sub-chart) |
+| PIN MAJOR | mysql (Ghost) | 8.4.8 | 9.6.0 | - | pin-major (MySQL 8->9 major migration) |
 
 ---
 
@@ -419,11 +477,12 @@ Phase S --- Monitoring Standardization Sweep
    v
    GATE: All alerts evaluating, all dashboards loading, routing verified
    v
-Phase A --- Version-Checker & Alertmanager Fixes
+Phase A --- Version-Checker, Alertmanager & Renovate Fixes
    |        A1: Verify Alertmanager routing (fix deployed in Phase S)
-   |        A2: Fix version-checker false positives (match-regex annotations)
+   |        A2: Fix version-checker false positives (match-regex, pin-major)
    |        A3: Enhance version-check Discord digest (add image drift, release links)
-   |        A4: Improve ContainerImageOutdated alert annotations
+   |        A4: Improve alert annotations
+   |        A5: Fix Renovate config, update GitHub Issue #2
    v
    GATE: version-checker signal clean, alerts route to correct channels
    v
@@ -444,20 +503,16 @@ Phase C --- Fill Monitoring Gaps
    v
    GATE: All production services have metrics + alerts + probes. Clean Grafana.
    v
-Phase D --- Infrastructure Version Updates (careful order)
-   |        D1: Vault (patch - low risk)
-   |        D2: Loki (patch - low risk)
-   |        D3: Prometheus stack (minor - medium risk)
-   |        D4: Alloy (minor - medium risk)
-   |        D5: Longhorn (minor - HIGH risk, storage layer)
-   |        D6: Cilium (minor - HIGH risk, CNI)
-   |        D7: CoreDNS (minor - medium risk, DNS)
+Phase D --- Infrastructure Version Updates (low risk -> high risk order)
+   |        Low:  D1 Vault, D2 Loki, D3 OTel, D4 Intel GPU, D5 Cloudflared
+   |        Med:  D6 Prometheus stack, D7 Alloy, D8 CoreDNS
+   |        HIGH: D9 Longhorn, D10 Cilium (dedicated sessions)
    v
    GATE: Cluster healthy after infra upgrades. All alerts inactive.
    v
 Phase E --- Application Version Updates
-   |        Ghost, Ollama, MeiliSearch, etc.
-   |        Lower risk - app-level, no cluster impact
+   |        Ghost, Ollama, MeiliSearch, Uptime Kuma, Traffic Analytics
+   |        Pin floating postgres tags. Lower risk - app-level, no cluster impact
    v
 Phase F --- Documentation
    |        VERSIONS.md, CHANGELOG.md, Upgrades.md, Monitoring.md
@@ -746,33 +801,56 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 - [ ] 5.5.1.2 Audit all images for tag parsing issues
   Query `version_checker_is_latest_version == 0` and identify which "latest" values are
   nonsense (build numbers, digests, timestamps instead of semver).
-  Specifically verify:
-  - cert-manager (known false positive - Quay build numbers)
-  - Grafana 12.3.1 (verify if this is actually a false positive or was fixed)
-  - Any other images reporting non-semver "latest" values
+
+  **Confirmed false positives (from 2026-03-22 alerts + Renovate Dashboard):**
+  | Image | Running | Reported "Latest" | Reason |
+  |-------|---------|-------------------|--------|
+  | `grafana/grafana` | 12.3.1 | 9799770991 | Docker Hub build number tag |
+  | `jellyfin/jellyfin` | 10.11.6 | 2026030905 | Date-based build tag |
+  | `alpine` | 3.21 | 20260127 | Alpine date-based release tag (affects pki-backup, cert-expiry-check, version-check CronJobs) |
+  | `lscr.io/linuxserver/qbittorrent` | 5.1.4 | 20.04.1 | LSIO date-based tag (Renovate also flagged as "major" but it's a false tag format) |
 
 - [ ] 5.5.1.3 Add `match-regex` annotations to deployments with bad tag parsing
   Currently only 4 deployments have `match-regex.version-checker.io/CONTAINER`:
   bazarr, radarr, sonarr, firefox (all LSIO images with `-ls<N>` suffix).
-  Add for all images with non-standard tags.
+  Add for all confirmed false positives:
   ```yaml
-  # Example: cert-manager
-  annotations:
-    match-regex.version-checker.io/cert-manager-controller: "^v\\d+\\.\\d+\\.\\d+$"
+  # Grafana (Docker Hub build number tags)
+  match-regex.version-checker.io/grafana: "^\\d+\\.\\d+\\.\\d+$"
+  # Jellyfin (date-based build tags)
+  match-regex.version-checker.io/jellyfin: "^\\d+\\.\\d+\\.\\d+$"
+  # Alpine (date-based release tags) - on CronJob pod templates
+  match-regex.version-checker.io/alpine: "^\\d+\\.\\d+(\\.\\d+)?$"
+  # cert-manager (Quay build numbers)
+  match-regex.version-checker.io/cert-manager-controller: "^v\\d+\\.\\d+\\.\\d+$"
+  # qBittorrent LSIO (already has match-regex for -ls suffix, but date tags also leak through)
+  # Verify existing regex on bazarr/radarr/sonarr/firefox covers this case
   ```
 
 - [ ] 5.5.1.4 Add `pin-major.version-checker.io/CONTAINER` where appropriate
-  For images where you don't want to track major version bumps (e.g., PostgreSQL 16->17
-  is a major migration, not an auto-update). Pin major to current.
+  For images where major version bumps are NOT auto-upgradable (require migration).
   Zero deployments currently use pin-major.
 
-- [ ] 5.5.1.5 Verify clean signal
+  **Confirmed pin-major candidates (from alerts):**
+  | Image | Current Major | Reported "Latest" | Why pin |
+  |-------|---------------|-------------------|---------|
+  | `bitnamilegacy/postgresql` (GitLab) | 16 | 17.6.0 | GitLab Helm chart pins its PostgreSQL major version - upgrading independently breaks compatibility. PostgreSQL 17 IS stable (all PG major versions are GA releases - PG does not use odd/even versioning like Node.js). The constraint is GitLab chart support, not PG stability. |
+  | `bitnamilegacy/redis` (GitLab) | 7 | 8.2.1 | Redis 7->8 has breaking config changes |
+  | `mysql` (Ghost dev+prod) | 8 | 9.6.0 | MySQL 8->9 is a major migration (Renovate also flagged this) |
+  | `kiwigrid/k8s-sidecar` (Grafana) | 1 | 2.5.0 | Already on 2.2.1; pin to major 2 (the 1.30.9 entry is stale) |
+
+- [ ] 5.5.1.5 Pin floating tags to specific versions
+  `postgres:18-alpine` (invoicetron) is a floating tag. Version-checker correctly reports
+  it's behind (18-alpine resolves to an older 18.x than 18.3). Pin to `postgres:18.3-alpine`
+  in `manifests/invoicetron-prod/` and `manifests/invoicetron-dev/`.
+
+- [ ] 5.5.1.6 Verify clean signal
   After fixes: `version_checker_is_latest_version == 0` should only show genuinely
   outdated images. No false positives. Alert `ContainerImageOutdated` fires only for real drift.
 
 ### A3: Enhance Version-Check Discord Digest
 
-- [ ] 5.5.1.6 Add container image drift section to weekly Discord digest
+- [ ] 5.5.1.7 Add container image drift section to weekly Discord digest
   Currently the version-check CronJob only runs Nova (Helm charts). Add a section that
   queries version-checker Prometheus metrics for outdated container images.
 
@@ -790,7 +868,7 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   - GitHub release link (construct from image registry: `ghcr.io/org/repo` -> `github.com/org/repo/releases`)
   - Upgrade method: "Helm upgrade" or "Edit manifest" or "kubeadm upgrade"
 
-- [ ] 5.5.1.7 Add release notes URL mapping
+- [ ] 5.5.1.8 Add release notes URL mapping
   Create a ConfigMap with image-to-release-URL mapping for images that can't be auto-derived:
   ```yaml
   data:
@@ -804,7 +882,7 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
       # For quay.io/org/repo -> link to Quay.io tags page
   ```
 
-- [ ] 5.5.1.8 Add upgrade method classification
+- [ ] 5.5.1.9 Add upgrade method classification
   Tag each image source in the ConfigMap:
   - `helm`: Helm-managed (use `helm-homelab upgrade`)
   - `manifest`: manifest-managed (edit deployment, `kubectl-admin apply`)
@@ -813,7 +891,7 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 ### A4: Improve Alert Annotations
 
-- [ ] 5.5.1.9 Add release URL to VersionCheckerImageOutdated alert annotation
+- [ ] 5.5.1.10 Add release URL to VersionCheckerImageOutdated alert annotation
   > Note: alert was renamed from `ContainerImageOutdated` in Phase S.
   Add a `release_url:` annotation (separate from `runbook_url:` - this links to the
   upstream project releases, not our runbook):
@@ -827,7 +905,65 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   > Note: Prometheus template functions are limited. The URL may need to be a best-effort
   > guess. Complex mappings should be in the Discord digest, not the alert.
 
-- [ ] 5.5.1.10 Add bump type to alert description
+### A5: Fix Renovate Config and Update Issue #2
+
+- [ ] 5.5.1.11 Fix `renovate.json` config for proper version management
+  Renovate is suspended but its config is broken. Fix the config NOW so it's ready
+  for re-enablement in Phase 5.6 (GitOps). This also fixes the stale Dependency Dashboard.
+
+  **Config changes needed:**
+  ```json
+  {
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "extends": ["config:recommended"],
+    "dependencyDashboard": true,
+    "dependencyDashboardAutoclose": true,
+    "prHourlyLimit": 2,
+    "prConcurrentLimit": 5,
+    "packageRules": [
+      {
+        "description": "Block major version bumps - require manual review",
+        "matchUpdateTypes": ["major"],
+        "enabled": false
+      },
+      {
+        "description": "Pin LSIO images to semver (ignore date-based tags)",
+        "matchPackagePatterns": ["lscr.io/linuxserver/.*"],
+        "allowedVersions": "/^\\d+\\.\\d+\\.\\d+/"
+      },
+      {
+        "description": "Pin MySQL to major 8 (9.x is a major migration)",
+        "matchPackageNames": ["mysql"],
+        "allowedVersions": "8.x"
+      },
+      {
+        "description": "Group weekly minor/patch updates",
+        "matchUpdateTypes": ["minor", "patch"],
+        "groupName": "kubernetes-weekly-minor-patch",
+        "schedule": ["before 8am on Sunday"]
+      }
+    ],
+    "kubernetes": {
+      "fileMatch": ["manifests/.+\\.yaml$"]
+    },
+    "helm-values": {
+      "fileMatch": ["helm/.+/values\\.yaml$"]
+    }
+  }
+  ```
+
+  > Renovate stays SUSPENDED after this. The config fix ensures that when it's re-enabled
+  > in Phase 5.6, it won't create 30+ noisy PRs or propose MySQL 8->9 upgrades.
+
+- [ ] 5.5.1.12 Update GitHub Issue #2 and keep open
+  Add a comment to issue #2 explaining:
+  1. Renovate is intentionally suspended until Phase 5.6 (GitOps with ArgoCD)
+  2. Config has been fixed for proper version management
+  3. Phase 5.5 uses version-checker + manual upgrades instead
+  4. Dashboard will auto-update when Renovate is re-enabled
+  Keep the issue open (Renovate manages it automatically).
+
+- [ ] 5.5.1.13 Add bump type to alert description
   Use Prometheus label math or recording rules to classify patch/minor/major:
   ```yaml
   # Recording rule approach
@@ -1056,9 +1192,64 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   - ESO webhook failures
   - ClusterSecretStore connectivity issues
 
+- [ ] 5.5.3.16 Add Loki compaction/retention alerts to `logging-alerts.yaml`
+  Existing logging alerts (LokiDown, LokiIngestionStopped, LokiHighErrorRate) cover
+  availability but NOT storage health. v0.33.2 was a Loki PVC filling incident caused
+  by retention not yet kicking in - we had zero visibility into compaction status.
+
+  **New alerts (3):**
+  ```yaml
+  - alert: LokiCompactionStalled
+    expr: |
+      (time() - loki_boltdb_shipper_compact_tables_operation_last_successful_run_timestamp_seconds) > 10800
+    for: 15m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Loki compaction has not run successfully in 3+ hours"
+      description: "Last successful compaction was {{ $value | humanizeDuration }} ago. Old chunks are not being merged."
+
+  - alert: LokiRetentionNotRunning
+    expr: |
+      (time() - loki_compactor_apply_retention_last_successful_run_timestamp_seconds) > 10800
+    for: 15m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Loki retention enforcement has not run in 3+ hours"
+      description: "Old log data beyond the 60-day retention period is not being deleted. PVC will fill up."
+
+  - alert: LokiWALDiskFull
+    expr: loki_ingester_wal_disk_full_failures_total > 0
+    for: 0m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Loki WAL write failures due to full disk"
+      description: "Loki ingester cannot write to WAL - log data is being dropped."
+  ```
+
+  **Threshold rationale:**
+  - 3-hour compaction/retention window: compactor runs every 10m (18 expected runs in 3h).
+    Matches Loki's own mixin alert (`LokiCompactorHasNotSuccessfullyRunCompaction`).
+    Tolerates pod rescheduling/node reboots without false positives.
+  - WAL `for: 0m`: counter only increments on actual data loss. Immediate alert is correct.
+  - Dropped `LokiStorageFillingUp` (PVC < 15%): redundant with the existing
+    `KubePersistentVolumeFillingUp` from kube-prometheus-stack. The 3 alerts above tell
+    you WHY the PVC is filling (compaction stalled, retention not running, WAL full) -
+    the generic alert already tells you THAT it's filling.
+
+  > Note: `loki_boltdb_shipper_*` metric names are historical - they apply to TSDB store
+  > too (Loki reuses these names). These metrics come from the existing Loki ServiceMonitor.
+
+  **Key metrics for verification (query in Prometheus before creating alerts):**
+  - `loki_boltdb_shipper_compact_tables_operation_last_successful_run_timestamp_seconds`
+  - `loki_compactor_apply_retention_last_successful_run_timestamp_seconds`
+  - `loki_ingester_wal_disk_full_failures_total`
+
 ### C3: Database Monitoring
 
-- [ ] 5.5.3.16 Evaluate database monitoring approach
+- [ ] 5.5.3.17 Evaluate database monitoring approach
   Options:
   1. **postgres-exporter sidecar** - add `prometheuscommunity/postgres-exporter` sidecar to
      each PostgreSQL StatefulSet. Gives: connections, query latency, replication lag, table sizes.
@@ -1074,7 +1265,7 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   Decide and document. Recommendation: option 4 (exporters for prod, skip dev) +
   option 5 for GitLab (free win).
 
-- [ ] 5.5.3.17 Implement database monitoring for production databases
+- [ ] 5.5.3.18 Implement database monitoring for production databases
   At minimum: ghost-prod/mysql, invoicetron-prod/postgres, atuin/postgres.
   GitLab/postgresql via existing metrics service (no sidecar - covered in 5.5.3.11).
 
@@ -1094,29 +1285,52 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 > Descriptions on every panel and row. ConfigMap with `grafana_dashboard: "1"` label,
 > `grafana_folder: "Homelab"` annotation.
 
-- [ ] 5.5.3.18 Create dashboard: cert-manager (certificate status, renewal rate, webhook latency)
+- [ ] 5.5.3.19 Create dashboard: cert-manager (certificate status, renewal rate, webhook latency)
   Metrics available from existing ServiceMonitor.
 
-- [ ] 5.5.3.19 Create dashboard: external-secrets (sync status, error rate, webhook latency)
+- [ ] 5.5.3.20 Create dashboard: external-secrets (sync status, error rate, webhook latency)
   Metrics available from 3 existing Helm-created ServiceMonitors.
 
-- [ ] 5.5.3.20 Create dashboard: velero + garage (backup status, S3 storage, schedule health)
+- [ ] 5.5.3.21 Create dashboard: velero + garage (backup status, S3 storage, schedule health)
   Metrics available from 2 recently-added ServiceMonitors.
 
-- [ ] 5.5.3.21 Create dashboard: GitLab (web requests, Sidekiq jobs, Gitaly, registry, Postgres)
+- [ ] 5.5.3.22 Create dashboard: GitLab (web requests, Sidekiq jobs, Gitaly, registry, Postgres)
   Depends on C2 task 5.5.3.11 (ServiceMonitor must exist first).
 
-- [ ] 5.5.3.22 Create dashboard: ghost-prod (MySQL connections, request rate, memory)
+- [ ] 5.5.3.23 Create dashboard: ghost-prod (MySQL connections, request rate, memory)
   Depends on C3 (database exporter for MySQL metrics).
 
-- [ ] 5.5.3.23 Create dashboard: invoicetron-prod (PostgreSQL connections, app health)
+- [ ] 5.5.3.24 Create dashboard: invoicetron-prod (PostgreSQL connections, app health)
   Depends on C3 (database exporter for PostgreSQL metrics).
 
-- [ ] 5.5.3.24 Create dashboard: home (AdGuard DNS queries, MySpeed results)
+- [ ] 5.5.3.25 Create dashboard: home (AdGuard DNS queries, MySpeed results)
   AdGuard has DNS probe metrics. MySpeed may need a metrics endpoint check.
 
-- [ ] 5.5.3.25 Create dashboard: uptime-kuma (monitor status, response times)
+- [ ] 5.5.3.26 Create dashboard: uptime-kuma (monitor status, response times)
   Only kube-state-metrics available unless Uptime Kuma exposes Prometheus metrics.
+
+- [ ] 5.5.3.27 Create Loki storage/compaction dashboard
+  The cluster has no Loki operational dashboard. Add panels for storage capacity planning
+  and compaction visibility. Either as a standalone dashboard or a new row in an existing one.
+
+  **Panels (6):**
+  - **PVC Usage** (gauge): `kubelet_volume_stats_available_bytes{pvc="storage-loki-0"}` /
+    `kubelet_volume_stats_capacity_bytes{pvc="storage-loki-0"}` - the one number you check first
+  - **Ingestion Rate** (time series): `rate(loki_ingester_chunk_stored_bytes_total[1h])` -
+    capacity planning - answers "is my ingestion growing?"
+  - **Compaction Last Success** (stat): `time() - loki_boltdb_shipper_compact_tables_operation_last_successful_run_timestamp_seconds` -
+    answers "is compaction working?"
+  - **Retention Last Success** (stat): `time() - loki_compactor_apply_retention_last_successful_run_timestamp_seconds` -
+    answers "is old data being deleted?"
+  - **Retention Markers Pending** (time series): `retention_sweeper_marker_files_current` -
+    useful during incidents (should trend toward 0 after retention catches up)
+  - **WAL Usage** (gauge): `loki_ingester_wal_disk_usage_percent` - early warning before WAL failures
+
+  Dropped: chunks in memory, chunk flush rate (ingester internals - diagnostic only,
+  rarely useful for a single-node Loki setup).
+
+  > This dashboard would have prevented the v0.33.2 incident - we would have seen the
+  > ingestion rate trending higher than estimated and retention not yet active.
 
 > Skip dashboards for: dev/staging namespaces, browser, nfd, intel-device-plugins,
 > gitlab-runner, cloudflare (low value, high effort).
@@ -1127,16 +1341,16 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 > Note: Dashboard label/JSON standardization (uid, timezone, data keys) is done in Phase S.
 > This section covers content quality issues only.
 
-- [ ] 5.5.3.26 Fix arr-stack dashboard: add dashed request/limit lines to CPU/Memory panels
+- [ ] 5.5.3.28 Fix arr-stack dashboard: add dashed request/limit lines to CPU/Memory panels
 
-- [ ] 5.5.3.27 Fix claude-code dashboard content quality
+- [ ] 5.5.3.29 Fix claude-code dashboard content quality
   - Add descriptions to all 17 panels (currently 5/17)
   - Add descriptions to all 8 rows (currently 0/8)
   (Label fixes done in Phase S task 5.5.S.11)
 
-- [ ] 5.5.3.28 Fix tailscale dashboard: add description to Pod Status row
+- [ ] 5.5.3.30 Fix tailscale dashboard: add description to Pod Status row
 
-- [ ] 5.5.3.29 Evaluate ups dashboard improvements
+- [ ] 5.5.3.31 Evaluate ups dashboard improvements
   Community-imported dashboard (gnetId: 19308) - 0/15 panels described.
   Decision: either add descriptions or accept as-is (community import, low priority).
 
@@ -1146,14 +1360,14 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 > and annotation standardization are handled in Phase S. This section covers residual
 > verification of alerts not yet confirmed broken but at risk.
 
-- [ ] 5.5.3.30 Verify OTel push metric alerts
+- [ ] 5.5.3.32 Verify OTel push metric alerts
   - `DotctlCollectionStale` / `DotctlDriftDetected` - OTel push metrics, only exist when
     Aurora DX machine is running. Uses `absent_over_time()` which may not handle OTel
     Collector restarts correctly (in-memory metrics lost).
   - `ClaudeCodeNoActivity` / `ClaudeCodeHighDailySpend` - same OTel push caveat.
   - `OTelCollectorDown` - verify `up{job="otel-collector"}` populates.
 
-- [ ] 5.5.3.31 Verify backup/storage metric alerts
+- [ ] 5.5.3.33 Verify backup/storage metric alerts
   - `LonghornBackupFailed` uses `longhorn_backup_state` - verify this metric populates
     (may require an active backup to create the time series).
   - `VaultHighLatency` uses `vault_core_handle_request{quantile="0.5"}` - verify
@@ -1176,18 +1390,43 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 > 6. Verify cluster health after upgrade
 > 7. Update VERSIONS.md
 
-- [ ] 5.5.4.1 Update Vault 1.21.2 -> latest patch
-  Patch release - low risk. Helm upgrade with existing values.
+**Low risk (do first):**
+
+- [ ] 5.5.4.1 Update Vault 1.21.2 -> 1.21.4
+  Patch release. Helm upgrade with existing values. Changelog verified - security fixes only.
   Release notes: https://github.com/hashicorp/vault/releases
   Verify: `vault status`, ESO sync, all ExternalSecrets healthy.
 
-- [ ] 5.5.4.2 Update Loki 3.6.3 -> latest 3.6.x patch
-  Patch release - low risk. Helm upgrade.
+- [ ] 5.5.4.2 Update Loki 3.6.3 -> 3.6.7
+  Patch release. Helm upgrade. Changelog verified - bugfixes, memory pre-allocation fix.
   Release notes: https://github.com/grafana/loki/releases
   Verify: Grafana log queries work, Alloy shipping logs.
 
-- [ ] 5.5.4.3 Update Prometheus stack (Prometheus, Alertmanager, Grafana)
-  Minor release - medium risk. Release notes: https://github.com/prometheus/prometheus/releases
+- [ ] 5.5.4.3 Update OTel Collector Contrib 0.144.0 -> 0.147.0
+  No breaking changes for our config (otlp receiver, batch processor,
+  prometheus exporter, otlphttp/loki exporter). Changelog verified.
+  **File:** `manifests/monitoring/otel/otel-collector.yaml` - edit image tag.
+  Verify: OTel Collector pod healthy, Prometheus scraping metrics, Loki receiving logs.
+
+- [ ] 5.5.4.4 Update Intel Device Plugins 0.34.1 -> 0.35.0 (Operator + GPU Plugin)
+  No GPU plugin breaking changes (DSA VFIO irrelevant, SGX deprecation irrelevant).
+  Changelog verified.
+  ```bash
+  helm-homelab upgrade intel-device-plugins-operator intel/intel-device-plugins-operator --version 0.35.0
+  helm-homelab upgrade intel-device-plugins-gpu intel/intel-device-plugins-gpu --version 0.35.0
+  ```
+  Verify: `gpu.intel.com/i915` resource still advertised on nodes, Jellyfin QSV transcoding works.
+
+- [ ] 5.5.4.5 Update Cloudflared 2026.1.1 -> 2026.3.0
+  `proxy-dns` feature removed in 2026.2.0 but we only use `tunnel run --token` mode.
+  CVE fixes in 2026.3.0. Changelog verified.
+  **File:** `manifests/cloudflare/deployment.yaml` - edit image tag.
+  Verify: Cloudflare Tunnel healthy, external sites accessible (blog.rommelporras.com, etc.).
+
+**Medium risk (do after low risk verified):**
+
+- [ ] 5.5.4.6 Update Prometheus stack (Prometheus, Alertmanager, Grafana)
+  Minor release. Release notes: https://github.com/prometheus/prometheus/releases
   **Explicit steps (RWO PVC gotcha - `upgrade-prometheus.sh` does NOT handle this):**
   1. `kubectl-admin scale deployment/prometheus-grafana -n monitoring --replicas=0`
   2. Wait for Grafana pod to fully terminate (verify with `kubectl-admin get pods -n monitoring`)
@@ -1198,28 +1437,12 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   > Note: Phase S Helm upgrade does NOT need Grafana scale-down (config-only change,
   > Grafana pod is unaffected by Alertmanager config changes).
 
-- [ ] 5.5.4.4 Update Alloy v1.12.2 -> latest
-  Minor release - medium risk. Log collector - verify logs still flowing after.
+- [ ] 5.5.4.7 Update Alloy v1.12.2 -> v1.14.1
+  Minor release. Log collector - verify logs still flowing after.
   Release notes: https://github.com/grafana/alloy/releases
 
-- [ ] 5.5.4.5 Update Longhorn v1.10.1 -> v1.11.x
-  Minor release - HIGH risk (storage layer). Read upgrade notes carefully.
-  Release notes: https://github.com/longhorn/longhorn/releases
-  Upgrade guide: https://longhorn.io/docs/latest/deploy/upgrade/
-  Pre-check: all volumes healthy, backups recent, no degraded volumes.
-  Post-check: volume I/O works, all PVCs bound, replicas rebuilding.
-  > May require its own dedicated session with rollback plan.
-
-- [ ] 5.5.4.6 Update Cilium v1.18.6 -> v1.19.x
-  Minor release - HIGH risk (CNI). Read upgrade notes.
-  Release notes: https://github.com/cilium/cilium/releases
-  Upgrade guide: https://docs.cilium.io/en/stable/operations/upgrade/
-  Pre-check: all pods can communicate, cilium status healthy.
-  Post-check: NetworkPolicies still enforced, HTTPRoutes working, no connectivity loss.
-  > May require its own dedicated session with rollback plan.
-
-- [ ] 5.5.4.7 Update CoreDNS v1.13.1 -> v1.14.x
-  Minor release - medium risk. Test DNS resolution after.
+- [ ] 5.5.4.8 Update CoreDNS v1.13.1 -> v1.14.2
+  Minor release. Test DNS resolution after.
   Release notes: https://github.com/coredns/coredns/releases
   **Method:** Direct image edit, NOT `kubeadm upgrade apply` (kubeadm would bump k8s version
   which is out of scope - k8s stays at 1.35.0). The CoreDNS deployment has been directly
@@ -1230,18 +1453,36 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   ```
   Verify: `nslookup kubernetes.default.svc.cluster.local` from a pod.
 
+**HIGH risk (dedicated sessions, do last):**
+
+- [ ] 5.5.4.9 Update Longhorn v1.10.1 -> v1.11.x
+  Minor release - storage layer. Read upgrade notes carefully.
+  Release notes: https://github.com/longhorn/longhorn/releases
+  Upgrade guide: https://longhorn.io/docs/latest/deploy/upgrade/
+  Pre-check: all volumes healthy, backups recent, no degraded volumes.
+  Post-check: volume I/O works, all PVCs bound, replicas rebuilding.
+  > May require its own dedicated session with rollback plan.
+
+- [ ] 5.5.4.10 Update Cilium v1.18.6 -> v1.19.x
+  Minor release - CNI. Read upgrade notes.
+  Release notes: https://github.com/cilium/cilium/releases
+  Upgrade guide: https://docs.cilium.io/en/stable/operations/upgrade/
+  Pre-check: all pods can communicate, cilium status healthy.
+  Post-check: NetworkPolicies still enforced, HTTPRoutes working, no connectivity loss.
+  > May require its own dedicated session with rollback plan.
+
 ---
 
 ## 5.5.5 Application Version Updates (Phase E)
 
-- [ ] 5.5.5.1 Update Ghost 6.14.0 -> latest 6.x
+- [ ] 5.5.5.1 Update Ghost 6.14.0 -> 6.22.0
   Release notes: https://github.com/TryGhost/Ghost/releases
   Check for database migration requirements.
 
-- [ ] 5.5.5.2 Update Ollama 0.15.6 -> latest
+- [ ] 5.5.5.2 Update Ollama 0.15.6 -> 0.18.0
   Release notes: https://github.com/ollama/ollama/releases
 
-- [ ] 5.5.5.3 Update MeiliSearch v1.13.3 -> latest
+- [ ] 5.5.5.3 Update MeiliSearch v1.13.3 -> v1.39.0
   Release notes: https://github.com/meilisearch/meilisearch/releases
   **WARNING: This is a 26-minor-version jump (v1.13 -> v1.39). NOT a simple image swap.**
   MeiliSearch requires dump export before upgrade and reimport after for cross-minor upgrades.
@@ -1256,11 +1497,65 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   **Karakeep search will be broken during this window.** Schedule during low-usage period.
   Check release notes for EACH minor version for breaking changes in the API.
 
-- [ ] 5.5.5.4 Update remaining outdated application images
-  Run version-checker audit, update images that are genuinely behind.
-  For each: check release notes, pin exact version in manifest, verify after apply.
+- [ ] 5.5.5.4 Update Uptime Kuma 2.0.2-rootless -> 2.2.1
+  Release notes: https://github.com/louislam/uptime-kuma/releases
+  **File:** `manifests/uptime-kuma/statefulset.yaml` - edit image tag.
+  Check for database migration requirements (Uptime Kuma uses SQLite).
+  Take Longhorn snapshot of Uptime Kuma PVC before upgrade.
+
+- [ ] 5.5.5.5 Update Ghost Traffic Analytics 1.0.72 -> 1.0.148
+  Release notes: check upstream repo for changelog.
+  **File:** `manifests/ghost-prod/analytics-deployment.yaml` - edit image tag.
+  76-version jump but patch releases only.
+
+- [ ] 5.5.5.6 Pin postgres:18-alpine to 18.3-alpine
+  Floating tag `18-alpine` resolves to an older 18.x than current 18.3.
+  **Files:** `manifests/invoicetron-prod/postgresql-statefulset.yaml`,
+  `manifests/invoicetron-dev/postgresql-statefulset.yaml`,
+  `manifests/atuin/postgres-statefulset.yaml` (verify tag in each).
+  This is a tag pin, not a functional upgrade. No migration needed.
+
+- [ ] 5.5.5.7 Update remaining outdated images (from Renovate Dashboard + version-checker)
+  These were identified by Renovate (GitHub Issue #2) and version-checker but not
+  named in tasks above. Update each: check release notes, pin version, verify.
+
+  **ARR stack:**
+  | Image | Current | Target | File |
+  |-------|---------|--------|------|
+  | ghcr.io/raydak-labs/configarr | 1.20.0 | 1.24.0 | manifests/arr-stack/configarr/cronjob.yaml |
+  | ghcr.io/seerr-team/seerr | v3.0.1 | v3.1.0 | manifests/arr-stack/seerr/deployment.yaml |
+  | ghcr.io/haveagitgat/tdarr | 2.58.02 | 2.64.02 | manifests/arr-stack/tdarr/deployment.yaml |
+  | ghcr.io/unpackerr/unpackerr | v0.14.5 | 0.15.2 | manifests/arr-stack/unpackerr/deployment.yaml |
+
+  **Home services:**
+  | Image | Current | Target | File |
+  |-------|---------|--------|------|
+  | adguard/adguardhome | v0.107.71 | v0.107.73 | manifests/home/adguard/deployment.yaml |
+  | ghcr.io/gethomepage/homepage | v1.9.0 | v1.11.0 | manifests/home/homepage/deployment.yaml |
+  | ghcr.io/karakeep-app/karakeep | 0.30.0 | 0.31.0 | manifests/karakeep/karakeep-deployment.yaml |
+
+  **Monitoring/infra tools:**
+  | Image | Current | Target | File |
+  |-------|---------|--------|------|
+  | ghcr.io/druggeri/nut_exporter | 3.1.1 | 3.2.5 | manifests/monitoring/exporters/nut-exporter.yaml |
+  | quay.io/fairwinds/nova | v3.11.10 | v3.11.13 | manifests/monitoring/version-checker/version-check-cronjob.yaml |
+  | alpine/k8s | 1.35.0 | 1.35.2 | manifests/kube-system/cluster-janitor/cronjob.yaml (+ other CronJobs) |
+
+  **Base images (update across all manifests that use them):**
+  | Image | Current | Target | Files |
+  |-------|---------|--------|-------|
+  | busybox | 1.36 | 1.37 | ghost-dev, ghost-prod, home/adguard, home/homepage, invoicetron (5 files) |
+  | alpine | 3.21 | 3.23 | kube-system/cert-expiry-check, kube-system/pki-backup, version-check-cronjob (3 files) |
+  | python | 3.12-alpine | 3.14-alpine | manifests/arr-stack/stall-resolver/cronjob.yaml |
 
 > Pin exact versions in manifests - no `:latest` tags. Update VERSIONS.md for each.
+>
+> **Not in scope for this phase (require separate planning):**
+> - GitLab 18.8.2 upgrade - GitLab sub-chart images (bitnamilegacy/postgres-exporter,
+>   redis-exporter, redis, postgresql) only update when the GitLab Helm chart is bumped.
+>   GitLab upgrades are complex (migration, downtime) and deserve their own phase.
+> - bitnamilegacy/postgresql 16->17 (GitLab) - major PostgreSQL migration, blocked by
+>   GitLab chart compatibility. Handled by pin-major in Phase A.
 
 ---
 
@@ -1302,7 +1597,11 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 ### Phase A - Alerting & Version Signal
 - [ ] Alertmanager routes Velero/Backup/ResourceQuota/CronJob/Garage alerts to #infra
 - [ ] version-checker signal clean (no false positives firing)
-- [ ] Grafana version-checker false positive confirmed or denied
+- [ ] False positives fixed: grafana, jellyfin, alpine, qBittorrent LSIO (match-regex annotations)
+- [ ] Pin-major set: bitnamilegacy/postgresql (16), bitnamilegacy/redis (7), mysql (8), kiwigrid (2)
+- [ ] Floating tags pinned: postgres:18-alpine -> 18.3-alpine
+- [ ] Renovate config (`renovate.json`) fixed with proper packageRules
+- [ ] GitHub Issue #2 updated with status comment (Renovate stays suspended until Phase 5.6)
 - [ ] Weekly Discord digest includes both Helm chart AND container image drift
 - [ ] Discord digest includes release notes links and bump type classification
 
@@ -1325,11 +1624,18 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 - [ ] All production databases monitored (exporter sidecars or equivalent)
 - [ ] 8 new dashboards created (cert-manager, ESO, velero, GitLab, ghost, invoicetron, home, uptime-kuma)
 - [ ] Dashboard quality issues fixed (arr-stack limits, claude-code descriptions, etc.)
+- [ ] Loki compaction/retention alerts added (LokiCompactionStalled, LokiRetentionNotRunning, LokiWALDiskFull)
+- [ ] Loki storage/compaction dashboard (6 panels) deployed and showing data
 - [ ] All alert expressions verified against actual Prometheus metrics
 
 ### Phase D/E - Version Updates
-- [ ] All infrastructure images at latest stable version
-- [ ] All application images at latest stable version
+- [ ] D1-D5 low risk completed: Vault, Loki, OTel Collector, Intel GPU, Cloudflared
+- [ ] D6 Prometheus stack updated (Grafana scale-down procedure followed)
+- [ ] D7-D8 medium risk completed: Alloy, CoreDNS
+- [ ] D9-D10 high risk completed: Longhorn, Cilium (dedicated sessions)
+- [ ] Ghost, Ollama, Uptime Kuma, Traffic Analytics updated
+- [ ] MeiliSearch dump/reimport completed (Karakeep search verified)
+- [ ] No ContainerImageOutdated alerts firing (except pin-major: GitLab postgresql/redis/mysql)
 - [ ] No alerts firing except expected (Watchdog, etc.)
 - [ ] VERSIONS.md current
 
