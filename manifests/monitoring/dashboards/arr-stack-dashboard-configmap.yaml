@@ -1263,7 +1263,26 @@ data:
               },
               "unit": "short"
             },
-            "overrides": []
+            "overrides": [
+              {
+                "matcher": { "id": "byRegexp", "options": ".*Request" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byRegexp", "options": ".*Limit" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [4, 4] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+                ]
+              }
+            ]
           },
           "gridPos": {
             "h": 8,
@@ -1289,6 +1308,22 @@ data:
             {
               "expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"arr-stack\", container=~\"prowlarr|sonarr|radarr|qbittorrent|jellyfin|bazarr|seerr|tdarr|unpackerr|scraparr|recommendarr|byparr\"}[5m]))",
               "legendFormat": "{{ container }}"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_requests{namespace=\"arr-stack\", container=\"jellyfin\", resource=\"cpu\"})",
+              "legendFormat": "Jellyfin Request"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_limits{namespace=\"arr-stack\", container=\"jellyfin\", resource=\"cpu\"})",
+              "legendFormat": "Jellyfin Limit"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_requests{namespace=\"arr-stack\", container=\"tdarr\", resource=\"cpu\"})",
+              "legendFormat": "Tdarr Request"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_limits{namespace=\"arr-stack\", container=\"tdarr\", resource=\"cpu\"})",
+              "legendFormat": "Tdarr Limit"
             }
           ]
         },
@@ -1312,7 +1347,26 @@ data:
               },
               "unit": "bytes"
             },
-            "overrides": []
+            "overrides": [
+              {
+                "matcher": { "id": "byRegexp", "options": ".*Request" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byRegexp", "options": ".*Limit" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [4, 4] } },
+                  { "id": "custom.lineWidth", "value": 1 },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+                ]
+              }
+            ]
           },
           "gridPos": {
             "h": 8,
@@ -1338,6 +1392,22 @@ data:
             {
               "expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"arr-stack\", container=~\"prowlarr|sonarr|radarr|qbittorrent|jellyfin|bazarr|seerr|tdarr|unpackerr|scraparr|recommendarr|byparr\"})",
               "legendFormat": "{{ container }}"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_requests{namespace=\"arr-stack\", container=\"jellyfin\", resource=\"memory\"})",
+              "legendFormat": "Jellyfin Request"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_limits{namespace=\"arr-stack\", container=\"jellyfin\", resource=\"memory\"})",
+              "legendFormat": "Jellyfin Limit"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_requests{namespace=\"arr-stack\", container=\"tdarr\", resource=\"memory\"})",
+              "legendFormat": "Tdarr Request"
+            },
+            {
+              "expr": "sum(kube_pod_container_resource_limits{namespace=\"arr-stack\", container=\"tdarr\", resource=\"memory\"})",
+              "legendFormat": "Tdarr Limit"
             }
           ]
         },

@@ -38,6 +38,7 @@ data:
         {
           "type": "row",
           "title": "Overview",
+          "description": "Top-level Claude Code usage KPIs for the billing cycle and selected time range. Cost, tokens, and sessions at a glance.",
           "id": 100,
           "collapsed": false,
           "gridPos": {
@@ -215,6 +216,7 @@ data:
             "x": 8,
             "y": 1
           },
+          "description": "Unique Claude Code sessions in the selected time range. Each interactive session gets a unique ID.",
           "id": 4,
           "options": {
             "colorMode": "value",
@@ -360,6 +362,7 @@ data:
             "x": 16,
             "y": 1
           },
+          "description": "Average cost per hour across the selected time range. Higher during active development, near zero when idle.",
           "id": 2,
           "options": {
             "colorMode": "value",
@@ -424,6 +427,7 @@ data:
             "x": 20,
             "y": 1
           },
+          "description": "Unit cost efficiency - how much each million tokens costs. Varies by model mix (Opus vs Sonnet vs Haiku).",
           "id": 3,
           "options": {
             "colorMode": "value",
@@ -460,6 +464,7 @@ data:
         {
           "type": "row",
           "title": "Productivity",
+          "description": "Code output metrics from Claude Code sessions. Tracks commits, PRs, code edits, and lines of code relative to spend.",
           "id": 101,
           "collapsed": false,
           "gridPos": {
@@ -500,6 +505,7 @@ data:
             "x": 0,
             "y": 6
           },
+          "description": "Git commits created during Claude Code sessions in the selected time range.",
           "id": 24,
           "options": {
             "colorMode": "value",
@@ -563,6 +569,7 @@ data:
             "x": 4,
             "y": 6
           },
+          "description": "Pull requests created during Claude Code sessions in the selected time range.",
           "id": 30,
           "options": {
             "colorMode": "value",
@@ -626,6 +633,7 @@ data:
             "x": 8,
             "y": 6
           },
+          "description": "Total code edit operations (file writes, patches) across all sessions in the selected time range.",
           "id": 25,
           "options": {
             "colorMode": "value",
@@ -689,6 +697,7 @@ data:
             "x": 12,
             "y": 6
           },
+          "description": "Total lines of code added by Claude Code across all sessions.",
           "id": 26,
           "options": {
             "colorMode": "value",
@@ -752,6 +761,7 @@ data:
             "x": 15,
             "y": 6
           },
+          "description": "Total lines of code removed by Claude Code across all sessions.",
           "id": 27,
           "options": {
             "colorMode": "value",
@@ -815,6 +825,7 @@ data:
             "x": 18,
             "y": 6
           },
+          "description": "Net change in lines of code (added minus removed). Positive = growing codebase, negative = cleanup/refactoring.",
           "id": 28,
           "options": {
             "colorMode": "value",
@@ -879,6 +890,7 @@ data:
             "x": 21,
             "y": 6
           },
+          "description": "Code output efficiency - lines of code produced per dollar spent. Higher is more cost-effective.",
           "id": 29,
           "options": {
             "colorMode": "value",
@@ -915,6 +927,7 @@ data:
         {
           "type": "row",
           "title": "Sessions & Activity",
+          "description": "Session patterns showing active users, session duration, and time breakdown between active coding and idle.",
           "id": 105,
           "collapsed": true,
           "gridPos": {
@@ -954,6 +967,7 @@ data:
                 "x": 0,
                 "y": 7
               },
+              "description": "Distinct users with Claude Code activity in the selected time range.",
               "id": 5,
               "options": {
                 "colorMode": "value",
@@ -1018,6 +1032,7 @@ data:
                 "x": 6,
                 "y": 7
               },
+              "description": "Average duration of Claude Code sessions. Includes both active and idle time within each session.",
               "id": 20,
               "options": {
                 "colorMode": "value",
@@ -1082,6 +1097,7 @@ data:
                 "x": 12,
                 "y": 7
               },
+              "description": "Total time actively using Claude Code (excludes idle time). Sum of CLI and user interaction time.",
               "id": 21,
               "options": {
                 "colorMode": "value",
@@ -1154,6 +1170,7 @@ data:
                 "x": 18,
                 "y": 7
               },
+              "description": "Cost normalized to active hours only. More accurate than cost/hour which includes idle time.",
               "id": 23,
               "options": {
                 "colorMode": "value",
@@ -1192,6 +1209,7 @@ data:
         {
           "type": "row",
           "title": "Trends",
+          "description": "Cost and token consumption rate trends over time. Spot usage pattern changes and estimate future spend.",
           "id": 103,
           "collapsed": false,
           "gridPos": {
@@ -1310,6 +1328,7 @@ data:
             "x": 0,
             "y": 12
           },
+          "description": "Hourly cost rate over time. Shows spending intensity during active work periods.",
           "id": 15,
           "options": {
             "legend": {
@@ -1466,6 +1485,7 @@ data:
             "x": 12,
             "y": 12
           },
+          "description": "Hourly token consumption rate over time. Correlates with cost rate but varies by model.",
           "id": 16,
           "options": {
             "legend": {
@@ -1502,6 +1522,7 @@ data:
         {
           "type": "row",
           "title": "Cost Analysis",
+          "description": "Cost and token distribution by model and user. Identifies which models drive spend.",
           "id": 102,
           "collapsed": true,
           "gridPos": {
@@ -1549,6 +1570,7 @@ data:
                 "x": 0,
                 "y": 17
               },
+              "description": "Cost distribution across Claude models (Opus, Sonnet, Haiku). Opus is most expensive per token.",
               "id": 12,
               "options": {
                 "showHeader": true,
@@ -1638,6 +1660,7 @@ data:
                 "x": 8,
                 "y": 17
               },
+              "description": "Token consumption by model. Haiku processes most tokens but at lower cost per token.",
               "id": 13,
               "options": {
                 "showHeader": true,
@@ -1767,6 +1790,7 @@ data:
                 "x": 16,
                 "y": 17
               },
+              "description": "Per-user cost breakdown for multi-user setups.",
               "id": 17,
               "options": {
                 "cellHeight": "sm",
@@ -1810,6 +1834,7 @@ data:
         {
           "type": "row",
           "title": "Performance (Events)",
+          "description": "API performance metrics from Claude Code OTEL events. Requires OTEL_LOGS_EXPORTER=otlp on the client.",
           "id": 106,
           "collapsed": false,
           "gridPos": {
@@ -2089,6 +2114,7 @@ data:
         {
           "type": "row",
           "title": "Token & Efficiency",
+          "description": "Token utilization breakdown. Cache hit rates show cost optimization effectiveness.",
           "id": 107,
           "collapsed": true,
           "gridPos": {
@@ -2337,6 +2363,7 @@ data:
         {
           "type": "row",
           "title": "Insights",
+          "description": "Behavioral patterns - tool usage distribution, interaction cadence, and code edit decisions.",
           "id": 108,
           "collapsed": true,
           "gridPos": {

@@ -1307,18 +1307,24 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 > Note: Dashboard label/JSON standardization (uid, timezone, data keys) is done in Phase S.
 > This section covers content quality issues only.
 
-- [ ] 5.5.3.28 Fix arr-stack dashboard: add dashed request/limit lines to CPU/Memory panels
+- [x] 5.5.3.28 Fix arr-stack dashboard: add dashed request/limit lines to CPU/Memory panels
+  Added request/limit targets for Jellyfin and Tdarr (the two heaviest services) to both
+  CPU and Memory panels. Used `byRegexp` overrides for dashed styling (yellow request,
+  red limit). 12-service overview makes per-container lines impractical - descriptions
+  document limits for lighter services.
 
-- [ ] 5.5.3.29 Fix claude-code dashboard content quality
-  - Add descriptions to all 17 panels (currently 5/17)
-  - Add descriptions to all 8 rows (currently 0/8)
+- [x] 5.5.3.29 Fix claude-code dashboard content quality
+  - Added descriptions to all 17 panels (was 5/17, now 17/17)
+  - Added descriptions to all 8 rows (was 0/8, now 8/8)
   (Label fixes done in Phase S task 5.5.S.11)
 
-- [ ] 5.5.3.30 Fix tailscale dashboard: add description to Pod Status row
+- [x] 5.5.3.30 Fix tailscale dashboard: add description to Pod Status row
 
-- [ ] 5.5.3.31 Evaluate ups dashboard improvements
-  Community-imported dashboard (gnetId: 19308) - 0/15 panels described.
-  Decision: either add descriptions or accept as-is (community import, low priority).
+- [x] 5.5.3.31 Evaluate ups dashboard improvements
+  Decision: accept as-is. Community-imported dashboard (gnetId: 19308) with self-explanatory
+  panel titles (Input Voltage, Charge, Load, Runtime, Power, Battery Voltage, etc.).
+  Adding descriptions creates maintenance burden when upgrading from the community source.
+  0/15 panels described but functional - low priority.
 
 ### C6: Verify Remaining Alert Metric Accuracy
 
@@ -1326,19 +1332,25 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 > and annotation standardization are handled in Phase S. This section covers residual
 > verification of alerts not yet confirmed broken but at risk.
 
-- [ ] 5.5.3.32 Verify OTel push metric alerts
-  - `DotctlCollectionStale` / `DotctlDriftDetected` - OTel push metrics, only exist when
-    Aurora DX machine is running. Uses `absent_over_time()` which may not handle OTel
-    Collector restarts correctly (in-memory metrics lost).
-  - `ClaudeCodeNoActivity` / `ClaudeCodeHighDailySpend` - same OTel push caveat.
-  - `OTelCollectorDown` - verify `up{job="otel-collector"}` populates.
+- [x] 5.5.3.32 Verify OTel push metric alerts (verified 2026-03-22)
+  All metrics confirmed healthy. No code changes needed.
+  - `up{job="otel-collector"}` POPULATES (value=1). OTelCollectorDown works.
+  - `claude_code_cost_usage_USD_total` POPULATES (1 series). ClaudeCodeHighDailySpend
+    and ClaudeCodeNoActivity work correctly.
+  - `dotctl_collect_timestamp` empty (Aurora DX machine off - expected). DotctlCollectionStale
+    correctly handles absent data via `absent_over_time(dotctl_collect_timestamp[35m])`
+    branch, time-guarded to weekday business hours PHT. Well-designed, no issues.
+  - `dotctl_drift_total` empty (same reason). DotctlDriftDetected only fires when metric
+    exists with value > 0. Correct behavior.
 
-- [ ] 5.5.3.33 Verify backup/storage metric alerts
-  - `LonghornBackupFailed` uses `longhorn_backup_state` - verify this metric populates
-    (may require an active backup to create the time series).
-  - `VaultHighLatency` uses `vault_core_handle_request{quantile="0.5"}` - verify
-    summary metric quantiles are being exported.
-  - `GarageDown` (new from C2) - verify `up{job="garage"}` populates from Garage SM.
+- [x] 5.5.3.33 Verify backup/storage metric alerts (verified 2026-03-22)
+  All metrics confirmed healthy. No code changes needed.
+  - `longhorn_backup_state` POPULATES (60+ series, all value=3/Completed). Alert
+    fires on ==4 (Error state). Works correctly.
+  - `vault_core_handle_request{quantile="0.5"}` POPULATES (2 series, both NaN).
+    NaN means no recent requests in quantile bucket. Alert (> 0.5) correctly
+    does not fire on NaN. Will fire only when slow requests exist.
+  - `up{job="garage"}` POPULATES (value=1). GarageDown works correctly.
 
 ---
 

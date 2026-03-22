@@ -34,6 +34,7 @@ data:
           },
           "id": 1,
           "title": "Pod Status",
+          "description": "Health of Tailscale components. Connector (StatefulSet) routes traffic from tailnet to cluster network. Operator (Deployment) manages proxy pod lifecycle. Both must be UP for remote access to work.",
           "type": "row"
         },
         {
