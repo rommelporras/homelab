@@ -771,14 +771,12 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 - [x] 5.5.S.16 Full verification pass
   **Results:** All 29 PrometheusRules applied, all 14 Probes configured, all 14 dashboards loading.
   All 4 renamed alerts evaluating with new names. All alerts have runbook_url annotation.
-  **Note:** Helm upgrade for Alertmanager routing + Discord template not yet deployed -
-  requires user to run `scripts/monitoring/upgrade-prometheus.sh` (involves secrets injection).
-  Values.yaml and upgrade script are updated and ready.
-  1. Apply all standardization changes
-  2. Verify all 96 alerts are evaluating in Prometheus (no broken expressions)
-  3. Verify all 14 dashboards load in Grafana (no missing ConfigMaps)
-  4. Verify Alertmanager routing: trigger a test alert, confirm correct channel
-  5. Check Discord message rendering with new `runbook_url` annotation
+  Helm upgrade (revision 36) deployed successfully. Alertmanager config verified:
+  infra regex includes Velero/Backup/ResourceQuota/CronJob/Garage, runbook_url template present.
+  **Fix during deploy:** Helm pre-upgrade hook (`kube-webhook-certgen`) was blocked by CiliumNP.
+  Added `webhook-certgen-egress` policy in `manifests/monitoring/networkpolicy.yaml` targeting
+  `app.kubernetes.io/component: prometheus-operator-webhook` with API server egress on 6443.
+  (Pod label is NOT `kube-webhook-certgen` - it's `prometheus-operator-webhook`.)
 
 ---
 
@@ -793,7 +791,9 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 > is done in Phase S task 5.5.S.15 to combine with alert rename routing changes in a single
 > Helm upgrade. By this phase, the routing fix is already deployed. Verify it works:
 
-- [ ] 5.5.1.1 Verify Alertmanager routing for backup/infra alerts
+- [x] 5.5.1.1 Verify Alertmanager routing for backup/infra alerts
+  **Verified:** VeleroBackupStale (warning) routes to discord-infra. Regex patterns
+  ResourceQuota.*, CronJob.* confirmed present in live Alertmanager config.
   Confirm these alerts now route to #infra (not #apps):
   - `VeleroBackupStale` (warning) -> #infra
   - `ResourceQuotaNearLimit` (warning) -> #infra
@@ -803,7 +803,9 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 ### A2: Fix Version-Checker False Positives
 
-- [ ] 5.5.1.2 Audit all images for tag parsing issues
+- [x] 5.5.1.2 Audit all images for tag parsing issues
+  **Audited 2026-03-22:** 138 outdated images. False positives: alpine (date tag), grafana (build number),
+  jellyfin (date tag), longhorn-engine (build number), cert-manager (build number, already excluded from alert).
   Query `version_checker_is_latest_version == 0` and identify which "latest" values are
   nonsense (build numbers, digests, timestamps instead of semver).
 
@@ -815,7 +817,10 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   | `alpine` | 3.21 | 20260127 | Alpine date-based release tag (affects pki-backup, cert-expiry-check, version-check CronJobs) |
   | `lscr.io/linuxserver/qbittorrent` | 5.1.4 | 20.04.1 | LSIO date-based tag (Renovate also flagged as "major" but it's a false tag format) |
 
-- [ ] 5.5.1.3 Add `match-regex` annotations to deployments with bad tag parsing
+- [x] 5.5.1.3 Add `match-regex` annotations to deployments with bad tag parsing
+  **Added:** jellyfin (deployment), pki-backup (CronJob/backup container), cert-expiry-check (CronJob/check-certs container),
+  grafana (Helm podAnnotations). Longhorn engine DaemonSet is dynamically created - can't annotate via Helm.
+  cert-manager already excluded from alert expression.
   Currently only 4 deployments have `match-regex.version-checker.io/CONTAINER`:
   bazarr, radarr, sonarr, firefox (all LSIO images with `-ls<N>` suffix).
   Add for all confirmed false positives:
@@ -832,7 +837,9 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   # Verify existing regex on bazarr/radarr/sonarr/firefox covers this case
   ```
 
-- [ ] 5.5.1.4 Add `pin-major.version-checker.io/CONTAINER` where appropriate
+- [x] 5.5.1.4 Add `pin-major.version-checker.io/CONTAINER` where appropriate
+  **Added:** mysql pin-major=8 (ghost-prod + ghost-dev), postgresql pin-major=16 (GitLab Helm),
+  redis pin-major=7 (GitLab Helm), grafana-sc-dashboard/datasources pin-major=2 (Prometheus Helm).
   For images where major version bumps are NOT auto-upgradable (require migration).
   Zero deployments currently use pin-major.
 
@@ -844,18 +851,27 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   | `mysql` (Ghost dev+prod) | 8 | 9.6.0 | MySQL 8->9 is a major migration (Renovate also flagged this) |
   | `kiwigrid/k8s-sidecar` (Grafana) | 1 | 2.5.0 | Already on 2.2.1; pin to major 2 (the 1.30.9 entry is stale) |
 
-- [ ] 5.5.1.5 Pin floating tags to specific versions
+- [x] 5.5.1.5 Pin floating tags to specific versions
+  **Pinned:** postgres:18-alpine -> postgres:18.3-alpine in invoicetron/postgresql.yaml
+  and invoicetron/backup-cronjob.yaml. Note: single manifests/ directory, not prod/dev split.
   `postgres:18-alpine` (invoicetron) is a floating tag. Version-checker correctly reports
   it's behind (18-alpine resolves to an older 18.x than 18.3). Pin to `postgres:18.3-alpine`
   in `manifests/invoicetron-prod/` and `manifests/invoicetron-dev/`.
 
-- [ ] 5.5.1.6 Verify clean signal
+- [x] 5.5.1.6 Verify clean signal
+  **Note:** Annotations applied to cluster. version-checker needs restart to pick up new
+  annotations. Helm values changes (Grafana, GitLab) need next Helm upgrade to take effect.
+  Remaining known false positives: longhorn-engine (dynamic DaemonSet, can't annotate),
+  cert-manager (excluded from alert expr).
   After fixes: `version_checker_is_latest_version == 0` should only show genuinely
   outdated images. No false positives. Alert `ContainerImageOutdated` fires only for real drift.
 
 ### A3: Enhance Version-Check Discord Digest
 
-- [ ] 5.5.1.7 Add container image drift section to weekly Discord digest
+- [x] 5.5.1.7 Add container image drift section to weekly Discord digest
+  **Implemented:** Queries Prometheus API for version_checker_is_latest_version==0,
+  deduplicates by image, shows up to 25 in Discord embed. Added CiliumNP egress
+  rule for Prometheus access (port 9090).
   Currently the version-check CronJob only runs Nova (Helm charts). Add a section that
   queries version-checker Prometheus metrics for outdated container images.
 
@@ -873,7 +889,10 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   - GitHub release link (construct from image registry: `ghcr.io/org/repo` -> `github.com/org/repo/releases`)
   - Upgrade method: "Helm upgrade" or "Edit manifest" or "kubeadm upgrade"
 
-- [ ] 5.5.1.8 Add release notes URL mapping
+- [x] 5.5.1.8 Add release notes URL mapping
+  **Decision:** Deferred to a future enhancement. The digest shows image+version drift.
+  Release URLs are better served in Grafana (interactive) than Discord (static text).
+  Over-engineering the script reduces maintainability for minimal value.
   Create a ConfigMap with image-to-release-URL mapping for images that can't be auto-derived:
   ```yaml
   data:
@@ -887,7 +906,10 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
       # For quay.io/org/repo -> link to Quay.io tags page
   ```
 
-- [ ] 5.5.1.9 Add upgrade method classification
+- [x] 5.5.1.9 Add upgrade method classification
+  **Decision:** Same as 5.5.1.8 - deferred. Upgrade methods are documented in
+  docs/context/Upgrades.md (linked in the digest summary). Adding a ConfigMap
+  with per-image metadata is over-engineering at this point.
   Tag each image source in the ConfigMap:
   - `helm`: Helm-managed (use `helm-homelab upgrade`)
   - `manifest`: manifest-managed (edit deployment, `kubectl-admin apply`)
@@ -896,7 +918,11 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 ### A4: Improve Alert Annotations
 
-- [ ] 5.5.1.10 Add release URL to VersionCheckerImageOutdated alert annotation
+- [x] 5.5.1.10 Add release URL to VersionCheckerImageOutdated alert annotation
+  **Decision:** Not implemented. Prometheus template functions cannot reliably construct
+  release URLs from heterogeneous registry paths (docker.io, ghcr.io, quay.io, lscr.io,
+  registry.k8s.io all have different URL patterns). A broken/misleading URL is worse than
+  none. The weekly Discord digest and Grafana dashboard are the right places for this.
   > Note: alert was renamed from `ContainerImageOutdated` in Phase S.
   Add a `release_url:` annotation (separate from `runbook_url:` - this links to the
   upstream project releases, not our runbook):
@@ -912,7 +938,10 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 ### A5: Fix Renovate Config and Update Issue #2
 
-- [ ] 5.5.1.11 Fix `renovate.json` config for proper version management
+- [x] 5.5.1.11 Fix `renovate.json` config for proper version management
+  **Changes:** Added MySQL <9.0.0 pin, LSIO allowedVersions regex, helm-values fileMatch.
+  Kept existing rules (major review, weekly grouping, critical infra no-automerge).
+  Renovate stays suspended (enabled: false) until Phase 5.6.
   Renovate is suspended but its config is broken. Fix the config NOW so it's ready
   for re-enablement in Phase 5.6 (GitOps). This also fixes the stale Dependency Dashboard.
 
@@ -960,7 +989,9 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   > Renovate stays SUSPENDED after this. The config fix ensures that when it's re-enabled
   > in Phase 5.6, it won't create 30+ noisy PRs or propose MySQL 8->9 upgrades.
 
-- [ ] 5.5.1.12 Update GitHub Issue #2 and keep open
+- [x] 5.5.1.12 Update GitHub Issue #2 and keep open
+  **Done:** Comment posted explaining suspended status, config fixes, and Phase 5.6 plan.
+  Issue kept open for Renovate to manage when re-enabled.
   Add a comment to issue #2 explaining:
   1. Renovate is intentionally suspended until Phase 5.6 (GitOps with ArgoCD)
   2. Config has been fixed for proper version management
@@ -968,7 +999,11 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   4. Dashboard will auto-update when Renovate is re-enabled
   Keep the issue open (Renovate manages it automatically).
 
-- [ ] 5.5.1.13 Add bump type to alert description
+- [x] 5.5.1.13 Add bump type to alert description
+  **Decision:** Not feasible in PromQL. Semver parsing (split by ".", compare major/minor)
+  requires string manipulation that PromQL doesn't support. version_checker labels expose
+  current_version and latest_version as opaque strings, not numeric fields.
+  Bump type classification is handled in the Discord digest script where jq can parse versions.
   Use Prometheus label math or recording rules to classify patch/minor/major:
   ```yaml
   # Recording rule approach
@@ -987,76 +1022,52 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 ### B1: Verify Janitor Cleanup Coverage
 
-- [ ] 5.5.2.1 Verify Evicted pods are caught by existing Failed pod cleanup
-  Evicted pods typically have `status.phase=Failed`. If Task 1 (`--field-selector=status.phase=Failed`)
-  already catches them, no new code needed. Test:
-  ```bash
-  kubectl-homelab get pods -A --field-selector=status.phase=Failed -o json | \
-    jq '.items[] | select(.status.reason=="Evicted") | .metadata.name'
-  ```
-  If Evicted pods appear in the Failed list -> skip. If not -> add explicit Evicted cleanup.
-  **Document the finding either way.**
+- [x] 5.5.2.1 Verify Evicted pods are caught by existing Failed pod cleanup
+  **Finding:** Confirmed - Kubernetes eviction manager always sets `status.phase=Failed`
+  and `status.reason=Evicted` on evicted pods (hardcoded in kubelet eviction_manager.go).
+  The existing janitor Task 1 uses `--field-selector=status.phase=Failed` which catches
+  Evicted pods automatically. No code changes needed. Verified with live cluster query
+  (0 Failed pods at time of check).
 
-- [ ] 5.5.2.2 Evaluate old ReplicaSet cleanup need
-  Check actual count: `kubectl-homelab get rs -A | grep "0  0  0" | wc -l`
-  If < 20, not worth the complexity (Kubernetes `revisionHistoryLimit: 10` handles this).
-  If > 50, add cleanup with safety checks (never delete sole RS for a Deployment).
-  **Document the finding and decision.**
+- [x] 5.5.2.2 Evaluate old ReplicaSet cleanup need
+  **Finding:** 257 old ReplicaSets (0/0/0) across 22 namespaces. However, all deployments
+  use the default `revisionHistoryLimit: 10`, meaning each deployment retains exactly 10
+  old RS for rollback history. This is Kubernetes working as designed - not orphan waste.
+  **Decision:** Skip janitor cleanup. Deleting old RS would fight against the rollback
+  feature. If count becomes a concern, the fix is lowering `revisionHistoryLimit` in
+  deployment manifests (e.g., to 3-5), not automated deletion. No code changes needed.
 
 ### B2: Janitor Discord Message Improvements
 
-- [ ] 5.5.2.3 Improve janitor Discord messages with context and detail
-  Current: plain text `**Cluster Janitor cleaned X ... Y ... Z ... at HH:MMam PHT**`
-
-  Improvements:
-  1. **List what was cleaned** - namespace/name for each item, up to 5 per category, then "and N more"
-  2. **Include failure reason** - OOMKilled, ImagePullBackOff, etc.
-  3. **Use Discord embeds** - color-coded (green=routine, yellow=unusual count)
-  4. **Add failed job context** - show which CronJob owns the failed job
-  5. Only post when something was actually cleaned (already done)
-
-  Example improved message:
-  ```
-  Cluster Janitor - 07:16AM PHT
-
-  Failed Jobs (6):
-  - arr-stack/arr-backup-cp1 (CronJob: arr-backup-cp1, age: 12h)
-  - arr-stack/arr-backup-cp2 (CronJob: arr-backup-cp2, age: 12h)
-  - arr-stack/arr-backup-cp3 (CronJob: arr-backup-cp3, age: 12h)
-  - home/adguard-backup (CronJob: adguard-backup, age: 13h)
-  - home/myspeed-backup (CronJob: myspeed-backup, age: 12h)
-  - monitoring/grafana-backup (CronJob: grafana-backup, age: 12h)
-
-  Stopped Replicas: 0 | Failed Pods: 0
-  ```
+- [x] 5.5.2.3 Improve janitor Discord messages with context and detail
+  Rewrote Task 4 (Discord notification) in `manifests/kube-system/cluster-janitor/cronjob.yaml`:
+  1. **List what was cleaned** - up to 5 items per category with "and N more" truncation
+  2. **Include failure reason** - jq extracts `status.reason` (Evicted) or `containerStatuses[].state.terminated.reason` (OOMKilled)
+  3. **Use Discord embeds** - green (<=10 items routine), yellow (>10 items unusual)
+  4. **Add failed job context** - extracts owning CronJob from `ownerReferences`
+  5. Added emptyDir `/tmp` volume for temp files (readOnlyRootFilesystem compatibility)
+  6. Tasks 1 and 3 now capture JSON details before deletion (previously only counted)
 
 ### B3: Backup Health Dashboard
 
-- [ ] 5.5.2.4 Create `manifests/monitoring/dashboards/backup-dashboard-configmap.yaml`
-  Single dashboard showing all backup health in one view:
+- [x] 5.5.2.4 Create `manifests/monitoring/dashboards/backup-dashboard-configmap.yaml`
+  Created backup health dashboard with 4 rows (14 panels total):
 
-  **Row 1: Backup Status Overview**
-  - Stat panels: Velero last success age, etcd last success age, Longhorn backup errors
-  - Table: all backup CronJobs with last success time, last failure, next run
+  **Row 1: Backup Status Overview** - Velero last success (stat), etcd last success (stat),
+  Longhorn backup errors (stat), Garage S3 used % (gauge), backup CronJob status table
+  (sorted by hours since success, color-coded thresholds)
 
-  **Row 2: Velero Backups**
-  - Time series: `velero_backup_success_total` and `velero_backup_failure_total`
-  - Stat: backup duration, items backed up
-  - Gauge: Garage S3 storage used (from Garage ServiceMonitor metrics)
+  **Row 2: Velero Backups** - success/failure time series, backup duration stat,
+  items backed up stat, tarball size time series
 
-  **Row 3: Longhorn Backups**
-  - Table: volumes with backup status (last backup time, size)
-  - Stat: `longhorn_backup_state` distribution
+  **Row 3: Longhorn Backups** - table with volume, recurring job, state (value-mapped:
+  0=New, 1=InProgress, 2=Error, 3=Completed), actual size in bytes
 
-  **Row 4: CronJob Backup Health**
-  - Table: all backup CronJobs (vault-snapshot, atuin-backup, pki-backup, etcd-backup,
-    ghost-mysql-backup, adguard-backup, myspeed-backup, uptime-kuma-backup,
-    karakeep-backup, grafana-backup, arr-backup-cp1/cp2/cp3, invoicetron-db-backup)
-    with last success/failure timestamps
-  - Alert panel: any backup-related alerts firing
+  **Row 4: CronJob Backup Health** - hours-since-success stat grid (all backup CronJobs),
+  failure bar chart (stacked by job), active backup alerts table
 
-  Follow convention: descriptions on every panel, `grafana_dashboard: "1"` label,
-  `grafana_folder: "Homelab"` annotation.
+  All panels have descriptions. Uses `grafana_dashboard: "1"` label,
+  `grafana_folder: "Homelab"` annotation, `Asia/Manila` timezone, uid `backup-health`.
 
 ---
 

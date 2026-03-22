@@ -1,0 +1,677 @@
+# Grafana Dashboard - Backup Health
+# Phase 5.5: All backup health in one view - Velero, Longhorn, CronJobs
+# Auto-provisioned via grafana_dashboard label
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-dashboard
+  namespace: monitoring
+  annotations:
+    grafana_folder: "Homelab"
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus-stack
+data:
+  backup.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "title": "Backup Status Overview",
+          "description": "High-level health indicators for all backup systems",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "Hours since last successful Velero backup. Alert if >26h (missed daily window).",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 26 },
+                  { "color": "red", "value": 50 }
+                ]
+              },
+              "unit": "h"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+          "id": 2,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "reduceOptions": { "calcs": ["lastNotNull"] }
+          },
+          "targets": [
+            {
+              "expr": "(time() - velero_backup_last_successful_timestamp{schedule=\"daily-k8s-backup\"}) / 3600",
+              "legendFormat": "Velero"
+            }
+          ],
+          "title": "Velero Last Success",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "Hours since last successful etcd backup CronJob.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 14 },
+                  { "color": "red", "value": 26 }
+                ]
+              },
+              "unit": "h"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+          "id": 3,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "reduceOptions": { "calcs": ["lastNotNull"] }
+          },
+          "targets": [
+            {
+              "expr": "(time() - kube_cronjob_status_last_successful_time{namespace=\"kube-system\", cronjob=\"etcd-backup\"}) / 3600",
+              "legendFormat": "etcd"
+            }
+          ],
+          "title": "etcd Last Success",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "Count of Longhorn backup volumes in error state (state != 3/Completed).",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 1 }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+          "id": 4,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "reduceOptions": { "calcs": ["lastNotNull"] }
+          },
+          "targets": [
+            {
+              "expr": "count(longhorn_backup_state != 3) or vector(0)",
+              "legendFormat": "Errors"
+            }
+          ],
+          "title": "Longhorn Backup Errors",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "Garage S3 storage used by Velero backups. Data volume only.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "max": 100,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 70 },
+                  { "color": "red", "value": 90 }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+          "id": 5,
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "targets": [
+            {
+              "expr": "(1 - (garage_local_disk_avail{volume=\"data\"} / garage_local_disk_total{volume=\"data\"})) * 100",
+              "legendFormat": "Garage S3"
+            }
+          ],
+          "title": "Garage S3 Used",
+          "type": "gauge"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "All backup CronJobs with last success/failure times. Red row = stale backup.",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": { "type": "auto" },
+                "inspect": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Hours Since Success" },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        { "color": "green", "value": null },
+                        { "color": "yellow", "value": 26 },
+                        { "color": "red", "value": 50 }
+                      ]
+                    }
+                  },
+                  { "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "color-background" } }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 5 },
+          "id": 6,
+          "options": {
+            "cellHeight": "sm",
+            "footer": { "enablePagination": false },
+            "showHeader": true,
+            "sortBy": [{ "desc": true, "displayName": "Hours Since Success" }]
+          },
+          "targets": [
+            {
+              "expr": "(time() - kube_cronjob_status_last_successful_time{cronjob=~\".*backup.*|etcd-backup|pki-backup|vault-snapshot\"}) / 3600",
+              "format": "table",
+              "instant": true,
+              "legendFormat": ""
+            }
+          ],
+          "title": "Backup CronJob Status",
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "__name__": true,
+                  "endpoint": true,
+                  "instance": true,
+                  "job": true,
+                  "pod": true,
+                  "service": true,
+                  "uid": true
+                },
+                "renameByName": {
+                  "Value": "Hours Since Success",
+                  "cronjob": "CronJob",
+                  "namespace": "Namespace"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+          "id": 10,
+          "title": "Velero Backups",
+          "description": "Velero K8s resource backup metrics from Garage S3",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "Velero backup success and failure counts over time.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisBorderShow": false,
+                "axisLabel": "",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "auto",
+                "stacking": { "mode": "none" }
+              },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Failures" },
+                "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Successes" },
+                "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+          "id": 11,
+          "targets": [
+            {
+              "expr": "increase(velero_backup_success_total{schedule=\"daily-k8s-backup\"}[1d])",
+              "legendFormat": "Successes"
+            },
+            {
+              "expr": "increase(velero_backup_failure_total{schedule=\"daily-k8s-backup\"}[1d])",
+              "legendFormat": "Failures"
+            }
+          ],
+          "title": "Velero Backup Success/Failure",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "Duration of last Velero backup in seconds.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 300 },
+                  { "color": "red", "value": 600 }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 14 },
+          "id": 12,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "reduceOptions": { "calcs": ["lastNotNull"] }
+          },
+          "targets": [
+            {
+              "expr": "velero_backup_duration_seconds_sum{schedule=\"daily-k8s-backup\"} / velero_backup_duration_seconds_count{schedule=\"daily-k8s-backup\"}",
+              "legendFormat": "Avg Duration"
+            }
+          ],
+          "title": "Backup Duration",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "Total items backed up in last Velero backup.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "blue", "value": null }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 14 },
+          "id": 13,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "reduceOptions": { "calcs": ["lastNotNull"] }
+          },
+          "targets": [
+            {
+              "expr": "velero_backup_items_total{schedule=\"daily-k8s-backup\"}",
+              "legendFormat": "Items"
+            }
+          ],
+          "title": "Items Backed Up",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "Velero backup tarball size over time.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisBorderShow": false,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "auto",
+                "stacking": { "mode": "none" }
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 12, "x": 12, "y": 18 },
+          "id": 14,
+          "targets": [
+            {
+              "expr": "velero_backup_tarball_size_bytes{schedule=\"daily-k8s-backup\"}",
+              "legendFormat": "Tarball Size"
+            }
+          ],
+          "title": "Backup Size",
+          "type": "timeseries"
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+          "id": 20,
+          "title": "Longhorn Backups",
+          "description": "Longhorn volume backup status and sizes from NFS target",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "Longhorn backup volumes by state. State 3 = Completed, others = error/in-progress.",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": { "type": "auto" },
+                "inspect": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "State" },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      { "options": { "0": { "text": "New" }, "1": { "text": "InProgress" }, "2": { "text": "Error" }, "3": { "text": "Completed" } }, "type": "value" }
+                    ]
+                  },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        { "color": "green", "value": null },
+                        { "color": "yellow", "value": 0 },
+                        { "color": "green", "value": 3 }
+                      ]
+                    }
+                  },
+                  { "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "color-background" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Size" },
+                "properties": [
+                  { "id": "unit", "value": "bytes" }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 23 },
+          "id": 21,
+          "options": {
+            "cellHeight": "sm",
+            "footer": { "enablePagination": false },
+            "showHeader": true,
+            "sortBy": [{ "desc": false, "displayName": "Recurring Job" }]
+          },
+          "targets": [
+            {
+              "expr": "longhorn_backup_state",
+              "format": "table",
+              "instant": true,
+              "legendFormat": ""
+            },
+            {
+              "expr": "longhorn_backup_actual_size_bytes",
+              "format": "table",
+              "instant": true,
+              "legendFormat": ""
+            }
+          ],
+          "title": "Longhorn Backup Volumes",
+          "transformations": [
+            {
+              "id": "seriesToColumns",
+              "options": { "byField": "volume" }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time 1": true,
+                  "Time 2": true,
+                  "__name__ 1": true,
+                  "__name__ 2": true,
+                  "backup 1": true,
+                  "backup 2": true,
+                  "container 1": true,
+                  "container 2": true,
+                  "endpoint 1": true,
+                  "endpoint 2": true,
+                  "instance 1": true,
+                  "instance 2": true,
+                  "job 1": true,
+                  "job 2": true,
+                  "namespace 1": true,
+                  "namespace 2": true,
+                  "pod 1": true,
+                  "pod 2": true,
+                  "service 1": true,
+                  "service 2": true
+                },
+                "renameByName": {
+                  "Value #A": "State",
+                  "Value #B": "Size",
+                  "recurring_job 1": "Recurring Job",
+                  "recurring_job 2": "",
+                  "volume": "Volume"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
+          "id": 30,
+          "title": "CronJob Backup Health",
+          "description": "Individual backup CronJob success/failure tracking",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "Hours since last successful run for each backup CronJob. Green < 26h, yellow < 50h, red > 50h.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 26 },
+                  { "color": "red", "value": 50 }
+                ]
+              },
+              "unit": "h"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 6, "w": 24, "x": 0, "y": 32 },
+          "id": 31,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "value_and_name"
+          },
+          "targets": [
+            {
+              "expr": "(time() - kube_cronjob_status_last_successful_time{cronjob=~\".*backup.*|etcd-backup|pki-backup|vault-snapshot\"}) / 3600",
+              "legendFormat": "{{namespace}}/{{cronjob}}"
+            }
+          ],
+          "title": "Hours Since Last Success",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "CronJob failure count over the selected time range. Non-zero means a job run failed.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisBorderShow": false,
+                "drawStyle": "bars",
+                "fillOpacity": 80,
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "stacking": { "mode": "normal" }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 38 },
+          "id": 32,
+          "targets": [
+            {
+              "expr": "increase(kube_job_status_failed{job_name=~\".*backup.*|etcd-backup-.*|pki-backup-.*|vault-snapshot-.*\"}[1h])",
+              "legendFormat": "{{namespace}}/{{job_name}}"
+            }
+          ],
+          "title": "Backup Job Failures",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "Currently firing backup-related alerts from Prometheus.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "custom": {
+                "align": "auto",
+                "cellOptions": { "type": "auto" }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "severity" },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      { "options": { "critical": { "color": "red", "text": "critical" }, "warning": { "color": "orange", "text": "warning" }, "info": { "color": "blue", "text": "info" } }, "type": "value" }
+                    ]
+                  },
+                  { "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "color-background" } }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 6, "w": 24, "x": 0, "y": 46 },
+          "id": 33,
+          "options": {
+            "cellHeight": "sm",
+            "footer": { "enablePagination": false },
+            "showHeader": true
+          },
+          "targets": [
+            {
+              "expr": "ALERTS{alertname=~\".*Backup.*|.*CronJob.*|VeleroBackup.*|EtcdBackup.*\", alertstate=\"firing\"}",
+              "format": "table",
+              "instant": true,
+              "legendFormat": ""
+            }
+          ],
+          "title": "Active Backup Alerts",
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value": true,
+                  "__name__": true,
+                  "alertstate": true,
+                  "container": true,
+                  "endpoint": true,
+                  "instance": true,
+                  "job": true,
+                  "pod": true,
+                  "service": true
+                },
+                "renameByName": {
+                  "alertname": "Alert",
+                  "namespace": "Namespace",
+                  "severity": "Severity",
+                  "summary": "Summary"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["backup", "velero", "longhorn"],
+      "templating": { "list": [] },
+      "time": { "from": "now-7d", "to": "now" },
+      "timezone": "Asia/Manila",
+      "title": "Backup Health",
+      "uid": "backup-health",
+      "version": 1
+    }
