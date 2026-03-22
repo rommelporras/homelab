@@ -1,0 +1,98 @@
+# PrometheusRule for GitLab Health Alerts
+# Phase 5.5: Monitor GitLab webservice, Sidekiq, Gitaly, PostgreSQL, Redis health
+#
+# Depends on: gitlab-servicemonitor.yaml (ServiceMonitors must be deployed first)
+#
+# Metrics sources:
+#   gitlab_transaction_* - GitLab webservice/Sidekiq request metrics (gitlab-exporter)
+#   pg_up - PostgreSQL availability (postgresql-metrics exporter)
+#   pg_stat_activity_count - PostgreSQL connection count (postgresql-metrics exporter)
+#   redis_up - Redis availability (redis-metrics exporter)
+#   redis_memory_used_bytes - Redis memory usage (redis-metrics exporter)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gitlab-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: gitlab
+      rules:
+        # CRITICAL: GitLab webservice has high 5xx error rate
+        - alert: GitLabWebservice5xxHigh
+          expr: |
+            sum(rate(gitlab_transaction_duration_seconds_count{action=~".*", controller!="HealthController"}[5m])) > 0
+            and
+            sum(rate(gitlab_transaction_duration_seconds_count{action=~".*", controller!="HealthController", status=~"5.."}[5m]))
+            /
+            sum(rate(gitlab_transaction_duration_seconds_count{action=~".*", controller!="HealthController"}[5m]))
+            > 0.05
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "GitLab webservice 5xx error rate above 5%"
+            description: "GitLab is returning server errors at {{ $value | humanizePercentage }} rate. Check webservice pod logs and database connectivity."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#GitLabWebservice5xxHigh"
+
+        # WARNING: GitLab Sidekiq queue is backing up
+        - alert: GitLabSidekiqQueueHigh
+          expr: sum(sidekiq_queue_size) > 100
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "GitLab Sidekiq queue has {{ $value }} pending jobs"
+            description: "Sidekiq background job queue has been above 100 for 30+ minutes. Background tasks (emails, CI, webhooks) are delayed."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#GitLabSidekiqQueueHigh"
+
+    - name: gitlab-database
+      rules:
+        # CRITICAL: GitLab PostgreSQL is down
+        - alert: GitLabPostgresDown
+          expr: pg_up{namespace="gitlab"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "GitLab PostgreSQL is down"
+            description: "GitLab PostgreSQL database is unreachable. All GitLab functionality is degraded."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#GitLabPostgresDown"
+
+        # WARNING: GitLab PostgreSQL connections getting high
+        - alert: GitLabPostgresConnectionsHigh
+          expr: |
+            sum(pg_stat_activity_count{namespace="gitlab"}) > 80
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "GitLab PostgreSQL has {{ $value }} active connections"
+            description: "PostgreSQL connections are elevated. Default max_connections is 100. At current rate, connections may exhaust."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#GitLabPostgresConnectionsHigh"
+
+        # CRITICAL: GitLab Redis is down
+        - alert: GitLabRedisDown
+          expr: redis_up{namespace="gitlab"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "GitLab Redis is down"
+            description: "GitLab Redis cache/session store is unreachable. GitLab will experience severe performance degradation."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#GitLabRedisDown"
+
+        # WARNING: GitLab Redis memory usage high
+        - alert: GitLabRedisHighMemory
+          expr: redis_memory_used_bytes{namespace="gitlab"} > 200 * 1024 * 1024
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "GitLab Redis using {{ $value | humanize1024 }}B memory"
+            description: "Redis memory usage is above 200MiB. Check for cache bloat or missing eviction policy."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#GitLabRedisHighMemory"

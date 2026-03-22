@@ -65,3 +65,16 @@ Certificate has not been in Ready state for 15+ minutes. A renewal may have fail
 
 4. Check cert-manager logs:
    kubectl-homelab logs -n cert-manager deploy/cert-manager --tail=200
+
+## CertManagerWebhookDown
+
+**Severity:** critical
+
+cert-manager webhook is unreachable. Certificate issuance and renewal are blocked - any Certificate or CertificateRequest resource creation/update will be rejected by the API server.
+
+### Triage Steps
+
+1. Check webhook pod status: kubectl-homelab get pods -n cert-manager -l app=webhook
+2. Check webhook logs: kubectl-homelab logs -n cert-manager -l app=webhook --tail=50
+3. Check CiliumNetworkPolicy (API server must reach the webhook): kubectl-homelab get ciliumnetworkpolicy -n cert-manager
+4. Check cert-manager controller logs for webhook errors: kubectl-homelab logs -n cert-manager deploy/cert-manager --tail=100

@@ -1,0 +1,31 @@
+# Blackbox HTTP probe for cert-manager webhook
+# Phase 5.5: Monitor cert-manager webhook availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://cert-manager-webhook:9402/metrics -> webhook
+#   If unreachable -> probe_success=0 -> CertManagerWebhookDown alert fires
+#
+# Probes the non-TLS metrics port (9402) instead of the TLS webhook port (443).
+# If the metrics endpoint is down, the webhook is down too - same process serves both.
+# CiliumNP: cert-manager-webhook-ingress already allows monitoring on port 9402.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: cert-manager-webhook
+  namespace: monitoring
+  labels:
+    app: cert-manager-webhook-probe
+    release: prometheus
+spec:
+  jobName: cert-manager-webhook
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://cert-manager-webhook.cert-manager.svc.cluster.local:9402/metrics
+      labels:
+        target_name: cert-manager-webhook

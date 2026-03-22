@@ -1,0 +1,29 @@
+# Blackbox HTTP probe for Radarr
+# Phase 5.5: Monitor Radarr movie manager availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://radarr:7878/ping -> Radarr
+#   If unreachable -> probe_success=0 -> RadarrDown alert fires
+#
+# CiliumNP: arr-stack default-deny-ingress allows monitoring namespace. SAFE.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: radarr
+  namespace: monitoring
+  labels:
+    app: radarr-probe
+    release: prometheus
+spec:
+  jobName: radarr
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://radarr.arr-stack.svc.cluster.local:7878/ping
+      labels:
+        target_name: radarr

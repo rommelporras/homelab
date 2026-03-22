@@ -178,3 +178,68 @@ An Alloy pod is using more than 80% of its configured memory limit for 10 minute
    ```
    kubectl-homelab get daemonset alloy -n monitoring -o jsonpath='{.spec.template.spec.containers[0].resources}'
    ```
+
+---
+
+## LokiCompactionStalled
+
+**Severity:** warning
+
+Loki compaction has not run in 3+ hours. Old chunks are not being merged, which increases query latency and storage overhead over time.
+
+### Triage Steps
+
+```
+1. Check Loki pod logs for compaction errors:
+   kubectl-homelab logs -n monitoring -l app.kubernetes.io/name=loki --tail=100
+
+2. Check PVC usage (full disk prevents compaction writes):
+   kubectl-homelab get pvc -n monitoring
+
+3. Check for recent pod restarts that may have interrupted compaction:
+   kubectl-homelab get pods -n monitoring -l app.kubernetes.io/name=loki
+```
+
+---
+
+## LokiRetentionNotRunning
+
+**Severity:** warning
+
+Loki retention enforcement has not run in 3+ hours. Old log data is not being deleted - the PVC will fill over time. This was the root cause of the v0.33.2 incident.
+
+### Triage Steps
+
+```
+1. Check Loki pod logs for retention errors:
+   kubectl-homelab logs -n monitoring -l app.kubernetes.io/name=loki --tail=100
+
+2. Verify retention is configured in Helm values (compactor.retention_enabled must be true):
+   kubectl-homelab get configmap -n monitoring -l app.kubernetes.io/name=loki -o yaml | grep retention
+
+3. Check compactor health (retention runs as part of compaction):
+   kubectl-homelab get pods -n monitoring -l app.kubernetes.io/name=loki
+```
+
+---
+
+## LokiWALDiskFull
+
+**Severity:** critical
+
+Loki WAL write failures detected. Log data is being dropped. Immediate action required.
+
+### Triage Steps
+
+```
+1. Check PVC usage for the Loki PVC immediately:
+   kubectl-homelab get pvc -n monitoring
+
+2. Check current ingestion rate (identify log flooding sources):
+   kubectl-homelab logs -n monitoring -l app.kubernetes.io/name=loki --tail=50
+
+3. If PVC is full, emergency options:
+   - Identify and silence the highest-volume log source (LogQL in Grafana Explore)
+   - Resize the PVC via Longhorn UI if capacity is available on the node
+   - Delete oldest chunks manually (break-glass only)
+```

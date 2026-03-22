@@ -1,0 +1,30 @@
+# Blackbox HTTP probe for Prowlarr
+# Phase 5.5: Monitor Prowlarr indexer manager availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://prowlarr:9696/ping -> Prowlarr
+#   If unreachable -> probe_success=0 -> ProwlarrDown alert fires
+#
+# Critical: If Prowlarr goes down, all indexing stops and downloads dry up silently.
+# CiliumNP: arr-stack default-deny-ingress allows monitoring namespace. SAFE.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: prowlarr
+  namespace: monitoring
+  labels:
+    app: prowlarr-probe
+    release: prometheus
+spec:
+  jobName: prowlarr
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://prowlarr.arr-stack.svc.cluster.local:9696/ping
+      labels:
+        target_name: prowlarr

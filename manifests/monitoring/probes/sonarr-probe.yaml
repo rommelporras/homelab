@@ -1,0 +1,29 @@
+# Blackbox HTTP probe for Sonarr
+# Phase 5.5: Monitor Sonarr TV series manager availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://sonarr:8989/ping -> Sonarr
+#   If unreachable -> probe_success=0 -> SonarrDown alert fires
+#
+# CiliumNP: arr-stack default-deny-ingress allows monitoring namespace. SAFE.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: sonarr
+  namespace: monitoring
+  labels:
+    app: sonarr-probe
+    release: prometheus
+spec:
+  jobName: sonarr
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://sonarr.arr-stack.svc.cluster.local:8989/ping
+      labels:
+        target_name: sonarr

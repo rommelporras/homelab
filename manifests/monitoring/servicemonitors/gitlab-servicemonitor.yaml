@@ -1,0 +1,73 @@
+# ServiceMonitors for GitLab metrics endpoints
+# Phase 5.5: Scrape 3 GitLab Helm-deployed metrics services
+#
+# Services (all Helm-managed, already running):
+#   gitlab-gitlab-exporter:9168 - GitLab application metrics (webservice, sidekiq, gitaly)
+#   gitlab-postgresql-metrics:9187 - PostgreSQL exporter (connections, queries, sizes)
+#   gitlab-redis-metrics:9121 - Redis exporter (memory, clients, operations)
+#
+# CiliumNPs: monitoring-metrics-ingress, postgresql-monitoring-ingress,
+#   redis-monitoring-ingress already allow these ports from monitoring namespace.
+#
+# These are "free wins" - no sidecars or config changes needed, just ServiceMonitors.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gitlab-exporter
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - gitlab
+  selector:
+    matchLabels:
+      app: gitlab-exporter
+      release: gitlab
+  endpoints:
+    - port: http-metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gitlab-postgresql
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - gitlab
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: primary
+      app.kubernetes.io/instance: gitlab
+      app.kubernetes.io/name: postgresql
+  endpoints:
+    - port: http-metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gitlab-redis
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - gitlab
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: gitlab
+      app.kubernetes.io/name: redis
+  endpoints:
+    - port: http-metrics
+      interval: 30s

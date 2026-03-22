@@ -39,6 +39,19 @@ A Longhorn volume backup is in Error state (`longhorn_backup_state == 4`). This 
 2. Check backup target: kubectl-homelab get settings.longhorn.io -n longhorn-system backup-target
 3. Check Longhorn manager logs: kubectl-homelab logs -n longhorn-system -l app=longhorn-manager --tail=100
 
+## GarageDown
+
+**Severity:** critical
+
+Garage S3 backend is unreachable. Velero backups will fail. Without Garage, all S3-based backup storage is unavailable.
+
+### Triage Steps
+
+1. Check Garage pod status: kubectl-homelab get pods -n velero -l app=garage
+2. Check Garage logs: kubectl-homelab logs -n velero -l app=garage --tail=50
+3. Check PVC usage (full disk causes Garage to stop accepting writes): kubectl-homelab get pvc -n velero
+4. Check CiliumNetworkPolicy (Velero must be able to reach Garage): kubectl-homelab get ciliumnetworkpolicy -n velero
+
 ## ResourceQuotaNearLimit
 
 **Severity:** warning

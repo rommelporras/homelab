@@ -1,8 +1,12 @@
 # PrometheusRule for Logging Stack Alerts
 # Alerts for Loki and Alloy health issues
 #
+# Phase 5.5: Added compaction/retention/WAL alerts (LokiCompactionStalled,
+# LokiRetentionNotRunning, LokiWALDiskFull) to close the storage health gap
+# that caused the v0.33.2 incident.
+#
 # Apply:
-#   kubectl-homelab apply -f manifests/monitoring/logging-alerts.yaml
+#   kubectl-homelab apply -f manifests/monitoring/alerts/logging-alerts.yaml
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -56,6 +60,46 @@ spec:
             summary: "Loki has high error rate"
             description: "Loki error rate is above 10% for the last 10 minutes."
             runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/logging.md#LokiHighErrorRate"
+
+        # WARNING: Loki compaction has not run successfully in 3+ hours
+        # Compactor runs every 10m (18 expected runs in 3h). 3h threshold matches
+        # Loki's own mixin alert and tolerates pod rescheduling without false positives.
+        - alert: LokiCompactionStalled
+          expr: |
+            (time() - loki_boltdb_shipper_compact_tables_operation_last_successful_run_timestamp_seconds) > 10800
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Loki compaction has not run successfully in 3+ hours"
+            description: "Last successful compaction was {{ $value | humanizeDuration }} ago. Old chunks are not being merged, which will increase query latency and storage usage."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/logging.md#LokiCompactionStalled"
+
+        # WARNING: Loki retention enforcement has not run in 3+ hours
+        # Without retention, old log data beyond the 60-day window is never deleted.
+        # This was the root cause of the v0.33.2 PVC filling incident.
+        - alert: LokiRetentionNotRunning
+          expr: |
+            (time() - loki_compactor_apply_retention_last_successful_run_timestamp_seconds) > 10800
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Loki retention enforcement has not run in 3+ hours"
+            description: "Old log data beyond the 60-day retention period is not being deleted. PVC will eventually fill up. Last successful retention run was {{ $value | humanizeDuration }} ago."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/logging.md#LokiRetentionNotRunning"
+
+        # CRITICAL: Loki WAL write failures due to full disk
+        # Counter only increments on actual data loss. Immediate alert is correct.
+        - alert: LokiWALDiskFull
+          expr: increase(loki_ingester_wal_disk_full_failures_total[5m]) > 0
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Loki WAL write failures due to full disk"
+            description: "Loki ingester cannot write to WAL - log data is being dropped. Immediate investigation required."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/logging.md#LokiWALDiskFull"
 
     # =========================================================================
     # Alloy Alerts

@@ -1077,38 +1077,23 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 > These MUST be done before creating the probes in C1, or the probes will silently fail.
 
-- [ ] 5.5.3.0a Update home namespace CiliumNPs for monitoring access
-  `homepage-gateway-ingress` and `myspeed-gateway-ingress` don't allow monitoring namespace.
-  Add `fromEndpoints` rule allowing `monitoring` namespace to each policy.
-  **Without this, homepage and myspeed probes will silently return probe_success=0.**
+- [x] 5.5.3.0a Update home namespace CiliumNPs for monitoring access
+  Added `fromEndpoints` rule allowing `monitoring` namespace to `homepage-gateway-ingress`
+  (port 3000) and `myspeed-gateway-ingress` (port 5216) in `manifests/home/networkpolicy.yaml`.
 
-- [ ] 5.5.3.0b Add blackbox `https_2xx_insecure` module for self-signed TLS
-  Current `http_2xx` module has no `tls_config`. Probing cert-manager and ESO webhooks
-  on port 443 will fail TLS verification (self-signed certs).
-  Add to `helm/blackbox-exporter/values.yaml`:
-  ```yaml
-  modules:
-    https_2xx_insecure:
-      prober: http
-      timeout: 5s
-      http:
-        preferred_ip_protocol: ip4
-        valid_status_codes: []
-        follow_redirects: true
-        tls_config:
-          insecure_skip_verify: true
-  ```
-  Requires blackbox-exporter Helm upgrade.
-  **Alternative:** Probe non-TLS health ports instead (9402 for cert-manager, 8080 for ESO).
+- [x] 5.5.3.0b Decide blackbox module for webhook probes
+  **Decision:** Skip `https_2xx_insecure` module. Probe non-TLS metrics ports instead:
+  cert-manager webhook on port 9402 (metrics), ESO webhook on port 8080 (metrics).
+  Both ports are already allowed by existing CiliumNPs. No Helm upgrade needed.
+  If the metrics endpoint is down, the webhook process is down too (same pod).
 
-- [ ] 5.5.3.0c Update cert-manager CiliumNP for monitoring on webhook port
-  Current policy allows monitoring namespace only on port 9402 (metrics), not 443.
-  Either: add port 443 to the monitoring ingress rule, OR change the probe to target
-  port 9402 instead and use `http_2xx` module (avoids TLS issue entirely).
+- [x] 5.5.3.0c Update cert-manager CiliumNP for monitoring on webhook port
+  **No-op.** cert-manager-webhook-ingress already allows monitoring on port 9402 (metrics).
+  Probing 9402 with `http_2xx` module avoids the TLS issue entirely.
 
-- [ ] 5.5.3.0d Update external-secrets CiliumNP for monitoring on webhook port
-  Current policy allows monitoring namespace only on port 8080, not 443.
-  Same decision as cert-manager: add port 443, OR probe port 8080 with `http_2xx`.
+- [x] 5.5.3.0d Update external-secrets CiliumNP for monitoring on webhook port
+  **No-op.** eso-webhook-ingress already allows monitoring on port 8080 (metrics).
+  Probing 8080 with `http_2xx` module avoids the TLS issue entirely.
 
 ### C1: Missing Probes
 
@@ -1117,42 +1102,46 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 > labels, 60s interval, same blackbox exporter endpoint as existing probes.
 > **Prerequisite: C0 tasks must be completed first.**
 
-- [ ] 5.5.3.1 Add probe for Prowlarr (`prowlarr.arr-stack.svc:9696/ping`)
-  Critical ARR dependency - if Prowlarr goes down, all indexing stops and downloads
-  dry up silently. The only current detection is `ArrQueueWarning` (60m stall).
-  CiliumNP: arr-stack already allows monitoring namespace. SAFE.
+- [x] 5.5.3.1 Add probe for Prowlarr (`prowlarr.arr-stack.svc:9696/ping`)
+  Created `manifests/monitoring/probes/prowlarr-probe.yaml`. Added `ProwlarrDown` alert
+  (critical) to arr-alerts.yaml. Prowlarr is critical - if down, all indexing stops.
 
-- [ ] 5.5.3.2 Add probes for Sonarr (`sonarr.arr-stack.svc:8989/ping`) and
-  Radarr (`radarr.arr-stack.svc:7878/ping`)
-  Both expose `/ping` health endpoints. Currently only monitored indirectly via Scraparr.
-  CiliumNP: arr-stack already allows monitoring namespace. SAFE.
+- [x] 5.5.3.2 Add probes for Sonarr and Radarr
+  Created `sonarr-probe.yaml` (port 8989/ping) and `radarr-probe.yaml` (port 7878/ping).
+  Added `SonarrDown` and `RadarrDown` alerts (warning) to arr-alerts.yaml.
 
-- [ ] 5.5.3.3 Add probe for homepage (`homepage.home.svc:3000`)
-  Has HTTPRoute at `portal.k8s.rommelporras.com` but no probe.
-  **Requires C0 task 5.5.3.0a (CiliumNP update) first.**
+- [x] 5.5.3.3 Add probe for homepage (`homepage.home.svc:3000`)
+  Created `manifests/monitoring/probes/homepage-probe.yaml`. Added `HomepageDown` alert
+  (warning) to new `home-alerts.yaml`. CiliumNP prerequisite met by C0a.
 
-- [ ] 5.5.3.4 Add probe for myspeed (`myspeed.home.svc:5216`)
-  Has HTTPRoute at `myspeed.k8s.rommelporras.com` but no probe.
-  **Requires C0 task 5.5.3.0a (CiliumNP update) first.**
+- [x] 5.5.3.4 Add probe for myspeed (`myspeed.home.svc:5216`)
+  Created `manifests/monitoring/probes/myspeed-probe.yaml`. Added `MySpeedDown` alert
+  (warning) to `home-alerts.yaml`. CiliumNP prerequisite met by C0a.
 
-- [ ] 5.5.3.5 Add probe for cert-manager webhook
-  Use port 9402 (metrics, non-TLS) with `http_2xx` module if C0 chose the non-TLS approach.
-  Or port 443 with `https_2xx_insecure` module if C0 added TLS support.
-  **Requires C0 tasks 5.5.3.0b + 5.5.3.0c first.**
+- [x] 5.5.3.5 Add probe for cert-manager webhook
+  Created `manifests/monitoring/probes/cert-manager-webhook-probe.yaml`. Probes port 9402
+  (metrics, non-TLS) with `http_2xx` module. Added `CertManagerWebhookDown` alert (critical)
+  to cert-alerts.yaml. No TLS module needed.
 
-- [ ] 5.5.3.6 Add probe for external-secrets webhook
-  Use port 8080 (non-TLS) with `http_2xx` module if C0 chose the non-TLS approach.
-  Or port 443 with `https_2xx_insecure` module if C0 added TLS support.
-  **Requires C0 task 5.5.3.0d first.**
+- [x] 5.5.3.6 Add probe for external-secrets webhook
+  Created `manifests/monitoring/probes/eso-webhook-probe.yaml`. Probes port 8080
+  (metrics, non-TLS) with `http_2xx` module. Added `ESOWebhookDown` alert (critical)
+  to vault-alerts.yaml. No TLS module needed. File named `eso-webhook-probe.yaml`
+  (not `external-secrets-webhook-probe.yaml`) because `.gitignore` pattern `*secret*`
+  would exclude the longer name.
 
-- [ ] 5.5.3.7 Add probe for longhorn-ui (`longhorn-frontend.longhorn-system.svc:80`)
-  Web UI availability check.
+- [x] 5.5.3.7 Add probe for longhorn-ui (`longhorn-frontend.longhorn-system.svc:80`)
+  Created `manifests/monitoring/probes/longhorn-ui-probe.yaml`. Added `LonghornUIDown` alert
+  (warning, 10m threshold) to longhorn-alerts.yaml. No CiliumNP in longhorn-system.
 
-- [ ] 5.5.3.8 Add probe for Garage health endpoint (`garage.velero.svc:3903/health`)
-  S3 backend health. Complements the `GarageDown` alert.
+- [x] 5.5.3.8 Add probe for Garage health endpoint (`garage.velero.svc:3903/health`)
+  Created `manifests/monitoring/probes/garage-probe.yaml` (jobName: garage-health).
+  Complements the `GarageDown` alert (which uses `up{job="garage"}` from ServiceMonitor).
+  CiliumNP: garage-ingress already allows monitoring on 3903.
 
-- [ ] 5.5.3.9 Add probe for Recommendarr (`recommendarr.arr-stack.svc:3000`)
-  Currently has zero monitoring of any kind.
+- [x] 5.5.3.9 Add probe for Recommendarr (`recommendarr.arr-stack.svc:3000`)
+  Created `manifests/monitoring/probes/recommendarr-probe.yaml`. Added `RecommendarrDown`
+  alert (warning) to arr-alerts.yaml.
 
 ### C2: Missing ServiceMonitors & Alerts
 
@@ -1161,107 +1150,76 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 > `app.kubernetes.io/part-of: kube-prometheus-stack` metadata labels.
 > All new ServiceMonitors: `release: prometheus` label, kebab-case name.
 
-- [ ] 5.5.3.10 Add `GarageDown` alert to `backup-alerts.yaml`
-  Add to the existing `backup-alerts.yaml` file (same domain as VeleroBackupFailed/Stale),
-  not a new standalone file. The Phase S group-name standardization already touches this file.
-  ```yaml
-  - alert: GarageDown
-    expr: up{job="garage"} == 0
-    for: 5m
-    labels:
-      severity: critical
-    annotations:
-      summary: "Garage S3 backend is down"
-      description: "Velero backup target unreachable. Backups will fail."
-      runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/backup.md#GarageDown"
-  ```
-  Without this, Garage failure detection relies on `VeleroBackupStale` (36h delay).
+- [x] 5.5.3.10 Add `GarageDown` alert to `backup-alerts.yaml`
+  Added to backup group in `backup-alerts.yaml`. Severity: critical. Expression: `up{job="garage"} == 0`.
+  5-minute threshold. Without this, Garage failure detection relied on VeleroBackupStale (36h delay).
+  Runbook entry added to `docs/runbooks/backup.md`.
 
-- [ ] 5.5.3.11 Add ServiceMonitors for GitLab metrics (3 services)
-  GitLab Helm chart deploys metrics services that are already allowed by CiliumNPs:
-  - `gitlab-gitlab-exporter` port 9168 (CiliumNP `monitoring-metrics-ingress` allows it)
-  - `gitlab-postgresql-metrics` port 9187 (CiliumNP `postgresql-monitoring-ingress` allows it)
-  - `gitlab-redis-metrics` port 9121 (CiliumNP `redis-monitoring-ingress` allows it)
-  All three are free wins - no CiliumNP changes needed, no sidecars needed.
-  Create 3 ServiceMonitors (or 1 with multiple endpoints).
+- [x] 5.5.3.11 Add ServiceMonitors for GitLab metrics (3 services)
+  Created `manifests/monitoring/servicemonitors/gitlab-servicemonitor.yaml` with 3
+  ServiceMonitor resources in a single file:
+  - `gitlab-exporter` (selector: app=gitlab-exporter, release=gitlab) port http-metrics (9168)
+  - `gitlab-postgresql` (selector: app.kubernetes.io/name=postgresql, instance=gitlab) port http-metrics (9187)
+  - `gitlab-redis` (selector: app.kubernetes.io/name=redis, instance=gitlab) port http-metrics (9121)
+  All CiliumNPs already in place. No sidecars needed.
 
-- [ ] 5.5.3.12 Add PrometheusRules for GitLab health
-  At minimum: webservice 5xx rate, Sidekiq queue depth, Gitaly errors,
-  PostgreSQL connection pool usage, registry availability.
-  Depends on 5.5.3.11 (ServiceMonitor must exist first to populate metrics).
+- [x] 5.5.3.12 Add PrometheusRules for GitLab health
+  Created `manifests/monitoring/alerts/gitlab-alerts.yaml` with 6 alerts:
+  - `GitLabWebservice5xxHigh` (critical) - 5xx error rate above 5%
+  - `GitLabSidekiqQueueHigh` (warning) - queue > 100 for 30m
+  - `GitLabPostgresDown` (critical) - pg_up==0
+  - `GitLabPostgresConnectionsHigh` (warning) - connections > 80
+  - `GitLabRedisDown` (critical) - redis_up==0
+  - `GitLabRedisHighMemory` (warning) - memory > 200MiB
+  Depends on 5.5.3.11 ServiceMonitors being deployed first. Runbook entries in apps.md.
 
-- [ ] 5.5.3.13 Add ServiceMonitor for intel-device-plugins
-  `inteldeviceplugins-controller-manager` has a metrics-service on port 8080.
-  Easy win - service exists, just needs a ServiceMonitor.
+- [x] 5.5.3.13 Evaluate intel-device-plugins ServiceMonitor
+  **Finding:** Not an easy win as planned. The metrics service port is 8443 (not 8080),
+  uses `--metrics-secure` (controller-runtime TLS), and the service has `targetPort: https`
+  which doesn't match any container port name (container only exposes port 9443 as
+  "webhook-server"). Endpoints object has no subsets - service cannot route traffic.
+  **Decision:** Skip ServiceMonitor. Needs Helm values fix to add metrics container port
+  and possibly disable `--metrics-secure`. Low priority - GPU plugin rarely fails and
+  existing kube-state-metrics covers pod health.
 
-- [ ] 5.5.3.14 Evaluate cert-manager alerts coverage
-  `cert-alerts.yaml` already has: CertificateExpiringSoon, CertificateExpiryCritical,
-  CertificateNotReady. Evaluate if additional alerts are needed for:
-  - cert-manager webhook failures (HTTP 500s on mutation/validation)
-  - ACME challenge failures (if using Let's Encrypt)
-  - High certificate renewal failure rate
+- [x] 5.5.3.14 Evaluate cert-manager alerts coverage
+  **Evaluation:**
+  - Existing: CertificateExpiringSoon, CertificateExpiryCritical, CertificateNotReady
+  - **Gap found:** No webhook availability alert. If webhook is down, no certificates
+    can be issued or renewed. This is the critical gap.
+  - **Added:** `CertManagerWebhookDown` alert (critical, 5m) in cert-alerts.yaml using
+    the new cert-manager-webhook probe (5.5.3.5).
+  - ACME challenge failures: covered indirectly by CertificateNotReady (fires when
+    renewal fails for any reason including ACME failures).
+  - High cert-manager error rate: not needed - cert-manager is a low-traffic controller.
+  **Conclusion:** Coverage is now sufficient with the webhook alert.
 
-- [ ] 5.5.3.15 Evaluate external-secrets alerts coverage
-  `vault-alerts.yaml` already has: ESOSecretNotSynced, ESOSyncErrors.
-  Evaluate if additional alerts are needed for:
-  - ESO operator pod restarts
-  - ESO webhook failures
-  - ClusterSecretStore connectivity issues
+- [x] 5.5.3.15 Evaluate external-secrets alerts coverage
+  **Evaluation:**
+  - Existing: ESOSecretNotSynced, ESOSyncErrors, VaultSnapshotFailing
+  - **Gap found:** No webhook availability alert. If webhook is down, ExternalSecret
+    create/update operations are rejected by the API server.
+  - **Added:** `ESOWebhookDown` alert (critical, 5m) in vault-alerts.yaml using the
+    new external-secrets-webhook probe (5.5.3.6).
+  - ESO operator pod restarts: covered by generic PodCrashLoopingExtended alert.
+  - ClusterSecretStore connectivity: manifests as ESOSyncErrors (already covered).
+  **Conclusion:** Coverage is now sufficient with the webhook alert.
 
-- [ ] 5.5.3.16 Add Loki compaction/retention alerts to `logging-alerts.yaml`
-  Existing logging alerts (LokiDown, LokiIngestionStopped, LokiHighErrorRate) cover
-  availability but NOT storage health. v0.33.2 was a Loki PVC filling incident caused
-  by retention not yet kicking in - we had zero visibility into compaction status.
+- [x] 5.5.3.16 Add Loki compaction/retention alerts to `logging-alerts.yaml`
+  Added 3 alerts to the `loki` group in `logging-alerts.yaml`:
+  - `LokiCompactionStalled` (warning, 15m for) - compaction not run in 3+ hours
+  - `LokiRetentionNotRunning` (warning, 15m for) - retention not run in 3+ hours
+  - `LokiWALDiskFull` (critical, 0m for) - WAL write failures (data loss)
 
-  **New alerts (3):**
-  ```yaml
-  - alert: LokiCompactionStalled
-    expr: |
-      (time() - loki_boltdb_shipper_compact_tables_operation_last_successful_run_timestamp_seconds) > 10800
-    for: 15m
-    labels:
-      severity: warning
-    annotations:
-      summary: "Loki compaction has not run successfully in 3+ hours"
-      description: "Last successful compaction was {{ $value | humanizeDuration }} ago. Old chunks are not being merged."
+  All 3 metrics verified in Prometheus:
+  - `loki_boltdb_shipper_compact_tables_operation_last_successful_run_timestamp_seconds` - populated
+  - `loki_compactor_apply_retention_last_successful_run_timestamp_seconds` - populated
+  - `loki_ingester_wal_disk_full_failures_total` - exists (counter at 0, no failures)
 
-  - alert: LokiRetentionNotRunning
-    expr: |
-      (time() - loki_compactor_apply_retention_last_successful_run_timestamp_seconds) > 10800
-    for: 15m
-    labels:
-      severity: warning
-    annotations:
-      summary: "Loki retention enforcement has not run in 3+ hours"
-      description: "Old log data beyond the 60-day retention period is not being deleted. PVC will fill up."
+  LokiWALDiskFull uses `increase()[5m] > 0` instead of raw counter `> 0` to avoid
+  false firing from counter persistence across pod restarts. Runbook entries in logging.md.
 
-  - alert: LokiWALDiskFull
-    expr: loki_ingester_wal_disk_full_failures_total > 0
-    for: 0m
-    labels:
-      severity: critical
-    annotations:
-      summary: "Loki WAL write failures due to full disk"
-      description: "Loki ingester cannot write to WAL - log data is being dropped."
-  ```
-
-  **Threshold rationale:**
-  - 3-hour compaction/retention window: compactor runs every 10m (18 expected runs in 3h).
-    Matches Loki's own mixin alert (`LokiCompactorHasNotSuccessfullyRunCompaction`).
-    Tolerates pod rescheduling/node reboots without false positives.
-  - WAL `for: 0m`: counter only increments on actual data loss. Immediate alert is correct.
-  - Dropped `LokiStorageFillingUp` (PVC < 15%): redundant with the existing
-    `KubePersistentVolumeFillingUp` from kube-prometheus-stack. The 3 alerts above tell
-    you WHY the PVC is filling (compaction stalled, retention not running, WAL full) -
-    the generic alert already tells you THAT it's filling.
-
-  > Note: `loki_boltdb_shipper_*` metric names are historical - they apply to TSDB store
-  > too (Loki reuses these names). These metrics come from the existing Loki ServiceMonitor.
-
-  **Key metrics for verification (query in Prometheus before creating alerts):**
-  - `loki_boltdb_shipper_compact_tables_operation_last_successful_run_timestamp_seconds`
-  - `loki_compactor_apply_retention_last_successful_run_timestamp_seconds`
-  - `loki_ingester_wal_disk_full_failures_total`
+  Dropped `LokiStorageFillingUp` - redundant with `KubePersistentVolumeFillingUp`.
 
 ### C3: Database Monitoring
 

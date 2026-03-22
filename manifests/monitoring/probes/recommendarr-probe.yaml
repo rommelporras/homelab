@@ -1,0 +1,29 @@
+# Blackbox HTTP probe for Recommendarr
+# Phase 5.5: Monitor Recommendarr availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://recommendarr:3000 -> Recommendarr
+#   If unreachable -> probe_success=0 -> RecommendarrDown alert fires
+#
+# CiliumNP: arr-stack default-deny-ingress allows monitoring namespace. SAFE.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: recommendarr
+  namespace: monitoring
+  labels:
+    app: recommendarr-probe
+    release: prometheus
+spec:
+  jobName: recommendarr
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://recommendarr.arr-stack.svc.cluster.local:3000
+      labels:
+        target_name: recommendarr

@@ -59,3 +59,14 @@ spec:
             summary: "Certificate {{ $labels.name }} is not ready"
             description: "Certificate {{ $labels.name }} in namespace {{ $labels.namespace }} has not been in Ready state for 15+ minutes. A renewal may have failed."
             runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/certificates.md#CertificateNotReady"
+
+        # CRITICAL: cert-manager webhook is down — certificate issuance blocked
+        - alert: CertManagerWebhookDown
+          expr: probe_success{job="cert-manager-webhook"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "cert-manager webhook is unreachable"
+            description: "cert-manager webhook metrics endpoint has been down for 5+ minutes. Certificate issuance and renewal requests will be rejected by the API server."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/certificates.md#CertManagerWebhookDown"

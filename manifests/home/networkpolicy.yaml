@@ -156,6 +156,14 @@ spec:
         - ports:
             - port: "3000"
               protocol: TCP
+    # Blackbox exporter HTTP probes (monitoring namespace)
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
 ---
 # Homepage egress: L4-only (no toPorts) - dashboard with broad access needs
 #
@@ -239,6 +247,14 @@ spec:
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: uptime-kuma
+      toPorts:
+        - ports:
+            - port: "5216"
+              protocol: TCP
+    # Blackbox exporter HTTP probes (monitoring namespace)
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
       toPorts:
         - ports:
             - port: "5216"

@@ -1,0 +1,34 @@
+# Blackbox HTTP probe for external-secrets webhook
+# Phase 5.5: Monitor ESO webhook availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://external-secrets-webhook:8080/metrics -> webhook
+#   If unreachable -> probe_success=0 -> ESOWebhookDown alert fires
+#
+# Probes the non-TLS metrics port (8080) instead of the TLS webhook port (443).
+# If the metrics endpoint is down, the webhook is down too - same process serves both.
+# CiliumNP: eso-webhook-ingress already allows monitoring on port 8080.
+#
+# Note: File named eso-webhook-probe.yaml (not external-secrets-webhook-probe.yaml)
+# because the repo .gitignore pattern *secret* would exclude the longer name.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: external-secrets-webhook
+  namespace: monitoring
+  labels:
+    app: external-secrets-webhook-probe
+    release: prometheus
+spec:
+  jobName: external-secrets-webhook
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://external-secrets-webhook.external-secrets.svc.cluster.local:8080/metrics
+      labels:
+        target_name: external-secrets-webhook

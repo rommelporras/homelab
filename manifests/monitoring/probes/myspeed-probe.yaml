@@ -1,0 +1,29 @@
+# Blackbox HTTP probe for MySpeed
+# Phase 5.5: Monitor MySpeed availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://myspeed:5216 -> MySpeed
+#   If unreachable -> probe_success=0 -> MySpeedDown alert fires
+#
+# Prerequisite: CiliumNP update (Phase 5.5 C0a) added monitoring ingress to home namespace.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: myspeed
+  namespace: monitoring
+  labels:
+    app: myspeed-probe
+    release: prometheus
+spec:
+  jobName: myspeed
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://myspeed.home.svc.cluster.local:5216
+      labels:
+        target_name: myspeed

@@ -102,6 +102,50 @@ spec:
 
     - name: arr-companions
       rules:
+        # Prowlarr indexer manager unreachable — all indexing stops silently
+        - alert: ProwlarrDown
+          expr: probe_success{job="prowlarr"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Prowlarr indexer manager is unreachable"
+            description: "Blackbox HTTP probe to prowlarr.arr-stack.svc:9696/ping has failed for 5+ minutes. All ARR indexing is offline - Sonarr/Radarr cannot search for releases."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#ProwlarrDown"
+
+        # Sonarr TV series manager unreachable
+        - alert: SonarrDown
+          expr: probe_success{job="sonarr"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Sonarr TV series manager is unreachable"
+            description: "Blackbox HTTP probe to sonarr.arr-stack.svc:8989/ping has failed for 5+ minutes. TV series monitoring and downloads are unavailable."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#SonarrDown"
+
+        # Radarr movie manager unreachable
+        - alert: RadarrDown
+          expr: probe_success{job="radarr"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Radarr movie manager is unreachable"
+            description: "Blackbox HTTP probe to radarr.arr-stack.svc:7878/ping has failed for 5+ minutes. Movie monitoring and downloads are unavailable."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#RadarrDown"
+
+        # Recommendarr AI recommendation service unreachable
+        - alert: RecommendarrDown
+          expr: probe_success{job="recommendarr"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Recommendarr is unreachable"
+            description: "Blackbox HTTP probe to recommendarr.arr-stack.svc:3000 has failed for 5+ minutes."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#RecommendarrDown"
+
         # Seerr (Overseerr) request portal unreachable
         - alert: SeerrDown
           expr: probe_success{job="seerr"} == 0

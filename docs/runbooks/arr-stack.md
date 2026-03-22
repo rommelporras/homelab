@@ -403,3 +403,84 @@ One or more qBittorrent downloads have been in `stalledDL` state for 45+ minutes
 
 5. If no seeders at any quality, remove from queue and re-search in Sonarr/Radarr.
 ```
+
+---
+
+## ProwlarrDown
+
+**Severity:** critical
+
+Prowlarr indexer manager is unreachable. All ARR indexing stops. Without Prowlarr, Sonarr and Radarr cannot search for new releases on any indexer.
+
+### Triage Steps
+
+```
+1. Check pod status:
+   kubectl-homelab get pods -n arr-stack -l app=prowlarr
+
+2. Check logs:
+   kubectl-homelab logs -n arr-stack deploy/prowlarr --tail=50
+
+3. Check DNS resolution (Sonarr/Radarr connect to Prowlarr by service name):
+   kubectl-homelab exec -n arr-stack deploy/sonarr -- nslookup prowlarr.arr-stack.svc.cluster.local
+```
+
+---
+
+## SonarrDown
+
+**Severity:** warning
+
+Sonarr TV series manager is unreachable. Automatic episode monitoring and downloading are unavailable.
+
+### Triage Steps
+
+```
+1. Check pod status:
+   kubectl-homelab get pods -n arr-stack -l app=sonarr
+
+2. Check logs:
+   kubectl-homelab logs -n arr-stack deploy/sonarr --tail=50
+
+3. Verify API key is synced (Scraparr depends on it):
+   kubectl-homelab describe externalsecret arr-api-keys -n arr-stack
+```
+
+---
+
+## RadarrDown
+
+**Severity:** warning
+
+Radarr movie manager is unreachable. Automatic movie monitoring and downloading are unavailable.
+
+### Triage Steps
+
+```
+1. Check pod status:
+   kubectl-homelab get pods -n arr-stack -l app=radarr
+
+2. Check logs:
+   kubectl-homelab logs -n arr-stack deploy/radarr --tail=50
+
+3. Verify API key is synced (Scraparr depends on it):
+   kubectl-homelab describe externalsecret arr-api-keys -n arr-stack
+```
+
+---
+
+## RecommendarrDown
+
+**Severity:** warning
+
+Recommendarr AI recommendation service is unreachable. Media recommendations are unavailable.
+
+### Triage Steps
+
+```
+1. Check pod status:
+   kubectl-homelab get pods -n arr-stack -l app=recommendarr
+
+2. Check logs:
+   kubectl-homelab logs -n arr-stack deploy/recommendarr --tail=50
+```

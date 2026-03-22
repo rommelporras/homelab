@@ -245,7 +245,7 @@ alertmanager:
         - match:
             severity: warning
           match_re:
-            alertname: '(Longhorn.*|NVMe.*|etcd.*|KubeVip.*|Certificate.*|Node.*|UPS.*|NetworkInterface.*|KubePersistent.*|SmartCTL.*|KubeApiserver.*|CPUThrottling.*|Alloy.*|Loki.*|ClusterJanitor.*|Vault.*|ESO.*|Audit.*|Velero.*|Backup.*|ResourceQuota.*|CronJob.*|Garage.*)'
+            alertname: '(Longhorn.*|NVMe.*|etcd.*|KubeVip.*|Certificate.*|CertManager.*|Node.*|UPS.*|NetworkInterface.*|KubePersistent.*|SmartCTL.*|KubeApiserver.*|CPUThrottling.*|Alloy.*|Loki.*|ClusterJanitor.*|Vault.*|ESO.*|Audit.*|Velero.*|Backup.*|ResourceQuota.*|CronJob.*|Garage.*)'
           receiver: 'discord-infra'
           continue: false
 

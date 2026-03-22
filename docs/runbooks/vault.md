@@ -105,3 +105,15 @@ The daily Vault Raft snapshot CronJob has been in a failed state for more than 3
 2. Check latest job: kubectl-homelab get jobs -n vault --sort-by=.metadata.creationTimestamp
 3. Check pod logs: kubectl-homelab logs -n vault -l job-name=vault-snapshot-<date>
 4. Check NFS mount: verify 10.10.30.4:/Kubernetes/Backups/vault is accessible from k8s nodes
+
+## ESOWebhookDown
+
+**Severity:** critical
+
+External Secrets Operator webhook is unreachable. ExternalSecret create and update operations are rejected by the API server. Existing synced secrets are unaffected until they need refresh; new deployments relying on ExternalSecrets will fail.
+
+### Triage Steps
+
+1. Check webhook pod status: kubectl-homelab get pods -n external-secrets -l app.kubernetes.io/name=external-secrets-webhook
+2. Check webhook logs: kubectl-homelab logs -n external-secrets -l app.kubernetes.io/name=external-secrets-webhook --tail=50
+3. Check cert-controller pod (manages webhook TLS - expired cert breaks webhook): kubectl-homelab get pods -n external-secrets -l app.kubernetes.io/name=external-secrets-cert-controller

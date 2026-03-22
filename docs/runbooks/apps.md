@@ -327,3 +327,166 @@ An HTTP probe for a public-facing service (ghost, invoicetron, portfolio, jellyf
 5. If the service just started, slow response may be a cold-start artifact —
    wait 5 minutes and check if it resolves automatically.
 ```
+
+---
+
+## HomepageDown
+
+**Severity:** warning
+
+Homepage dashboard is unreachable. The internal service portal is unavailable.
+
+### Triage Steps
+
+```
+1. Check pod status:
+   kubectl-homelab get pods -n home -l app=homepage
+
+2. Check logs:
+   kubectl-homelab logs -n home deploy/homepage --tail=50
+
+3. Check CiliumNetworkPolicy (Homepage fetches data from many cluster services):
+   kubectl-homelab get ciliumnetworkpolicy -n home
+```
+
+---
+
+## MySpeedDown
+
+**Severity:** warning
+
+MySpeed speed test monitor is unreachable. Speed test history and scheduling are unavailable.
+
+### Triage Steps
+
+```
+1. Check pod status:
+   kubectl-homelab get pods -n home -l app=myspeed
+
+2. Check logs:
+   kubectl-homelab logs -n home deploy/myspeed --tail=50
+```
+
+---
+
+## GitLabWebservice5xxHigh
+
+**Severity:** critical
+
+GitLab webservice 5xx error rate is above 5%. GitLab web UI and API requests are failing at a high rate.
+
+### Triage Steps
+
+```
+1. Check webservice pod logs:
+   kubectl-homelab logs -n gitlab -l app=webservice --tail=100
+
+2. Check PostgreSQL connectivity (most 5xx errors trace to DB):
+   kubectl-homelab get pods -n gitlab -l app=postgresql
+
+3. Check Redis status (session and cache dependency):
+   kubectl-homelab get pods -n gitlab -l app=redis-master
+```
+
+---
+
+## GitLabSidekiqQueueHigh
+
+**Severity:** warning
+
+GitLab Sidekiq job queue is backing up. Background jobs (emails, CI triggers, webhooks) are delayed.
+
+### Triage Steps
+
+```
+1. Check Sidekiq pod logs:
+   kubectl-homelab logs -n gitlab -l app=sidekiq --tail=100
+
+2. Check Redis memory (Sidekiq queues are stored in Redis):
+   kubectl-homelab get pods -n gitlab -l app=redis-master
+
+3. Check for stuck jobs in GitLab Admin panel:
+   https://gitlab.k8s.rommelporras.com/admin/background_jobs
+```
+
+---
+
+## GitLabPostgresDown
+
+**Severity:** critical
+
+GitLab PostgreSQL is unreachable. GitLab web UI, API, and all database-dependent features are unavailable.
+
+### Triage Steps
+
+```
+1. Check PostgreSQL pod status:
+   kubectl-homelab get pods -n gitlab -l app=postgresql
+
+2. Check PostgreSQL logs:
+   kubectl-homelab logs -n gitlab -l app=postgresql --tail=50
+
+3. Check PVC status and disk space:
+   kubectl-homelab get pvc -n gitlab
+```
+
+---
+
+## GitLabPostgresConnectionsHigh
+
+**Severity:** warning
+
+GitLab PostgreSQL connection count is elevated. Connection pool exhaustion can cause request failures.
+
+### Triage Steps
+
+```
+1. Check active connections (requires port-forward to PostgreSQL pod):
+   kubectl-homelab port-forward -n gitlab svc/gitlab-postgresql 5432:5432
+
+2. Identify connection sources using pg_stat_activity and look for connection leaks
+
+3. Check connection pooling configuration in GitLab Helm values (db.pool)
+```
+
+---
+
+## GitLabRedisDown
+
+**Severity:** critical
+
+GitLab Redis is unreachable. Sessions, Sidekiq queues, and caching are unavailable. GitLab will degrade severely.
+
+### Triage Steps
+
+```
+1. Check Redis pod status:
+   kubectl-homelab get pods -n gitlab -l app=redis-master
+
+2. Check Redis logs:
+   kubectl-homelab logs -n gitlab -l app=redis-master --tail=50
+
+3. Check memory usage (OOMKill is a common Redis failure mode):
+   kubectl-homelab describe pod -n gitlab -l app=redis-master | grep -A5 Limits
+```
+
+---
+
+## GitLabRedisHighMemory
+
+**Severity:** warning
+
+GitLab Redis memory usage is above 200MiB. Risk of eviction or OOMKill if usage continues to grow.
+
+### Triage Steps
+
+```
+1. Check Redis memory info (requires port-forward):
+   kubectl-homelab port-forward -n gitlab svc/gitlab-redis-master 6379:6379
+   redis-cli info memory
+
+2. Check eviction policy (should be allkeys-lru or volatile-lru for GitLab):
+   redis-cli config get maxmemory-policy
+
+3. If memory is growing unbounded, check for Sidekiq queue buildup (large job payloads in Redis)
+```

@@ -1,0 +1,29 @@
+# Blackbox HTTP probe for Longhorn UI
+# Phase 5.5: Monitor Longhorn dashboard availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://longhorn-frontend:80 -> Longhorn UI
+#   If unreachable -> probe_success=0 -> LonghornUIDown alert fires
+#
+# No CiliumNP in longhorn-system namespace - no policy changes needed.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: longhorn-ui
+  namespace: monitoring
+  labels:
+    app: longhorn-ui-probe
+    release: prometheus
+spec:
+  jobName: longhorn-ui
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://longhorn-frontend.longhorn-system.svc.cluster.local:80
+      labels:
+        target_name: longhorn-ui

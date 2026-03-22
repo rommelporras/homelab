@@ -1,5 +1,6 @@
 # PrometheusRule for Backup & CronJob Health Alerts
 # Phase 5.4.5.1-5.3: Velero, Longhorn backup, etcd backup, CronJob failures
+# Phase 5.5: Added GarageDown alert (Garage S3 backend health)
 #
 # Metrics sources:
 #   velero_backup_failure_total, velero_backup_last_successful_timestamp - Velero ServiceMonitor
@@ -54,6 +55,18 @@ spec:
             summary: "Longhorn volume backup in error state"
             description: "A Longhorn backup is in Error state. Check Longhorn UI or backup target configuration."
             runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/backup.md#LonghornBackupFailed"
+
+        # CRITICAL: Garage S3 backend is down — Velero backups will fail
+        # Without this, Garage failure detection relies on VeleroBackupStale (36h delay)
+        - alert: GarageDown
+          expr: up{job="garage"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Garage S3 backend is down"
+            description: "Garage S3 backend has been unreachable for 5+ minutes. Velero backups will fail until Garage is restored."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/backup.md#GarageDown"
 
         # WARNING: Namespace using >85% of resource quota
         - alert: ResourceQuotaNearLimit

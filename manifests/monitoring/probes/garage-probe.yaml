@@ -1,0 +1,30 @@
+# Blackbox HTTP probe for Garage S3 health
+# Phase 5.5: Monitor Garage S3 backend availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://garage:3903/health -> Garage
+#   If unreachable -> probe_success=0 (complements GarageDown alert on up{} metric)
+#
+# Garage exposes a /health endpoint on the admin port (3903).
+# CiliumNP: garage-ingress already allows monitoring on port 3903.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: garage
+  namespace: monitoring
+  labels:
+    app: garage-probe
+    release: prometheus
+spec:
+  jobName: garage-health
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://garage.velero.svc.cluster.local:3903/health
+      labels:
+        target_name: garage

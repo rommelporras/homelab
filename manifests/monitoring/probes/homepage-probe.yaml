@@ -1,0 +1,29 @@
+# Blackbox HTTP probe for Homepage dashboard
+# Phase 5.5: Monitor Homepage availability
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> GET http://homepage:3000 -> Homepage
+#   If unreachable -> probe_success=0 -> HomepageDown alert fires
+#
+# Prerequisite: CiliumNP update (Phase 5.5 C0a) added monitoring ingress to home namespace.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: homepage
+  namespace: monitoring
+  labels:
+    app: homepage-probe
+    release: prometheus
+spec:
+  jobName: homepage
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://homepage.home.svc.cluster.local:3000
+      labels:
+        target_name: homepage

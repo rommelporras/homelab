@@ -38,3 +38,14 @@ spec:
             summary: "Longhorn volume {{ $labels.volume }} has no running replicas"
             description: "All replicas stopped for PVC {{ $labels.pvc }} in {{ $labels.pvc_namespace }}. Cluster Janitor cannot clean this (safety). Manual intervention needed."
             runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/storage.md#LonghornVolumeAllReplicasStopped"
+
+        # WARNING: Longhorn UI is unreachable
+        - alert: LonghornUIDown
+          expr: probe_success{job="longhorn-ui"} == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Longhorn UI is unreachable"
+            description: "Blackbox HTTP probe to longhorn-frontend.longhorn-system.svc:80 has failed for 10+ minutes. Storage dashboard is unavailable."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/storage.md#LonghornUIDown"

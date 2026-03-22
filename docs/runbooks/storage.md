@@ -154,3 +154,21 @@ NVMe drive has been above 65°C for 10+ minutes. SK Hynix HFS512GDE9X081N max op
    ```
 
 4. If temperature is approaching 70°C, pause Tdarr immediately and check cooling.
+
+---
+
+## LonghornUIDown
+
+**Severity:** warning
+
+Longhorn UI dashboard is unreachable. Non-critical - the Longhorn backend (manager, engine, CSI) operates independently of the UI. Volume operations, snapshots, and replication continue unaffected.
+
+### Triage Steps
+
+```
+1. Check pod status:
+   kubectl-homelab get pods -n longhorn-system -l app=longhorn-ui
+
+2. Check logs:
+   kubectl-homelab logs -n longhorn-system -l app=longhorn-ui --tail=50
+```
