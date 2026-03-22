@@ -1,7 +1,7 @@
 # helm/vault/values.yaml
 # HashiCorp Vault — 1-pod standalone with Raft storage on Longhorn
 #
-# Chart: hashicorp/vault v0.32.0 (app v1.21.2)
+# Chart: hashicorp/vault v0.32.0 (app v1.21.4)
 # Docs: https://developer.hashicorp.com/vault/docs
 #
 # Architecture:
@@ -26,7 +26,7 @@
 server:
   image:
     repository: hashicorp/vault
-    tag: "1.21.2"
+    tag: "1.21.4"
 
   # Prometheus scraping — requires unauthenticated_metrics_access in telemetry HCL
   podAnnotations:

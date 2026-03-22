@@ -2,7 +2,7 @@
 # Defines the IP range Cilium can assign to LoadBalancer services
 # Docs: https://docs.cilium.io/en/stable/network/lb-ipam/
 ---
-apiVersion: "cilium.io/v2alpha1"
+apiVersion: "cilium.io/v2"
 kind: CiliumLoadBalancerIPPool
 metadata:
   name: homelab-pool

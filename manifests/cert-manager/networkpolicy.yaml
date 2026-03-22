@@ -185,8 +185,11 @@ spec:
       app: webhook
   ingress:
     # kube-apiserver sends admission webhook requests to cert-manager-webhook:10250
+    # remote-node required: cross-node API server traffic arrives with remote-node
+    # identity in Cilium tunnel mode (see CLAUDE.md gotcha)
     - fromEntities:
         - kube-apiserver
+        - remote-node
       toPorts:
         - ports:
             - port: "10250"

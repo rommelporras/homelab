@@ -7,7 +7,7 @@
 # Install via OCI:
 #   helm-homelab install loki oci://ghcr.io/grafana/helm-charts/loki \
 #     --namespace monitoring \
-#     --version 6.49.0 \
+#     --version 6.55.0 \
 #     --values helm/loki/values.yaml
 
 # =============================================================================

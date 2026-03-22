@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** March 21, 2026
+> **Last Updated:** March 22, 2026
 
 ---
 
@@ -23,9 +23,9 @@
 | Kernel | 6.8.0-101-generic | Installed |
 | Kubernetes | v1.35.0 | Running (3 nodes) |
 | containerd | 1.7.28 | Installed |
-| Cilium | 1.18.6 | Installed |
+| Cilium | 1.19.1 | Installed |
 | Cilium CLI | v0.19.0 | Installed |
-| Longhorn | 1.10.1 | Installed |
+| Longhorn | 1.11.1 | Installed |
 | kube-vip | v1.0.4 | Installed |
 
 ---
@@ -37,22 +37,22 @@
 
 | Chart | Version | App Version | Status | Namespace |
 |-------|---------|-------------|--------|-----------|
-| longhorn/longhorn | 1.10.1 | v1.10.1 | Installed | longhorn-system |
-| cilium/cilium | 1.18.6 | v1.18.6 | Installed | kube-system |
+| longhorn/longhorn | 1.11.1 | v1.11.1 | Installed | longhorn-system |
+| cilium/cilium | 1.19.1 | v1.19.1 | Installed | kube-system |
 | oci://quay.io/jetstack/charts/cert-manager | 1.19.2 | v1.19.2 | Installed | cert-manager |
-| oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 81.0.0 | v0.88.0 | Installed | monitoring |
-| oci://ghcr.io/grafana/helm-charts/loki | 6.49.0 | v3.6.3 | Installed | monitoring |
-| grafana/alloy | 1.5.2 | v1.12.2 | Installed | monitoring |
+| oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 82.13.1 | v0.89.0 | Installed | monitoring |
+| oci://ghcr.io/grafana/helm-charts/loki | 6.55.0 | v3.6.7 | Installed | monitoring |
+| grafana/alloy | 1.6.2 | v1.14.0 | Installed | monitoring |
 | metrics-server/metrics-server | 3.13.0 | v0.8.0 | Installed | kube-system |
 | gitlab/gitlab | 9.8.2 | v18.8.2 | Installed | gitlab |
 | gitlab/gitlab-runner | 0.85.0 | v18.8.0 | Installed | gitlab-runner |
 | prometheus-community/prometheus-blackbox-exporter | 11.7.0 | v0.28.0 | Installed | monitoring |
 | tailscale/tailscale-operator | 1.94.1 | v1.94.1 | Installed | tailscale |
 | oci://registry.k8s.io/nfd/charts/node-feature-discovery | 0.18.3 | v0.18.3 | Installed | node-feature-discovery |
-| intel/intel-device-plugins-operator | 0.34.1 | v0.34.1 | Installed | intel-device-plugins |
-| intel/intel-device-plugins-gpu | 0.34.1 | v0.34.1 | Installed | intel-device-plugins |
+| intel/intel-device-plugins-operator | 0.35.0 | v0.35.0 | Installed | intel-device-plugins |
+| intel/intel-device-plugins-gpu | 0.35.0 | v0.35.0 | Installed | intel-device-plugins |
 | prometheus-community/prometheus-smartctl-exporter | 0.16.0 | v0.14.0 | Installed | monitoring |
-| hashicorp/vault | 0.32.0 | v1.21.2 | Installed | vault |
+| hashicorp/vault | 0.32.0 | v1.21.4 | Installed | vault |
 | external-secrets/external-secrets | 2.1.0 | v2.1.0 | Installed | external-secrets |
 | vmware-tanzu/velero | 12.0.0 | v1.18.0 | Installed | velero |
 
@@ -107,7 +107,7 @@ helm-homelab repo update
 | AdGuard Home | v0.107.71 | Running | PRIMARY DNS (10.10.30.53) for all VLANs |
 | Homepage | v1.9.0 | Running | 2 replicas, multi-tab layout |
 | Glances | v3.3.1 | Running | On OMV (apt), password auth |
-| cloudflared | 2026.1.1 | Running | 2 replicas, HA tunnel to Cloudflare Edge |
+| cloudflared | 2026.3.0 | Running | 2 replicas, HA tunnel to Cloudflare Edge |
 | Ghost (Dev) | 6.14.0 | Running | Theme development, internal access |
 | Ghost (Prod) | 6.14.0 | Running | Public blog via Cloudflare Tunnel |
 | MySQL (Ghost) | 8.4.8 | Running | LTS, per-environment StatefulSets |
@@ -133,8 +133,8 @@ helm-homelab repo update
 | qBittorrent | 5.1.4 (LSIO) | Running | Download client (arr-stack namespace) |
 | Jellyfin | 10.11.6 (official) | Running | Media server (Intel QSV hardware transcoding) |
 | Node Feature Discovery | v0.18.3 | Running | Auto-labels GPU nodes (OCI Helm chart) |
-| Intel Device Plugins Operator | v0.34.1 | Running | Manages GPU plugin lifecycle |
-| Intel GPU Plugin | v0.34.1 | Running | Advertises gpu.intel.com/i915 (sharedDevNum=3) |
+| Intel Device Plugins Operator | v0.35.0 | Running | Manages GPU plugin lifecycle |
+| Intel GPU Plugin | v0.35.0 | Running | Advertises gpu.intel.com/i915 (sharedDevNum=3) |
 | Bazarr | v1.5.5-ls338 (LSIO) | Running | Subtitle management |
 | Seerr | v3.0.1 | Running | Media requests + discovery (replaces Jellyseerr/Overseerr) |
 | Configarr | 1.20.0 | Running | TRaSH Guide quality profile sync (CronJob, daily 3AM) |
@@ -149,10 +149,10 @@ helm-homelab repo update
 | Atuin Server | 18.12.0 | Running | Self-hosted shell history sync (E2E encrypted) |
 | PostgreSQL (Atuin) | 18.3 | Running | Atuin dedicated database (atuin namespace) |
 | Cluster Janitor | CronJob (alpine/k8s:1.35.0) | Running | Automated cleanup: Failed pods + stopped Longhorn replicas (kube-system) |
-| HashiCorp Vault | 1.21.2 | Running | Secrets management (standalone, Raft on Longhorn 5Gi) |
-| Vault Auto-Unsealer | 1.21.2 | Running | Polls vault-0 every 30s, auto-unseals with 3 Shamir keys |
+| HashiCorp Vault | 1.21.4 | Running | Secrets management (standalone, Raft on Longhorn 5Gi) |
+| Vault Auto-Unsealer | 1.21.4 | Running | Polls vault-0 every 30s, auto-unseals with 3 Shamir keys |
 | External Secrets Operator | v2.1.0 | Running | Syncs K8s Secrets from Vault via ExternalSecret CRDs |
-| Vault Snapshot CronJob | 1.21.2 | Running | Daily Raft backup to NFS NAS (02:00 PHT, 3-day retention) |
+| Vault Snapshot CronJob | 1.21.4 | Running | Daily Raft backup to NFS NAS (02:00 PHT, 3-day retention) |
 | Velero | v1.18.0 | Running | Cluster backup + restore (Helm chart, velero namespace) |
 | velero-plugin-for-aws | v1.14.0 | Running | S3-compatible storage plugin for Velero |
 | Garage S3 | v2.2.0 (dxflrs/garage) | Running | Self-hosted S3-compatible object store for Velero backend (velero namespace) |

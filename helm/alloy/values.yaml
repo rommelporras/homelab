@@ -8,7 +8,7 @@
 # Install:
 #   helm-homelab install alloy grafana/alloy \
 #     --namespace monitoring \
-#     --version 1.5.2 \
+#     --version 1.6.2 \
 #     --values helm/alloy/values.yaml
 
 # =============================================================================

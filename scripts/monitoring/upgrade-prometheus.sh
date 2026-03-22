@@ -34,6 +34,10 @@ NC='\033[0m' # No Color
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+
+# Chart version - update this when upgrading
+CHART_VERSION="82.13.1"
+CHART_OCI="oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack"
 TEMP_SECRETS_FILE=$(mktemp)
 
 # Cleanup on exit
@@ -143,8 +147,8 @@ EOF
 
 # Confirm upgrade
 echo -e "${YELLOW}Ready to upgrade prometheus in monitoring namespace${NC}"
-echo "Chart: oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack"
-echo "Version: 81.0.0"
+echo "Chart: ${CHART_OCI}"
+echo "Version: ${CHART_VERSION}"
 echo ""
 read -p "Continue? (y/N) " -n 1 -r
 echo ""
@@ -158,9 +162,9 @@ fi
 echo ""
 echo -e "${YELLOW}Running Helm upgrade...${NC}"
 
-helm upgrade prometheus oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack \
+helm upgrade prometheus "${CHART_OCI}" \
     --namespace monitoring \
-    --version 81.0.0 \
+    --version "${CHART_VERSION}" \
     --values "$REPO_ROOT/helm/prometheus/values.yaml" \
     --values "$TEMP_SECRETS_FILE"
 

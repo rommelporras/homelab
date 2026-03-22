@@ -1370,84 +1370,70 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 **Low risk (do first):**
 
-- [ ] 5.5.4.1 Update Vault 1.21.2 -> 1.21.4
-  Patch release. Helm upgrade with existing values. Changelog verified - security fixes only.
-  Release notes: https://github.com/hashicorp/vault/releases
-  Verify: `vault status`, ESO sync, all ExternalSecrets healthy.
+- [x] 5.5.4.1 Update Vault 1.21.2 -> 1.21.4
+  Helm chart 0.32.0 with image override to 1.21.4 (chart hasn't released newer version yet).
+  Security-only: CVE-2026-1229, GO-2026-4503, GO-2026-4394. No breaking changes.
+  Also updated unsealer.yaml and snapshot-cronjob.yaml images.
+  Verified: vault-0 running 1.21.4, auto-unsealed, 33/33 ExternalSecrets synced.
 
-- [ ] 5.5.4.2 Update Loki 3.6.3 -> 3.6.7
-  Patch release. Helm upgrade. Changelog verified - bugfixes, memory pre-allocation fix.
-  Release notes: https://github.com/grafana/loki/releases
-  Verify: Grafana log queries work, Alloy shipping logs.
+- [x] 5.5.4.2 Update Loki 3.6.3 -> 3.6.7
+  Chart 6.49.0 -> 6.55.0, app 3.6.3 -> 3.6.7. Single fix: memory preallocation limit.
+  Verified: loki-0 1/1 Running, no restarts.
 
-- [ ] 5.5.4.3 Update OTel Collector Contrib 0.144.0 -> 0.147.0
-  No breaking changes for our config (otlp receiver, batch processor,
-  prometheus exporter, otlphttp/loki exporter). Changelog verified.
-  **File:** `manifests/monitoring/otel/otel-collector.yaml` - edit image tag.
-  Verify: OTel Collector pod healthy, Prometheus scraping metrics, Loki receiving logs.
+- [x] 5.5.4.3 Update OTel Collector Contrib 0.144.0 -> 0.147.0
+  Image tag edit in otel-collector.yaml. kubectl-admin apply.
+  Verified: pod 1/1 Running, no restarts.
 
-- [ ] 5.5.4.4 Update Intel Device Plugins 0.34.1 -> 0.35.0 (Operator + GPU Plugin)
-  No GPU plugin breaking changes (DSA VFIO irrelevant, SGX deprecation irrelevant).
-  Changelog verified.
-  ```bash
-  helm-homelab upgrade intel-device-plugins-operator intel/intel-device-plugins-operator --version 0.35.0
-  helm-homelab upgrade intel-device-plugins-gpu intel/intel-device-plugins-gpu --version 0.35.0
-  ```
-  Verify: `gpu.intel.com/i915` resource still advertised on nodes, Jellyfin QSV transcoding works.
+- [x] 5.5.4.4 Update Intel Device Plugins 0.34.1 -> 0.35.0 (Operator + GPU Plugin)
+  Both charts upgraded to 0.35.0. Initial attempt failed due to cert-manager webhook
+  CiliumNP missing `remote-node` entity (cross-node API server traffic blocked on port
+  10250). Fixed networkpolicy.yaml, retry succeeded.
+  Verified: all 3 GPU plugin pods + operator Running, gpu.intel.com/i915: 3 on all nodes.
 
-- [ ] 5.5.4.5 Update Cloudflared 2026.1.1 -> 2026.3.0
-  `proxy-dns` feature removed in 2026.2.0 but we only use `tunnel run --token` mode.
-  CVE fixes in 2026.3.0. Changelog verified.
-  **File:** `manifests/cloudflare/deployment.yaml` - edit image tag.
-  Verify: Cloudflare Tunnel healthy, external sites accessible (blog.rommelporras.com, etc.).
+- [x] 5.5.4.5 Update Cloudflared 2026.1.1 -> 2026.3.0
+  Image tag edit in deployment.yaml. kubectl-admin apply, rolling update.
+  Verified: 2/2 pods Running with 2026.3.0, no restarts.
 
 **Medium risk (do after low risk verified):**
 
-- [ ] 5.5.4.6 Update Prometheus stack (Prometheus, Alertmanager, Grafana)
-  Minor release. Release notes: https://github.com/prometheus/prometheus/releases
-  **Explicit steps (RWO PVC gotcha - `upgrade-prometheus.sh` does NOT handle this):**
-  1. `kubectl-admin scale deployment/prometheus-grafana -n monitoring --replicas=0`
-  2. Wait for Grafana pod to fully terminate (verify with `kubectl-admin get pods -n monitoring`)
-  3. Update chart version in `scripts/monitoring/upgrade-prometheus.sh`
-  4. Run `./scripts/monitoring/upgrade-prometheus.sh`
-  5. `kubectl-admin scale deployment/prometheus-grafana -n monitoring --replicas=1`
-  6. Verify: all alerts evaluating, dashboards loading, Alertmanager routing
-  > Note: Phase S Helm upgrade does NOT need Grafana scale-down (config-only change,
-  > Grafana pod is unaffected by Alertmanager config changes).
+- [x] 5.5.4.6 Update Prometheus stack (Prometheus, Alertmanager, Grafana)
+  Chart 81.0.0 -> 82.13.1, Prometheus Operator v0.88.0 -> v0.89.0.
+  Grafana scaled down, chart version updated in upgrade-prometheus.sh (refactored to
+  use CHART_VERSION variable instead of hardcoded strings), script run by user,
+  Grafana scaled back up. Alertmanager restarted and config verified.
+  Verified: all monitoring pods Running (operator, kube-state-metrics, node-exporters,
+  Grafana 3/3, Alertmanager, Prometheus).
 
-- [ ] 5.5.4.7 Update Alloy v1.12.2 -> v1.14.1
-  Minor release. Log collector - verify logs still flowing after.
-  Release notes: https://github.com/grafana/alloy/releases
+- [x] 5.5.4.7 Update Alloy v1.12.2 -> v1.14.0
+  Chart 1.5.2 -> 1.6.2, app v1.12.2 -> v1.14.0 (v1.14.1 not released yet).
+  Breaking changes only in loki.secretfilter and otelcol.receiver.prometheus
+  (neither used in our config). DaemonSet rolled all 3 pods.
+  Verified: 3/3 pods 2/2 Running, no restarts.
 
-- [ ] 5.5.4.8 Update CoreDNS v1.13.1 -> v1.14.2
-  Minor release. Test DNS resolution after.
-  Release notes: https://github.com/coredns/coredns/releases
-  **Method:** Direct image edit, NOT `kubeadm upgrade apply` (kubeadm would bump k8s version
-  which is out of scope - k8s stays at 1.35.0). The CoreDNS deployment has been directly
-  edited before (revision 3). Use:
-  ```bash
-  kubectl-admin set image deployment/coredns -n kube-system \
-    coredns=registry.k8s.io/coredns/coredns:v1.14.2
-  ```
-  Verify: `nslookup kubernetes.default.svc.cluster.local` from a pod.
+- [x] 5.5.4.8 Update CoreDNS v1.13.1 -> v1.14.2
+  Direct image edit via kubectl set image. No breaking changes (K8s plugin crash fix,
+  Go 1.26.1 security patches). Both CoreDNS pods rolled successfully.
+  Verified: nslookup kubernetes.default.svc.cluster.local resolved to 10.96.0.1.
 
 **HIGH risk (dedicated sessions, do last):**
 
-- [ ] 5.5.4.9 Update Longhorn v1.10.1 -> v1.11.x
-  Minor release - storage layer. Read upgrade notes carefully.
-  Release notes: https://github.com/longhorn/longhorn/releases
-  Upgrade guide: https://longhorn.io/docs/latest/deploy/upgrade/
-  Pre-check: all volumes healthy, backups recent, no degraded volumes.
-  Post-check: volume I/O works, all PVCs bound, replicas rebuilding.
-  > May require its own dedicated session with rollback plan.
+- [x] 5.5.4.9 Update Longhorn v1.10.1 -> v1.11.1
+  Chart 1.10.1 -> 1.11.1 (skipped v1.11.0 which had connection leak regression).
+  v1.11.1 fixes: memory leak in instance-manager, AWS SDK v2 backup compat,
+  volume scheduling double-counting.
+  Pre-check: 35/35 volumes attached+healthy, all nodes Ready, no storage alerts.
+  Post-check: 29 Running + 4 Completed pods, 35/35 volumes still attached+healthy,
+  no new alerts. Engine image v1.11.1 deployed (live engine upgrade pending -
+  volumes remain on v1.10.1 engine until manually upgraded via Longhorn UI).
 
-- [ ] 5.5.4.10 Update Cilium v1.18.6 -> v1.19.x
-  Minor release - CNI. Read upgrade notes.
-  Release notes: https://github.com/cilium/cilium/releases
-  Upgrade guide: https://docs.cilium.io/en/stable/operations/upgrade/
-  Pre-check: all pods can communicate, cilium status healthy.
-  Post-check: NetworkPolicies still enforced, HTTPRoutes working, no connectivity loss.
-  > May require its own dedicated session with rollback plan.
+- [x] 5.5.4.10 Update Cilium v1.18.6 -> v1.19.1
+  Helm upgrade with `--set upgradeCompatibility=1.18`. Breaking changes checked:
+  no FromRequires/ToRequires, no BGPv1, no IPsec. CiliumLoadBalancerIPPool migrated
+  from v2alpha1 to v2. CiliumL2AnnouncementPolicy stays at v2alpha1 (no v2 CRD yet).
+  Brief connectivity disruption during DaemonSet rollout (Uptime Kuma alerts,
+  auto-resolved). All 3 agents + operator + 3 envoy proxies running.
+  Verified: DNS resolution, Longhorn UI connectivity, Gateway LB IP 10.10.30.20,
+  no new alerts firing.
 
 ---
 
@@ -1607,10 +1593,10 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 - [ ] All alert expressions verified against actual Prometheus metrics
 
 ### Phase D/E - Version Updates
-- [ ] D1-D5 low risk completed: Vault, Loki, OTel Collector, Intel GPU, Cloudflared
-- [ ] D6 Prometheus stack updated (Grafana scale-down procedure followed)
-- [ ] D7-D8 medium risk completed: Alloy, CoreDNS
-- [ ] D9-D10 high risk completed: Longhorn, Cilium (dedicated sessions)
+- [x] D1-D5 low risk completed: Vault 1.21.4, Loki 3.6.7, OTel 0.147.0, Intel GPU 0.35.0, Cloudflared 2026.3.0
+- [x] D6 Prometheus stack updated (chart 82.13.1, Grafana scale-down procedure followed)
+- [x] D7-D8 medium risk completed: Alloy v1.14.0, CoreDNS v1.14.2
+- [x] D9-D10 high risk completed: Longhorn v1.11.1, Cilium v1.19.1
 - [ ] Ghost, Ollama, Uptime Kuma, Traffic Analytics updated
 - [ ] MeiliSearch dump/reimport completed (Karakeep search verified)
 - [ ] No ContainerImageOutdated alerts firing (except pin-major: GitLab postgresql/redis/mysql)
