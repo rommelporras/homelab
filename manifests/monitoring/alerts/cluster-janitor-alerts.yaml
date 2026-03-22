@@ -10,6 +10,7 @@ metadata:
   namespace: monitoring
   labels:
     release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
 spec:
   groups:
     - name: cluster-janitor
@@ -23,3 +24,4 @@ spec:
           annotations:
             summary: "Cluster Janitor CronJob has been failing for 30+ minutes"
             description: "The cluster-janitor CronJob in kube-system has failed jobs. Check logs: kubectl logs -n kube-system -l app=cluster-janitor --tail=50"
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#ClusterJanitorFailing"

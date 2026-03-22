@@ -26,15 +26,4 @@ spec:
           annotations:
             summary: "Uptime Kuma is unreachable"
             description: "Blackbox HTTP probe to uptime.k8s.rommelporras.com has failed for 3+ minutes. The uptime monitoring dashboard is unavailable."
-            runbook: |
-              1. Check pod status:
-                 kubectl-homelab get pods -n uptime-kuma
-
-              2. Check pod logs:
-                 kubectl-homelab logs -n uptime-kuma statefulset/uptime-kuma --tail=50
-
-              3. Check PVC is bound:
-                 kubectl-homelab get pvc -n uptime-kuma
-
-              4. Check events:
-                 kubectl-homelab describe pod -n uptime-kuma -l app=uptime-kuma
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#UptimeKumaDown"

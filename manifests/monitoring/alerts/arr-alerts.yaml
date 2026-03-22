@@ -40,18 +40,7 @@ spec:
           annotations:
             summary: "Scraparr exporter is unreachable"
             description: "Scraparr metrics endpoint has been down for 5+ minutes. All ARR app monitoring is blind."
-            runbook: |
-              1. Check Scraparr pod status:
-                 kubectl-homelab get pods -n arr-stack -l app=scraparr
-
-              2. Check pod logs:
-                 kubectl-homelab logs -n arr-stack deploy/scraparr --tail=50
-
-              3. Verify ARR apps are running (Scraparr depends on their APIs):
-                 kubectl-homelab get pods -n arr-stack
-
-              4. If API key issues, check the ExternalSecret:
-                 kubectl-homelab describe externalsecret arr-api-keys -n arr-stack
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#ArrAppDown"
 
         # Sonarr download queue stuck — items queued but nothing completing
         - alert: SonarrQueueStalled
@@ -62,15 +51,7 @@ spec:
           annotations:
             summary: "Sonarr download queue is stalled"
             description: "Sonarr has {{ $value }} items in download queue but missing episode count hasn't decreased in 2+ hours. Downloads may be stuck."
-            runbook: |
-              1. Check Sonarr Activity queue:
-                 https://sonarr.k8s.rommelporras.com/activity/queue
-
-              2. Check qBittorrent for stalled downloads:
-                 https://qbittorrent.k8s.rommelporras.com
-
-              3. Check Prowlarr for indexer health:
-                 https://prowlarr.k8s.rommelporras.com/system/status
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#SonarrQueueStalled"
 
         # Radarr download queue stuck — items queued but nothing completing
         - alert: RadarrQueueStalled
@@ -81,15 +62,7 @@ spec:
           annotations:
             summary: "Radarr download queue is stalled"
             description: "Radarr has {{ $value }} items in download queue but missing movie count hasn't decreased in 2+ hours. Downloads may be stuck."
-            runbook: |
-              1. Check Radarr Activity queue:
-                 https://radarr.k8s.rommelporras.com/activity/queue
-
-              2. Check qBittorrent for stalled downloads:
-                 https://qbittorrent.k8s.rommelporras.com
-
-              3. Check Prowlarr for indexer health:
-                 https://prowlarr.k8s.rommelporras.com/system/status
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#RadarrQueueStalled"
 
     - name: network
       rules:
@@ -108,15 +81,7 @@ spec:
           annotations:
             summary: "NIC utilization above 80% on {{ $labels.instance }}"
             description: "{{ $labels.device }} on {{ $labels.instance }} is at {{ $value | humanize }}% utilization for 10+ minutes. Consider 2.5GbE NIC upgrade."
-            runbook: |
-              1. Check Network Throughput dashboard in Grafana
-
-              2. Identify which pods are generating traffic:
-                 kubectl-homelab top pod -A --sort-by=cpu
-
-              3. If NFS-related, check qBittorrent download activity
-
-              4. If sustained during off-hours, this is likely Tdarr transcoding
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/networking.md#NetworkInterfaceSaturated"
 
         # NIC utilization critical — active bottleneck
         - alert: NetworkInterfaceCritical
@@ -133,16 +98,7 @@ spec:
           annotations:
             summary: "NIC critically saturated on {{ $labels.instance }}"
             description: "{{ $labels.device }} on {{ $labels.instance }} is at {{ $value | humanize }}% utilization for 5+ minutes. Network is a bottleneck — downloads, streaming, and NFS will be degraded."
-            runbook: |
-              1. Check if Tdarr is running a large batch transcode:
-                 https://tdarr.k8s.rommelporras.com
-
-              2. If yes, pause Tdarr queue to restore bandwidth
-
-              3. Check qBittorrent for many simultaneous downloads:
-                 https://qbittorrent.k8s.rommelporras.com
-
-              4. Consider 2.5GbE NIC upgrade if this is frequent
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/networking.md#NetworkInterfaceCritical"
 
     - name: arr-companions
       rules:
@@ -155,19 +111,7 @@ spec:
           annotations:
             summary: "Seerr request portal is unreachable"
             description: "Blackbox HTTP probe to seerr.arr-stack.svc:5055 has failed for 5+ minutes. Users cannot submit media requests."
-            runbook: |
-              1. Check pod status:
-                 kubectl-homelab get pods -n arr-stack -l app=seerr
-
-              2. Check pod logs:
-                 kubectl-homelab logs -n arr-stack deploy/seerr --tail=50
-
-              3. Verify Sonarr/Radarr connectivity (Seerr depends on them):
-                 kubectl-homelab get pods -n arr-stack -l app=sonarr
-                 kubectl-homelab get pods -n arr-stack -l app=radarr
-
-              4. Check events:
-                 kubectl-homelab describe pod -n arr-stack -l app=seerr
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#SeerrDown"
 
         # Tdarr GPU transcoding service unreachable
         - alert: TdarrDown
@@ -178,18 +122,7 @@ spec:
           annotations:
             summary: "Tdarr transcoding service is unreachable"
             description: "Blackbox HTTP probe to tdarr.arr-stack.svc:8265 has failed for 5+ minutes. GPU transcoding is unavailable."
-            runbook: |
-              1. Check pod status:
-                 kubectl-homelab get pods -n arr-stack -l app=tdarr
-
-              2. Check pod logs:
-                 kubectl-homelab logs -n arr-stack deploy/tdarr --tail=50
-
-              3. Check GPU device plugin:
-                 kubectl-homelab get pods -n kube-system -l app=intel-gpu-plugin
-
-              4. Check events:
-                 kubectl-homelab describe pod -n arr-stack -l app=tdarr
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#TdarrDown"
 
         # Byparr Cloudflare bypass proxy unreachable
         - alert: ByparrDown
@@ -200,15 +133,7 @@ spec:
           annotations:
             summary: "Byparr Cloudflare bypass proxy is unreachable"
             description: "Blackbox HTTP probe to byparr.arr-stack.svc:8191 has failed for 5+ minutes. Prowlarr cannot reach Cloudflare-protected indexers."
-            runbook: |
-              1. Check pod status:
-                 kubectl-homelab get pods -n arr-stack -l app=byparr
-
-              2. Check pod logs:
-                 kubectl-homelab logs -n arr-stack deploy/byparr --tail=50
-
-              3. Check events:
-                 kubectl-homelab describe pod -n arr-stack -l app=byparr
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#ByparrDown"
 
         # Bazarr subtitle downloader unreachable
         - alert: BazarrDown
@@ -219,19 +144,7 @@ spec:
           annotations:
             summary: "Bazarr subtitle downloader is unreachable"
             description: "Blackbox HTTP probe to bazarr.arr-stack.svc:6767 has failed for 5+ minutes. Automatic subtitle downloads for Jellyfin are unavailable."
-            runbook: |
-              1. Check pod status:
-                 kubectl-homelab get pods -n arr-stack -l app=bazarr
-
-              2. Check pod logs:
-                 kubectl-homelab logs -n arr-stack deploy/bazarr --tail=50
-
-              3. Verify Sonarr/Radarr connectivity (Bazarr syncs from them):
-                 kubectl-homelab get pods -n arr-stack -l app=sonarr
-                 kubectl-homelab get pods -n arr-stack -l app=radarr
-
-              4. Check events:
-                 kubectl-homelab describe pod -n arr-stack -l app=bazarr
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#BazarrDown"
 
     - name: arr-queue-health
       rules:
@@ -248,19 +161,7 @@ spec:
           annotations:
             summary: "ARR stalled downloads not resolved after 60 minutes"
             description: "{{ $value }} queue item(s) have been stalled for 60+ minutes. The stall-resolver ran twice but couldn't clear them. The release may not exist on any indexer at any quality."
-            runbook: |
-              1. Check stall-resolver CronJob logs (last 3 runs):
-                 kubectl-homelab logs -n arr-stack -l app=arr-stall-resolver --tail=100
-
-              2. Check Sonarr/Radarr Activity queues for specific items:
-                 https://sonarr.k8s.rommelporras.com/activity/queue
-                 https://radarr.k8s.rommelporras.com/activity/queue
-
-              3. Check Prowlarr indexer health (no results = content not available):
-                 https://prowlarr.k8s.rommelporras.com/indexers
-
-              4. If indexers are healthy but no releases found, the content may not
-                 be available yet — remove from queue and re-add when released.
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#ArrQueueWarning"
 
         # Sonarr/Radarr queue items in hard error state for 15+ minutes.
         # Two distinct causes — check the CronJob logs to determine which:
@@ -275,29 +176,7 @@ spec:
           annotations:
             summary: "ARR queue has items in hard error state"
             description: "{{ $value }} queue item(s) are in error state for 15+ minutes. Check CronJob logs to determine if this is a stalled download (handled automatically) or an import failure (needs manual fix)."
-            runbook: |
-              1. Check stall-resolver logs to determine the error type:
-                 kubectl-homelab logs -n arr-stack -l app=arr-stall-resolver --tail=100
-
-                 If logs show [SKIP/IMPORT]: torrent downloaded OK, import failed.
-                   → Go to step 3 (NFS/disk/perms issue).
-                 If logs show [ERROR] with state=stopped: download failed, automation acted.
-                   → Check Prowlarr for indexer health (step 4).
-
-              2. Check Sonarr/Radarr queue for error details:
-                 https://sonarr.k8s.rommelporras.com/activity/queue
-                 https://radarr.k8s.rommelporras.com/activity/queue
-
-              3. For import failures — check NFS and disk:
-                 kubectl-homelab exec -n arr-stack deploy/sonarr -- df -h /data
-                 kubectl-homelab get pvc -n arr-stack
-                 https://omv.home.rommelporras.com  (NAS disk usage)
-
-              4. For download failures — check indexer availability:
-                 https://prowlarr.k8s.rommelporras.com/indexers
-
-              5. Check qBittorrent for stuck torrents:
-                 https://qbit.k8s.rommelporras.com
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#ArrQueueError"
 
     - name: jellyfin
       rules:
@@ -310,18 +189,7 @@ spec:
           annotations:
             summary: "Jellyfin media server is unreachable"
             description: "Jellyfin health probe has failed for 5+ minutes. Media streaming is unavailable."
-            runbook: |
-              1. Check Jellyfin pod status:
-                 kubectl-homelab get pods -n arr-stack -l app=jellyfin
-
-              2. Check pod logs:
-                 kubectl-homelab logs -n arr-stack deploy/jellyfin --tail=50
-
-              3. Check if NFS mount is healthy:
-                 kubectl-homelab exec -n arr-stack deploy/jellyfin -- ls /data/media/
-
-              4. Check GPU device plugin (QSV):
-                 kubectl-homelab get pods -n kube-system -l app=intel-gpu-plugin
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#JellyfinDown"
 
         # Jellyfin approaching OOM kill threshold (87% of 4Gi limit)
         # QSV transcoding can spike ~500Mi per concurrent stream. With 2-3 streams,
@@ -336,18 +204,7 @@ spec:
           annotations:
             summary: "Jellyfin memory usage above 3.5Gi (87% of 4Gi limit)"
             description: "Jellyfin is using {{ $value | humanize1024 }}B of memory, above the 3.5Gi warning threshold (limit: 4Gi). Risk of OOM kill. Reduce concurrent transcodes or raise the memory limit."
-            runbook: |
-              1. Check Jellyfin memory usage in Grafana (Resource Usage row → ARR Stack dashboard)
-
-              2. Check active transcodes in Jellyfin UI:
-                 https://jellyfin.k8s.rommelporras.com/web/#/dashboard
-
-              3. Stop unnecessary transcodes or reduce concurrent stream count
-
-              4. If memory stays high with no active transcodes, restart Jellyfin:
-                 kubectl-homelab rollout restart deploy/jellyfin -n arr-stack
-
-              5. If this fires frequently, consider raising the memory limit in the Jellyfin manifest
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#JellyfinHighMemory"
 
     - name: tdarr-health
       rules:
@@ -364,20 +221,7 @@ spec:
           annotations:
             summary: "Tdarr transcode errors accumulating: {{ $value | printf \"%.0f\" }} new errors in 1h"
             description: "Tdarr has accumulated {{ $value | printf \"%.0f\" }} new encode failures in the last hour. Check the Tdarr plugin pipeline for configuration issues or NaN bitrate bugs."
-            runbook: |
-              1. Check Tdarr library stats in Grafana (Tdarr Library Stats row → ARR Stack dashboard)
-
-              2. Open Tdarr UI and inspect the failed items:
-                 https://tdarr.k8s.rommelporras.com
-
-              3. Check Tdarr server logs for plugin errors:
-                 kubectl-homelab logs -n arr-stack deploy/tdarr --tail=100
-
-              4. Common causes:
-                 - Boosh-QSV NaN bug: files with no per-stream BitRate (DASH-remuxed WEB-DL)
-                   Fix: set min/max_average_bitrate in plugin config, or add to skip list
-                 - GPU session conflict: only 1 QSV transcode at a time (UHD 630 limit)
-                   Fix: verify GPU worker count = 1
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#TdarrTranscodeErrors"
 
         # Tdarr burst of transcode failures — systematic plugin or node failure.
         # >15 encode failures/hour indicates a broken plugin affecting all files or a hung node.
@@ -390,23 +234,7 @@ spec:
           annotations:
             summary: "Tdarr transcode error burst: {{ $value | printf \"%.0f\" }} new errors in 1h"
             description: "Tdarr has {{ $value | printf \"%.0f\" }} new encode failures in 1 hour — systematic failure. All transcodes may be broken. Check for plugin misconfiguration, GPU unavailability, or NFS issues."
-            runbook: |
-              1. Open Tdarr UI immediately and check worker status:
-                 https://tdarr.k8s.rommelporras.com
-
-              2. Check Tdarr server + node logs for errors:
-                 kubectl-homelab logs -n arr-stack deploy/tdarr --tail=200
-                 kubectl-homelab logs -n arr-stack -l app=tdarr-node --tail=200
-
-              3. Check Intel GPU plugin availability:
-                 kubectl-homelab get pods -n kube-system -l app=intel-gpu-plugin
-
-              4. If all items are failing, pause the Tdarr queue and investigate before restarting.
-
-              5. Common burst causes:
-                 - All files in a library have the same unsupported codec/container
-                 - GPU device lost (node GPU plugin restart needed)
-                 - NFS mount issue causing all input files to be unreadable
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#TdarrTranscodeErrorsBurst"
 
         # Tdarr health check errors accumulating in the last hour.
         # Note: 73+ historical health check errors already exist from lifetime operation.
@@ -421,17 +249,7 @@ spec:
           annotations:
             summary: "Tdarr health check errors accumulating: {{ $value | printf \"%.0f\" }} new errors in 1h"
             description: "Tdarr has {{ $value | printf \"%.0f\" }} new health check failures in the last hour. This may indicate a library scan issue or files with codec problems."
-            runbook: |
-              1. Check Tdarr library stats in Grafana (Tdarr Library Stats row → ARR Stack dashboard)
-
-              2. Open Tdarr UI and inspect health check failures:
-                 https://tdarr.k8s.rommelporras.com
-
-              3. Check if NFS is healthy (health checks need to read the files):
-                 kubectl-homelab exec -n arr-stack deploy/tdarr -- df -h /media
-
-              4. If NFS is healthy, the errors are likely files with minor codec issues —
-                 review in Tdarr UI and decide whether to skip or transcode them.
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#TdarrHealthCheckErrors"
 
         # Tdarr health check error burst — possible NFS or storage failure.
         # >50 health check errors/hour affects 50+ files; likely NFS mount degradation
@@ -444,21 +262,7 @@ spec:
           annotations:
             summary: "Tdarr health check error burst: {{ $value | printf \"%.0f\" }} new errors in 1h"
             description: "Tdarr has {{ $value | printf \"%.0f\" }} new health check failures in 1 hour — possible NFS or storage failure affecting bulk file reads."
-            runbook: |
-              1. Check NFS mount health immediately:
-                 kubectl-homelab exec -n arr-stack deploy/tdarr -- df -h /media
-                 kubectl-homelab exec -n arr-stack deploy/tdarr -- ls /media/
-
-              2. Check NAS status:
-                 https://omv.home.rommelporras.com
-
-              3. Check NFS PVC status in Kubernetes:
-                 kubectl-homelab get pvc -n arr-stack
-
-              4. If NFS is healthy, check Longhorn volume health:
-                 https://longhorn.k8s.rommelporras.com
-
-              5. Pause Tdarr library scan until NFS/storage is confirmed healthy.
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#TdarrHealthCheckErrorsBurst"
 
     - name: qbittorrent
       rules:
@@ -475,19 +279,4 @@ spec:
           annotations:
             summary: "{{ $value }} qBittorrent download(s) stalled for 45+ minutes"
             description: "{{ $value }} torrent(s) have been in stalledDL state for 45+ minutes. The stall-resolver CronJob has run but couldn't clear them. Check seeder availability or port forwarding."
-            runbook: |
-              1. Open qBittorrent and identify the stalled torrents:
-                 https://qbittorrent.k8s.rommelporras.com
-
-              2. Check stall-resolver CronJob logs:
-                 kubectl-homelab logs -n arr-stack -l app=arr-stall-resolver --tail=100
-
-              3. Common causes:
-                 - No seeders available (release is dead): remove from queue and try another release
-                 - Port forwarding broken: check OPNsense firewall rules for qBittorrent port
-                 - Tracker offline: the tracker will reconnect automatically
-
-              4. Force re-announce in qBittorrent UI (right-click torrent → Force re-announce)
-                 to attempt reconnection with more peers.
-
-              5. If no seeders at any quality, remove from queue and re-search in Sonarr/Radarr.
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/arr-stack.md#QBittorrentStalledDownloads"

@@ -33,6 +33,7 @@ spec:
           annotations:
             summary: "Test CRITICAL alert - safe to ignore"
             description: "This is a test critical alert to verify Discord #incidents and email routing. Delete with: kubectl-homelab delete prometheusrule test-alert -n monitoring"
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#TestAlertCritical"
 
         # Warning test alert - should go to #apps (catch-all for non-infra warnings)
         - alert: TestAlertWarning
@@ -43,3 +44,4 @@ spec:
           annotations:
             summary: "Test WARNING alert - safe to ignore"
             description: "This is a test warning alert to verify Discord #apps routing. Delete with: kubectl-homelab delete prometheusrule test-alert -n monitoring"
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#TestAlertWarning"

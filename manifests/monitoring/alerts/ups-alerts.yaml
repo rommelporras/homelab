@@ -32,6 +32,7 @@ spec:
           annotations:
             summary: "UPS is running on battery power"
             description: "UPS has been on battery for more than 1 minute. Check power supply."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/ups.md#UPSOnBattery"
 
         # Alert when UPS reports low battery
         - alert: UPSLowBattery
@@ -42,6 +43,7 @@ spec:
           annotations:
             summary: "UPS battery is critically low"
             description: "UPS reports Low Battery flag. Nodes will begin emergency shutdown."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/ups.md#UPSLowBattery"
 
         # Alert when battery charge drops below 30%
         - alert: UPSBatteryCritical
@@ -52,6 +54,7 @@ spec:
           annotations:
             summary: "UPS battery below 30%"
             description: "UPS battery is at {{ $value }}%. Shutdown sequence should be in progress."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/ups.md#UPSBatteryCritical"
 
         # Alert when battery charge drops below 50%
         - alert: UPSBatteryWarning
@@ -62,6 +65,7 @@ spec:
           annotations:
             summary: "UPS battery below 50%"
             description: "UPS battery is at {{ $value }}%. Monitor closely."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/ups.md#UPSBatteryWarning"
 
         # Alert when UPS load is high (>80%)
         - alert: UPSHighLoad
@@ -72,6 +76,7 @@ spec:
           annotations:
             summary: "UPS load is high"
             description: "UPS is at {{ $value }}% load. Consider reducing connected equipment."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/ups.md#UPSHighLoad"
 
         # Alert when UPS exporter is unreachable
         - alert: UPSExporterDown
@@ -82,6 +87,7 @@ spec:
           annotations:
             summary: "Cannot reach UPS exporter"
             description: "NUT exporter has been unreachable for 2 minutes. Check nut-exporter pod and NUT server."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/ups.md#UPSExporterDown"
 
         # Alert when UPS goes offline (not OL and not OB - something wrong)
         - alert: UPSOffline
@@ -92,6 +98,7 @@ spec:
           annotations:
             summary: "UPS is offline"
             description: "UPS is neither on line power nor on battery. Check UPS connection."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/ups.md#UPSOffline"
 
         # Informational: UPS back online after outage
         - alert: UPSBackOnline
@@ -105,3 +112,4 @@ spec:
           annotations:
             summary: "UPS is back on line power"
             description: "UPS has returned to line power after being on battery."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/ups.md#UPSBackOnline"

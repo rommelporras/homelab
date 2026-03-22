@@ -28,18 +28,7 @@ spec:
           annotations:
             summary: "Atuin server is unreachable"
             description: "Blackbox HTTP probe to atuin-server.atuin.svc /healthz has failed for 3+ minutes. Shell history sync is unavailable."
-            runbook: |
-              1. Check pod status:
-                 kubectl-homelab get pods -n atuin
-
-              2. Check Atuin server logs:
-                 kubectl-homelab logs -n atuin deploy/atuin-server --tail=50
-
-              3. Check PostgreSQL status:
-                 kubectl-homelab get pods -n atuin -l app=postgres
-
-              4. Check events:
-                 kubectl-homelab describe pod -n atuin -l app=atuin-server
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#AtuinDown"
 
         # PostgreSQL pod not ready
         - alert: AtuinPostgresDown
@@ -50,18 +39,7 @@ spec:
           annotations:
             summary: "Atuin PostgreSQL is down"
             description: "PostgreSQL deployment in atuin namespace has 0 available replicas for 5+ minutes. Atuin server cannot store or retrieve history."
-            runbook: |
-              1. Check pod status:
-                 kubectl-homelab get pods -n atuin -l app=postgres
-
-              2. Check PostgreSQL logs:
-                 kubectl-homelab logs -n atuin deploy/postgres --tail=50
-
-              3. Check PVC status:
-                 kubectl-homelab get pvc -n atuin
-
-              4. Check events:
-                 kubectl-homelab describe pod -n atuin -l app=postgres
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#AtuinPostgresDown"
 
         # Atuin server restarting frequently
         - alert: AtuinHighRestarts
@@ -72,15 +50,7 @@ spec:
           annotations:
             summary: "Atuin server is restarting frequently"
             description: "Atuin server has restarted {{ $value | humanize }} times in the last hour. Likely OOMKilled or failing health probes."
-            runbook: |
-              1. Check for OOMKill:
-                 kubectl-homelab get pods -n atuin -l app=atuin-server -o jsonpath='{.items[*].status.containerStatuses[*].lastState}'
-
-              2. Check events:
-                 kubectl-homelab describe pod -n atuin -l app=atuin-server | tail -20
-
-              3. Check memory usage:
-                 kubectl-homelab top pod -n atuin
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#AtuinHighRestarts"
 
         # High memory usage on Atuin server (> 80% of limit)
         - alert: AtuinHighMemory
@@ -95,11 +65,4 @@ spec:
           annotations:
             summary: "Atuin server memory usage is high"
             description: "Atuin server is using more than 80% of its memory limit for 10+ minutes. Risk of OOMKill. Current usage: {{ $value | humanizePercentage }}."
-            runbook: |
-              1. Check current memory usage:
-                 kubectl-homelab top pod -n atuin
-
-              2. Check for memory leaks in logs:
-                 kubectl-homelab logs -n atuin deploy/atuin-server --tail=100
-
-              3. Consider increasing memory limit in server-deployment.yaml
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#AtuinHighMemory"

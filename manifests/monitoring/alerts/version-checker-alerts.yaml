@@ -15,11 +15,12 @@ metadata:
   labels:
     app: version-checker
     release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
 spec:
   groups:
     - name: version-checker
       rules:
-        - alert: ContainerImageOutdated
+        - alert: VersionCheckerImageOutdated
           # Exclude init containers (duplicates of main container) and cert-manager
           # (Quay returns build numbers like "608111629" instead of semver tags)
           expr: |
@@ -33,7 +34,8 @@ spec:
           annotations:
             summary: "{{ $labels.image }} in {{ $labels.namespace }} is outdated"
             description: "Running {{ $labels.current_version }}, latest is {{ $labels.latest_version }}"
-        - alert: KubernetesVersionOutdated
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#VersionCheckerImageOutdated"
+        - alert: VersionCheckerKubeOutdated
           expr: version_checker_is_latest_kube_version == 0
           for: 14d
           labels:
@@ -41,6 +43,7 @@ spec:
           annotations:
             summary: "Kubernetes update available"
             description: "Running {{ $labels.current_version }}, latest is {{ $labels.latest_version }}"
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#VersionCheckerKubeOutdated"
         - alert: VersionCheckerDown
           expr: up{job="version-checker"} == 0
           for: 15m
@@ -49,3 +52,4 @@ spec:
           annotations:
             summary: "version-checker is down"
             description: "version-checker has been unreachable for 15 minutes"
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#VersionCheckerDown"

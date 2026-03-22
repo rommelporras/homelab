@@ -656,7 +656,7 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 ### S1: Create Runbook Files
 
-- [ ] 5.5.S.1 Create 11 runbook markdown files in `docs/runbooks/`
+- [x] 5.5.S.1 Create 11 runbook markdown files in `docs/runbooks/`
   Extract existing inline `runbook:` content from 57 alerts into grouped files.
   For each alert: `## AlertName` heading + severity + description + triage steps.
   39 alerts without existing runbook content get minimal entries.
@@ -667,14 +667,14 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 > For each rename: grep all dashboard JSON, check Alertmanager route regex,
 > check recording rules.
 
-- [ ] 5.5.S.2 Rename `AdGuardDNSUnreachable` -> `AdGuardDNSDown`
+- [x] 5.5.S.2 Rename `AdGuardDNSUnreachable` -> `AdGuardDNSDown`
   **File:** `manifests/monitoring/alerts/adguard-dns-alert.yaml`
   **Impact check:**
   - Alertmanager: routes by `severity: critical` -> #incidents. No regex match needed. SAFE.
   - Dashboards: grep `AdGuardDNSUnreachable` in `manifests/monitoring/dashboards/`. NOT REFERENCED.
   - Probes: unrelated. SAFE.
 
-- [ ] 5.5.S.3 Rename `ContainerImageOutdated` -> `VersionCheckerImageOutdated`
+- [x] 5.5.S.3 Rename `ContainerImageOutdated` -> `VersionCheckerImageOutdated`
   **File:** `manifests/monitoring/alerts/version-checker-alerts.yaml`
   **Impact check:**
   - Alertmanager: routes as warning to #apps (no regex). SAFE - no routing change.
@@ -685,11 +685,11 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   Rationale: image drift is operational awareness, not infrastructure failure.
   Do NOT add `VersionChecker.*` to the infra regex.
 
-- [ ] 5.5.S.4 Rename `KubernetesVersionOutdated` -> `VersionCheckerKubeOutdated`
+- [x] 5.5.S.4 Rename `KubernetesVersionOutdated` -> `VersionCheckerKubeOutdated`
   **File:** `manifests/monitoring/alerts/version-checker-alerts.yaml`
   **Impact check:** Same as above. Routes as info -> null. SAFE.
 
-- [ ] 5.5.S.5 Rename `OllamaMemoryHigh` -> `OllamaHighMemory`
+- [x] 5.5.S.5 Rename `OllamaMemoryHigh` -> `OllamaHighMemory`
   **File:** `manifests/monitoring/alerts/ollama-alerts.yaml`
   **Impact check:**
   - Alertmanager: routes as warning to #apps. No regex. SAFE.
@@ -697,42 +697,42 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 ### S3: Standardize Annotations on All Alerts
 
-- [ ] 5.5.S.6 Replace `runbook:` key with `runbook_url:` on 57 alerts
+- [x] 5.5.S.6 Replace `runbook:` key with `runbook_url:` on 57 alerts
   For each alert that has inline `runbook:` annotation:
   1. Content was already extracted to runbook files in S1
   2. Replace `runbook: |` block with single-line
      `runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/<domain>.md#<AlertName>"`
   3. Verify the anchor link matches the heading in the runbook file
 
-- [ ] 5.5.S.7 Add `runbook_url:` to 39 alerts that have no runbook
+- [x] 5.5.S.7 Add `runbook_url:` to 39 alerts that have no runbook
   Files affected: logging-alerts, ups-alerts, kube-vip-alerts, node-alerts,
   cpu-throttling-alerts, dotctl-alerts, version-checker-alerts, claude-alerts,
   cluster-janitor-alerts, test-alert, stuck-pod-alerts (PodStuckInInit),
   backup-alerts (ResourceQuotaNearLimit, CronJobFailed).
 
-- [ ] 5.5.S.8 Add missing `description:` annotations where absent
+- [x] 5.5.S.8 Add missing `description:` annotations where absent
   Only `test-alert.yaml` alerts may be missing descriptions. Verify and fix.
 
 ### S4: Standardize Metadata Labels
 
-- [ ] 5.5.S.9 Add `app.kubernetes.io/part-of: kube-prometheus-stack` to PrometheusRules
+- [x] 5.5.S.9 Add `app.kubernetes.io/part-of: kube-prometheus-stack` to PrometheusRules
   **Files:** `cluster-janitor-alerts.yaml`, `version-checker-alerts.yaml`
   (Only 2 files missing this label. All already have `release: prometheus`.)
 
-- [ ] 5.5.S.10 Add `release: prometheus` to all 14 Probes
+- [x] 5.5.S.10 Add `release: prometheus` to all 14 Probes
   **Files:** all files in `manifests/monitoring/probes/`
   Currently probes only have `app: <service>-probe`. Adding `release: prometheus`
   provides insurance if `probeSelectorNilUsesHelmValues` ever changes to `true`.
   Zero functional change today.
 
-- [ ] 5.5.S.11 Add missing labels to 2 dashboard ConfigMaps
+- [x] 5.5.S.11 Add missing labels to 2 dashboard ConfigMaps
   - `claude-dashboard-configmap.yaml`: add `app.kubernetes.io/name: grafana` +
     `app.kubernetes.io/part-of: kube-prometheus-stack`
   - `dotctl-dashboard-configmap.yaml`: same
 
 ### S5: Standardize Group Names
 
-- [ ] 5.5.S.12 Rename group names with `.rules` suffix
+- [x] 5.5.S.12 Rename group names with `.rules` suffix
   **Files:**
   - `backup-alerts.yaml`: `backup.rules` -> `backup`, `cronjob.rules` -> `cronjob`
   - `longhorn-alerts.yaml`: `longhorn.rules` -> `longhorn`
@@ -741,20 +741,20 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 ### S6: Fix Dashboard JSON Conventions
 
-- [ ] 5.5.S.13 Fix version-checker dashboard uid and timezone
+- [x] 5.5.S.13 Fix version-checker dashboard uid and timezone
   **File:** `manifests/monitoring/dashboards/version-checker-dashboard-configmap.yaml`
   - Change uid from `Awr5zZ4Gk` to `version-checker`
   - Change timezone from `""` to `"Asia/Manila"`
   Impact: any saved Grafana bookmarks to the old uid will break. Acceptable.
 
-- [ ] 5.5.S.14 Fix dotctl dashboard data key name
+- [x] 5.5.S.14 Fix dotctl dashboard data key name
   **File:** `manifests/monitoring/dashboards/dotctl-dashboard-configmap.yaml`
   Change data key from `dotctl-dashboard.json` to `dotctl.json` (matches convention).
   Impact: Grafana sidecar reloads from the new key. Old dashboard auto-removed. SAFE.
 
 ### S7: Update Alertmanager Routing (combines Phase S renames + routing gap fix)
 
-- [ ] 5.5.S.15 Update infra route regex + Discord template in `helm/prometheus/values.yaml`
+- [x] 5.5.S.15 Update infra route regex + Discord template in `helm/prometheus/values.yaml`
   This is the SINGLE Helm upgrade that fixes:
   1. **Routing gap** (from Gap Analysis): add `Velero.*|Backup.*|ResourceQuota.*|CronJob.*|Garage.*`
   2. **Discord template** (from S3): add `runbook_url` rendering to all 3 Discord receivers:
@@ -768,7 +768,12 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   > The Discord template change must also be added to `scripts/monitoring/upgrade-prometheus.sh`
   > since it injects the Alertmanager config at Helm upgrade time.
 
-- [ ] 5.5.S.16 Full verification pass
+- [x] 5.5.S.16 Full verification pass
+  **Results:** All 29 PrometheusRules applied, all 14 Probes configured, all 14 dashboards loading.
+  All 4 renamed alerts evaluating with new names. All alerts have runbook_url annotation.
+  **Note:** Helm upgrade for Alertmanager routing + Discord template not yet deployed -
+  requires user to run `scripts/monitoring/upgrade-prometheus.sh` (involves secrets injection).
+  Values.yaml and upgrade script are updated and ready.
   1. Apply all standardization changes
   2. Verify all 96 alerts are evaluating in Prometheus (no broken expressions)
   3. Verify all 14 dashboards load in Grafana (no missing ConfigMaps)

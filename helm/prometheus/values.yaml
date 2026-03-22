@@ -239,7 +239,7 @@ alertmanager:
         - match:
             severity: warning
           match_re:
-            alertname: '(Longhorn.*|NVMe.*|etcd.*|KubeVip.*|Certificate.*|Node.*|UPS.*|NetworkInterface.*|KubePersistent.*|SmartCTL.*|KubeApiserver.*|CPUThrottling.*|Alloy.*|Loki.*|ClusterJanitor.*|Vault.*|ESO.*|Audit.*)'
+            alertname: '(Longhorn.*|NVMe.*|etcd.*|KubeVip.*|Certificate.*|Node.*|UPS.*|NetworkInterface.*|KubePersistent.*|SmartCTL.*|KubeApiserver.*|CPUThrottling.*|Alloy.*|Loki.*|ClusterJanitor.*|Vault.*|ESO.*|Audit.*|Velero.*|Backup.*|ResourceQuota.*|CronJob.*|Garage.*)'
           receiver: 'discord-infra'
           continue: false
 
@@ -268,6 +268,7 @@ alertmanager:
               **{{ .Labels.alertname }}** ({{ .Labels.severity }})
               {{ .Annotations.summary }}
               {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+              {{ if .Annotations.runbook_url }}Runbook: {{ .Annotations.runbook_url }}{{ end }}
               {{ end }}
         email_configs:
           # Multiple recipients for critical alerts (redundancy)
@@ -287,6 +288,7 @@ alertmanager:
               **{{ .Labels.alertname }}** ({{ .Labels.severity }})
               {{ .Annotations.summary }}
               {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+              {{ if .Annotations.runbook_url }}Runbook: {{ .Annotations.runbook_url }}{{ end }}
               {{ end }}
 
       # Application warnings: Discord #apps (catch-all)
@@ -300,6 +302,7 @@ alertmanager:
               **{{ .Labels.alertname }}** ({{ .Labels.severity }})
               {{ .Annotations.summary }}
               {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+              {{ if .Annotations.runbook_url }}Runbook: {{ .Annotations.runbook_url }}{{ end }}
               {{ end }}
 
       # Fallback null receiver (for silencing)

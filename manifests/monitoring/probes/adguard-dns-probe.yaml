@@ -17,6 +17,7 @@ metadata:
   namespace: monitoring
   labels:
     app: adguard-dns-probe
+    release: prometheus
 spec:
   jobName: adguard-dns  # This becomes the 'job' label in metrics
   interval: 30s

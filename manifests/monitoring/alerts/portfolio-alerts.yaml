@@ -25,15 +25,4 @@ spec:
           annotations:
             summary: "Portfolio site is unreachable"
             description: "Blackbox HTTP probe to portfolio.portfolio-prod.svc:80/health has failed for 5+ minutes. The portfolio site is unavailable."
-            runbook: |
-              1. Check pod status:
-                 kubectl-homelab get pods -n portfolio-prod -l app=portfolio
-
-              2. Check pod logs:
-                 kubectl-homelab logs -n portfolio-prod deploy/portfolio --tail=50
-
-              3. Check HTTPRoute:
-                 kubectl-homelab get httproute -n portfolio-prod
-
-              4. Check events:
-                 kubectl-homelab describe pod -n portfolio-prod -l app=portfolio
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#PortfolioDown"

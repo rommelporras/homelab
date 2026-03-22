@@ -17,6 +17,7 @@ metadata:
   namespace: monitoring
   labels:
     app: byparr-probe
+    release: prometheus
 spec:
   jobName: byparr
   interval: 60s

@@ -25,15 +25,4 @@ spec:
           annotations:
             summary: "Ghost blog is unreachable"
             description: "Blackbox HTTP probe to ghost.ghost-prod.svc:2368 has failed for 5+ minutes. The public blog is unavailable."
-            runbook: |
-              1. Check pod status:
-                 kubectl-homelab get pods -n ghost-prod -l app=ghost
-
-              2. Check pod logs:
-                 kubectl-homelab logs -n ghost-prod deploy/ghost --tail=50
-
-              3. Check database connectivity:
-                 kubectl-homelab get pods -n ghost-prod -l app=ghost-mysql
-
-              4. Check events:
-                 kubectl-homelab describe pod -n ghost-prod -l app=ghost
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#GhostDown"

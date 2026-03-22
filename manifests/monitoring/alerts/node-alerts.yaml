@@ -34,3 +34,4 @@ spec:
               High page fault rate ({{ $value | humanize }}/s) on {{ $labels.instance }}
               with available memory below 15%. This indicates real memory exhaustion, not
               routine NFS cache misses. Check what is consuming memory on this node.
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#NodeMemoryMajorPagesFaults"

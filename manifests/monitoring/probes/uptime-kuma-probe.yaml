@@ -8,6 +8,7 @@ metadata:
   namespace: monitoring
   labels:
     app: uptime-kuma-probe
+    release: prometheus
 spec:
   jobName: uptime-kuma
   interval: 60s

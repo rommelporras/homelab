@@ -35,6 +35,7 @@ spec:
           annotations:
             summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} stuck in Init for >30m"
             description: "Init container is not completing. Check events: kubectl describe pod {{ $labels.pod }} -n {{ $labels.namespace }}"
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#PodStuckInInit"
 
         # WARNING: Pod stuck Pending for >15 minutes (scheduling failure, PVC not bound, etc.)
         - alert: PodStuckPending
@@ -47,11 +48,7 @@ spec:
           annotations:
             summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} stuck Pending for >15m"
             description: "Pod cannot be scheduled. Check events and resource availability."
-            runbook: |
-              1. Describe pod: kubectl-homelab describe pod {{ $labels.pod }} -n {{ $labels.namespace }}
-              2. Check events: kubectl-homelab get events -n {{ $labels.namespace }} --field-selector involvedObject.name={{ $labels.pod }}
-              3. Check node resources: kubectl-homelab top nodes
-              4. Check PVC bindings: kubectl-homelab get pvc -n {{ $labels.namespace }}
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#PodStuckPending"
 
         # CRITICAL: CrashLoopBackOff for >1 hour (escalation beyond kube-prometheus-stack's 15m alert)
         - alert: PodCrashLoopingExtended
@@ -63,10 +60,7 @@ spec:
           annotations:
             summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} crash-looping for >1h"
             description: "Container {{ $labels.container }} has been in CrashLoopBackOff for over 1 hour. This will not self-heal - investigate root cause."
-            runbook: |
-              1. Check pod logs: kubectl-homelab logs {{ $labels.pod }} -n {{ $labels.namespace }} -c {{ $labels.container }} --previous
-              2. Describe pod: kubectl-homelab describe pod {{ $labels.pod }} -n {{ $labels.namespace }}
-              3. Check if config/secret changed: kubectl-homelab get events -n {{ $labels.namespace }}
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#PodCrashLoopingExtended"
 
         # WARNING: ImagePullBackOff for >15 minutes
         - alert: PodImagePullBackOff
@@ -80,7 +74,4 @@ spec:
           annotations:
             summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} ImagePullBackOff for >15m"
             description: "Image pull failing for container {{ $labels.container }}. Check image name, tag, and registry accessibility."
-            runbook: |
-              1. Check pod events: kubectl-homelab describe pod {{ $labels.pod }} -n {{ $labels.namespace }}
-              2. Verify image exists: check registry for the exact tag
-              3. Check network: ensure nodes can reach the container registry
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#PodImagePullBackOff"

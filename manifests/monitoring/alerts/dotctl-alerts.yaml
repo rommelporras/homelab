@@ -42,6 +42,7 @@ spec:
           annotations:
             summary: "dotctl collection stale{{ if $labels.hostname }} on {{ $labels.hostname }}{{ end }}"
             description: "No dotctl collection received in over 30 minutes. The systemd timer on the reporting machine may have stopped."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/otel.md#DotctlCollectionStale"
 
         # Drift detected and persisting for >1 hour
         # Info severity — visible in Alertmanager UI only, no Discord notification
@@ -54,3 +55,4 @@ spec:
           annotations:
             summary: "Dotfile drift on {{ $labels.hostname }}"
             description: "{{ $labels.hostname }} has {{ $value }} drifted files for over 1 hour. Run `dotctl status --machine {{ $labels.hostname }}` for details."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/otel.md#DotctlDriftDetected"

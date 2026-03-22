@@ -22,7 +22,7 @@ metadata:
     app.kubernetes.io/part-of: kube-prometheus-stack
 spec:
   groups:
-    - name: longhorn.rules
+    - name: longhorn
       rules:
         # WARNING: Longhorn volume has no running replicas
         # robustness=0 (unknown) AND state=3 (detached) means all replicas stopped.
@@ -37,8 +37,4 @@ spec:
           annotations:
             summary: "Longhorn volume {{ $labels.volume }} has no running replicas"
             description: "All replicas stopped for PVC {{ $labels.pvc }} in {{ $labels.pvc_namespace }}. Cluster Janitor cannot clean this (safety). Manual intervention needed."
-            runbook: |
-              1. Check volume: kubectl-homelab get volumes.longhorn.io {{ $labels.volume }} -n longhorn-system
-              2. Check if PVC is still in use: kubectl-homelab get pvc -A | grep {{ $labels.pvc }}
-              3. If orphaned: delete PVC and volume via Longhorn UI
-              4. If needed: kubectl-admin delete volume {{ $labels.volume }} -n longhorn-system
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/storage.md#LonghornVolumeAllReplicasStopped"

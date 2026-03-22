@@ -20,7 +20,7 @@ metadata:
     app.kubernetes.io/part-of: kube-prometheus-stack
 spec:
   groups:
-    - name: backup.rules
+    - name: backup
       rules:
         # CRITICAL: Velero backup failures exceed successes
         - alert: VeleroBackupFailed
@@ -31,11 +31,7 @@ spec:
           annotations:
             summary: "Velero backup failures exceed successes"
             description: "Velero has more backup failures than successes. Check Velero logs and backup schedule."
-            runbook: |
-              1. Check Velero backups: kubectl-homelab get backups.velero.io -n velero --sort-by=.metadata.creationTimestamp
-              2. Describe failed backup: kubectl-homelab describe backup <name> -n velero
-              3. Check Velero logs: kubectl-homelab logs -n velero -l app.kubernetes.io/name=velero --tail=100
-              4. Check Garage S3 connectivity: kubectl-homelab get backupstoragelocations -n velero
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/backup.md#VeleroBackupFailed"
 
         # WARNING: No successful Velero backup in 36 hours
         - alert: VeleroBackupStale
@@ -46,10 +42,7 @@ spec:
           annotations:
             summary: "No successful Velero backup in 36 hours"
             description: "Velero has not completed a successful backup in over 36 hours. Daily schedule may be stuck."
-            runbook: |
-              1. Check schedule: kubectl-homelab get schedules.velero.io -n velero
-              2. Check recent backups: kubectl-homelab get backups.velero.io -n velero --sort-by=.metadata.creationTimestamp
-              3. Check Velero logs: kubectl-homelab logs -n velero -l app.kubernetes.io/name=velero --tail=100
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/backup.md#VeleroBackupStale"
 
         # WARNING: Longhorn volume backup in error state
         - alert: LonghornBackupFailed
@@ -60,10 +53,7 @@ spec:
           annotations:
             summary: "Longhorn volume backup in error state"
             description: "A Longhorn backup is in Error state. Check Longhorn UI or backup target configuration."
-            runbook: |
-              1. Check Longhorn backups: kubectl-homelab get backups.longhorn.io -n longhorn-system
-              2. Check backup target: kubectl-homelab get settings.longhorn.io -n longhorn-system backup-target
-              3. Check Longhorn manager logs: kubectl-homelab logs -n longhorn-system -l app=longhorn-manager --tail=100
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/backup.md#LonghornBackupFailed"
 
         # WARNING: Namespace using >85% of resource quota
         - alert: ResourceQuotaNearLimit
@@ -75,6 +65,7 @@ spec:
           annotations:
             summary: "Namespace {{ $labels.namespace }} using >85% of {{ $labels.resource }} quota"
             description: "Resource quota {{ $labels.resourcequota }} in namespace {{ $labels.namespace }} is at {{ $value | humanizePercentage }} utilization."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/backup.md#ResourceQuotaNearLimit"
 
         # CRITICAL: No successful etcd backup in 36 hours
         - alert: EtcdBackupStale
@@ -86,13 +77,9 @@ spec:
           annotations:
             summary: "No successful etcd backup in 36 hours"
             description: "The etcd-backup CronJob has not completed successfully in over 36 hours. etcd data may not be recoverable."
-            runbook: |
-              1. Check CronJob: kubectl-homelab get cronjob etcd-backup -n kube-system
-              2. Check recent jobs: kubectl-homelab get jobs -n kube-system -l app=etcd-backup --sort-by=.metadata.creationTimestamp
-              3. Check pod logs: kubectl-homelab logs -n kube-system -l job-name=etcd-backup-<timestamp>
-              4. Check NFS mount: verify 10.10.30.4:/Kubernetes/Backups/etcd is accessible
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/backup.md#EtcdBackupStale"
 
-    - name: cronjob.rules
+    - name: cronjob
       rules:
         # WARNING: A Job has failed
         - alert: CronJobFailed
@@ -104,6 +91,7 @@ spec:
           annotations:
             summary: "Job {{ $labels.namespace }}/{{ $labels.job_name }} failed"
             description: "Check logs: kubectl-homelab logs -n {{ $labels.namespace }} job/{{ $labels.job_name }}"
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/backup.md#CronJobFailed"
 
         # WARNING: CronJob missed 2+ scheduled runs
         - alert: CronJobNotScheduled
@@ -118,7 +106,4 @@ spec:
           annotations:
             summary: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} missed 2+ scheduled runs"
             description: "CronJob has not succeeded in over twice its expected interval. May be suspended or failing silently."
-            runbook: |
-              1. Check CronJob status: kubectl-homelab get cronjob {{ $labels.cronjob }} -n {{ $labels.namespace }}
-              2. Check if suspended: kubectl-homelab get cronjob {{ $labels.cronjob }} -n {{ $labels.namespace }} -o jsonpath='{.spec.suspend}'
-              3. Check recent jobs: kubectl-homelab get jobs -n {{ $labels.namespace }} --sort-by=.metadata.creationTimestamp
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/backup.md#CronJobNotScheduled"

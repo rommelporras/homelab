@@ -28,6 +28,7 @@ spec:
           annotations:
             summary: "Claude Code daily spend exceeds $100"
             description: "Claude Code has spent ${{ $value | printf \"%.2f\" }} in the last 24 hours."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/otel.md#ClaudeCodeHighDailySpend"
 
         # Alert when daily Claude Code spend exceeds $150
         - alert: ClaudeCodeCriticalDailySpend
@@ -38,6 +39,7 @@ spec:
           annotations:
             summary: "Claude Code daily spend exceeds $150"
             description: "Claude Code has spent ${{ $value | printf \"%.2f\" }} in the last 24 hours. Review active sessions."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/otel.md#ClaudeCodeCriticalDailySpend"
 
         # Alert when no Claude Code activity for an entire business day (telemetry may be broken)
         - alert: ClaudeCodeNoActivity
@@ -51,6 +53,7 @@ spec:
           annotations:
             summary: "No Claude Code activity today"
             description: "No Claude Code usage detected in the last 8 hours. Telemetry pipeline may need attention."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/otel.md#ClaudeCodeNoActivity"
 
         # Alert when OTel Collector is unreachable
         - alert: OTelCollectorDown
@@ -61,4 +64,5 @@ spec:
           annotations:
             summary: "OTel Collector is unreachable"
             description: "Prometheus cannot scrape OTel Collector metrics. Claude Code telemetry is not being collected."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/otel.md#OTelCollectorDown"
 

@@ -20,6 +20,7 @@ metadata:
   namespace: monitoring
   labels:
     app: vault-probe
+    release: prometheus
 spec:
   jobName: vault
   interval: 60s

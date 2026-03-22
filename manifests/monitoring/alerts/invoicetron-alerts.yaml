@@ -25,15 +25,4 @@ spec:
           annotations:
             summary: "Invoicetron is unreachable"
             description: "Blackbox HTTP probe to invoicetron.invoicetron-prod.svc:3000/api/health has failed for 5+ minutes. The invoicing app is unavailable."
-            runbook: |
-              1. Check pod status:
-                 kubectl-homelab get pods -n invoicetron-prod -l app=invoicetron
-
-              2. Check pod logs:
-                 kubectl-homelab logs -n invoicetron-prod deploy/invoicetron --tail=50
-
-              3. Check database connectivity:
-                 kubectl-homelab get pods -n invoicetron-prod -l app=postgres
-
-              4. Check events:
-                 kubectl-homelab describe pod -n invoicetron-prod -l app=invoicetron
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#InvoicetronDown"

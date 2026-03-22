@@ -102,6 +102,7 @@ alertmanager:
               **{{ .Labels.alertname }}** ({{ .Labels.severity }})
               {{ .Annotations.summary }}
               {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+              {{ if .Annotations.runbook_url }}Runbook: {{ .Annotations.runbook_url }}{{ end }}
               {{ end }}
         email_configs:
           # Multiple recipients for critical alerts (redundancy)
@@ -119,6 +120,7 @@ alertmanager:
               **{{ .Labels.alertname }}** ({{ .Labels.severity }})
               {{ .Annotations.summary }}
               {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+              {{ if .Annotations.runbook_url }}Runbook: {{ .Annotations.runbook_url }}{{ end }}
               {{ end }}
       - name: 'discord-apps'
         discord_configs:
@@ -130,6 +132,7 @@ alertmanager:
               **{{ .Labels.alertname }}** ({{ .Labels.severity }})
               {{ .Annotations.summary }}
               {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+              {{ if .Annotations.runbook_url }}Runbook: {{ .Annotations.runbook_url }}{{ end }}
               {{ end }}
       - name: 'null'
       - name: 'healthchecks-heartbeat'

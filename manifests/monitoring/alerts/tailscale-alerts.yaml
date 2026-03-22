@@ -27,18 +27,7 @@ spec:
           annotations:
             summary: "Tailscale Connector is down"
             description: "Tailscale Connector proxy pod has been unavailable for 5+ minutes. Tailnet DNS (global nameserver 10.10.30.53) is unreachable from remote devices. All remote access to homelab is broken."
-            runbook: |
-              1. Check pod status:
-                 kubectl-homelab get pods -n tailscale
-
-              2. Check connector logs:
-                 kubectl-homelab logs -n tailscale -l tailscale.com/parent-resource-type=connector --tail=50
-
-              3. Check Connector CRD:
-                 kubectl-homelab get connector homelab-network -o yaml
-
-              4. Check events:
-                 kubectl-homelab get events -n tailscale --sort-by=.lastTimestamp
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/networking.md#TailscaleConnectorDown"
 
         # Operator pod down — can't manage connector lifecycle
         - alert: TailscaleOperatorDown
@@ -50,15 +39,4 @@ spec:
           annotations:
             summary: "Tailscale Operator is down"
             description: "Tailscale Operator pod has been unavailable for 5+ minutes. Cannot manage connector or proxy pod lifecycle. Existing connections may still work but recovery from failures is impaired."
-            runbook: |
-              1. Check pod status:
-                 kubectl-homelab get pods -n tailscale -l app=operator
-
-              2. Check operator logs:
-                 kubectl-homelab logs -n tailscale -l app=operator --tail=50
-
-              3. Check OAuth secret:
-                 kubectl-homelab get secret -n tailscale operator-oauth
-
-              4. Verify Helm release:
-                 helm-homelab -n tailscale list
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/networking.md#TailscaleOperatorDown"

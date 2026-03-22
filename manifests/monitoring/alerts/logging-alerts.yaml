@@ -29,6 +29,7 @@ spec:
           annotations:
             summary: "Loki is down"
             description: "Loki instance {{ $labels.instance }} has been down for more than 5 minutes."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/logging.md#LokiDown"
 
         # Alert if Loki ingestion has stopped
         - alert: LokiIngestionStopped
@@ -39,6 +40,7 @@ spec:
           annotations:
             summary: "Loki is not receiving any logs"
             description: "Loki has not received any log lines for 15 minutes. Check Alloy pods."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/logging.md#LokiIngestionStopped"
 
         # Alert if Loki has high error rate
         - alert: LokiHighErrorRate
@@ -53,6 +55,7 @@ spec:
           annotations:
             summary: "Loki has high error rate"
             description: "Loki error rate is above 10% for the last 10 minutes."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/logging.md#LokiHighErrorRate"
 
     # =========================================================================
     # Alloy Alerts
@@ -71,6 +74,7 @@ spec:
           annotations:
             summary: "Alloy not running on all nodes"
             description: "Expected {{ with query \"count(kube_node_info)\" }}{{ . | first | value }}{{ end }} Alloy pods but only {{ $value }} are running."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/logging.md#AlloyNotOnAllNodes"
 
         # Alert if Alloy is not sending logs to Loki
         - alert: AlloyNotSendingLogs
@@ -81,6 +85,7 @@ spec:
           annotations:
             summary: "Alloy is not sending logs to Loki"
             description: "No logs have been sent to Loki for 15 minutes. Check Alloy configuration."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/logging.md#AlloyNotSendingLogs"
 
         # Alert if Alloy has high memory usage (approaching limits)
         - alert: AlloyHighMemory
@@ -95,3 +100,4 @@ spec:
           annotations:
             summary: "Alloy memory usage is high"
             description: "Alloy pod {{ $labels.pod }} is using more than 80% of its memory limit."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/logging.md#AlloyHighMemory"

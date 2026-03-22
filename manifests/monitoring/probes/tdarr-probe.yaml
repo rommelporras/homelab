@@ -14,6 +14,7 @@ metadata:
   namespace: monitoring
   labels:
     app: tdarr-probe
+    release: prometheus
 spec:
   jobName: tdarr
   interval: 60s

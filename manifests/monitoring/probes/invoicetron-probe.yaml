@@ -14,6 +14,7 @@ metadata:
   namespace: monitoring
   labels:
     app: invoicetron-probe
+    release: prometheus
 spec:
   jobName: invoicetron
   interval: 60s

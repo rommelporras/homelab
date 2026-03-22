@@ -41,27 +41,4 @@ spec:
           annotations:
             summary: "kube-apiserver on {{ $labels.pod }} is restarting frequently"
             description: "{{ $labels.pod }} has restarted {{ $value | printf \"%.0f\" }} times in the last 24 hours. Each restart causes kube-vip to drop the VIP (10.10.30.10) for ~2 minutes, causing brief cluster connectivity loss."
-            runbook: |
-              1. Check current restart count:
-                 kubectl-homelab get pod -n kube-system {{ $labels.pod }}
-
-              2. Check previous container logs (before last restart):
-                 kubectl-homelab logs -n kube-system {{ $labels.pod }} --previous --tail=100
-
-              3. Check kube-vip lease holder (may have changed):
-                 kubectl-homelab get lease plndr-cp-lock -n kube-system -o jsonpath='{.spec.holderIdentity}{"\n"}'
-
-              4. Check etcd health (common root cause):
-                 kubectl-homelab exec -n kube-system etcd-k8s-cp1 -- etcdctl \
-                   --cacert /etc/kubernetes/pki/etcd/ca.crt \
-                   --cert /etc/kubernetes/pki/etcd/peer.crt \
-                   --key /etc/kubernetes/pki/etcd/peer.key \
-                   endpoint health --cluster
-
-              5. Check apiserver liveness probe (triggers restart on failure):
-                 # /livez returns 500 when etcd is unreachable
-                 kubectl-homelab exec -n kube-system {{ $labels.pod }} -- wget -qO- http://127.0.0.1:8080/livez 2>/dev/null || echo "probe failed"
-
-              6. Check node events for OOM or system pressure:
-                 NODE=$(echo {{ $labels.pod }} | sed 's/kube-apiserver-//'); \
-                 kubectl-homelab describe node $NODE | grep -A5 Events
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#KubeApiserverFrequentRestarts"

@@ -19,6 +19,7 @@ metadata:
   namespace: monitoring
   labels:
     app: ghost-probe
+    release: prometheus
 spec:
   jobName: ghost
   interval: 60s

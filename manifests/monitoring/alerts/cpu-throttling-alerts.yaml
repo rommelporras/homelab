@@ -34,3 +34,4 @@ spec:
               {{ $value | humanizePercentage }} throttling of CPU in namespace
               {{ $labels.namespace }} for container {{ $labels.container }} in pod
               {{ $labels.pod }} on cluster homelab.
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#CPUThrottlingHigh"

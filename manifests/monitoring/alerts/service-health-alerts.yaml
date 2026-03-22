@@ -41,20 +41,4 @@ spec:
           annotations:
             summary: "{{ $labels.job }} responding slowly: {{ $value | printf \"%.1f\" }}s"
             description: "HTTP probe for {{ $labels.job }} has been returning responses above 5 seconds for 5+ minutes (current: {{ $value | printf \"%.1f\" }}s). The service is up but slow — check for database load, memory pressure, or cold-start issues."
-            runbook: |
-              1. Check response time trend in Grafana:
-                 Service Health dashboard → Response Time row
-
-              2. Check pod resource usage:
-                 kubectl-homelab top pod -n <namespace> -l app={{ $labels.job }}
-
-              3. Check pod logs for slow queries or errors:
-                 kubectl-homelab logs -n <namespace> deploy/{{ $labels.job }} --tail=100
-
-              4. Check if the issue is database-related:
-                 - Ghost: check ghost-prod PostgreSQL pod health
-                 - Invoicetron: check invoicetron-prod PostgreSQL pod health
-                 - Karakeep: check Meilisearch pod health (search indexing)
-
-              5. If the service just started, slow response may be a cold-start artifact —
-                 wait 5 minutes and check if it resolves automatically.
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/apps.md#ServiceHighResponseTime"

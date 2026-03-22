@@ -15,6 +15,7 @@ metadata:
   namespace: monitoring
   labels:
     app: ollama-probe
+    release: prometheus
 spec:
   jobName: ollama
   interval: 60s

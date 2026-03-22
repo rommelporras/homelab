@@ -185,9 +185,9 @@ data:
           "1d"
         ]
       },
-      "timezone": "",
+      "timezone": "Asia/Manila",
       "title": "version-checker",
-      "uid": "Awr5zZ4Gk",
+      "uid": "version-checker",
       "version": 3,
       "description": "Dashboard for viewing the current, and latest upstream, image versions in use on a Kubernetes cluster. To be used with the version-checker project.\n\nhttps://github.com/jetstack/version-checker"
     }

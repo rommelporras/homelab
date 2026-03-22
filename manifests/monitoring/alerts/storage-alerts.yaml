@@ -37,17 +37,7 @@ spec:
           annotations:
             summary: "Longhorn volume {{ $labels.pvc }} ({{ $labels.pvc_namespace }}) is degraded"
             description: "Longhorn volume {{ $labels.pvc }} in namespace {{ $labels.pvc_namespace }} has been in degraded state for 10+ minutes. At least one replica is unhealthy. Data is accessible but redundancy is reduced."
-            runbook: |
-              1. Check volume status in Longhorn UI:
-                 https://longhorn.k8s.rommelporras.com
-
-              2. Check replicas (volume label is the Longhorn volume UUID):
-                 kubectl-homelab -n longhorn-system get replicas -l longhornvolume={{ $labels.volume }}
-
-              3. Check node health (a node issue may affect replicas):
-                 kubectl-homelab get nodes
-
-              4. If a replica is rebuilding, monitor progress in Longhorn UI
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/storage.md#LonghornVolumeDegraded"
 
         # Longhorn volume has no healthy replicas — data at risk
         - alert: LonghornVolumeReplicaFailed
@@ -58,22 +48,7 @@ spec:
           annotations:
             summary: "Longhorn volume {{ $labels.pvc }} ({{ $labels.pvc_namespace }}) has no healthy replicas"
             description: "Longhorn volume {{ $labels.pvc }} in namespace {{ $labels.pvc_namespace }} is in faulted state for 5+ minutes. All replicas have failed. Data access is at risk."
-            runbook: |
-              1. Check volume status immediately in Longhorn UI:
-                 https://longhorn.k8s.rommelporras.com
-
-              2. Check which replicas failed:
-                 kubectl-homelab -n longhorn-system get replicas -l longhornvolume={{ $labels.volume }} -o wide
-
-              3. Check node conditions:
-                 kubectl-homelab get nodes
-                 kubectl-homelab describe nodes | grep -A5 Conditions
-
-              4. If nodes are healthy, check Longhorn manager logs:
-                 kubectl-homelab -n longhorn-system logs deploy/longhorn-manager --tail=100
-
-              5. Check disk availability on all nodes:
-                 kubectl-homelab -n longhorn-system get nodes.longhorn.io -o wide
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/storage.md#LonghornVolumeReplicaFailed"
 
     - name: nvme-smart
       rules:
@@ -87,19 +62,7 @@ spec:
           annotations:
             summary: "NVMe media errors detected on {{ $labels.pod }}"
             description: "{{ $labels.device }} on {{ $labels.pod }} has {{ $value }} unrecoverable media error(s). This indicates physical NAND failure. Back up data and plan drive replacement."
-            runbook: |
-              1. Verify error count in Grafana (NVMe Health row → Longhorn dashboard)
-
-              2. Check full SMART report on the affected node:
-                 ssh wawashi@<node>.k8s.rommelporras.com
-                 sudo smartctl -a /dev/nvme0
-
-              3. Run extended self-test (non-destructive, ~2 min for NVMe):
-                 sudo smartctl -t long /dev/nvme0
-                 sudo smartctl -l selftest /dev/nvme0
-
-              4. If errors confirmed, plan drive replacement. Begin Longhorn backup first:
-                 https://longhorn.k8s.rommelporras.com
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/storage.md#NVMeMediaErrors"
 
         # NVMe available spare dropped below drive's own threshold
         # SK Hynix drives set this threshold themselves (typically ~10%)
@@ -113,15 +76,7 @@ spec:
           annotations:
             summary: "NVMe available spare low on {{ $labels.pod }}: {{ $value }}%"
             description: "{{ $labels.device }} on {{ $labels.pod }} has only {{ $value }}% spare NAND blocks remaining. Drive endurance is being consumed. Consider planning replacement."
-            runbook: |
-              1. Check wear level history in Grafana (NVMe Health row → Available Spare panel)
-
-              2. Check full SMART data on the affected node:
-                 ssh wawashi@<node>.k8s.rommelporras.com
-                 sudo smartctl -a /dev/nvme0
-
-              3. Plan drive replacement before spare reaches 0.
-                 SK Hynix HFS512GDE9X081N drives can be sourced as identical replacements.
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/storage.md#NVMeSpareWarning"
 
         # NVMe endurance used above 80% — approaching manufacturer's rated write endurance
         - alert: NVMeWearHigh
@@ -132,16 +87,7 @@ spec:
           annotations:
             summary: "NVMe wear indicator high on {{ $labels.pod }}: {{ $value }}% used"
             description: "{{ $labels.device }} on {{ $labels.pod }} has consumed {{ $value }}% of its rated write endurance. SK Hynix 512GB rated ~300TBW. Plan drive replacement."
-            runbook: |
-              1. Check Total Bytes Written in Grafana (NVMe Health row → Longhorn dashboard)
-
-              2. Verify SMART data:
-                 ssh wawashi@<node>.k8s.rommelporras.com
-                 sudo smartctl -a /dev/nvme0
-
-              3. Order replacement drive (SK Hynix HFS512GDE9X081N or equivalent M.2 NVMe).
-                 Drain node before replacement:
-                 kubectl-homelab drain <node> --ignore-daemonsets --delete-emptydir-data
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/storage.md#NVMeWearHigh"
 
         # NVMe drive temperature above safe operating threshold
         # SK Hynix HFS512GDE9X081N max operating = 70°C. 65°C = 5°C buffer.
@@ -154,14 +100,4 @@ spec:
           annotations:
             summary: "NVMe temperature high on {{ $labels.pod }}: {{ $value }}°C"
             description: "NVMe {{ $labels.device }} on {{ $labels.pod }} has been above 65°C for 10+ minutes (current: {{ $value }}°C). SK Hynix max operating = 70°C. Check airflow and Tdarr transcode load."
-            runbook: |
-              1. Check temperature trend in Grafana (NVMe Health row → Longhorn Storage dashboard)
-
-              2. Check if Tdarr is running heavy transcode workloads — GPU encoding generates heat:
-                 https://tdarr.k8s.rommelporras.com
-
-              3. Verify chassis airflow on the M80q (tiny form factor, relies on fan curve):
-                 ssh wawashi@<node>.k8s.rommelporras.com
-                 sudo smartctl -a /dev/nvme0  # check all temperature readings
-
-              4. If temperature is approaching 70°C, pause Tdarr immediately and check cooling.
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/storage.md#NVMeTemperatureHigh"

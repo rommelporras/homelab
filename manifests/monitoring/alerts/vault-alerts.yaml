@@ -43,12 +43,7 @@ spec:
           annotations:
             summary: "Vault is sealed — ExternalSecrets cannot sync"
             description: "vault-0 has been sealed for >2m. Unsealer should auto-recover within 30s. If this alert fires, unsealer may be broken."
-            runbook: |
-              1. Check unsealer pod: kubectl-homelab get pods -n vault -l app=vault-unsealer
-              2. Check unsealer logs: kubectl-homelab logs -n vault -l app=vault-unsealer --tail=50
-              3. Check vault seal status: kubectl-homelab exec -n vault vault-0 -- vault status
-              4. If unsealer is CrashLooping: check vault-unseal-keys secret exists
-              5. Manual unseal (break-glass): get keys from 1Password "Vault Unseal Keys"
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/vault.md#VaultSealed"
 
         # WARNING: Vault metrics are not being scraped
         # Fires when no vault_core_unsealed metric exists but Vault is up (probe succeeds).
@@ -61,11 +56,7 @@ spec:
           annotations:
             summary: "Vault metrics not being scraped — alerting is degraded"
             description: "Vault is healthy (probe succeeds) but no vault_* metrics exist. VaultSealed, VaultAuditFailure, and VaultHighLatency alerts cannot fire without metrics."
-            runbook: |
-              1. Check ServiceMonitor: kubectl-homelab get servicemonitor -n vault
-              2. Check Prometheus targets: port-forward prometheus:9090, check /targets for vault-metrics
-              3. Test metrics endpoint: kubectl-homelab exec -n vault vault-0 -- wget -qO- 'http://127.0.0.1:8200/v1/sys/metrics?format=prometheus' | head
-              4. Verify listener.telemetry.unauthenticated_metrics_access = true in Vault HCL config
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/vault.md#VaultMetricsMissing"
 
         # CRITICAL: Vault audit log is failing — compliance violation
         - alert: VaultAuditFailure
@@ -76,10 +67,7 @@ spec:
           annotations:
             summary: "Vault audit logging is failing"
             description: "Vault audit device has logged failures. All Vault operations should be audited — this is a compliance risk."
-            runbook: |
-              1. Check audit devices: kubectl-homelab exec -n vault vault-0 -- vault audit list
-              2. Check pod logs for audit errors: kubectl-homelab logs -n vault vault-0 --tail=100 | grep audit
-              3. Re-enable if needed: vault audit enable file file_path=stdout
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/vault.md#VaultAuditFailure"
 
         # WARNING: Vault UI/API is unreachable via Blackbox probe
         - alert: VaultDown
@@ -90,11 +78,7 @@ spec:
           annotations:
             summary: "Vault is unreachable"
             description: "Blackbox probe to Vault UI has been failing for >5m. ESO may lose connectivity."
-            runbook: |
-              1. Check vault pod: kubectl-homelab get pods -n vault
-              2. Check vault logs: kubectl-homelab logs -n vault vault-0 --tail=50
-              3. Check HTTPRoute: kubectl-homelab get httproute -n vault
-              4. Try port-forward: kubectl-homelab port-forward -n vault vault-0 8200:8200
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/vault.md#VaultDown"
 
         # WARNING: Vault request latency is high
         - alert: VaultHighLatency
@@ -105,10 +89,7 @@ spec:
           annotations:
             summary: "Vault median request latency >500ms"
             description: "Vault is responding slowly. Check Raft storage health and pod resources."
-            runbook: |
-              1. Check pod resources: kubectl-homelab top pods -n vault
-              2. Check Longhorn volume: kubectl-homelab get volumes.longhorn.io -n longhorn-system | grep vault
-              3. Check Raft state: kubectl-homelab exec -n vault vault-0 -- vault operator raft list-peers
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/vault.md#VaultHighLatency"
 
     - name: external-secrets
       rules:
@@ -121,12 +102,7 @@ spec:
           annotations:
             summary: "ExternalSecret {{ $labels.namespace }}/{{ $labels.name }} not synced"
             description: "An ExternalSecret has been in SecretSynced=False state for >10m. The K8s Secret may be stale or missing."
-            runbook: |
-              1. Describe the ES: kubectl-homelab describe externalsecret {{ $labels.name }} -n {{ $labels.namespace }}
-              2. Check ESO logs: kubectl-homelab logs -n external-secrets -l app.kubernetes.io/name=external-secrets --tail=50
-              3. Verify ClusterSecretStore: kubectl-homelab get clustersecretstores
-              4. Verify Vault is unsealed: kubectl-homelab exec -n vault vault-0 -- vault status
-              5. Check if Vault path exists: vault kv get secret/{{ $labels.namespace }}/...
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/vault.md#ESOSecretNotSynced"
 
         # WARNING: ESO sync errors are occurring
         - alert: ESOSyncErrors
@@ -137,11 +113,7 @@ spec:
           annotations:
             summary: "ExternalSecret sync errors in {{ $labels.namespace }}/{{ $labels.name }}"
             description: "ESO is failing to sync secrets from Vault. May be transient (Vault restart) or permanent (missing path)."
-            runbook: |
-              1. Check ESO pod logs: kubectl-homelab logs -n external-secrets -l app.kubernetes.io/name=external-secrets --tail=100
-              2. Check if Vault is sealed: kubectl-homelab exec -n vault vault-0 -- vault status
-              3. Verify Vault KV path exists: vault kv get secret/<path>
-              4. Force re-sync: kubectl-homelab annotate externalsecret <name> -n <ns> force-sync=$(date +%s) --overwrite
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/vault.md#ESOSyncErrors"
 
         # WARNING: Raft snapshot CronJob is failing
         - alert: VaultSnapshotFailing
@@ -152,8 +124,4 @@ spec:
           annotations:
             summary: "Vault Raft snapshot CronJob is failing"
             description: "Daily Vault backup has been failing for >30m. NFS NAS may be unreachable."
-            runbook: |
-              1. Check CronJob: kubectl-homelab get cronjobs -n vault
-              2. Check latest job: kubectl-homelab get jobs -n vault --sort-by=.metadata.creationTimestamp
-              3. Check pod logs: kubectl-homelab logs -n vault -l job-name=vault-snapshot-<date>
-              4. Check NFS mount: verify 10.10.30.4:/Kubernetes/Backups/vault is accessible from k8s nodes
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/vault.md#VaultSnapshotFailing"
