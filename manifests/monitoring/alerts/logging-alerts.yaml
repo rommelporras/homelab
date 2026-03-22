@@ -86,8 +86,8 @@ spec:
         - alert: AlloyHighMemory
           expr: |
             container_memory_working_set_bytes{container="alloy", namespace="monitoring"}
-            /
-            container_spec_memory_limit_bytes{container="alloy", namespace="monitoring"}
+            / on(namespace, pod) group_left()
+            kube_pod_container_resource_limits{container="alloy", namespace="monitoring", resource="memory"}
             > 0.8
           for: 10m
           labels:

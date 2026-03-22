@@ -16,7 +16,7 @@ spec:
       rules:
         - alert: ClusterJanitorFailing
           expr: |
-            kube_job_failed{namespace="kube-system", job_name=~"cluster-janitor-.*"} > 0
+            kube_job_status_failed{namespace="kube-system", job_name=~"cluster-janitor-.*"} > 0
           for: 30m
           labels:
             severity: warning

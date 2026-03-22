@@ -85,8 +85,8 @@ spec:
           labels:
             severity: critical
           annotations:
-            summary: "NVMe media errors detected on {{ $labels.node }}"
-            description: "{{ $labels.device }} on node {{ $labels.node }} has {{ $value }} unrecoverable media error(s). This indicates physical NAND failure. Back up data and plan drive replacement."
+            summary: "NVMe media errors detected on {{ $labels.pod }}"
+            description: "{{ $labels.device }} on {{ $labels.pod }} has {{ $value }} unrecoverable media error(s). This indicates physical NAND failure. Back up data and plan drive replacement."
             runbook: |
               1. Verify error count in Grafana (NVMe Health row → Longhorn dashboard)
 
@@ -111,8 +111,8 @@ spec:
           labels:
             severity: warning
           annotations:
-            summary: "NVMe available spare low on {{ $labels.node }}: {{ $value }}%"
-            description: "{{ $labels.device }} on node {{ $labels.node }} has only {{ $value }}% spare NAND blocks remaining. Drive endurance is being consumed. Consider planning replacement."
+            summary: "NVMe available spare low on {{ $labels.pod }}: {{ $value }}%"
+            description: "{{ $labels.device }} on {{ $labels.pod }} has only {{ $value }}% spare NAND blocks remaining. Drive endurance is being consumed. Consider planning replacement."
             runbook: |
               1. Check wear level history in Grafana (NVMe Health row → Available Spare panel)
 
@@ -130,8 +130,8 @@ spec:
           labels:
             severity: warning
           annotations:
-            summary: "NVMe wear indicator high on {{ $labels.node }}: {{ $value }}% used"
-            description: "{{ $labels.device }} on node {{ $labels.node }} has consumed {{ $value }}% of its rated write endurance. SK Hynix 512GB rated ~300TBW. Plan drive replacement."
+            summary: "NVMe wear indicator high on {{ $labels.pod }}: {{ $value }}% used"
+            description: "{{ $labels.device }} on {{ $labels.pod }} has consumed {{ $value }}% of its rated write endurance. SK Hynix 512GB rated ~300TBW. Plan drive replacement."
             runbook: |
               1. Check Total Bytes Written in Grafana (NVMe Health row → Longhorn dashboard)
 

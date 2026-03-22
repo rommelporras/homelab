@@ -528,40 +528,40 @@ Done --- All services monitored, all images current, clean signal.
 > Fixing them first ensures the monitoring we already have is actually working.
 > After fixes, verify each alert against live Prometheus before proceeding.
 
-- [ ] 5.5.0.1 Fix ClusterJanitorFailing metric name
+- [x] 5.5.0.1 Fix ClusterJanitorFailing metric name
   **File:** `manifests/monitoring/alerts/cluster-janitor-alerts.yaml`
   Change `kube_job_failed` to `kube_job_status_failed` (confirmed: `kube_job_failed` returns
   0 active series for janitor jobs; `kube_job_status_failed` returns 1 active series).
   Verify: query both metrics in Prometheus UI, confirm the fix populates.
 
-- [ ] 5.5.0.2 Fix PodStuckInInit CrashLoopBackOff branch
+- [x] 5.5.0.2 Fix PodStuckInInit CrashLoopBackOff branch
   **File:** `manifests/monitoring/alerts/stuck-pod-alerts.yaml`
   Change `kube_pod_init_container_status_waiting{reason="CrashLoopBackOff"}`
   to `kube_pod_init_container_status_waiting_reason{reason="CrashLoopBackOff"}`.
   The `_waiting` metric has no `reason` label; `_waiting_reason` does.
 
-- [ ] 5.5.0.3 Fix AlloyHighMemory removed metric
+- [x] 5.5.0.3 Fix AlloyHighMemory removed metric
   **File:** `manifests/monitoring/alerts/logging-alerts.yaml`
   Replace `container_spec_memory_limit_bytes{container="alloy"}` with
   `kube_pod_container_resource_limits{container="alloy", resource="memory"}`.
   Requires adding a join: use same pattern as working `OllamaMemoryHigh` alert.
 
-- [ ] 5.5.0.4 Fix NVMe alert annotations
+- [x] 5.5.0.4 Fix NVMe alert annotations
   **File:** `manifests/monitoring/alerts/storage-alerts.yaml`
   Alerts `NVMeMediaErrors`, `NVMeSpareWarning`, `NVMeWearHigh` use `$labels.node`
   but smartctl metrics have no populated `node` label.
   Fix: change to `$labels.pod` or add relabeling in smartctl-exporter ServiceMonitor.
 
-- [ ] 5.5.0.5 Move audit-alerts.yaml to disabled
+- [x] 5.5.0.5 Move audit-alerts.yaml to disabled
   **File:** `manifests/monitoring/alerts/audit-alerts.yaml`
   Not a valid PrometheusRule (no apiVersion/kind, uses LogQL).
   Move to `manifests/monitoring/alerts/disabled/audit-alerts.yaml.disabled`.
   Preserves LogQL queries for future Loki Ruler enablement.
 
-- [ ] 5.5.0.6 Delete orphan `manifests/monitoring/dashboards/ups-monitoring.json`
+- [x] 5.5.0.6 Delete orphan `manifests/monitoring/dashboards/ups-monitoring.json`
   Raw JSON duplicate of `ups-dashboard-configmap.yaml`. Not deployed. Safe to delete.
 
-- [ ] 5.5.0.7 Verify all fixes
+- [x] 5.5.0.7 Verify all fixes
   After applying A0.1-A0.4, verify each alert expression returns data in Prometheus UI.
   Confirm no alerts broke by checking Alertmanager for unexpected firings.
 
