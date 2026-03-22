@@ -1,0 +1,343 @@
+# Grafana Dashboard - cert-manager Certificate Health
+# Phase 5.5: Certificate lifecycle, renewal status, webhook health
+# Auto-provisioned via grafana_dashboard label
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cert-manager-dashboard
+  namespace: monitoring
+  annotations:
+    grafana_folder: "Homelab"
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus-stack
+data:
+  cert-manager.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "title": "Certificate Status",
+          "description": "Overview of certificate readiness and expiry across all namespaces. Alerts fire when certificates are not ready or nearing expiry.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] },
+              "noValue": "0"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+          "id": 2,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Number of certificates in Ready state. Should match total certificate count.",
+          "title": "Certificates Ready",
+          "type": "stat",
+          "targets": [
+            { "expr": "count(certmanager_certificate_ready_status{condition=\"True\"} == 1)", "legendFormat": "Ready" }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] },
+              "noValue": "0"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+          "id": 3,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Certificates stuck in not-ready state. Non-zero means renewal failures.",
+          "title": "Certificates Not Ready",
+          "type": "stat",
+          "targets": [
+            { "expr": "count(certmanager_certificate_ready_status{condition=\"False\"} == 1) or vector(0)", "legendFormat": "Not Ready" }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "d",
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "yellow", "value": 7 }, { "color": "green", "value": 30 } ] }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+          "id": 4,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "Days until the nearest certificate expires. Let's Encrypt renews at ~30 days remaining.",
+          "title": "Days Until Next Expiry",
+          "type": "stat",
+          "targets": [
+            { "expr": "min(certmanager_certificate_expiration_timestamp_seconds - time()) / 86400", "legendFormat": "Days" }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+          "id": 5,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "ACME HTTP request rate to Let's Encrypt. Spikes indicate renewal activity.",
+          "title": "ACME Requests",
+          "type": "timeseries",
+          "targets": [
+            { "expr": "sum(rate(certmanager_http_acme_client_request_count[5m])) by (status)", "legendFormat": "{{status}}" }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "id": 10,
+          "title": "Certificate Details",
+          "description": "Per-certificate expiry timeline. Let's Encrypt issues 90-day certs and cert-manager auto-renews at ~60 days remaining.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "d",
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "yellow", "value": 7 }, { "color": "green", "value": 30 } ] },
+              "custom": {
+                "displayMode": "color-background"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "name" },
+                "properties": [ { "id": "displayName", "value": "Certificate" } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "namespace" },
+                "properties": [ { "id": "displayName", "value": "Namespace" } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Value" },
+                "properties": [
+                  { "id": "displayName", "value": "Days Until Expiry" },
+                  { "id": "unit", "value": "d" },
+                  { "id": "custom.displayMode", "value": "color-background" }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 6 },
+          "id": 11,
+          "options": {
+            "footer": { "show": false },
+            "showHeader": true,
+            "sortBy": [ { "displayName": "Days Until Expiry", "desc": false } ]
+          },
+          "description": "Days until expiry for each certificate. Let's Encrypt certs expire at 90 days, auto-renewed at ~60 days.",
+          "title": "Certificate Expiry Timeline",
+          "type": "table",
+          "targets": [
+            {
+              "expr": "(certmanager_certificate_expiration_timestamp_seconds - time()) / 86400",
+              "legendFormat": "{{name}}",
+              "instant": true,
+              "format": "table"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true, "ready": true, "issuer_group": true, "issuer_kind": true, "issuer_name": true },
+                "renameByName": {}
+              }
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+          "id": 20,
+          "title": "Pod Status",
+          "description": "Health of cert-manager controller, cainjector, and webhook pods. All three must be running for cert-manager to function correctly.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] },
+              "noValue": "DOWN"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 8, "x": 0, "y": 15 },
+          "id": 21,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "cert-manager controller pod status per node. The controller handles Certificate and CertificateRequest reconciliation and communicates with ACME issuers.",
+          "title": "cert-manager Controller",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "label_replace(kube_pod_info{namespace=\"cert-manager\", pod=~\"cert-manager-[^c][^a][^i].*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "legendFormat": "{{short_node}}",
+              "instant": true
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] },
+              "noValue": "DOWN"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 8, "x": 8, "y": 15 },
+          "id": 22,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "cert-manager cainjector pod status per node. Injects CA bundles into webhook configurations and CRDs to establish trusted TLS between the API server and webhooks.",
+          "title": "cert-manager Cainjector",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "label_replace(kube_pod_info{namespace=\"cert-manager\", pod=~\"cert-manager-cainjector.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "legendFormat": "{{short_node}}",
+              "instant": true
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] },
+              "noValue": "DOWN"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 8, "x": 16, "y": 15 },
+          "id": 23,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "cert-manager webhook pod status per node. Validates and mutates Certificate and Issuer resources via Kubernetes admission webhooks.",
+          "title": "cert-manager Webhook",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "label_replace(kube_pod_info{namespace=\"cert-manager\", pod=~\"cert-manager-webhook.*\"}, \"short_node\", \"cp$1\", \"node\", \"k8s-cp(.*)\")",
+              "legendFormat": "{{short_node}}",
+              "instant": true
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
+          "id": 30,
+          "title": "Resource Usage",
+          "description": "CPU and memory consumption for cert-manager controller, cainjector, and webhook. Usage is typically very low except during bulk certificate renewals.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+          "id": 31,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "CPU cores used by cert-manager components. Typically very low (<0.01 cores) except during bulk renewals.",
+          "title": "CPU Usage",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"cert-manager\", container=~\"cert-manager|cert-manager-cainjector|cert-manager-webhook\"}[5m]))",
+              "legendFormat": "{{container}}"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+          "id": 32,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Memory usage by cert-manager components. Controller and cainjector typically use 30-60MB each.",
+          "title": "Memory Usage",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"cert-manager\", container=~\"cert-manager|cert-manager-cainjector|cert-manager-webhook\"})",
+              "legendFormat": "{{container}}"
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": [
+        "cert-manager",
+        "certificates",
+        "tls",
+        "infrastructure"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "Asia/Manila",
+      "title": "cert-manager",
+      "uid": "cert-manager",
+      "version": 1
+    }

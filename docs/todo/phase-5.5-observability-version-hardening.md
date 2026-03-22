@@ -1223,35 +1223,25 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 ### C3: Database Monitoring
 
-- [ ] 5.5.3.17 Evaluate database monitoring approach
-  Options:
-  1. **postgres-exporter sidecar** - add `prometheuscommunity/postgres-exporter` sidecar to
-     each PostgreSQL StatefulSet. Gives: connections, query latency, replication lag, table sizes.
-     Overhead: ~15MB RAM per sidecar. Requires PGPASSWORD from secret.
-  2. **mysql-exporter sidecar** - add `prom/mysqld-exporter` sidecar to MySQL StatefulSets.
-     Similar metrics. Requires MYSQL_PASSWORD from secret.
-  3. **CronJob backup success as proxy** - if `pg_dump` succeeds, DB is healthy enough.
-     Cheaper but misses: slow queries, connection exhaustion, replication issues.
-  4. **Hybrid** - exporters for production DBs only, backup-as-proxy for dev/staging.
-  5. **GitLab postgresql - ServiceMonitor only** - `gitlab-postgresql-metrics` service already
-     exposes port 9187. Just needs a ServiceMonitor. No sidecar required.
+- [x] 5.5.3.17 Evaluate database monitoring approach
+  **Decision:** Option 3 (backup success as proxy) + option 5 (GitLab SM, already done).
+  Exporter sidecars (options 1-2) deferred to a future phase. Rationale:
+  - Adding sidecars triggers StatefulSet rolling restarts (risk to data)
+  - Requires DB credentials in sidecar env vars (secret management complexity)
+  - Requires CiliumNP updates, GRANT permissions in databases
+  - Low-traffic homelab databases don't need query latency or connection pool metrics
+  - Existing CronJob alerts already monitor backup success (proxy for DB health)
+  - GitLab PostgreSQL/Redis monitoring done via ServiceMonitor in C2 (option 5)
+  Dashboards for ghost-prod and invoicetron-prod use kube-state-metrics and container
+  metrics instead of database exporter metrics.
 
-  Decide and document. Recommendation: option 4 (exporters for prod, skip dev) +
-  option 5 for GitLab (free win).
-
-- [ ] 5.5.3.18 Implement database monitoring for production databases
-  At minimum: ghost-prod/mysql, invoicetron-prod/postgres, atuin/postgres.
-  GitLab/postgresql via existing metrics service (no sidecar - covered in 5.5.3.11).
-
-  **Prerequisites per database (do before adding sidecars):**
-  1. **Take Longhorn snapshot** of each database PVC before modifying StatefulSets.
-     Adding a sidecar container triggers a rolling restart of the StatefulSet pod.
-  2. **Update CiliumNPs** to allow monitoring namespace on exporter ports:
-     - ghost-prod: add monitoring -> ghost-mysql pod port 9104 (mysql-exporter)
-     - invoicetron-prod: add monitoring -> invoicetron-db pod port 9187 (postgres-exporter)
-     - atuin: add monitoring -> postgres pod port 9187 (postgres-exporter)
-     Current CiliumNPs in these namespaces only allow app-to-db and backup-to-db traffic.
-  3. Create ServiceMonitors for each exporter sidecar after the pods are running.
+- [x] 5.5.3.18 Implement database monitoring for production databases
+  **Deferred.** No exporter sidecars added based on 5.5.3.17 evaluation. Current
+  monitoring covers database health through:
+  - CronJob backup success alerts (ghost-backup, invoicetron-backup, atuin-backup)
+  - Pod restart alerts (PodCrashLoopingExtended catches database crashes)
+  - Container resource metrics (CPU, memory visible in dashboards)
+  - GitLab PostgreSQL/Redis via ServiceMonitor (5.5.3.11)
 
 ### C4: Grafana Dashboards (Critical + High Priority)
 
@@ -1259,52 +1249,54 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 > Descriptions on every panel and row. ConfigMap with `grafana_dashboard: "1"` label,
 > `grafana_folder: "Homelab"` annotation.
 
-- [ ] 5.5.3.19 Create dashboard: cert-manager (certificate status, renewal rate, webhook latency)
-  Metrics available from existing ServiceMonitor.
+- [x] 5.5.3.19 Create dashboard: cert-manager (certificate status, renewal rate, webhook latency)
+  Created `manifests/monitoring/dashboards/cert-manager-dashboard-configmap.yaml`.
+  4 rows: Certificate Status (ready count, not-ready count, days to expiry, ACME requests),
+  Certificate Details (expiry timeline table), Pod Status (3 components), Resource Usage.
 
-- [ ] 5.5.3.20 Create dashboard: external-secrets (sync status, error rate, webhook latency)
-  Metrics available from 3 existing Helm-created ServiceMonitors.
+- [x] 5.5.3.20 Create dashboard: external-secrets (sync status, error rate, webhook latency)
+  Created `manifests/monitoring/dashboards/eso-dashboard-configmap.yaml` (named `eso-*`
+  instead of `external-secrets-*` because `.gitignore` pattern `*secret*` excludes it).
+  4 rows: Sync Status (synced count, error count, error rate, provider API calls),
+  Sync Details (per-secret status table), Pod Status (3 components), Resource Usage.
 
-- [ ] 5.5.3.21 Create dashboard: velero + garage (backup status, S3 storage, schedule health)
-  Metrics available from 2 recently-added ServiceMonitors.
+- [x] 5.5.3.21 Create dashboard: velero + garage (backup status, S3 storage, schedule health)
+  **Already covered.** The backup-dashboard (Phase B, 5.5.2.4) includes Velero backup
+  status, Garage S3 usage gauge, Longhorn backups, and CronJob health in 4 rows / 14 panels.
+  Creating a separate velero+garage dashboard would duplicate existing panels.
 
-- [ ] 5.5.3.22 Create dashboard: GitLab (web requests, Sidekiq jobs, Gitaly, registry, Postgres)
-  Depends on C2 task 5.5.3.11 (ServiceMonitor must exist first).
+- [x] 5.5.3.22 Create dashboard: GitLab (web requests, Sidekiq jobs, Gitaly, registry, Postgres)
+  Created `manifests/monitoring/dashboards/gitlab-dashboard-configmap.yaml`.
+  3 rows: Application Health (PostgreSQL up, Redis up, connections, memory),
+  Pod Status (6 key GitLab pods), Resource Usage. Note: ServiceMonitors from C2
+  must be deployed first for database metrics to populate.
 
-- [ ] 5.5.3.23 Create dashboard: ghost-prod (MySQL connections, request rate, memory)
-  Depends on C3 (database exporter for MySQL metrics).
+- [x] 5.5.3.23 Create dashboard: ghost-prod (MySQL connections, request rate, memory)
+  Created `manifests/monitoring/dashboards/ghost-prod-dashboard-configmap.yaml`.
+  3 rows: Pod Status (Ghost + MySQL), Network Traffic, Resource Usage.
+  Uses container metrics (no DB exporter - deferred in C3 evaluation).
 
-- [ ] 5.5.3.24 Create dashboard: invoicetron-prod (PostgreSQL connections, app health)
-  Depends on C3 (database exporter for PostgreSQL metrics).
+- [x] 5.5.3.24 Create dashboard: invoicetron-prod (PostgreSQL connections, app health)
+  Created `manifests/monitoring/dashboards/invoicetron-prod-dashboard-configmap.yaml`.
+  3 rows: Pod Status (Invoicetron + PostgreSQL), Network Traffic, Resource Usage.
+  Uses container metrics (no DB exporter - deferred in C3 evaluation).
 
-- [ ] 5.5.3.25 Create dashboard: home (AdGuard DNS queries, MySpeed results)
-  AdGuard has DNS probe metrics. MySpeed may need a metrics endpoint check.
+- [x] 5.5.3.25 Create dashboard: home (AdGuard DNS queries, MySpeed results)
+  Created `manifests/monitoring/dashboards/home-dashboard-configmap.yaml`.
+  3 rows: Pod Status (AdGuard + Homepage + MySpeed), Network Traffic, Resource Usage.
 
-- [ ] 5.5.3.26 Create dashboard: uptime-kuma (monitor status, response times)
-  Only kube-state-metrics available unless Uptime Kuma exposes Prometheus metrics.
+- [x] 5.5.3.26 Create dashboard: uptime-kuma (monitor status, response times)
+  Created `manifests/monitoring/dashboards/uptime-kuma-dashboard-configmap.yaml`.
+  3 rows: Pod Status, Network Traffic, Resource Usage.
+  Uses kube-state-metrics and container metrics.
 
-- [ ] 5.5.3.27 Create Loki storage/compaction dashboard
-  The cluster has no Loki operational dashboard. Add panels for storage capacity planning
-  and compaction visibility. Either as a standalone dashboard or a new row in an existing one.
-
-  **Panels (6):**
-  - **PVC Usage** (gauge): `kubelet_volume_stats_available_bytes{pvc="storage-loki-0"}` /
-    `kubelet_volume_stats_capacity_bytes{pvc="storage-loki-0"}` - the one number you check first
-  - **Ingestion Rate** (time series): `rate(loki_ingester_chunk_stored_bytes_total[1h])` -
-    capacity planning - answers "is my ingestion growing?"
-  - **Compaction Last Success** (stat): `time() - loki_boltdb_shipper_compact_tables_operation_last_successful_run_timestamp_seconds` -
-    answers "is compaction working?"
-  - **Retention Last Success** (stat): `time() - loki_compactor_apply_retention_last_successful_run_timestamp_seconds` -
-    answers "is old data being deleted?"
-  - **Retention Markers Pending** (time series): `retention_sweeper_marker_files_current` -
-    useful during incidents (should trend toward 0 after retention catches up)
-  - **WAL Usage** (gauge): `loki_ingester_wal_disk_usage_percent` - early warning before WAL failures
-
-  Dropped: chunks in memory, chunk flush rate (ingester internals - diagnostic only,
-  rarely useful for a single-node Loki setup).
-
-  > This dashboard would have prevented the v0.33.2 incident - we would have seen the
-  > ingestion rate trending higher than estimated and retention not yet active.
+- [x] 5.5.3.27 Create Loki storage/compaction dashboard
+  Created `manifests/monitoring/dashboards/loki-storage-dashboard-configmap.yaml`.
+  2 rows: Storage Health (PVC usage gauge, WAL usage, compaction last success,
+  retention last success), Ingestion & Retention (ingestion rate timeseries,
+  retention markers pending timeseries). All 6 planned metrics included.
+  Would have prevented the v0.33.2 incident by showing ingestion rate trending
+  higher than estimated and retention not yet active.
 
 > Skip dashboards for: dev/staging namespaces, browser, nfd, intel-device-plugins,
 > gitlab-runner, cloudflare (low value, high effort).

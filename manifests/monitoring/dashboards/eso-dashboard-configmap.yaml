@@ -1,0 +1,471 @@
+# Grafana Dashboard - External Secrets Operator
+# Phase 5.5: ESO sync health, provider connectivity, webhook status
+# Auto-provisioned via grafana_dashboard label
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eso-dashboard
+  namespace: monitoring
+  annotations:
+    grafana_folder: "Homelab"
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus-stack
+data:
+  eso.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "title": "Sync Status",
+          "description": "ExternalSecret reconciliation health across all namespaces. All 30 secrets should be in SecretSynced=True state. Errors here mean Vault connectivity or path issues.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+          "id": 2,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          },
+          "description": "ExternalSecrets in SecretSynced=True state. Should match total ExternalSecret count (30).",
+          "title": "Secrets Synced",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "count(externalsecret_status_condition{condition=\"SecretSynced\", status=\"True\"} == 1)",
+              "legendFormat": "Synced"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+          "id": 3,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          },
+          "description": "ExternalSecrets stuck in not-synced state. Non-zero means Vault connectivity or path issues.",
+          "title": "Sync Errors",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "count(externalsecret_status_condition{condition=\"SecretSynced\", status=\"False\"} == 1) or vector(0)",
+              "legendFormat": "Errors"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+          "id": 4,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Rate of failed sync attempts. Transient spikes during Vault restarts are normal.",
+          "title": "Sync Error Rate",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(externalsecret_sync_calls_error[5m]))",
+              "legendFormat": "errors/s"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+          "id": 5,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "API call rate to Vault secret provider. Increases during secret rotations or ESO restarts.",
+          "title": "Provider API Calls",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(externalsecret_provider_api_calls_count[5m]))",
+              "legendFormat": "calls/s"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "id": 10,
+          "title": "Sync Details",
+          "description": "Per-ExternalSecret sync status table. Filter by status=True/False to quickly find broken syncs. All entries should show status=True in steady state.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "left",
+                "displayMode": "auto"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Status" },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      { "options": { "True": { "color": "green", "text": "Synced" } }, "type": "value" },
+                      { "options": { "False": { "color": "red", "text": "Error" } }, "type": "value" }
+                    ]
+                  },
+                  { "id": "custom.displayMode", "value": "color-background" }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 6 },
+          "id": 11,
+          "options": {
+            "showHeader": true,
+            "sortBy": [{ "desc": false, "displayName": "Name" }]
+          },
+          "description": "Per-ExternalSecret sync status. Filter by status=True/False to find broken syncs.",
+          "title": "Sync Status by Secret",
+          "type": "table",
+          "targets": [
+            {
+              "expr": "externalsecret_status_condition{condition=\"SecretSynced\"}",
+              "legendFormat": "",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "labelsToFields",
+              "options": { "mode": "columns" }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "condition": true,
+                  "__name__": true
+                },
+                "renameByName": {
+                  "name": "Name",
+                  "namespace": "Namespace",
+                  "status": "Status",
+                  "Value": "Value"
+                },
+                "indexByName": {
+                  "namespace": 0,
+                  "name": 1,
+                  "status": 2,
+                  "Value": 3
+                }
+              }
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+          "id": 20,
+          "title": "Pod Status",
+          "description": "Health of the three ESO components: controller (reconciles ExternalSecrets), cert-controller (manages webhook TLS), and webhook (validates CRD changes).",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "options": {
+                    "0": { "color": "red", "text": "DOWN" },
+                    "1": { "color": "green", "text": "UP" }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 8, "x": 0, "y": 15 },
+          "id": 21,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          },
+          "description": "ESO controller pod. Watches ExternalSecret CRDs and reconciles K8s Secrets from Vault. Core component - must be UP for any sync to occur.",
+          "title": "Controller",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "kube_pod_status_ready{namespace=\"external-secrets\", pod=~\"external-secrets-[a-f0-9].*\"}",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "options": {
+                    "0": { "color": "red", "text": "DOWN" },
+                    "1": { "color": "green", "text": "UP" }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 8, "x": 8, "y": 15 },
+          "id": 22,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          },
+          "description": "ESO cert-controller pod. Rotates TLS certificates for the admission webhook. Down = webhook cert may expire.",
+          "title": "Cert Controller",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "kube_pod_status_ready{namespace=\"external-secrets\", pod=~\"external-secrets-cert-controller.*\"}",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "options": {
+                    "0": { "color": "red", "text": "DOWN" },
+                    "1": { "color": "green", "text": "UP" }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 8, "x": 16, "y": 15 },
+          "id": 23,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "textMode": "auto"
+          },
+          "description": "ESO webhook pod. Validates ExternalSecret and SecretStore CRD changes via admission webhook. Down = CRD mutations will be rejected.",
+          "title": "Webhook",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "kube_pod_status_ready{namespace=\"external-secrets\", pod=~\"external-secrets-webhook.*\"}",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
+          "id": 30,
+          "title": "Resource Usage",
+          "description": "CPU and memory consumption by ESO pods. Controller uses most CPU during sync cycles. Dashed lines show resource requests and limits.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+          "id": 31,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "CPU usage by ESO pods. Controller uses most CPU during sync cycles.",
+          "title": "CPU Usage",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"external-secrets\", container!=\"\"}[5m]))",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+          "id": 32,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Memory usage by ESO pods. Controller typically uses 30-50MB.",
+          "title": "Memory Usage",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"external-secrets\", container!=\"\"})",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": [
+        "external-secrets",
+        "vault",
+        "secrets-management",
+        "infrastructure"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "Asia/Manila",
+      "title": "External Secrets",
+      "uid": "external-secrets",
+      "version": 1
+    }
