@@ -1,8 +1,8 @@
 # version-checker PrometheusRule
 # Alerts for outdated container images, Kubernetes version, and service health
 #
-# ContainerImageOutdated: fires after 7 days outdated (severity: warning)
-# KubernetesVersionOutdated: fires after 14 days (severity: info — K8s upgrades need planning)
+# VersionCheckerImageOutdated: fires after 7 days outdated (severity: warning)
+# VersionCheckerKubeOutdated: fires after 14 days (severity: info — K8s upgrades need planning)
 # VersionCheckerDown: fires after 15 minutes (severity: warning)
 #
 # CKA topics: PrometheusRule, alerting thresholds

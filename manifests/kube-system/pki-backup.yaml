@@ -15,6 +15,8 @@ spec:
         metadata:
           labels:
             app: pki-backup
+          annotations:
+            match-regex.version-checker.io/backup: "^\\d+\\.\\d+(\\.\\d+)?$"
         spec:
           nodeSelector:
             node-role.kubernetes.io/control-plane: ""

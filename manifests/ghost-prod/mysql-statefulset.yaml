@@ -25,6 +25,8 @@ spec:
     metadata:
       labels:
         app: ghost-mysql
+      annotations:
+        pin-major.version-checker.io/mysql: "8"
     spec:
       automountServiceAccountToken: false
       securityContext:

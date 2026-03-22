@@ -54,6 +54,8 @@ spec:
     metadata:
       labels:
         app: jellyfin
+      annotations:
+        match-regex.version-checker.io/jellyfin: "^\\d+\\.\\d+\\.\\d+$"
     spec:
       automountServiceAccountToken: false
       securityContext:

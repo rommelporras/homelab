@@ -17,31 +17,49 @@ data:
     #!/bin/sh
     set -e
 
-    # Run Nova for Helm chart drift
+    PROM_URL="http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090"
+    TODAY=$(date +%Y-%m-%d)
+
+    # ── Helm Chart Drift (Nova) ──────────────────────────────────
     NOVA_OUTPUT=$(/shared/nova find --helm --format=json 2>/dev/null || echo '[]')
 
-    # Count results
     OUTDATED_COUNT=$(echo "$NOVA_OUTPUT" | jq '[.[] | select(.outdated == true)] | length')
     DEPRECATED_COUNT=$(echo "$NOVA_OUTPUT" | jq '[.[] | select(.deprecated == true)] | length')
     CURRENT_COUNT=$(echo "$NOVA_OUTPUT" | jq '[.[] | select(.outdated == false and .deprecated == false)] | length')
-    TODAY=$(date +%Y-%m-%d)
 
-    # Build Discord embed fields for outdated charts
     OUTDATED_FIELDS=$(echo "$NOVA_OUTPUT" | jq -r '
       [.[] | select(.outdated == true) |
-        {"name": .release, "value": (.Installed.version + " → " + .Latest.version), "inline": true}
+        {"name": .release, "value": (.Installed.version + " -> " + .Latest.version), "inline": true}
       ]')
 
-    # Build Discord embed fields for deprecated charts
     DEPRECATED_FIELDS=$(echo "$NOVA_OUTPUT" | jq -r '
       [.[] | select(.deprecated == true) |
         {"name": .release, "value": ("Deprecated since " + .Installed.version), "inline": true}
       ]')
 
-    # Build the embeds array
+    # ── Container Image Drift (version-checker via Prometheus) ───
+    # Query Prometheus for outdated container images (deduplicated by image)
+    IMAGE_DRIFT=$(curl -sf "${PROM_URL}/api/v1/query?query=version_checker_is_latest_version%7Bcontainer_type%3D%22container%22%7D%3D%3D0" 2>/dev/null \
+      | jq -r '[.data.result[] | {
+          image: .metric.image,
+          current: .metric.current_version,
+          latest: .metric.latest_version
+        }] | unique_by(.image + .current) | sort_by(.image)' 2>/dev/null \
+      || echo '[]')
+
+    IMAGE_COUNT=$(echo "$IMAGE_DRIFT" | jq 'length')
+
+    # Build image drift fields (max 25 for Discord embed limit)
+    IMAGE_FIELDS=$(echo "$IMAGE_DRIFT" | jq '[.[:25] | .[] |
+      {
+        "name": (.image | split("/") | last),
+        "value": (.current + " -> " + .latest),
+        "inline": true
+      }]')
+
+    # ── Build Embeds ─────────────────────────────────────────────
     EMBEDS="[]"
 
-    # Add outdated embed if any
     if [ "$OUTDATED_COUNT" -gt 0 ]; then
       OUTDATED_EMBED=$(jq -n \
         --argjson fields "$OUTDATED_FIELDS" \
@@ -54,7 +72,6 @@ data:
       EMBEDS=$(echo "$EMBEDS" | jq --argjson embed "$OUTDATED_EMBED" '. + [$embed]')
     fi
 
-    # Add deprecated embed if any
     if [ "$DEPRECATED_COUNT" -gt 0 ]; then
       DEPRECATED_EMBED=$(jq -n \
         --argjson fields "$DEPRECATED_FIELDS" \
@@ -67,38 +84,55 @@ data:
       EMBEDS=$(echo "$EMBEDS" | jq --argjson embed "$DEPRECATED_EMBED" '. + [$embed]')
     fi
 
-    # Summary color: green if all current, yellow if any outdated/deprecated
-    if [ "$OUTDATED_COUNT" -eq 0 ] && [ "$DEPRECATED_COUNT" -eq 0 ]; then
+    if [ "$IMAGE_COUNT" -gt 0 ]; then
+      IMAGE_DESC="$IMAGE_COUNT image(s) behind latest upstream version."
+      if [ "$IMAGE_COUNT" -gt 25 ]; then
+        IMAGE_DESC="$IMAGE_DESC (showing 25 of $IMAGE_COUNT)"
+      fi
+      IMAGE_EMBED=$(jq -n \
+        --arg desc "$IMAGE_DESC" \
+        --argjson fields "$IMAGE_FIELDS" \
+        '{
+          "title": "Outdated Container Images",
+          "description": $desc,
+          "color": 16750848,
+          "fields": $fields
+        }')
+      EMBEDS=$(echo "$EMBEDS" | jq --argjson embed "$IMAGE_EMBED" '. + [$embed]')
+    fi
+
+    # Summary color: green if all current, yellow if any drift
+    TOTAL_DRIFT=$((OUTDATED_COUNT + DEPRECATED_COUNT + IMAGE_COUNT))
+    if [ "$TOTAL_DRIFT" -eq 0 ]; then
       SUMMARY_COLOR=5763719
     else
       SUMMARY_COLOR=16705372
     fi
 
-    # Add summary embed
     SUMMARY_EMBED=$(jq -n \
       --arg date "$TODAY" \
-      --argjson outdated "$OUTDATED_COUNT" \
-      --argjson deprecated "$DEPRECATED_COUNT" \
-      --argjson current "$CURRENT_COUNT" \
+      --argjson helm_outdated "$OUTDATED_COUNT" \
+      --argjson helm_deprecated "$DEPRECATED_COUNT" \
+      --argjson helm_current "$CURRENT_COUNT" \
+      --argjson images "$IMAGE_COUNT" \
       --argjson color "$SUMMARY_COLOR" \
       '{
         "title": "Homelab Version Digest",
-        "description": ($date + " | " + ($outdated|tostring) + " outdated, " + ($deprecated|tostring) + " deprecated, " + ($current|tostring) + " current\nUpgrade runbook: docs/context/Upgrades.md"),
+        "description": ($date + "\nHelm: " + ($helm_outdated|tostring) + " outdated, " + ($helm_deprecated|tostring) + " deprecated, " + ($helm_current|tostring) + " current\nImages: " + ($images|tostring) + " outdated\nUpgrade runbook: docs/context/Upgrades.md"),
         "color": $color
       }')
     EMBEDS=$(echo "$EMBEDS" | jq --argjson embed "$SUMMARY_EMBED" '. + [$embed]')
 
-    # Build final payload
+    # ── Send to Discord ──────────────────────────────────────────
     PAYLOAD=$(jq -n --argjson embeds "$EMBEDS" '{"embeds": $embeds}')
 
-    # Send to Discord
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$DISCORD_WEBHOOK_URL" \
       -H "Content-Type: application/json" \
       -d "$PAYLOAD")
 
     if [ "$HTTP_CODE" -eq 204 ] || [ "$HTTP_CODE" -eq 200 ]; then
       echo "Discord notification sent successfully (HTTP $HTTP_CODE)"
-      echo "Summary: $OUTDATED_COUNT outdated, $DEPRECATED_COUNT deprecated, $CURRENT_COUNT current"
+      echo "Summary: Helm=$OUTDATED_COUNT outdated/$DEPRECATED_COUNT deprecated/$CURRENT_COUNT current, Images=$IMAGE_COUNT outdated"
     else
       echo "Failed to send Discord notification (HTTP $HTTP_CODE)" >&2
       exit 1

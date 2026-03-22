@@ -12,6 +12,9 @@
     "managerFilePatterns": ["/^manifests/.+\\.ya?ml$/"]
   },
   "ignorePaths": ["ansible/**", "docs/**", "scripts/**"],
+  "helm-values": {
+    "fileMatch": ["helm/.+/values\\.yaml$"]
+  },
   "packageRules": [
     {
       "description": "Major bumps: separate PR, never automerge, needs manual review",
@@ -30,10 +33,17 @@
       "schedule": ["before 6am on sunday"]
     },
     {
-      "description": "Group all linuxserver.io images together",
+      "description": "Group all linuxserver.io images, filter out date-based tags",
       "matchDatasources": ["docker"],
       "matchPackagePrefixes": ["lscr.io/linuxserver/"],
-      "groupName": "linuxserver.io images"
+      "groupName": "linuxserver.io images",
+      "allowedVersions": "/^\\d+\\.\\d+\\.\\d+/"
+    },
+    {
+      "description": "Pin MySQL to major 8 (9.x requires migration)",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["mysql"],
+      "allowedVersions": "< 9.0.0"
     },
     {
       "description": "Never automerge critical infrastructure (any update type)",

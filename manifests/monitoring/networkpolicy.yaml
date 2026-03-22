@@ -413,6 +413,7 @@ spec:
 # Weekly Nova + Discord digest. Needs:
 #   - External HTTPS (Helm repos for Nova, Discord webhook)
 #   - kube-apiserver (Nova reads Helm release secrets cluster-wide)
+#   - Prometheus API (queries version_checker metrics for image drift)
 # ============================================================
 ---
 apiVersion: cilium.io/v2
@@ -442,6 +443,14 @@ spec:
       toPorts:
         - ports:
             - port: "6443"
+              protocol: TCP
+    # Prometheus API (query version-checker metrics for image drift digest)
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "9090"
               protocol: TCP
 
 # ============================================================
@@ -485,6 +494,30 @@ spec:
       toPorts:
         - ports:
             - port: "10250"
+              protocol: TCP
+
+# ============================================================
+# Webhook certgen job (pre-upgrade hook for kube-prometheus-stack)
+# Creates TLS certs for the operator's admission webhook.
+# Short-lived job that needs API server access to create/update secrets.
+# Label: app=kube-prometheus-stack-admission-create (from Helm chart)
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: webhook-certgen-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: prometheus-operator-webhook
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
               protocol: TCP
 
 # ============================================================

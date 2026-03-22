@@ -91,6 +91,12 @@ grafana:
     existingSecret: monitoring-grafana-admin
     passwordKey: admin-password
 
+  # version-checker annotations - filter false positive tags
+  podAnnotations:
+    match-regex.version-checker.io/grafana: "^\\d+\\.\\d+\\.\\d+$"
+    pin-major.version-checker.io/grafana-sc-dashboard: "2"
+    pin-major.version-checker.io/grafana-sc-datasources: "2"
+
   # Persistence - dashboards survive pod restarts
   persistence:
     enabled: true

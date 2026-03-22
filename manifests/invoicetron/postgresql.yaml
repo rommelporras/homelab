@@ -31,7 +31,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: postgresql
-        image: postgres:18-alpine
+        image: postgres:18.3-alpine
         ports:
         - containerPort: 5432
         env:

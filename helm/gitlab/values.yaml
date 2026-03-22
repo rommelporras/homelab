@@ -110,6 +110,8 @@ gitlab-runner:
 postgresql:
   install: true
   primary:
+    podAnnotations:
+      pin-major.version-checker.io/postgresql: "16"
     persistence:
       storageClass: longhorn
       size: 15Gi
@@ -134,6 +136,8 @@ redis:
   install: true
   architecture: standalone
   master:
+    podAnnotations:
+      pin-major.version-checker.io/redis: "7"
     persistence:
       storageClass: longhorn
       size: 5Gi
