@@ -34,39 +34,64 @@ immich/
 
 ## Loki PVC Resize Observation
 
-**Status:** Observing - retention reduced, monitoring if PVC resize is needed
-**Priority:** Medium
+**Status:** Resolved - expanded to 20Gi, steady-state ~43%
+**Priority:** Closed
 **Added:** 2026-03-19
+**Resolved:** 2026-03-23
 
-### Context
+### History
 
-Alert `KubePersistentVolumeFillingUp` fired for `storage-loki-0` (10Gi, 86.2% used, ~4 days to full).
-Root cause: original estimate of 4MB/day was wrong - actual is ~147 MiB/day (TSDB indexes, WAL,
-compactor overhead). 90-day retention needs ~12.9 GiB, exceeding the 10Gi PVC.
+- 2026-03-19: Alert fired at 86.2% on 10Gi. Reduced retention 90->60 days, expanded 10->12Gi.
+- 2026-03-23: Alert fired again at 92.3% on 12Gi. Log volume increased after Phase 5.5
+  (more services logging). Expanded 12->20Gi. Expected steady-state: ~8.6 GiB on 20Gi (~43%).
+  Procedure: `kubectl-admin patch pvc`, delete pod for filesystem resize, `--cascade=orphan`
+  StatefulSet + helm upgrade to sync volumeClaimTemplates.
 
-### Action taken
+**When:** Closed. If alert fires again, consider Alloy drop rules to reduce log volume.
 
-- Reduced retention from 2160h (90 days) to 1440h (60 days)
-- Expanded PVC from 10Gi to 12Gi (one-way, cannot shrink back)
-- Compactor cleaning data older than 60 days (runs every 10 min, 2h delete delay)
-- Expected steady-state at 60 days: ~8.6 GiB on 12Gi (~72%)
+---
 
-### What to observe
+## Invoicetron CI/CD Image Tag Alignment
 
-1. Watch PVC usage over the next 3-5 days after the Helm upgrade
-2. Confirm compactor is deleting old data (check Loki logs for compactor activity)
-3. If usage stabilizes below 80% on 12Gi - close this item
-4. If usage stays above 80% - investigate log volume reduction via Alloy drop rules
-5. Note: PVC expanded 10Gi -> 12Gi (one-way, cannot shrink)
+**Status:** Deferred - requires CI/CD pipeline change
+**Priority:** Medium
+**Added:** 2026-03-23
 
-### Grafana query to monitor
+### The problem
 
-```promql
-kubelet_volume_stats_used_bytes{persistentvolumeclaim="storage-loki-0"} /
-kubelet_volume_stats_capacity_bytes{persistentvolumeclaim="storage-loki-0"} * 100
+`manifests/invoicetron/deployment.yaml` hardcodes a prod-specific image path
+(`invoicetron/prod:SHA`). CI/CD patches this per-environment via `kubectl set image`.
+When the manifest is applied directly to `invoicetron-dev` (e.g. during busybox base
+image updates), it pushes the prod image tag to the dev namespace. Combined with
+`RollingUpdate maxUnavailable:0` and ResourceQuota, this causes `KubeDeploymentRolloutStuck`.
+
+### Why portfolio doesn't have this issue
+
+Portfolio uses a generic placeholder (`portfolio:latest`) that works in any namespace.
+CI/CD patches the correct image regardless. Invoicetron uses environment-specific paths
+(`invoicetron/dev` vs `invoicetron/prod`) baked into the manifest.
+
+### Fix options
+
+1. **Align with portfolio pattern** - change manifest image to a generic placeholder
+   (`registry.k8s.rommelporras.com/0xwsh/invoicetron:latest`), update CI/CD to set the
+   correct env-specific image on each deploy
+2. **Split into per-env manifests** - `deployment-dev.yaml` and `deployment-prod.yaml`
+   with correct image paths (more files but explicit)
+3. **Keep current + gotcha** - CLAUDE.md gotcha warns against direct apply to dev
+   (current workaround, documented but error-prone)
+
+### Workaround (current)
+
+CLAUDE.md gotcha added: never apply `manifests/invoicetron/deployment.yaml` directly
+to invoicetron-dev. If accidentally applied, fix with:
+```bash
+kubectl-admin set image deployment/invoicetron \
+  invoicetron=registry.k8s.rommelporras.com/0xwsh/invoicetron/dev:<current-sha> \
+  -n invoicetron-dev
 ```
 
-**When:** Check again around 2026-03-24 (5 days after retention change).
+**When:** Next time Invoicetron CI/CD pipeline is modified or GitLab CI config is updated.
 
 ---
 

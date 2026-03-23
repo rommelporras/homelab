@@ -4,14 +4,15 @@
 
 ---
 
-## March 23, 2026 - Observability & Version Hardening (Phase 5.5)
+## March 23, 2026 - Observability & Version Hardening (v0.35.0)
 
 ### Summary
 
 Complete monitoring coverage, alert standardization, and cluster-wide version updates.
 Every service now has metrics, alerts, probes, and a Grafana dashboard. All container
 images updated to latest versions. Longhorn multipathd issue discovered and fixed during
-upgrades. 129 files changed across 9 commits (8,246 insertions, 1,266 deletions).
+upgrades. Loki PVC expanded to 20Gi. Invoicetron CI/CD image tag issue identified and
+documented. 140+ files changed across 13 commits.
 
 ### Phase A0 - Bug Fixes
 
@@ -128,6 +129,32 @@ Ordered low-to-high risk, cluster health verified between each:
 - MeiliSearch 26-version jump used `--experimental-dumpless-upgrade` (removed after first boot)
 - version-checker match-regex annotations added for postgres and python alpine suffix false positives
 - Renovate pin-major added for postgres < 19.0.0
+- Loki PVC expanded 12Gi -> 20Gi (KubePersistentVolumeFillingUp at 92.3% after Phase 5.5
+  increased log volume). Third expansion: 10Gi -> 12Gi -> 20Gi.
+
+### Bug Fixes
+
+- Invoicetron-dev rollout stuck: `manifests/invoicetron/deployment.yaml` has CI/CD-managed
+  prod image tag. Applying directly to invoicetron-dev pushed wrong image, combined with
+  RollingUpdate maxUnavailable:0 + ResourceQuota = stuck rollout. Fixed by setting correct
+  dev image tag and scale 0/1 cycle. Added CLAUDE.md gotcha to prevent recurrence.
+- VeleroBackupStale false positive: manual backups (velero-cli-*) included in staleness
+  check. Fixed alert expression to exclude manual backup names.
+
+### Phase F - Documentation
+
+- CHANGELOG entry for full Phase 5.5
+- Monitoring.md: 6 versions updated, 10 probes + 9 dashboards + 2 alert files documented
+- Storage.md: Longhorn 1.11.1, multipathd Known Issues section
+- Upgrades.md: bulk upgrade considerations (Docker Hub rate limits, alpine suffix, PVC safety)
+- Backups.md: 5 volumes moved from Excluded to backup groups
+- _Index.md: Phase 5.5 status, Cilium 1.19.1, Longhorn 1.11.1
+- README.md: 42 dashboards, 24 probes, 128 policies, Cilium 1.19.1, Vault 1.21.4
+- docs/todo/README.md: v0.34.0 released, Phase 5.4 moved to Completed
+- docs/rebuild/README.md: v0.34.0 timeline entry
+- docs/todo/deferred.md: Loki PVC observation resolved, invoicetron CI/CD alignment added
+- CLAUDE.md: Longhorn PVC Safety section, StatefulSet PVC expansion procedure,
+  multipathd/Docker Hub/version-checker/invoicetron gotchas
 
 ### Lessons Learned
 
@@ -140,6 +167,11 @@ Ordered low-to-high risk, cluster health verified between each:
   compared against `X.Y` (non-alpine). Fix: match-regex annotations.
 - **Longhorn v1.11.0 had regressions** (connection leak, webhook deadlock). Always check patch
   releases before targeting `.0` versions.
+- **StatefulSet volumeClaimTemplates are immutable.** Helm upgrade can't resize existing PVCs.
+  Procedure: patch PVC, delete pod for filesystem resize, `--cascade=orphan` + helm upgrade
+  to sync the template.
+- **CI/CD-managed image tags in shared manifests** cause rollout issues when applied to the
+  wrong namespace. Use generic placeholders (like portfolio) or per-env manifests.
 
 ---
 
