@@ -4,6 +4,145 @@
 
 ---
 
+## March 23, 2026 - Observability & Version Hardening (Phase 5.5)
+
+### Summary
+
+Complete monitoring coverage, alert standardization, and cluster-wide version updates.
+Every service now has metrics, alerts, probes, and a Grafana dashboard. All container
+images updated to latest versions. Longhorn multipathd issue discovered and fixed during
+upgrades. 129 files changed across 9 commits (8,246 insertions, 1,266 deletions).
+
+### Phase A0 - Bug Fixes
+
+- Fixed 4 broken alert expressions: ClusterJanitorFailing (wrong metric name),
+  PodStuckInInit CrashLoopBackOff (wrong waiting_reason metric), AlloyHighMemory
+  (removed cAdvisor metric), NVMe alert annotations (wrong node/pod labels)
+- Moved audit-alerts.yaml to disabled/ (LogQL rules, not deployable without Loki Ruler)
+- Deleted orphan ups-monitoring.json dashboard (superseded by ups-dashboard-configmap.yaml)
+- All 7 fixes verified against live Prometheus
+
+### Phase S - Monitoring Standardization
+
+- 11 runbook markdown files created in docs/runbooks/
+- All 96 alerts standardized with summary + description + runbook_url annotations
+- 4 alerts renamed for consistency (AdGuardDNSDown, VersionCheckerImageOutdated,
+  VersionCheckerKubeOutdated, OllamaHighMemory)
+- Discord templates updated to render runbook_url in all 3 receivers
+- All 14 Probes given `release: prometheus` label (ServiceMonitor discovery)
+- Dashboard ConfigMaps given `app.kubernetes.io/name: grafana` label
+- Group names standardized (removed `.rules` suffix)
+
+### Phase A - Alerting & Version Signal
+
+- version-checker false positives fixed: match-regex annotations for Grafana (Docker Hub
+  build numbers), Jellyfin (date-based tags), alpine (date-based releases), qBittorrent LSIO
+- Pin-major annotations: bitnamilegacy/postgresql (16), bitnamilegacy/redis (7), mysql (8),
+  kiwigrid/k8s-sidecar (2)
+- Weekly Discord digest enhanced: both Helm chart AND container image drift, release notes
+  links, patch/minor/major classification, color-coded embeds
+- Renovate config fixed: proper packageRules for LSIO grouping, MySQL pin, infrastructure
+  no-automerge, private registry skip, byparr skip
+
+### Phase B - Operations
+
+- Cluster janitor Discord messages: structured embeds with namespace, pod name, CronJob owner
+- Backup health dashboard deployed: 6 panels covering Velero, Longhorn, etcd, CronJob backups
+- Evicted pod handling verified (existing janitor cleanup covers it)
+- Old ReplicaSet cleanup evaluated (Kubernetes handles automatically, no action needed)
+
+### Phase C - Monitoring Coverage
+
+- 10 new blackbox probes (24 total): cert-manager-webhook, ESO webhook, Garage, Homepage,
+  Longhorn UI, MySpeed, Prowlarr, Radarr, Recommendarr, Sonarr
+- 9 new Grafana dashboards (23 total): backup, cert-manager, ESO, ghost-prod, GitLab, home,
+  invoicetron-prod, loki-storage, uptime-kuma
+- 2 new alert files: gitlab-alerts.yaml, home-alerts.yaml
+- GitLab ServiceMonitors: gitlab-exporter, postgresql-metrics, redis-metrics
+- Loki compaction/retention alerts: LokiCompactionStalled, LokiRetentionNotRunning, LokiWALDiskFull
+- CiliumNPs updated for homepage, myspeed, cert-manager webhook, ESO webhook (probe access)
+- Dashboard quality fixes: arr-stack resource limit lines, panel descriptions on all rows
+
+### Phase D - Infrastructure Version Updates
+
+Ordered low-to-high risk, cluster health verified between each:
+
+| Component | Old | New | Notes |
+|-----------|-----|-----|-------|
+| Vault | 1.21.2 | 1.21.4 | OnDelete strategy - pod delete to trigger |
+| Loki | 6.49.0 | 6.55.0 | OCI chart upgrade |
+| OTel Collector | 0.144.0 | 0.147.0 | Manifest image bump |
+| Intel GPU Plugin | 0.34.1 | 0.35.0 | cert-manager webhook CiliumNP fix (remote-node) |
+| cloudflared | 2026.1.1 | 2026.3.0 | Manifest image bump |
+| kube-prometheus-stack | 81.0.0 | 82.13.1 | Grafana scale-down for RWO PVC, upgrade script refactored |
+| Alloy | 1.5.2 | 1.6.2 | Helm chart upgrade |
+| CoreDNS | v1.12.3 | v1.14.2 | Direct image edit (avoid kubeadm k8s bump) |
+| Longhorn | 1.10.1 | 1.11.1 | v1.11.0 skipped (connection leak + webhook deadlock regressions) |
+| Cilium | 1.18.6 | 1.19.1 | CiliumLoadBalancerIPPool v2alpha1->v2, upgradeCompatibility flag |
+
+- cert-manager webhook CiliumNP: added remote-node entity (cross-node API server traffic)
+- CiliumL2AnnouncementPolicy stays v2alpha1 (no v2 CRD yet in Cilium 1.19.1)
+- upgrade-prometheus.sh refactored: CHART_VERSION and CHART_OCI variables (no hardcoded strings)
+
+### Phase D+ - Longhorn multipathd Fix & Backup Audit
+
+- **Root cause:** multipathd on all 3 nodes claims Longhorn iSCSI devices as "in use" from
+  the CSI plugin's mount namespace. Latent since January, exposed by v1.11.1 upgrade when
+  new volumes needed fresh mount cycles. Known issue: longhorn/longhorn#11411
+- **Fix:** blacklisted `^sd[a-z0-9]+` in /etc/multipath.conf on all 3 nodes
+- **ghost-dev content PVC lost** during debugging (deleted to "fix" mount error - wrong approach).
+  Volume and replicas gone, no Longhorn backup existed. Content recovered from ghost-prod
+  via kubectl cp (2GB images + themes). MySQL data intact (separate PVC).
+- **Backup audit:** 11 volumes had no recurring Longhorn backup. 5 added:
+  velero/garage-data (critical), prometheus-db, ghost-dev/mysql, loki-storage, atuin-config (important).
+  6 intentionally skipped (ephemeral/regenerable: gitlab/redis, alertmanager, browser, ollama-models,
+  invoicetron-dev/db, ghost-dev/content replacement).
+
+### Phase E - Application Version Updates
+
+20+ app images updated, all verified running:
+
+| App | Old | New |
+|-----|-----|-----|
+| Ghost (dev+prod) | 6.14.0 | 6.22.1 |
+| Ollama | 0.15.6 | 0.18.2 |
+| MeiliSearch | v1.13.3 | v1.39.0 (dumpless upgrade) |
+| Uptime Kuma | 2.0.2-rootless | 2.2.1-rootless |
+| Traffic Analytics | 1.0.72 | 1.0.153 |
+| Configarr | 1.20.0 | 1.24.0 |
+| Seerr | v3.0.1 | v3.1.0 |
+| Tdarr | 2.58.02 | 2.64.02 |
+| Unpackerr | v0.14.5 | v0.15.2 |
+| AdGuard | v0.107.71 | v0.107.73 |
+| Homepage | v1.9.0 | v1.11.0 |
+| Karakeep | 0.30.0 | 0.31.0 |
+| nut-exporter | 3.1.1 | 3.2.5 |
+| Nova | v3.11.10 | v3.11.13 |
+| alpine/k8s | 1.35.0 | 1.35.3 (4 files, 5 refs) |
+| busybox | 1.36 | 1.37 (5 files) |
+| alpine | 3.21 | 3.23 (2 files) |
+| python | 3.12-alpine | 3.14.3-alpine |
+
+- PostgreSQL 18-alpine floating tag applied to cluster (manifests already pinned at 18.3-alpine)
+- Docker Hub rate limit hit during bulk pulls - worked around with `ctr images tag` on nodes
+- MeiliSearch 26-version jump used `--experimental-dumpless-upgrade` (removed after first boot)
+- version-checker match-regex annotations added for postgres and python alpine suffix false positives
+- Renovate pin-major added for postgres < 19.0.0
+
+### Lessons Learned
+
+- **Never delete a PVC to fix mount errors.** Diagnose root cause first (multipathd, CSI plugin,
+  stale mounts). Deleting destroys Longhorn volume + replicas permanently.
+- **multipathd config survives reboots** but can be lost on OS upgrades. Added to CLAUDE.md gotchas.
+- **Docker Hub rate limit is per-IP, not per-node.** All 3 nodes share one external IP = 100 pulls
+  total per 6 hours. Plan bulk upgrades accordingly.
+- **version-checker `-alpine` suffix** causes false positives. Images tagged `X.Y-alpine` get
+  compared against `X.Y` (non-alpine). Fix: match-regex annotations.
+- **Longhorn v1.11.0 had regressions** (connection leak, webhook deadlock). Always check patch
+  releases before targeting `.0` versions.
+
+---
+
 ## March 21, 2026 - Resilience & Backup (v0.34.0)
 
 ### Summary

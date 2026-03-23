@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.33.2 (Loki Storage Fix)
+> **Latest Release:** v0.34.0 (Resilience & Backup)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -50,6 +50,7 @@
 | v0.33.0 | Network Policies | Phase 5.3 | ✅ Released |
 | v0.33.1 | Network Policy Hotfix | - | ✅ Released |
 | v0.33.2 | Loki Storage Fix | - | ✅ Released |
+| v0.34.0 | Resilience & Backup | Phase 5.4 | ✅ Released |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 
 ---
@@ -96,12 +97,12 @@
 | 5.1 | Control Plane Hardening | [phase-5.1-control-plane-hardening.md](completed/phase-5.1-control-plane-hardening.md) |
 | 5.2 | RBAC & Secrets Hardening | [phase-5.2-rbac-and-encryption.md](completed/phase-5.2-rbac-and-encryption.md) |
 | 5.3 | Network Policies | [phase-5.3-network-policies.md](completed/phase-5.3-network-policies.md) |
+| 5.4 | Resilience & Backup | [phase-5.4-resilience-backup.md](completed/phase-5.4-resilience-backup.md) |
 
 ### Planned
 
 | Phase | Description | File |
 |-------|-------------|------|
-| 5.4 | Resilience & Backup | [phase-5.4-resilience-backup.md](phase-5.4-resilience-backup.md) |
 | 5.5 | Observability & Version Hardening | [phase-5.5-observability-version-hardening.md](phase-5.5-observability-version-hardening.md) |
 | 5.6 | Pre-GitOps Validation | [phase-5.6-pre-gitops-validation.md](phase-5.6-pre-gitops-validation.md) |
 | 6 | CKA Focused Learning | [phase-6-cka.md](phase-6-cka.md) |

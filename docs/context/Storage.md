@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, storage, longhorn, nfs]
-updated: 2026-03-21
+updated: 2026-03-23
 ---
 
 # Storage
@@ -11,7 +11,7 @@ Longhorn distributed storage and NFS integration.
 
 | Setting | Value |
 |---------|-------|
-| Version | 1.10.1 |
+| Version | 1.11.1 |
 | Namespace | longhorn-system |
 | Data path | /var/lib/longhorn |
 | Default replicas | 2 |
@@ -208,6 +208,28 @@ kubectl-homelab -n longhorn-system get volumes.longhorn.io -w
 ```
 
 **Volumes used only by CronJobs** show as detached with stopped replicas between runs - this is normal, not an error. The cluster janitor cleans these automatically.
+
+## Longhorn: Known Issues
+
+### multipathd blocks iSCSI device mounts (Ubuntu 24.04)
+
+multipathd on Ubuntu 24.04 intercepts iSCSI block devices before Longhorn can mount them. Symptoms: new volume mounts fail with `mke2fs "apparently in use by the system"`.
+
+All 3 nodes have `/etc/multipath.conf` with this blacklist:
+
+```
+blacklist {
+    devnode "^sd[a-z0-9]+"
+}
+```
+
+If the config is lost (e.g. after an OS upgrade), re-add the blacklist and restart the service:
+
+```bash
+sudo systemctl restart multipathd
+```
+
+Reference: https://github.com/longhorn/longhorn/issues/11411
 
 ## Related
 

@@ -100,7 +100,7 @@ helm-homelab repo update
 
 ## Home Services (Phase 4)
 
-> **Status:** v0.33.1 released. Network policy hotfix (LoadBalancer ingress identity fix for AdGuard DNS + GitLab SSH).
+> **Status:** Phase 5.5 in progress. All app images updated to latest versions.
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|

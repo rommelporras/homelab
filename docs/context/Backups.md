@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, backup, restic, velero, longhorn]
-updated: 2026-03-21
+updated: 2026-03-23
 ---
 
 # Backups
@@ -21,13 +21,13 @@ NFS target: `10.10.30.4:/Kubernetes/Backups/longhorn`
 | weekly-backup-important | important | 0 22 * * 6 | 06:00 Sunday | 2 |
 
 **Critical group** (14 daily + 4 weekly retain):
-vault-data, gitlab-postgresql, gitlab-gitaly, gitlab-minio, ghost-prod-mysql, ghost-prod-content, invoicetron-prod-db, karakeep-data, meilisearch-data, atuin-postgres.
+vault-data, gitlab-postgresql, gitlab-gitaly, gitlab-minio, ghost-prod-mysql, ghost-prod-content, invoicetron-prod-db, karakeep-data, meilisearch-data, atuin-postgres, velero/garage-data.
 
 **Important group** (7 daily + 2 weekly retain):
-adguard-data, myspeed-data, uptime-kuma, grafana, bazarr, jellyfin, prowlarr, qbittorrent, radarr, recommendarr, seerr, sonarr, tdarr-server, tdarr-configs.
+adguard-data, myspeed-data, uptime-kuma, grafana, bazarr, jellyfin, prowlarr, qbittorrent, radarr, recommendarr, seerr, sonarr, tdarr-server, tdarr-configs, prometheus-db, ghost-dev-mysql, loki-storage, atuin-config.
 
 **Excluded** (no Longhorn backup - intentional):
-prometheus-db, loki, alertmanager-db (ephemeral monitoring data), dev namespace PVCs, ollama-models (re-downloadable), firefox-config, atuin-config, gitlab-redis, invoicetron-backups (old PVC, pending deletion), velero/garage-data.
+alertmanager-db (ephemeral silences/state), ghost-dev-content (recoverable from prod), ollama-models (re-downloadable), firefox-config (low-value browser state), gitlab-redis (ephemeral cache), invoicetron-dev-db (dev database).
 
 ### Layer 2: Velero K8s Resource Backups
 

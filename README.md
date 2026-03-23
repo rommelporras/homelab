@@ -3,7 +3,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Status](https://img.shields.io/badge/status-Cluster%20Running-brightgreen)
 ![Kubernetes](https://img.shields.io/badge/kubernetes-v1.35-326CE5?logo=kubernetes&logoColor=white)
-![Cilium](https://img.shields.io/badge/cilium-1.18.6-F8C517?logo=cilium&logoColor=white)
+![Cilium](https://img.shields.io/badge/cilium-1.19.1-F8C517?logo=cilium&logoColor=white)
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
@@ -72,9 +72,9 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Ansible-automated bootstrap ([10 playbooks](ansible/playbooks/))
 
 **Observability**
-- Prometheus + Grafana + Loki + Alloy (full metrics, logs, 41 Grafana dashboards)
-- Alertmanager (Discord + Email, severity routing) — 63 PrometheusRules across 30 alert files
-- Blackbox probes (14 services: Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr, Atuin, Vault)
+- Prometheus + Grafana + Loki + Alloy (full metrics, logs, 42 Grafana dashboards)
+- Alertmanager (Discord + Email, severity routing) — 63 PrometheusRules across 31 alert files
+- Blackbox probes (24 services: Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr, Atuin, Vault, cert-manager-webhook, ESO webhook, Garage, Homepage, Longhorn UI, MySpeed, Prowlarr, Radarr, Recommendarr, Sonarr)
 - Dead Man's Switch (healthchecks.io), UPS monitoring (NUT + nut-exporter)
 - smartctl-exporter DaemonSet (NVMe S.M.A.R.T. health on all 3 nodes — temp, wear, spare, TBW)
 - Longhorn + cert-manager ServiceMonitors (volume robustness alerts + TLS certificate expiry alerts)
@@ -89,7 +89,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Cloudflare Tunnel (HA, 2 replicas) for public services
 - Tailscale Operator (WireGuard subnet router) for private remote access
 - AdGuard DNS as primary for all VLANs + Tailscale global nameserver
-- CiliumNetworkPolicy microsegmentation (126 policies across 24 namespaces, implicit default-deny)
+- CiliumNetworkPolicy microsegmentation (128 policies across 24 namespaces, implicit default-deny)
 
 **Applications**
 - GitLab CE (Runner, Container Registry, SSH) with CI/CD pipelines
@@ -104,7 +104,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Homepage dashboard, MySpeed, Firefox browser (KasmVNC)
 
 **Secrets Management**
-- HashiCorp Vault 1.21.2 (standalone, Raft on Longhorn, auto-unsealer, daily NFS snapshots)
+- HashiCorp Vault 1.21.4 (standalone, Raft on Longhorn, auto-unsealer, daily NFS snapshots)
 - External Secrets Operator v2.1.0 (33 ExternalSecrets, Kubernetes auth, all namespaces)
 
 ---
@@ -156,8 +156,9 @@ Things that bit us and might save you time:
 ## Next Steps
 
 1. **Network Policies** — CiliumNetworkPolicy microsegmentation complete (Phase 5.3, v0.33.0)
-2. **Resilience & Backup** — Phase 5.4 complete (pending v0.34.0 release)
-3. **CKA Certification** — September 2026 target
+2. **Resilience & Backup** — Phase 5.4 complete (v0.34.0)
+3. **Image Updates & Monitoring** — Phase 5.5 in progress
+4. **CKA Certification** — September 2026 target
 
 ## Claude Code
 

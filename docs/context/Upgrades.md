@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, upgrades, runbook]
-updated: 2026-03-11
+updated: 2026-03-23
 ---
 
 # Upgrade & Rollback Runbook
@@ -176,6 +176,33 @@ helm-homelab rollback cilium <revision> -n kube-system
 - LinuxServer.io images auto-migrate databases on startup
 - Back up the config PVC before major version bumps
 - Check TRaSH Guides for any custom format changes
+
+### Meilisearch Cross-Version Jumps
+- Large version jumps (e.g. v1.13 -> v1.39) support `--experimental-dumpless-upgrade` arg
+- Add as `args: ["--experimental-dumpless-upgrade"]` in the deployment, remove after first boot
+- Take a Longhorn snapshot before attempting - the migration is irreversible
+- May CrashLoopBackOff briefly during data migration; wait for it to stabilize
+
+## Bulk Upgrade Considerations
+
+### Docker Hub Rate Limits
+- Unauthenticated limit: 100 pulls per 6 hours per IP
+- All 3 nodes share one external IP, so the limit is cluster-wide
+- Bulk image updates (20+ in one session) can exhaust the quota
+- **Workaround:** Re-tag cached images via `sudo ctr -n k8s.io images tag <cached-tag> <new-tag>` on each node
+- Pulls succeed automatically after rate limit resets (kubelet retries with backoff)
+
+### version-checker Alpine Suffix False Positives
+- Images tagged `X.Y-alpine` get compared against `X.Y` (non-alpine), reporting outdated
+- Add `match-regex.version-checker.io/<container>` annotation to pod template
+- Example: `'^\d+\.\d+-alpine$'` for postgres, `'^\d+\.\d+\.\d+-alpine$'` for python
+- Without this, `VersionCheckerImageOutdated` alerts fire on correctly-versioned images
+
+### Longhorn PVC Safety During Upgrades
+- NEVER delete a PVC to fix mount errors - diagnose root cause first
+- Mount failures are usually node-level (multipathd, stale CSI mounts), not storage corruption
+- Always take a Longhorn snapshot before upgrading any StatefulSet or app with RWO PVC
+- Check `kubectl-homelab get nodes.longhorn.io -n longhorn-system -o yaml | grep -A 5 multipathd` if mounts fail
 
 ## Emergency Rollback
 

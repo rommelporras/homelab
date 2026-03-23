@@ -32,9 +32,9 @@ updated: 2026-03-21
 |------|-------|
 | Kubernetes | v1.35.0 |
 | Nodes | 3 control planes (k8s-cp1, cp2, cp3) |
-| CNI | Cilium 1.18.6 |
-| Storage | Longhorn 1.10.1 |
-| Status | Phase 5.4 in progress (v0.33.2 released, v0.34.0 pending) |
+| CNI | Cilium 1.19.1 |
+| Storage | Longhorn 1.11.1 |
+| Status | Phase 5.5 in progress (v0.34.0 released) |
 
 ## Source
 

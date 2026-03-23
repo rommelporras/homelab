@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-03-21
+updated: 2026-03-23
 ---
 
 # Monitoring
@@ -11,22 +11,22 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 
 | Component | Version | Namespace |
 |-----------|---------|-----------|
-| kube-prometheus-stack | 81.0.0 | monitoring |
+| kube-prometheus-stack | 82.13.1 | monitoring |
 | Prometheus | v0.88.0 | monitoring |
 | Grafana | - | monitoring |
 | Alertmanager | v0.30.1 | monitoring |
-| Loki | v3.6.3 | monitoring |
-| Alloy | v1.12.2 | monitoring |
+| Loki | v3.6.7 (chart 6.55.0) | monitoring |
+| Alloy | v1.14.0 (chart 1.6.2) | monitoring |
 | node-exporter | - | monitoring |
-| nut-exporter | 3.1.1 | monitoring |
+| nut-exporter | 3.2.5 | monitoring |
 | blackbox-exporter | v0.28.0 | monitoring |
 | smartctl-exporter | v0.14.0 | monitoring |
 | OTel Collector | v0.144.0 | monitoring |
 | version-checker | v0.10.0 | monitoring |
-| Nova CronJob | v3.11.10 | monitoring |
+| Nova CronJob | v3.11.13 | monitoring |
 | tdarr-exporter | 1.4.3 | arr-stack |
 | qbittorrent-exporter | sha-2fcca94 | arr-stack |
-| Uptime Kuma | v2.0.2 | uptime-kuma |
+| Uptime Kuma | v2.2.1 | uptime-kuma |
 
 ## Access
 
@@ -269,6 +269,16 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 | `bazarr-probe.yaml` | Bazarr | HTTP (bazarr.arr-stack.svc:6767) | 60s |
 | `vault-probe.yaml` | Vault | HTTP /v1/sys/health (vault.vault.svc:8200) | 60s |
 | `atuin-probe.yaml` | Atuin | HTTP /healthz (atuin-server.atuin.svc:8888) | 60s |
+| `cert-manager-webhook-probe.yaml` | cert-manager webhook | HTTP (cert-manager-webhook.cert-manager.svc:10250) | 60s |
+| `eso-webhook-probe.yaml` | ESO webhook | HTTP (external-secrets-webhook.external-secrets.svc:443) | 60s |
+| `garage-probe.yaml` | Garage S3 | HTTP /health (garage.velero.svc:3900) | 60s |
+| `homepage-probe.yaml` | Homepage | HTTP (homepage.home.svc:3000) | 60s |
+| `longhorn-ui-probe.yaml` | Longhorn UI | HTTP (longhorn-frontend.longhorn-system.svc:80) | 60s |
+| `myspeed-probe.yaml` | MySpeed | HTTP (myspeed.myspeed.svc:5216) | 60s |
+| `prowlarr-probe.yaml` | Prowlarr | HTTP (prowlarr.arr-stack.svc:9696) | 60s |
+| `radarr-probe.yaml` | Radarr | HTTP (radarr.arr-stack.svc:7878) | 60s |
+| `recommendarr-probe.yaml` | Recommendarr | HTTP (recommendarr.arr-stack.svc:3000) | 60s |
+| `sonarr-probe.yaml` | Sonarr | HTTP (sonarr.arr-stack.svc:8989) | 60s |
 
 **Vault probe note:** `/v1/sys/health` returns 200=active, 503=sealed. `http_2xx` treats sealed as probe failure - used by VaultSealed alert's `absent()` guard to prevent false positives when metrics are temporarily unavailable.
 
@@ -324,10 +334,12 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | `dotctl-alerts.yaml` | DotctlCollectionStale (>30min, warning), DotctlDriftDetected (>1hr, warning) | - |
 | `vault-alerts.yaml` | VaultSealed (critical, 2m), VaultMetricsMissing (warning, 15m), VaultAuditFailure (critical, 1m), VaultDown (warning, 5m), VaultHighLatency (warning, 10m), ESOSecretNotSynced (critical, 10m), ESOSyncErrors (warning, 5m), VaultSnapshotFailing (warning, 30m) | v0.29.0 |
 | `atuin-alerts.yaml` | AtuinDown, AtuinPostgresDown, AtuinHighRestarts, AtuinHighMemory | v0.28.0 |
-| `audit-alerts.yaml` | AuditSecretAccessByNonSystem, AuditPodExec, AuditRBACChange, AuditHighAuthFailureRate (LogQL - requires Loki ruler, currently deferred) | v0.31.0 |
+| `disabled/audit-alerts.yaml.disabled` | AuditSecretAccessByNonSystem, AuditPodExec, AuditRBACChange, AuditHighAuthFailureRate (LogQL - requires Loki ruler, currently deferred) | v0.31.0 |
 | `backup-alerts.yaml` | Velero backup failures, etcd backup age, CronJob failures | v0.34.0 |
 | `stuck-pod-alerts.yaml` | Pods stuck in pending/crashloop states | v0.34.0 |
 | `longhorn-alerts.yaml` | Longhorn volume all replicas stopped | v0.34.0 |
+| `gitlab-alerts.yaml` | GitLab pod health, runner connectivity | v0.35.0 |
+| `home-alerts.yaml` | Homepage pod health, HTTP probe failures | v0.35.0 |
 
 **Severity routing:**
 - `critical` → Discord #incidents + Email (3 recipients)
@@ -355,6 +367,15 @@ All dashboards are auto-provisioned via Grafana sidecar. All have `grafana_folde
 | `dotctl-dashboard-configmap.yaml` | Dotfiles Status | Machine status, drift tracking, tool inventory, collection health |
 | `vault-dashboard-configmap.yaml` | Vault + ESO | Seal status, ESO sync state, Raft storage, resource usage, snapshot health |
 | `atuin-dashboard-configmap.yaml` | Atuin Shell History | Pod status, sync activity, database size, resource usage |
+| `backup-dashboard-configmap.yaml` | Backup Status | Velero backup health, etcd backup age, schedule status |
+| `cert-manager-dashboard-configmap.yaml` | cert-manager | Certificate status, expiry, issuance rates, resource usage |
+| `eso-dashboard-configmap.yaml` | External Secrets | Sync status, error rates, secret counts, resource usage |
+| `ghost-prod-dashboard-configmap.yaml` | Ghost (Prod) | Pod status, HTTP probe, response time, resource usage |
+| `gitlab-dashboard-configmap.yaml` | GitLab | Pod status, runner health, network, resource usage |
+| `home-dashboard-configmap.yaml` | Homepage | Pod status, HTTP probe, response time, resource usage |
+| `invoicetron-prod-dashboard-configmap.yaml` | Invoicetron (Prod) | Pod status, HTTP probe, response time, resource usage |
+| `loki-storage-dashboard-configmap.yaml` | Loki Storage | Ingestion rate, chunk sizes, storage usage, query latency |
+| `uptime-kuma-dashboard-configmap.yaml` | Uptime Kuma | Pod status, HTTP probe, response time, resource usage |
 
 ### Version Checker (`manifests/monitoring/version-checker/`)
 

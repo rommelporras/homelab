@@ -43,6 +43,7 @@
 | v0.33.0 | Phase 5.3 | Network Policies (117 CiliumNetworkPolicies, 23 namespaces, implicit default-deny) | *Hardening - baked into per-namespace networkpolicy.yaml files* |
 | v0.33.1 | - | Network Policy Hotfix (CiliumNP operator ingress, Grafana sidecar, Prometheus upgrade) | *Hotfix - baked into per-namespace networkpolicy.yaml files* |
 | v0.33.2 | - | Loki Storage Fix (retention reductions, backup/pod alerts) | *Hotfix - baked into helm/loki/values.yaml and monitoring alerts* |
+| v0.34.0 | Phase 5.4 | Resilience & Backup (Velero + Garage S3, etcd CronJob, Longhorn snapshots, cluster-wide backup strategy) | *Hardening - baked into existing component guides and backup runbooks* |
 
 > **Note:** v0.30.0+ are hardening phases that modify configs on existing components rather than
 > deploying new ones. Their settings are baked into the Ansible playbooks and kubeadm config
