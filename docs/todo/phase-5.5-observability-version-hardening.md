@@ -287,8 +287,8 @@ Updated regex:
 **Renovate detected 13+ images that version-checker missed or the plan didn't name:**
   Configarr 1.20.0->1.24.0, Seerr v3.0.1->v3.1.0, Tdarr 2.58.02->2.64.02,
   Unpackerr v0.14.5->0.15.2, AdGuard v0.107.71->v0.107.73, Homepage v1.9.0->v1.11.0,
-  Karakeep 0.30.0->0.31.0, alpine/k8s 1.35.0->1.35.2, Nova v3.11.10->v3.11.13,
-  NUT exporter 3.1.1->3.2.5, Python 3.12->3.14, busybox 1.36->1.37, alpine 3.21->3.23
+  Karakeep 0.30.0->0.31.0, alpine/k8s 1.35.0->1.35.3, Nova v3.11.10->v3.11.13,
+  NUT exporter 3.1.1->3.2.5, Python 3.12->3.14.3, busybox 1.36->1.37, alpine 3.21->3.23
 
 **Renovate also flagged major bumps that need blocking:**
   - MySQL 8.4.8 -> 9.6.0 (major - same as Redis/PostgreSQL, pin-major needed)
@@ -438,9 +438,9 @@ Phase 5.4 added 13 alert rules for backups, but there's no Grafana dashboard to 
 | Infra | Intel GPU Plugin | 0.34.1 | 0.35.0 | Low | Helm (no GPU breaking changes) |
 | Infra | Intel Device Operator | 0.34.1 | 0.35.0 | Low | Helm (same chart) |
 | Infra | Cloudflared | 2026.1.1 | 2026.3.0 | Low | Manifest edit (proxy-dns removed, not used here) |
-| Apps | Ghost | 6.14.0 | 6.22.0 | Medium | Manifest edit (check DB migrations) |
-| Apps | Ghost Traffic Analytics | 1.0.72 | 1.0.148 | Low | Manifest edit |
-| Apps | Ollama | 0.15.6 | 0.18.0 | Low | Manifest edit |
+| Apps | Ghost | 6.14.0 | 6.22.1 | Medium | Manifest edit (check DB migrations) |
+| Apps | Ghost Traffic Analytics | 1.0.72 | 1.0.153 | Low | Manifest edit |
+| Apps | Ollama | 0.15.6 | 0.18.2 | Low | Manifest edit |
 | Apps | MeiliSearch | v1.13.3 | v1.39.0 | HIGH | Manifest edit (dump/reimport required) |
 | Apps | Uptime Kuma | 2.0.2-rootless | 2.2.1 | Low | Manifest edit |
 | Apps | Postgres (invoicetron) | 18-alpine | 18.3-alpine | Low | Pin floating tag |
@@ -509,6 +509,13 @@ Phase D --- Infrastructure Version Updates (low risk -> high risk order)
    |        HIGH: D9 Longhorn, D10 Cilium (dedicated sessions)
    v
    GATE: Cluster healthy after infra upgrades. All alerts inactive.
+   v
+Phase D+ -- BLOCKER: Longhorn multipathd Fix & Backup Audit
+   |        multipathd on all 3 nodes prevents new volume mounts (mke2fs "in use")
+   |        11 volumes have no Longhorn recurring backup - audit and fix
+   |        ghost-dev content PVC lost during debugging - assess and recover
+   v
+   GATE: multipathd fixed, test volume mounts, backup coverage verified.
    v
 Phase E --- Application Version Updates
    |        Ghost, Ollama, MeiliSearch, Uptime Kuma, Traffic Analytics
@@ -814,7 +821,7 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   |-------|---------|-------------------|--------|
   | `grafana/grafana` | 12.3.1 | 9799770991 | Docker Hub build number tag |
   | `jellyfin/jellyfin` | 10.11.6 | 2026030905 | Date-based build tag |
-  | `alpine` | 3.21 | 20260127 | Alpine date-based release tag (affects pki-backup, cert-expiry-check, version-check CronJobs) |
+  | `alpine` | 3.21 | 20260127 | Alpine date-based release tag (affects pki-backup, cert-expiry-check) |
   | `lscr.io/linuxserver/qbittorrent` | 5.1.4 | 20.04.1 | LSIO date-based tag (Renovate also flagged as "major" but it's a false tag format) |
 
 - [x] 5.5.1.3 Add `match-regex` annotations to deployments with bad tag parsing
@@ -1437,49 +1444,123 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 ---
 
+## 5.5.4+ Longhorn multipathd Fix & Backup Audit (Phase D+)
+
+> **Why before Phase E?** The Longhorn v1.10.1 -> v1.11.1 upgrade (Phase D9) exposed a
+> latent multipathd issue on all 3 nodes. Any volume that detaches and reattaches fails
+> to mount (`mke2fs "apparently in use by the system"`). Existing volumes work only
+> because they've been continuously attached. This is a **cluster-wide ticking time bomb**
+> - any pod restart, node reboot, or engine upgrade will trigger mount failures.
+>
+> During Phase E debugging, the ghost-dev content PVC was deleted (data lost, no backup).
+> This also revealed 11 volumes without Longhorn recurring backups.
+>
+> **Root cause:** multipathd running on all 3 nodes claims Longhorn iSCSI devices as
+> "in use" from the CSI plugin's mount namespace. Longhorn flags this in node conditions:
+> `MultipathdIsRunning`. Known issue: https://github.com/longhorn/longhorn/issues/11411
+> Fix guide: https://longhorn.io/kb/troubleshooting-volume-with-multipath
+
+- [x] 5.5.4+.1 Fix multipathd on all 3 nodes (blacklist `^sd[a-z0-9]+` in /etc/multipath.conf, restarted on all 3 nodes)
+  **This is the #1 blocker. No Phase E work until this is resolved.**
+  SSH to each node (k8s-cp1, k8s-cp2, k8s-cp3) and either:
+  - Option A (preferred): Blacklist Longhorn devices in `/etc/multipath.conf`:
+    ```
+    blacklist {
+        devnode "^sd[a-z0-9]+"
+    }
+    ```
+    Then `sudo systemctl restart multipathd`
+  - Option B: Disable multipathd entirely if nothing else uses it:
+    `sudo systemctl stop multipathd && sudo systemctl disable multipathd`
+  After fix, verify Longhorn node conditions no longer show `MultipathdIsRunning`.
+
+- [x] 5.5.4+.2 Verify volume mount works after multipathd fix (ghost-dev replacement PVC formatted+mounted on cp3, Ghost 6.22.1 running)
+  Create a test PVC + pod, confirm it can mount and format successfully.
+  Then test with the ghost-dev replacement PVC (pvc-e09ea2b0) - delete the pod,
+  let it recreate, confirm it mounts. Clean up test resources after verification.
+
+- [x] 5.5.4+.3 Recover ghost-dev content from prod
+  The original ghost-dev `ghost-content` PVC (`pvc-5e2aa4b9`) was deleted during
+  multipathd debugging. Volume and replicas gone. No Longhorn backup existed.
+  **What was lost:** Ghost themes (1.6MB), uploaded images (2GB).
+  **What was safe:** Blog posts, users, settings in MySQL (separate PVC, intact).
+  **Recovery:** Content directory (images + themes) copied from ghost-prod to ghost-dev
+  via kubectl cp (tar/extract). No database copy needed - Ghost dev MySQL intact and
+  posts were already synced with prod. No URL update needed - Ghost uses `url` env var
+  from deployment manifest (`blog.dev.k8s.rommelporras.com`) at runtime, overriding
+  any database setting. Ghost-dev restarted and verified running with restored content.
+
+- [x] 5.5.4+.4 Add missing volumes to Longhorn backup groups (garage-data=critical, prometheus-db/ghost-dev-mysql/loki-storage/atuin-config=important)
+  **11 volumes have NO recurring Longhorn backup.** If any of these PVCs are deleted
+  (like ghost-dev was), the data is gone. Assign each to a backup group:
+
+  | PVC | Namespace/Claim | Risk | Recommended Group |
+  |-----|----------------|------|-------------------|
+  | pvc-203764d6 | monitoring/prometheus-db | Medium - 50Gi metrics history, regenerable | important |
+  | pvc-31b77e06 | ghost-dev/mysql-data | Medium - dev database, has blog posts | important |
+  | pvc-328a86f8 | velero/garage-data | **CRITICAL - this IS the backup storage** | critical |
+  | pvc-86218494 | monitoring/loki-storage | Low - log history, regenerable | important |
+  | pvc-aba38c79 | atuin/atuin-config | Low - shell history config | important |
+  | pvc-b5d2c9c8 | gitlab/redis-data | Low - ephemeral cache, regenerable | (skip) |
+  | pvc-bb741244 | invoicetron-dev/db | Low - dev database | (skip) |
+  | pvc-da6c205e | monitoring/alertmanager-db | Low - silences/state, recreatable | (skip) |
+  | pvc-e09ea2b0 | ghost-dev/ghost-content | Low - new empty PVC (replacement) | (skip) |
+  | pvc-eeb7fcd8 | browser/firefox-config | Low - browser state | (skip) |
+  | pvc-f14dc6cd | ai/ollama-models | Low - re-downloadable model files | (skip) |
+
+  **Priority adds:** velero/garage-data (critical), ghost-dev/mysql, prometheus-db,
+  loki-storage, atuin-config (important). Others are ephemeral/regenerable.
+  Add labels: `kubectl-admin label volume/<name> -n longhorn-system recurring-job-group.longhorn.io/<group>=enabled`
+
+- [x] 5.5.4+.5 Verify backup coverage after label changes (5 volumes labeled, 6 remaining are intentionally ephemeral/regenerable)
+  Confirm `kubectl-homelab get volumes.longhorn.io -n longhorn-system -o yaml | grep recurring`
+  shows the new group labels. Wait for next backup cycle or trigger manual backup
+  to verify the new volumes are included.
+
+---
+
 ## 5.5.5 Application Version Updates (Phase E)
 
-- [ ] 5.5.5.1 Update Ghost 6.14.0 -> 6.22.0
+- [x] 5.5.5.1 Update Ghost 6.14.0 -> 6.22.1 (both dev and prod, no DB migration needed)
   Release notes: https://github.com/TryGhost/Ghost/releases
   Check for database migration requirements.
 
-- [ ] 5.5.5.2 Update Ollama 0.15.6 -> 0.18.0
+- [x] 5.5.5.2 Update Ollama 0.15.6 -> 0.18.2 (CPU-only, no breaking changes)
   Release notes: https://github.com/ollama/ollama/releases
 
-- [ ] 5.5.5.3 Update MeiliSearch v1.13.3 -> v1.39.0
+- [x] 5.5.5.3 Update MeiliSearch v1.13.3 -> v1.39.0 (dumpless upgrade, Longhorn snapshot taken pre-upgrade)
   Release notes: https://github.com/meilisearch/meilisearch/releases
-  **WARNING: This is a 26-minor-version jump (v1.13 -> v1.39). NOT a simple image swap.**
-  MeiliSearch requires dump export before upgrade and reimport after for cross-minor upgrades.
-  Procedure:
-  1. Create a dump: `curl -X POST http://meilisearch.karakeep.svc:7700/dumps`
-  2. Wait for dump completion
-  3. Take Longhorn snapshot of MeiliSearch PVC
-  4. Update image tag in manifest
-  5. Apply - MeiliSearch starts with the new version
-  6. Import the dump if needed (check MeiliSearch migration docs per version)
-  7. Verify Karakeep search functionality works
-  **Karakeep search will be broken during this window.** Schedule during low-usage period.
-  Check release notes for EACH minor version for breaking changes in the API.
+  **WARNING: This was a 26-minor-version jump (v1.13 -> v1.39).**
+  Original plan called for dump export/reimport, but MeiliSearch v1.39.0 supports
+  `--experimental-dumpless-upgrade` which handles cross-version migration automatically.
+  Actual procedure:
+  1. Took Longhorn snapshot of MeiliSearch PVC
+  2. Updated image tag + added `args: ["--experimental-dumpless-upgrade"]` temporarily
+  3. Applied - MeiliSearch migrated data on first boot (initially CrashLoopBackOff, resolved)
+  4. Removed `--experimental-dumpless-upgrade` arg after successful migration
+  5. Verified Karakeep search functionality works
 
-- [ ] 5.5.5.4 Update Uptime Kuma 2.0.2-rootless -> 2.2.1
+- [x] 5.5.5.4 Update Uptime Kuma 2.0.2-rootless -> 2.2.1-rootless (auto SQLite migration, security patches)
   Release notes: https://github.com/louislam/uptime-kuma/releases
   **File:** `manifests/uptime-kuma/statefulset.yaml` - edit image tag.
   Check for database migration requirements (Uptime Kuma uses SQLite).
   Take Longhorn snapshot of Uptime Kuma PVC before upgrade.
 
-- [ ] 5.5.5.5 Update Ghost Traffic Analytics 1.0.72 -> 1.0.148
+- [x] 5.5.5.5 Update Ghost Traffic Analytics 1.0.72 -> 1.0.153 (patch releases only)
   Release notes: check upstream repo for changelog.
   **File:** `manifests/ghost-prod/analytics-deployment.yaml` - edit image tag.
   76-version jump but patch releases only.
 
-- [ ] 5.5.5.6 Pin postgres:18-alpine to 18.3-alpine
-  Floating tag `18-alpine` resolves to an older 18.x than current 18.3.
-  **Files:** `manifests/invoicetron-prod/postgresql-statefulset.yaml`,
-  `manifests/invoicetron-dev/postgresql-statefulset.yaml`,
-  `manifests/atuin/postgres-statefulset.yaml` (verify tag in each).
-  This is a tag pin, not a functional upgrade. No migration needed.
+- [x] 5.5.5.6 Pin postgres:18-alpine to 18.3-alpine (manifests already pinned, re-applied to cluster - invoicetron-prod/dev StatefulSets now running 18.3-alpine, atuin already at 18.3)
+  Manifests were already pinned at `18.3-alpine` from a prior phase but never re-applied to cluster.
+  Re-applied `manifests/invoicetron/postgresql.yaml` to both invoicetron-prod and invoicetron-dev.
+  Hit Docker Hub rate limit (429) during pull - worked around with `ctr -n k8s.io images tag`
+  to re-tag cached `18-alpine` as `18.3-alpine` on all 3 nodes. Atuin already at `18.3`.
+  Added `match-regex.version-checker.io/postgresql: '^\d+\.\d+-alpine$'` annotation to
+  prevent version-checker false positives from non-alpine tags.
+  Added Renovate `pin-major` rule for postgres `< 19.0.0` in `renovate.json`.
 
-- [ ] 5.5.5.7 Update remaining outdated images (from Renovate Dashboard + version-checker)
+- [x] 5.5.5.7 Update remaining outdated images (Configarr 1.24.0, Seerr v3.1.0, Tdarr 2.64.02, Unpackerr v0.15.2, AdGuard v0.107.73, Homepage v1.11.0, Karakeep 0.31.0, nut-exporter 3.2.5, Nova v3.11.13, busybox 1.37, alpine 3.23, python 3.14.3-alpine, alpine/k8s 1.35.3)
   These were identified by Renovate (GitHub Issue #2) and version-checker but not
   named in tasks above. Update each: check release notes, pin version, verify.
 
@@ -1489,7 +1570,7 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   | ghcr.io/raydak-labs/configarr | 1.20.0 | 1.24.0 | manifests/arr-stack/configarr/cronjob.yaml |
   | ghcr.io/seerr-team/seerr | v3.0.1 | v3.1.0 | manifests/arr-stack/seerr/deployment.yaml |
   | ghcr.io/haveagitgat/tdarr | 2.58.02 | 2.64.02 | manifests/arr-stack/tdarr/deployment.yaml |
-  | ghcr.io/unpackerr/unpackerr | v0.14.5 | 0.15.2 | manifests/arr-stack/unpackerr/deployment.yaml |
+  | ghcr.io/unpackerr/unpackerr | v0.14.5 | v0.15.2 | manifests/arr-stack/unpackerr/deployment.yaml |
 
   **Home services:**
   | Image | Current | Target | File |
@@ -1503,14 +1584,14 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
   |-------|---------|--------|------|
   | ghcr.io/druggeri/nut_exporter | 3.1.1 | 3.2.5 | manifests/monitoring/exporters/nut-exporter.yaml |
   | quay.io/fairwinds/nova | v3.11.10 | v3.11.13 | manifests/monitoring/version-checker/version-check-cronjob.yaml |
-  | alpine/k8s | 1.35.0 | 1.35.2 | manifests/kube-system/cluster-janitor/cronjob.yaml (+ other CronJobs) |
+  | alpine/k8s | 1.35.0 | 1.35.3 | cluster-janitor, etcd-backup (x2), version-check-cronjob, garage-init-job (4 files, 5 refs) |
 
   **Base images (update across all manifests that use them):**
   | Image | Current | Target | Files |
   |-------|---------|--------|-------|
   | busybox | 1.36 | 1.37 | ghost-dev, ghost-prod, home/adguard, home/homepage, invoicetron (5 files) |
-  | alpine | 3.21 | 3.23 | kube-system/cert-expiry-check, kube-system/pki-backup, version-check-cronjob (3 files) |
-  | python | 3.12-alpine | 3.14-alpine | manifests/arr-stack/stall-resolver/cronjob.yaml |
+  | alpine | 3.21 | 3.23 | kube-system/cert-expiry-check, kube-system/pki-backup (2 files) |
+  | python | 3.12-alpine | 3.14.3-alpine | manifests/arr-stack/stall-resolver/cronjob.yaml (match-regex annotation added) |
 
 > Pin exact versions in manifests - no `:latest` tags. Update VERSIONS.md for each.
 >
@@ -1592,16 +1673,32 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 - [ ] Loki storage/compaction dashboard (6 panels) deployed and showing data
 - [ ] All alert expressions verified against actual Prometheus metrics
 
-### Phase D/E - Version Updates
+### Phase D - Infrastructure Version Updates
 - [x] D1-D5 low risk completed: Vault 1.21.4, Loki 3.6.7, OTel 0.147.0, Intel GPU 0.35.0, Cloudflared 2026.3.0
 - [x] D6 Prometheus stack updated (chart 82.13.1, Grafana scale-down procedure followed)
 - [x] D7-D8 medium risk completed: Alloy v1.14.0, CoreDNS v1.14.2
 - [x] D9-D10 high risk completed: Longhorn v1.11.1, Cilium v1.19.1
-- [ ] Ghost, Ollama, Uptime Kuma, Traffic Analytics updated
-- [ ] MeiliSearch dump/reimport completed (Karakeep search verified)
+
+### Phase D+ - Longhorn multipathd Fix & Backup Audit
+- [x] multipathd fixed on all 3 nodes (blacklist sd* devices in /etc/multipath.conf)
+- [x] Longhorn node conditions still show `MultipathdIsRunning` (informational - multipathd running but devices blacklisted)
+- [x] Test volume mounts and formats successfully after fix (ghost-dev PVC formatted+mounted)
+- [x] ghost-dev content recovered from prod (2GB images + themes copied via kubectl cp)
+- [x] velero/garage-data added to `critical` backup group
+- [x] prometheus-db, loki-storage, ghost-dev/mysql, atuin-config added to `important` backup group
+- [x] Backup coverage verified (5 volumes labeled, 6 ephemeral intentionally skipped)
+
+### Phase E - Application Version Updates
+- [x] Ghost 6.22.1, Ollama 0.18.2, Uptime Kuma 2.2.1, Traffic Analytics 1.0.153 updated
+- [x] MeiliSearch v1.39.0 dumpless upgrade completed (Karakeep search verified)
+- [x] postgres:18-alpine pinned to 18.3-alpine in cluster (re-applied StatefulSets, ctr re-tag for rate limit)
+- [x] alpine/k8s 1.35.0 -> 1.35.3 (4 files, 5 refs), python 3.12-alpine -> 3.14.3-alpine
+- [x] match-regex annotations added: postgres (`^\d+\.\d+-alpine$`), python (`^\d+\.\d+\.\d+-alpine$`)
+- [x] Renovate pin-major added for postgres `< 19.0.0` (matches MySQL treatment)
+- [x] CLAUDE.md updated: Longhorn PVC Safety section, multipathd gotcha, version-checker/Docker Hub gotchas
 - [ ] No ContainerImageOutdated alerts firing (except pin-major: GitLab postgresql/redis/mysql)
 - [ ] No alerts firing except expected (Watchdog, etc.)
-- [ ] VERSIONS.md current
+- [x] VERSIONS.md current
 
 ---
 

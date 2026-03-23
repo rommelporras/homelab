@@ -46,6 +46,12 @@
       "allowedVersions": "< 9.0.0"
     },
     {
+      "description": "Pin PostgreSQL to major 18 (19.x requires pg_upgrade)",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["postgres"],
+      "allowedVersions": "< 19.0.0"
+    },
+    {
       "description": "Never automerge critical infrastructure (any update type)",
       "matchPackagePatterns": ["longhorn", "cilium", "kube-prometheus-stack", "cert-manager"],
       "automerge": false

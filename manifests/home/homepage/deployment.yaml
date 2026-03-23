@@ -48,7 +48,7 @@ spec:
       # Required because Homepage doesn't substitute {{HOMEPAGE_VAR_*}} in providers section
       initContainers:
         - name: substitute-env
-          image: busybox:1.36
+          image: busybox:1.37
           resources:
             requests:
               cpu: 10m
@@ -81,7 +81,7 @@ spec:
               mountPath: /config-processed
       containers:
         - name: homepage
-          image: ghcr.io/gethomepage/homepage:v1.9.0
+          image: ghcr.io/gethomepage/homepage:v1.11.0
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

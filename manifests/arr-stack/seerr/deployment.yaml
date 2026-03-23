@@ -63,7 +63,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: seerr
-          image: ghcr.io/seerr-team/seerr:v3.0.1
+          image: ghcr.io/seerr-team/seerr:v3.1.0
           ports:
             - name: http
               containerPort: 5055

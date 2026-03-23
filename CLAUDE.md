@@ -70,6 +70,14 @@ Kubernetes homelab for CKA prep. 3-node HA cluster (kubeadm, Cilium CNI, Longhor
 - **Create NFS directories via mount:** `sudo mount -t nfs4 10.10.30.4:/Kubernetes /tmp/nfs && sudo mkdir -p /tmp/nfs/<path> && sudo umount /tmp/nfs`
 - **No SSH keys from k8s nodes to NAS** — use NFS mount approach, not `ssh wawashi@10.10.30.4`.
 
+## Longhorn PVC Safety
+
+- **NEVER delete a PVC to fix mount errors** — mount failures are almost always node-level (multipathd, CSI plugin, stale mount). Deleting a PVC destroys the Longhorn volume AND its replicas permanently. Diagnose root cause first.
+- **Before ANY destructive storage operation** — take a Longhorn snapshot via UI or `kubectl-admin`. This includes: deleting PVCs, deleting StatefulSets, scaling down pods with RWO volumes.
+- **Mount failure triage order:** (1) Check Longhorn node conditions (`multipathd`, `Ready`), (2) Check CSI plugin pods on the affected node, (3) Check `dmesg` on the node for filesystem/device errors, (4) Try force-detaching via Longhorn UI, (5) Only after all diagnostics fail, escalate to user.
+- **multipathd blocks Longhorn mounts** — all 3 nodes have `/etc/multipath.conf` with `blacklist { devnode "^sd[a-z0-9]+" }`. If multipathd config is lost (e.g. after OS upgrade), new volume mounts will fail with `mke2fs "apparently in use by the system"`. Fix: re-add blacklist config, restart multipathd.
+- **Not all volumes have Longhorn backups** — only volumes labeled with `recurring-job-group.longhorn.io/critical` or `important` get backed up. Check before assuming a volume can be recovered.
+
 ## Gotchas
 
 - **kubeadm defaults ≠ raw component defaults** — kubeadm sets `anonymous-auth: false`, `authorization.mode: Webhook`, `rotateCertificates: true` on kubelet, and `--bind-address=0.0.0.0` on controller-manager/scheduler. CIS benchmarks reference raw defaults — verify actual state before planning changes.
@@ -93,3 +101,5 @@ Kubernetes homelab for CKA prep. 3-node HA cluster (kubeadm, Cilium CNI, Longhor
 - **MinIO is dead** — repo archived Feb 2026. Use Garage S3 (`dxflrs/garage`) as replacement.
 - **Scripts REPO_ROOT after reorg** — scripts in subdirectories (`scripts/vault/`, `scripts/monitoring/`). `REPO_ROOT` needs double dirname: `"$(dirname "$(dirname "$SCRIPT_DIR")")"`.
 - **Longhorn v1.10 backup-target** — `backup-target` setting removed. Use Helm `defaultBackupStore.backupTarget` instead.
+- **version-checker `-alpine` suffix false positives** — images tagged `X.Y-alpine` get compared against `X.Y` (non-alpine), reporting outdated. Add `match-regex.version-checker.io/<container>` annotation to restrict matching (e.g. `^\d+\.\d+-alpine$` for postgres, `^\d+\.\d+\.\d+-alpine$` for python).
+- **Docker Hub rate limits during bulk upgrades** — unauthenticated limit is 100 pulls/6h per IP. All 3 nodes share one IP. Workaround: `sudo ctr -n k8s.io images tag <cached-tag> <new-tag>` to re-tag cached images. Pulls will succeed after rate limit resets.

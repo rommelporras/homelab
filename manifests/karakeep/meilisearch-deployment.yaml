@@ -57,7 +57,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: meilisearch
-          image: getmeili/meilisearch:v1.13.3
+          image: getmeili/meilisearch:v1.39.0
           ports:
             - name: http
               containerPort: 7700

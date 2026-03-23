@@ -35,6 +35,8 @@ spec:
         metadata:
           labels:
             app: arr-stall-resolver
+          annotations:
+            match-regex.version-checker.io/resolver: '^\d+\.\d+\.\d+-alpine$'
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false   # only calls Sonarr/Radarr HTTP APIs, not K8s API
@@ -46,7 +48,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: resolver
-              image: python:3.12-alpine
+              image: python:3.14.3-alpine
               command: ["python3", "/scripts/resolve.py"]
               env:
                 - name: SONARR_URL

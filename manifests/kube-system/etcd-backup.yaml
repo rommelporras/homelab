@@ -65,7 +65,7 @@ spec:
               type: RuntimeDefault
           initContainers:
             - name: get-etcdctl
-              image: alpine/k8s:1.35.0
+              image: alpine/k8s:1.35.3
               command: ["/bin/sh", "-c"]
               args:
                 - |
@@ -90,7 +90,7 @@ spec:
                   mountPath: /tools
           containers:
             - name: etcd-backup
-              image: alpine/k8s:1.35.0
+              image: alpine/k8s:1.35.3
               command: ["/bin/sh", "-c"]
               args:
                 - |

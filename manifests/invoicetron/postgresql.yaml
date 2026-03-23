@@ -24,6 +24,8 @@ spec:
     metadata:
       labels:
         app: invoicetron-db
+      annotations:
+        match-regex.version-checker.io/postgresql: '^\d+\.\d+-alpine$'
     spec:
       automountServiceAccountToken: false
       securityContext:

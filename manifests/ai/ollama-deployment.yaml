@@ -56,7 +56,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: ollama
-          image: ollama/ollama:0.15.6
+          image: ollama/ollama:0.18.2
           ports:
             - name: http
               containerPort: 11434

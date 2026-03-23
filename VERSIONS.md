@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** March 22, 2026
+> **Last Updated:** March 23, 2026
 
 ---
 
@@ -104,23 +104,23 @@ helm-homelab repo update
 
 | Component | Version | Status | Notes |
 |-----------|---------|--------|-------|
-| AdGuard Home | v0.107.71 | Running | PRIMARY DNS (10.10.30.53) for all VLANs |
-| Homepage | v1.9.0 | Running | 2 replicas, multi-tab layout |
+| AdGuard Home | v0.107.73 | Running | PRIMARY DNS (10.10.30.53) for all VLANs |
+| Homepage | v1.11.0 | Running | 2 replicas, multi-tab layout |
 | Glances | v3.3.1 | Running | On OMV (apt), password auth |
 | cloudflared | 2026.3.0 | Running | 2 replicas, HA tunnel to Cloudflare Edge |
-| Ghost (Dev) | 6.14.0 | Running | Theme development, internal access |
-| Ghost (Prod) | 6.14.0 | Running | Public blog via Cloudflare Tunnel |
+| Ghost (Dev) | 6.22.1 | Running | Theme development, internal access |
+| Ghost (Prod) | 6.22.1 | Running | Public blog via Cloudflare Tunnel |
 | MySQL (Ghost) | 8.4.8 | Running | LTS, per-environment StatefulSets |
 | Invoicetron | Next.js 16.1.0 | Running | Invoice management (Bun + Prisma) |
-| PostgreSQL (Invoicetron) | 18-alpine | Running | Invoicetron database (StatefulSet) |
-| Uptime Kuma | v2.0.2 (rootless) | Running | Self-hosted uptime monitoring |
+| PostgreSQL (Invoicetron) | 18.3-alpine | Running | Invoicetron database (StatefulSet) |
+| Uptime Kuma | v2.2.1 (rootless) | Running | Self-hosted uptime monitoring |
 | MySpeed | 1.0.9 | Running | Internet speed test tracker (migrated from LXC) |
-| TrafficAnalytics | 1.0.72 | Running | Ghost analytics proxy (browser → Tinybird) |
+| TrafficAnalytics | 1.0.153 | Running | Ghost analytics proxy (browser → Tinybird) |
 | Firefox Browser | 1147.0.3build1-1xtradeb1.2404.1-ls69 (LSIO) | Running | Persistent browser via KasmVNC (LAN-only) |
-| Karakeep | 0.30.0 | Running | Bookmark manager with AI tagging (SQLite + s6-overlay) |
+| Karakeep | 0.31.0 | Running | Bookmark manager with AI tagging (SQLite + s6-overlay) |
 | Chrome (Karakeep) | alpine-chrome:124 | Running | Headless browser for page crawling |
-| Meilisearch | v1.13.3 | Running | Full-text search engine for Karakeep |
-| Ollama | 0.15.6 | Running | CPU-only LLM inference server |
+| Meilisearch | v1.39.0 | Running | Full-text search engine for Karakeep |
+| Ollama | 0.18.2 | Running | CPU-only LLM inference server |
 | qwen2.5:3b | Q4_K_M | Running | Text model for Karakeep tagging (1.9 GB) |
 | qwen3:1.7b | Q4_K_M | Running | General text model (1.4 GB) |
 | moondream:latest | Q4_0 | Running | Vision model for image tagging (1.7 GB) |
@@ -136,11 +136,11 @@ helm-homelab repo update
 | Intel Device Plugins Operator | v0.35.0 | Running | Manages GPU plugin lifecycle |
 | Intel GPU Plugin | v0.35.0 | Running | Advertises gpu.intel.com/i915 (sharedDevNum=3) |
 | Bazarr | v1.5.5-ls338 (LSIO) | Running | Subtitle management |
-| Seerr | v3.0.1 | Running | Media requests + discovery (replaces Jellyseerr/Overseerr) |
-| Configarr | 1.20.0 | Running | TRaSH Guide quality profile sync (CronJob, daily 3AM) |
-| Unpackerr | v0.14.5 | Running | RAR archive extraction daemon (no web UI) |
+| Seerr | v3.1.0 | Running | Media requests + discovery (replaces Jellyseerr/Overseerr) |
+| Configarr | 1.24.0 | Running | TRaSH Guide quality profile sync (CronJob, daily 3AM) |
+| Unpackerr | v0.15.2 | Running | RAR archive extraction daemon (no web UI) |
 | Scraparr | 3.0.3 | Running | Prometheus metrics exporter for *ARR apps |
-| Tdarr | 2.58.02 | Running | Library transcoding server (Intel QSV, internal node) |
+| Tdarr | 2.64.02 | Running | Library transcoding server (Intel QSV, internal node) |
 | Recommendarr | v1.4.4 | Running | AI media recommendations (Ollama qwen2.5:3b) |
 | Byparr | 2.1.0 | Running | Cloudflare bypass proxy for Prowlarr indexers |
 | tdarr-exporter | 1.4.3 (homeylab) | Running | Prometheus metrics for Tdarr library stats (arr-stack ns) |
@@ -148,7 +148,7 @@ helm-homelab repo update
 | smartctl-exporter | v0.14.0 | Running | NVMe S.M.A.R.T. DaemonSet on all 3 nodes (monitoring ns) |
 | Atuin Server | 18.12.0 | Running | Self-hosted shell history sync (E2E encrypted) |
 | PostgreSQL (Atuin) | 18.3 | Running | Atuin dedicated database (atuin namespace) |
-| Cluster Janitor | CronJob (alpine/k8s:1.35.0) | Running | Automated cleanup: Failed pods + stopped Longhorn replicas (kube-system) |
+| Cluster Janitor | CronJob (alpine/k8s:1.35.3) | Running | Automated cleanup: Failed pods + stopped Longhorn replicas (kube-system) |
 | HashiCorp Vault | 1.21.4 | Running | Secrets management (standalone, Raft on Longhorn 5Gi) |
 | Vault Auto-Unsealer | 1.21.4 | Running | Polls vault-0 every 30s, auto-unseals with 3 Shamir keys |
 | External Secrets Operator | v2.1.0 | Running | Syncs K8s Secrets from Vault via ExternalSecret CRDs |
@@ -248,7 +248,7 @@ helm-homelab repo update
 | Component | Version | Status | Location |
 |-----------|---------|--------|----------|
 | NUT (Network UPS Tools) | 2.8.1 | Installed | k8s-cp1 (server), cp2/cp3 (clients) |
-| nut-exporter (DRuggeri) | 3.1.1 | Installed | monitoring namespace |
+| nut-exporter (DRuggeri) | 3.2.5 | Installed | monitoring namespace |
 | CyberPower UPS | CP1600EPFCLCD | Connected | USB to k8s-cp1 |
 | UPS Dashboard | custom | Installed | ConfigMap auto-provisioned |
 
@@ -318,8 +318,8 @@ helm-homelab repo update
 | Component | Version | Status | Purpose |
 |-----------|---------|--------|---------|
 | version-checker | v0.10.0 | Running | Container + K8s version drift (Prometheus metrics) |
-| Nova (CronJob) | v3.11.10 | Running | Weekly Helm chart drift digest (Discord) |
-| Nova (CLI) | v3.11.10 | Installed | Local Helm chart analysis |
+| Nova (CronJob) | v3.11.13 | Running | Weekly Helm chart drift digest (Discord) |
+| Nova (CLI) | v3.11.13 | Installed | Local Helm chart analysis |
 | Renovate Bot | GitHub App | Suspended | Automated image update PRs |
 
 > **Note:** For detailed change history with decisions and rationale, see [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md).

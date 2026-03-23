@@ -29,7 +29,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: check-certs
-              image: alpine:3.21
+              image: alpine:3.23
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:

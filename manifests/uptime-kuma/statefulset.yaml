@@ -34,8 +34,8 @@ spec:
       containers:
       - name: uptime-kuma
         # rootless: includes Chromium for browser-engine monitors, runs as node user
-        # Pinned to 2.0.2 for reproducibility; bump manually when upgrading
-        image: louislam/uptime-kuma:2.0.2-rootless
+        # Pinned to 2.2.1 for reproducibility; bump manually when upgrading
+        image: louislam/uptime-kuma:2.2.1-rootless
         ports:
         - name: http
           containerPort: 3001

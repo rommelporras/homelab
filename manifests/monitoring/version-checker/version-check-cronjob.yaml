@@ -5,7 +5,7 @@
 # Init container: copies Nova binary from official image to shared emptyDir
 # Main container: runs the version-check script with curl + jq
 #
-# Uses alpine/k8s:1.35.0 which includes curl + jq (no apk add needed).
+# Uses alpine/k8s:1.35.3 which includes curl + jq (no apk add needed).
 # TZ=UTC-8 because alpine/k8s has no tzdata (POSIX UTC-8 = UTC+8 = Manila).
 #
 # CKA topics: CronJob, init containers, emptyDir, ConfigMap mount, Secret env
@@ -41,7 +41,7 @@ spec:
               type: RuntimeDefault
           initContainers:
             - name: nova
-              image: quay.io/fairwinds/nova:v3.11.10
+              image: quay.io/fairwinds/nova:v3.11.13
               imagePullPolicy: IfNotPresent
               command: ["cp", "/nova", "/shared/nova"]
               resources:
@@ -64,7 +64,7 @@ spec:
                   mountPath: /shared
           containers:
             - name: version-check
-              image: alpine/k8s:1.35.0
+              image: alpine/k8s:1.35.3
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/version-check.sh"]
               env:

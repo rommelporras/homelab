@@ -50,7 +50,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: janitor
-              image: alpine/k8s:1.35.0
+              image: alpine/k8s:1.35.3
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:
