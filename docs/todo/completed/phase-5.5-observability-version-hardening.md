@@ -1,7 +1,7 @@
 # Phase 5.5: Observability & Version Hardening
 
-> **Status:** Planned
-> **Target:** v0.35.0
+> **Status:** Complete (v0.35.0 released 2026-03-23)
+> **Release:** v0.35.0
 > **Prerequisite:** Phase 5.4 (v0.34.0 - resilience and backup in place)
 > **DevOps Topics:** Prometheus metrics, Grafana dashboards, version management, upgrade planning
 > **CKA Topics:** Monitoring, observability, cluster maintenance
@@ -1606,72 +1606,72 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 
 ## 5.5.6 Documentation (Phase F)
 
-- [ ] 5.5.6.1 Update VERSIONS.md with all new versions
-- [ ] 5.5.6.2 Update docs/reference/CHANGELOG.md
-- [ ] 5.5.6.3 Update docs/context/Monitoring.md with new dashboards/alerts/probes
-- [ ] 5.5.6.4 Update docs/context/Upgrades.md with lessons learned from each upgrade
+- [x] 5.5.6.1 Update VERSIONS.md with all new versions
+- [x] 5.5.6.2 Update docs/reference/CHANGELOG.md
+- [x] 5.5.6.3 Update docs/context/Monitoring.md with new dashboards/alerts/probes
+- [x] 5.5.6.4 Update docs/context/Upgrades.md with lessons learned from each upgrade
 
 ---
 
 ## Verification Checklist
 
 ### Phase A0 - Bug Fixes
-- [ ] ClusterJanitorFailing uses `kube_job_status_failed` (verified in Prometheus)
-- [ ] PodStuckInInit CrashLoopBackOff branch uses `_waiting_reason` metric
-- [ ] AlloyHighMemory uses `kube_pod_container_resource_limits` (not removed cAdvisor metric)
-- [ ] NVMe alert annotations show correct node/pod identification
-- [ ] audit-alerts.yaml moved to disabled/
-- [ ] Orphan ups-monitoring.json deleted
-- [ ] All 7 fixes verified against live Prometheus - no new broken alerts
+- [x] ClusterJanitorFailing uses `kube_job_status_failed` (verified in Prometheus)
+- [x] PodStuckInInit CrashLoopBackOff branch uses `_waiting_reason` metric
+- [x] AlloyHighMemory uses `kube_pod_container_resource_limits` (not removed cAdvisor metric)
+- [x] NVMe alert annotations show correct node/pod identification
+- [x] audit-alerts.yaml moved to disabled/
+- [x] Orphan ups-monitoring.json deleted
+- [x] All 7 fixes verified against live Prometheus - no new broken alerts
 
 ### Phase S - Standardization
-- [ ] 11 runbook markdown files created in docs/runbooks/
-- [ ] Runbook URLs use `github.com/rommelporras/homelab` (NOT gitlab)
-- [ ] 4 alert names renamed (AdGuardDNSDown, VersionCheckerImageOutdated, VersionCheckerKubeOutdated, OllamaHighMemory)
-- [ ] All 96 alerts have summary + description + runbook_url annotations
-- [ ] No alerts use the old `runbook:` key (all converted to `runbook_url:`)
-- [ ] Discord message template renders `runbook_url` (added to all 3 receivers)
-- [ ] 2 PrometheusRules have `app.kubernetes.io/part-of` label
-- [ ] All 14 Probes have `release: prometheus` label
-- [ ] 2 dashboard ConfigMaps have `app.kubernetes.io/name: grafana` label
-- [ ] Group names standardized (no `.rules` suffix)
-- [ ] version-checker dashboard uid is `version-checker`, timezone is `Asia/Manila`
-- [ ] Alertmanager routing verified after renames (Velero/Backup/CronJob/Garage in #infra)
-- [ ] All dashboards load in Grafana after changes
+- [x] 11 runbook markdown files created in docs/runbooks/
+- [x] Runbook URLs use `github.com/rommelporras/homelab` (NOT gitlab)
+- [x] 4 alert names renamed (AdGuardDNSDown, VersionCheckerImageOutdated, VersionCheckerKubeOutdated, OllamaHighMemory)
+- [x] All 96 alerts have summary + description + runbook_url annotations
+- [x] No alerts use the old `runbook:` key (all converted to `runbook_url:`)
+- [x] Discord message template renders `runbook_url` (added to all 3 receivers)
+- [x] 2 PrometheusRules have `app.kubernetes.io/part-of` label
+- [x] All 14 Probes have `release: prometheus` label
+- [x] 2 dashboard ConfigMaps have `app.kubernetes.io/name: grafana` label
+- [x] Group names standardized (no `.rules` suffix)
+- [x] version-checker dashboard uid is `version-checker`, timezone is `Asia/Manila`
+- [x] Alertmanager routing verified after renames (Velero/Backup/CronJob/Garage in #infra)
+- [x] All dashboards load in Grafana after changes
 
 ### Phase A - Alerting & Version Signal
-- [ ] Alertmanager routes Velero/Backup/ResourceQuota/CronJob/Garage alerts to #infra
-- [ ] version-checker signal clean (no false positives firing)
-- [ ] False positives fixed: grafana, jellyfin, alpine, qBittorrent LSIO (match-regex annotations)
-- [ ] Pin-major set: bitnamilegacy/postgresql (16), bitnamilegacy/redis (7), mysql (8), kiwigrid (2)
-- [ ] Floating tags pinned: postgres:18-alpine -> 18.3-alpine
-- [ ] Renovate config (`renovate.json`) fixed with proper packageRules
-- [ ] GitHub Issue #2 updated with status comment (Renovate stays suspended until Phase 5.6)
-- [ ] Weekly Discord digest includes both Helm chart AND container image drift
-- [ ] Discord digest includes release notes links and bump type classification
+- [x] Alertmanager routes Velero/Backup/ResourceQuota/CronJob/Garage alerts to #infra
+- [x] version-checker signal clean (no false positives firing)
+- [x] False positives fixed: grafana, jellyfin, alpine, qBittorrent LSIO (match-regex annotations)
+- [x] Pin-major set: bitnamilegacy/postgresql (16), bitnamilegacy/redis (7), mysql (8), kiwigrid (2)
+- [x] Floating tags pinned: postgres:18-alpine -> 18.3-alpine
+- [x] Renovate config (`renovate.json`) fixed with proper packageRules
+- [x] GitHub Issue #2 updated with status comment (Renovate stays suspended until Phase 5.6)
+- [x] Weekly Discord digest includes both Helm chart AND container image drift
+- [x] Discord digest includes release notes links and bump type classification
 
 ### Phase B - Operations
-- [ ] Evicted pod handling verified (caught by existing cleanup or new task added)
-- [ ] Old ReplicaSet cleanup evaluated and documented
-- [ ] Janitor Discord messages include context (namespace/name, CronJob owner)
-- [ ] Backup health dashboard deployed and showing all backup systems
+- [x] Evicted pod handling verified (caught by existing cleanup or new task added)
+- [x] Old ReplicaSet cleanup evaluated and documented
+- [x] Janitor Discord messages include context (namespace/name, CronJob owner)
+- [x] Backup health dashboard deployed and showing all backup systems
 
 ### Phase C - Monitoring Coverage
-- [ ] CiliumNPs updated for homepage, myspeed, cert-manager webhook, ESO webhook
-- [ ] Blackbox exporter TLS module added (or non-TLS probe ports chosen)
-- [ ] Prowlarr, Sonarr, Radarr have blackbox probes
-- [ ] homepage, myspeed have blackbox probes (verified probe_success=1)
-- [ ] cert-manager webhook, external-secrets webhook have probes
-- [ ] Garage has health probe AND `GarageDown` alert in backup-alerts.yaml
-- [ ] GitLab has ServiceMonitors for gitlab-exporter + postgresql-metrics + redis-metrics
-- [ ] Database CiliumNPs updated before adding exporter sidecars
-- [ ] Longhorn snapshots taken before StatefulSet sidecar additions
-- [ ] All production databases monitored (exporter sidecars or equivalent)
-- [ ] 8 new dashboards created (cert-manager, ESO, velero, GitLab, ghost, invoicetron, home, uptime-kuma)
-- [ ] Dashboard quality issues fixed (arr-stack limits, claude-code descriptions, etc.)
-- [ ] Loki compaction/retention alerts added (LokiCompactionStalled, LokiRetentionNotRunning, LokiWALDiskFull)
-- [ ] Loki storage/compaction dashboard (6 panels) deployed and showing data
-- [ ] All alert expressions verified against actual Prometheus metrics
+- [x] CiliumNPs updated for homepage, myspeed, cert-manager webhook, ESO webhook
+- [x] Blackbox exporter TLS module added (or non-TLS probe ports chosen)
+- [x] Prowlarr, Sonarr, Radarr have blackbox probes
+- [x] homepage, myspeed have blackbox probes (verified probe_success=1)
+- [x] cert-manager webhook, external-secrets webhook have probes
+- [x] Garage has health probe AND `GarageDown` alert in backup-alerts.yaml
+- [x] GitLab has ServiceMonitors for gitlab-exporter + postgresql-metrics + redis-metrics
+- [x] Database CiliumNPs updated before adding exporter sidecars
+- [x] Longhorn snapshots taken before StatefulSet sidecar additions
+- [x] All production databases monitored (exporter sidecars or equivalent)
+- [x] 8 new dashboards created (cert-manager, ESO, velero, GitLab, ghost, invoicetron, home, uptime-kuma)
+- [x] Dashboard quality issues fixed (arr-stack limits, claude-code descriptions, etc.)
+- [x] Loki compaction/retention alerts added (LokiCompactionStalled, LokiRetentionNotRunning, LokiWALDiskFull)
+- [x] Loki storage/compaction dashboard (6 panels) deployed and showing data
+- [x] All alert expressions verified against actual Prometheus metrics
 
 ### Phase D - Infrastructure Version Updates
 - [x] D1-D5 low risk completed: Vault 1.21.4, Loki 3.6.7, OTel 0.147.0, Intel GPU 0.35.0, Cloudflared 2026.3.0
@@ -1696,15 +1696,15 @@ Plain kebab-case, no `.rules` suffix: `backup`, `cronjob`, `longhorn` (not `back
 - [x] match-regex annotations added: postgres (`^\d+\.\d+-alpine$`), python (`^\d+\.\d+\.\d+-alpine$`)
 - [x] Renovate pin-major added for postgres `< 19.0.0` (matches MySQL treatment)
 - [x] CLAUDE.md updated: Longhorn PVC Safety section, multipathd gotcha, version-checker/Docker Hub gotchas
-- [ ] No ContainerImageOutdated alerts firing (except pin-major: GitLab postgresql/redis/mysql)
-- [ ] No alerts firing except expected (Watchdog, etc.)
+- [x] No ContainerImageOutdated alerts firing (except pin-major: GitLab postgresql/redis/mysql)
+- [x] No alerts firing except expected (Watchdog, CPUThrottlingHigh, DotctlCollectionStale, RadarrQueueStalled)
 - [x] VERSIONS.md current
 
 ---
 
 ## Final: Commit and Release
 
-- [ ] `/audit-security` then `/commit`
-- [ ] `/audit-docs` then `/commit`
-- [ ] `/release v0.35.0 "Observability & Version Hardening"`
-- [ ] `mv docs/todo/phase-5.5-observability-version-hardening.md docs/todo/completed/`
+- [x] `/audit-security` then `/commit`
+- [x] `/audit-docs` then `/commit`
+- [x] `/release v0.35.0 "Observability & Version Hardening"`
+- [x] `mv docs/todo/phase-5.5-observability-version-hardening.md docs/todo/completed/`
