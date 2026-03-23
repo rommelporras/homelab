@@ -24,11 +24,94 @@
 > FluxCD's native Helm lifecycle (`helm install/upgrade`) is better, but ArgoCD's `helm template`
 > approach is acceptable since we already version-pin everything.
 
-> **K8s 1.35 Compatibility Note:** ArgoCD v3.3.x is tested against K8s 1.31-1.34.
-> K8s 1.35 is NOT in the official test matrix (tracked: argoproj/argo-cd#25767).
-> Community reports indicate it works, but a protobuf deprecation in 1.35 (removal in 1.36)
-> is the concern. Monitor this issue before Phase 6 deployment. If ArgoCD 3.4 ships with 1.35
-> support before we reach Phase 6, this risk is resolved.
+> **K8s 1.35 Compatibility:** ArgoCD v3.3.x officially tests K8s 1.31-1.34 only.
+> K8s 1.35 Go client upgrade tracked in argoproj/argo-cd#25767, milestoned to v3.4.
+> **v3.4.0-rc2 released March 19, 2026** - stable expected before Phase 5.6 execution.
+> Use v3.4.0+ for K8s 1.35 support. Helm chart: `argo/argo-cd` (traditional repo,
+> no OCI). Current chart v9.4.15 = app v3.3.4. Chart for v3.4.0 will follow shortly.
+>
+> **ArgoCD v3 breaking changes to be aware of:**
+> - Metrics removed: `argocd_app_sync_status`, `argocd_app_health_status` - use labels on `argocd_app_info`
+> - RBAC: `update`/`delete` no longer grants sub-resource access
+> - Resource tracking default changed to annotation-based (was label)
+> - `ServerSideApply=true` mandatory for self-managed ArgoCD (CRD size exceeds client-side limits)
+> - Cilium resources (CiliumIdentity, CiliumEndpoint) excluded by default in v3
+> - ESO health checks built-in (ExternalSecret, SecretStore, ClusterSecretStore)
+> - Legacy repo config in argocd-cm removed - must use Secret-based repo management
+>
+> **Argo Workflows:** Consider evaluating alongside ArgoCD. CNCF-graduated workflow engine
+> for orchestrating multi-step jobs on Kubernetes. Potential homelab use cases: CI/CD pipeline
+> steps, backup orchestration, database maintenance, cluster upgrade automation. Runs on
+> existing cluster resources with no external dependencies. CKA-adjacent DevOps skill.
+
+---
+
+## 5.6.0 Prerequisites - Phase 5.5 Remediation
+
+> **Why first?** Phase 5.5-C committed 23 monitoring resources to git but never applied them
+> to the cluster. These must be deployed before Phase 5.6 starts - ArgoCD will eventually
+> manage them, so they need to be running and verified first.
+
+- [ ] 5.6.0.1 Apply 10 unapplied blackbox probes
+  ```bash
+  kubectl-admin apply -f manifests/monitoring/probes/
+  ```
+  Missing: cert-manager-webhook, eso-webhook, garage, homepage, longhorn-ui, myspeed,
+  prowlarr, radarr, recommendarr, sonarr. Verify with `kubectl-homelab get probes -n monitoring`.
+
+- [ ] 5.6.0.2 Apply 3 GitLab ServiceMonitors
+  ```bash
+  kubectl-admin apply -f manifests/monitoring/servicemonitors/gitlab-servicemonitor.yaml
+  ```
+  Missing: gitlab-exporter, gitlab-postgresql, gitlab-redis. Verify Prometheus targets appear.
+
+- [ ] 5.6.0.3 Apply 2 unapplied PrometheusRules
+  ```bash
+  kubectl-admin apply -f manifests/monitoring/alerts/gitlab-alerts.yaml
+  kubectl-admin apply -f manifests/monitoring/alerts/home-alerts.yaml
+  ```
+  These depend on the probes/ServiceMonitors above.
+
+- [ ] 5.6.0.4 Apply 8 unapplied Grafana dashboards
+  ```bash
+  for f in cert-manager eso ghost-prod gitlab home invoicetron-prod loki-storage uptime-kuma; do
+    kubectl-admin apply -f manifests/monitoring/dashboards/${f}-dashboard-configmap.yaml
+  done
+  ```
+  Verify all 23 custom dashboards visible in Grafana Homelab folder.
+
+- [ ] 5.6.0.5 Resolve 6 blocking GitOps gaps
+  These architectural issues must be addressed before ArgoCD can manage the cluster:
+
+  **Gap 1: Invoicetron CI/CD `kubectl set image` pattern**
+  The manifest has a hardcoded prod image tag that CI/CD patches imperatively.
+  ArgoCD would revert every CI/CD deploy on the next sync cycle.
+  Fix options: (a) Kustomize image overlay patched by CI pipeline,
+  (b) ArgoCD Image Updater, (c) commit image tag to Git in CI pipeline.
+  See `docs/todo/deferred.md` "Invoicetron CI/CD Image Tag Alignment" for details.
+
+  **Gap 2: NFD Helm release has no tracked values file**
+  `node-feature-discovery` was installed but has no `helm/nfd/values.yaml`.
+  Create a values file capturing current install flags.
+
+  **Gap 3: Namespace-less multi-target manifests**
+  `manifests/invoicetron/` and `manifests/portfolio/` are applied to multiple
+  namespaces via `-n` flag. ArgoCD needs explicit `targetNamespace` per Application.
+  Fix: split into per-environment directories or use Kustomize overlays.
+
+  **Gap 4: Prometheus upgrade script uses runtime secrets**
+  `scripts/monitoring/upgrade-prometheus.sh` reads secrets from K8s at runtime
+  into a temp file. ArgoCD cannot replicate this. Fix: reference ESO-managed
+  K8s Secrets directly in `helm/prometheus/values.yaml` via `existingSecret` fields.
+
+  **Gap 5: vault-unseal-keys imperative Secret**
+  Created manually, not via ESO. ArgoCD must never prune vault namespace Secrets.
+  Exclude with `argocd.argoproj.io/compare-options: IgnoreExtraneous` or
+  resource exclusion in argocd-cm.
+
+  **Gap 6: Intel GPU operator has no separate values file**
+  Both intel releases share `helm/intel-gpu-plugin/values.yaml`.
+  Create `helm/intel-device-plugins-operator/values.yaml` for the operator release.
 
 ---
 
@@ -545,29 +628,38 @@ Continuous CIS compliance - detect regressions after future changes.
   ```
   Resources ArgoCD must NOT manage (add to argocd-cm ConfigMap):
 
-  resource.exclusions: |
-    # Cilium dynamically-generated resources - ArgoCD would prune them as "orphaned"
-    - apiGroups: ["cilium.io"]
-      kinds: ["CiliumIdentity", "CiliumEndpoint"]
-      clusters: ["*"]
-    # Longhorn dynamically-generated resources
-    - apiGroups: ["longhorn.io"]
-      kinds: ["*"]
-      clusters: ["*"]
-    # ESO-generated Secrets (owned by ExternalSecret controller, not Git)
-    - apiGroups: [""]
-      kinds: ["Secret"]
-      clusters: ["*"]
-      # Note: this is broad. Refine in Phase 6 with label selectors if needed.
+  **ArgoCD v3 default exclusions already cover:**
+  - Endpoints, EndpointSlice, Lease (dynamic K8s resources)
+  - CiliumIdentity, CiliumEndpoint, CiliumEndpointSlice (Cilium dynamic)
+  - CertificateRequest (cert-manager lifecycle)
+  - Auth review resources (TokenReview, SubjectAccessReview, etc.)
+  - NO custom Cilium or cert-manager exclusions needed.
 
-  ArgoCD v3.0 default exclusions already handle:
-  - Cilium resources (CiliumIdentity, etc.)
-  - cert-manager CertificateRequest
-  - Kyverno reports
-  Verify defaults are sufficient before adding custom exclusions.
+  **Custom exclusions still needed:**
+  resource.exclusions: |
+    # Longhorn dynamically-generated resources (volumes, replicas, snapshots, backups)
+    - apiGroups: ["longhorn.io"]
+      kinds: ["Volume", "Replica", "Snapshot", "Backup", "BackupVolume",
+              "InstanceManager", "Engine", "ShareManager"]
+      clusters: ["*"]
+    # Velero runtime objects (backups, restores created by schedules)
+    - apiGroups: ["velero.io"]
+      kinds: ["Backup", "Restore", "PodVolumeBackup", "PodVolumeRestore"]
+      clusters: ["*"]
+
+  **Do NOT broadly exclude all Secrets.** Instead:
+  - ESO-generated Secrets: ArgoCD should ignore them via `argocd.argoproj.io/compare-options: IgnoreExtraneous`
+    annotation on the ExternalSecret (ArgoCD v3 respects this for child resources)
+  - vault-unseal-keys: exclude vault namespace Secrets specifically, or annotate the Secret
+  - SA token Secrets (invoicetron, portfolio RBAC): safe to sync but never prune
 
   Longhorn-specific: when deploying Longhorn via ArgoCD, set:
     preUpgradeChecker.jobEnabled: false  # ArgoCD manages upgrades, not Longhorn's job
+
+  **Safe to sync (declarative config in Git):**
+  - RecurringJob CRs (manifests/storage/longhorn/)
+  - VeleroSchedule (manifests/velero/schedule.yaml)
+  - CiliumNetworkPolicy manifests (Git-managed, not dynamic)
   ```
 
 ### 5.6.4.5 AppProject Planning
@@ -579,11 +671,14 @@ Continuous CIS compliance - detect regressions after future changes.
   |----------------|---------------------------------------------|----------------------------|
   | infrastructure | cert-manager, external-secrets, monitoring, | Core platform services     |
   |                | vault, longhorn-system, kube-system         |                            |
-  | homelab-apps   | home, ghost-prod, ghost-staging, browser,   | General homelab services   |
-  |                | karakeep, atuin, myspeed, cloudflare,       |                            |
-  |                | tailscale, ollama                           |                            |
+  | homelab-apps   | home, ghost-prod, ghost-dev, browser, ai,   | General homelab services   |
+  |                | karakeep, atuin, cloudflare, tailscale,      |                            |
+  |                | uptime-kuma                                 |                            |
   | arr-stack      | arr-stack                                   | Media stack (isolated)     |
   | gitlab         | gitlab, gitlab-runner                       | GitLab (isolated)          |
+  | invoicetron    | invoicetron-dev, invoicetron-prod            | CI/CD app (per-env)        |
+  | portfolio      | portfolio-dev, portfolio-staging, portfolio-prod | CI/CD app (3-env)       |
+  | velero         | velero                                      | Backup infrastructure      |
   | default        | argocd                                      | ArgoCD self-management     |
 
   Each project restricts:
@@ -761,6 +856,37 @@ Create the namespace manifest and associated resources. Do NOT apply - that's Ph
   - Secret handling: Vault + ESO ExternalSecrets in Git (never raw Secrets)
   - Bootstrap: imperative install, then self-managing via app-of-apps
   - Network isolation: CiliumNetworkPolicy deny-default with documented allow-list
+  ```
+
+---
+
+## 5.6.5.4 Argo Workflows Evaluation (Optional)
+
+- [ ] 5.6.5.4a Evaluate Argo Workflows for homelab automation
+  ```
+  Argo Workflows is a CNCF-graduated container-native workflow engine for Kubernetes.
+  It runs multi-step jobs as DAGs or sequences using Kubernetes pods.
+
+  Potential homelab use cases:
+  | Use Case | Current Approach | Argo Workflows Benefit |
+  |----------|-----------------|----------------------|
+  | CI/CD pipelines | GitLab Runner | Native K8s, no runner overhead |
+  | Backup orchestration | Multiple CronJobs | DAG-based dependency ordering |
+  | Cluster upgrades | Manual scripts | Automated multi-step with rollback |
+  | Database maintenance | Individual CronJobs | Coordinated across services |
+  | Image builds | GitLab CI | Buildkit on K8s, no Docker-in-Docker |
+
+  Decision factors:
+  - Does the homelab need workflow orchestration beyond CronJobs?
+  - Resource overhead: Argo Workflows controller + server (~500m CPU, ~512Mi)
+  - Learning value: DAG workflows, CRD-based automation (CKA-adjacent)
+  - Can coexist with ArgoCD (separate project, shared Argo ecosystem)
+
+  Helm chart: argo/argo-workflows (traditional repo, same as ArgoCD)
+  Namespace: argo-workflows (or share argocd namespace)
+
+  Recommendation: Evaluate after ArgoCD is stable. Not a Phase 5.6 blocker.
+  If adopted, deploy as an ArgoCD-managed Application (dog-fooding GitOps).
   ```
 
 ---
