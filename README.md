@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
-3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 59 releases with [29 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
+3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 61 releases with [29 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
 
 > **Owner:** Rommel Porras  |  **CKA Target:** September 2026
 
@@ -89,7 +89,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Cloudflare Tunnel (HA, 2 replicas) for public services
 - Tailscale Operator (WireGuard subnet router) for private remote access
 - AdGuard DNS as primary for all VLANs + Tailscale global nameserver
-- CiliumNetworkPolicy microsegmentation (128 policies across 24 namespaces, implicit default-deny)
+- CiliumNetworkPolicy microsegmentation (127 policies across 24 namespaces, implicit default-deny)
 
 **Applications**
 - GitLab CE (Runner, Container Registry, SSH) with CI/CD pipelines
@@ -157,7 +157,7 @@ Things that bit us and might save you time:
 
 1. **Network Policies** — CiliumNetworkPolicy microsegmentation complete (Phase 5.3, v0.33.0)
 2. **Resilience & Backup** — Phase 5.4 complete (v0.34.0)
-3. **Image Updates & Monitoring** — Phase 5.5 in progress
+3. **Image Updates & Monitoring** — Phase 5.6 in progress
 4. **CKA Certification** — September 2026 target
 
 ## Claude Code

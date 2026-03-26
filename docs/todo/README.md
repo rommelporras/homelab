@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.34.0 (Resilience & Backup)
+> **Latest Release:** v0.35.0 (Observability & Version Hardening)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -51,6 +51,7 @@
 | v0.33.1 | Network Policy Hotfix | - | ✅ Released |
 | v0.33.2 | Loki Storage Fix | - | ✅ Released |
 | v0.34.0 | Resilience & Backup | Phase 5.4 | ✅ Released |
+| v0.35.0 | Observability & Version Hardening | Phase 5.5 | ✅ Released |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 
 ---
@@ -98,13 +99,17 @@
 | 5.2 | RBAC & Secrets Hardening | [phase-5.2-rbac-and-encryption.md](completed/phase-5.2-rbac-and-encryption.md) |
 | 5.3 | Network Policies | [phase-5.3-network-policies.md](completed/phase-5.3-network-policies.md) |
 | 5.4 | Resilience & Backup | [phase-5.4-resilience-backup.md](completed/phase-5.4-resilience-backup.md) |
+| 5.5 | Observability & Version Hardening | [phase-5.5-observability-version-hardening.md](completed/phase-5.5-observability-version-hardening.md) |
 
 ### Planned
 
 | Phase | Description | File |
 |-------|-------------|------|
-| 5.5 | Observability & Version Hardening | [phase-5.5-observability-version-hardening.md](phase-5.5-observability-version-hardening.md) |
 | 5.6 | Pre-GitOps Validation | [phase-5.6-pre-gitops-validation.md](phase-5.6-pre-gitops-validation.md) |
+| 5.7 | ArgoCD Installation | [phase-5.7-argocd-installation.md](phase-5.7-argocd-installation.md) |
+| 5.8 | GitOps Migration | [phase-5.8-gitops-migration.md](phase-5.8-gitops-migration.md) |
+| 5.9 | Argo Workflows | [phase-5.9-argo-workflows.md](phase-5.9-argo-workflows.md) |
+| 5.10 | Argo Rollouts | [phase-5.10-argo-rollouts.md](phase-5.10-argo-rollouts.md) |
 | 6 | CKA Focused Learning | [phase-6-cka.md](phase-6-cka.md) |
 
 ### Deferred
@@ -126,6 +131,7 @@
 | `longhorn-system` | Distributed storage (exists) |
 | `monitoring` | ALL observability (Prometheus, Grafana, Loki, exporters) |
 | `cert-manager` | TLS certificate management |
+| `cilium-secrets` | Cilium-managed TLS secrets for Gateway API (no user pods) |
 | `cloudflare` | Cloudflare Tunnel (external access) |
 | `vault` | HashiCorp Vault secrets management |
 | `external-secrets` | External Secrets Operator (syncs K8s Secrets from Vault) |
