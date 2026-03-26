@@ -1,0 +1,14 @@
+# Node Feature Discovery - Helm values for node-feature-discovery v0.18.3
+# Chart: oci://registry.k8s.io/nfd/charts/node-feature-discovery
+# Installed via: helm-homelab upgrade -i -n node-feature-discovery node-feature-discovery oci://registry.k8s.io/nfd/charts/node-feature-discovery --version 0.18.3 -f helm/node-feature-discovery/values.yaml
+#
+# Purpose: Auto-label Kubernetes nodes with hardware feature labels
+#   - Detects Intel GPU, CPU features, PCI devices, USB devices
+#   - Labels like intel.feature.node.kubernetes.io/gpu: 'true'
+#   - Used by Intel GPU plugin nodeSelector for targeted DaemonSet scheduling
+#
+# Requires: Nothing (cluster-level service)
+# Required by: Intel Device Plugins GPU (nodeFeatureRule auto-labeling)
+
+# Pure defaults - no custom overrides needed
+# NFD auto-discovers hardware features on all nodes

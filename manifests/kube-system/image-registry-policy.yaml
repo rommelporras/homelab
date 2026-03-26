@@ -1,0 +1,105 @@
+# ValidatingAdmissionPolicy: Restrict Container Image Registries
+# Phase 5.6 - Pre-GitOps Validation
+#
+# Ensures all container images come from trusted registries.
+# Prevents untrusted images from being deployed, including via ArgoCD syncs.
+#
+# Trusted registries: docker.io, ghcr.io, registry.k8s.io, quay.io, lscr.io,
+# gcr.io, public.ecr.aws, registry.k8s.rommelporras.com, registry.gitlab.com,
+# and any Docker Hub org (short name without dot in first path segment).
+#
+# CKA topics: ValidatingAdmissionPolicy (native K8s admission control, GA since v1.30)
+#
+# kube-system exempted: runs kube-bench, etcd-backup, and other privileged system Jobs.
+# Control plane images are managed by kubeadm, not GitOps.
+#
+# CEL path behavior: object.spec.?containers.orValue([]) validates Pod.spec.containers.
+# For Deployments/StatefulSets (spec.template.spec.containers), the expression returns
+# empty array and all() is vacuously true. Pod-level admission is the real enforcement
+# gate - when a controller creates a Pod from a workload, the Pod admission catches bad
+# images. Workload-level matching is included for dry-run=server testing.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: restrict-image-registries
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["jobs", "cronjobs"]
+  validations:
+    - expression: >-
+        object.spec.?containers.orValue([]).all(c,
+          c.image.startsWith('docker.io/') ||
+          c.image.startsWith('ghcr.io/') ||
+          c.image.startsWith('registry.k8s.io/') ||
+          c.image.startsWith('quay.io/') ||
+          c.image.startsWith('registry.k8s.rommelporras.com/') ||
+          c.image.startsWith('registry.gitlab.com/') ||
+          c.image.startsWith('lscr.io/') ||
+          c.image.startsWith('gcr.io/') ||
+          c.image.startsWith('public.ecr.aws/') ||
+          !c.image.contains('/') ||
+          !c.image.split('/')[0].contains('.')
+        )
+      message: >-
+        Container image must be from a trusted registry. Allowed: docker.io, ghcr.io,
+        registry.k8s.io, quay.io, lscr.io, gcr.io, public.ecr.aws, registry.k8s.rommelporras.com,
+        registry.gitlab.com, or any Docker Hub org (short name without dot).
+    - expression: >-
+        object.spec.?initContainers.orValue([]).all(c,
+          c.image.startsWith('docker.io/') ||
+          c.image.startsWith('ghcr.io/') ||
+          c.image.startsWith('registry.k8s.io/') ||
+          c.image.startsWith('quay.io/') ||
+          c.image.startsWith('registry.k8s.rommelporras.com/') ||
+          c.image.startsWith('registry.gitlab.com/') ||
+          c.image.startsWith('lscr.io/') ||
+          c.image.startsWith('gcr.io/') ||
+          c.image.startsWith('public.ecr.aws/') ||
+          !c.image.contains('/') ||
+          !c.image.split('/')[0].contains('.')
+        )
+      message: "Init container image must be from a trusted registry"
+    - expression: >-
+        object.spec.?ephemeralContainers.orValue([]).all(c,
+          c.image.startsWith('docker.io/') ||
+          c.image.startsWith('ghcr.io/') ||
+          c.image.startsWith('registry.k8s.io/') ||
+          c.image.startsWith('quay.io/') ||
+          c.image.startsWith('registry.k8s.rommelporras.com/') ||
+          c.image.startsWith('registry.gitlab.com/') ||
+          c.image.startsWith('lscr.io/') ||
+          c.image.startsWith('gcr.io/') ||
+          c.image.startsWith('public.ecr.aws/') ||
+          !c.image.contains('/') ||
+          !c.image.split('/')[0].contains('.')
+        )
+      message: "Ephemeral container image must be from a trusted registry"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: restrict-image-registries-binding
+spec:
+  policyName: restrict-image-registries
+  validationActions:
+    - Warn       # Start with Warn to catch issues before enforcing
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kube-node-lease", "kube-public"]

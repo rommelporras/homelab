@@ -1,0 +1,88 @@
+# kube-bench Weekly CIS Benchmark Scan
+# Phase 5.6 - Pre-GitOps Validation
+#
+# Runs CIS Kubernetes Benchmark weekly on a control-plane node.
+# Alerts to Discord #infra if FAIL count exceeds threshold (regression detection).
+#
+# CKA topics: CronJobs, hostPID, hostPath volumes, security benchmarks
+#
+# nodeSelector schedules on a single CP node per run (acceptable for weekly regression check).
+# All 3 nodes are identical config, so scanning one is sufficient for drift detection.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kube-bench-weekly
+  namespace: kube-system
+spec:
+  schedule: "0 20 * * 0"       # Weekly Sunday 04:00 Manila time (UTC+8)
+  timeZone: "Asia/Manila"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      template:
+        spec:
+          hostPID: true
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              effect: NoSchedule
+          automountServiceAccountToken: false
+          containers:
+            - name: kube-bench
+              image: aquasec/kube-bench:v0.10.6
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  RESULT=$(kube-bench run --targets master,node,policies 2>&1)
+                  echo "$RESULT"
+                  # Extract FAIL count using POSIX grep (no -P flag)
+                  FAILS=$(echo "$RESULT" | grep -c '\[FAIL\]' || true)
+                  # THRESHOLD: Phase 5.6 final scan = 7 FAILs + 3 buffer
+                  THRESHOLD=10
+                  echo "FAIL count: $FAILS (threshold: $THRESHOLD)"
+                  if [ "$FAILS" -gt "$THRESHOLD" ]; then
+                    echo "WARNING: $FAILS CIS checks failing - regression detected"
+                    if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+                      curl -s -H "Content-Type: application/json" \
+                        -d "{\"content\":\"kube-bench: $FAILS CIS checks failing (threshold: $THRESHOLD). Run kube-bench manually to investigate.\"}" \
+                        "$DISCORD_WEBHOOK_URL"
+                    fi
+                  fi
+              env:
+                - name: DISCORD_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: discord-janitor-webhook
+                      key: webhook-url
+                      optional: true
+              resources:
+                requests: { cpu: 100m, memory: 128Mi }
+                limits: { cpu: 500m, memory: 256Mi }
+              volumeMounts:
+                - name: var-lib-etcd
+                  mountPath: /var/lib/etcd
+                  readOnly: true
+                - name: etc-kubernetes
+                  mountPath: /etc/kubernetes
+                  readOnly: true
+                - name: etc-systemd
+                  mountPath: /etc/systemd
+                  readOnly: true
+                - name: var-lib-kubelet
+                  mountPath: /var/lib/kubelet
+                  readOnly: true
+          volumes:
+            - name: var-lib-etcd
+              hostPath: { path: /var/lib/etcd }
+            - name: etc-kubernetes
+              hostPath: { path: /etc/kubernetes }
+            - name: etc-systemd
+              hostPath: { path: /etc/systemd }
+            - name: var-lib-kubelet
+              hostPath: { path: /var/lib/kubelet }
+          restartPolicy: Never

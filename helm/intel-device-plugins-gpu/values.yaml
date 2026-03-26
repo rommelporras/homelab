@@ -1,6 +1,6 @@
 # Intel GPU Device Plugin — Helm values for intel-device-plugins-gpu v0.35.0
 # Chart: intel/intel-device-plugins-gpu
-# Installed via: helm-homelab upgrade -i -n intel-device-plugins intel-device-plugins-gpu intel/intel-device-plugins-gpu --version 0.35.0 -f helm/intel-gpu-plugin/values.yaml
+# Installed via: helm-homelab upgrade -i -n intel-device-plugins intel-device-plugins-gpu intel/intel-device-plugins-gpu --version 0.35.0 -f helm/intel-device-plugins-gpu/values.yaml
 #
 # Purpose: Advertise Intel iGPU (UHD 630) as schedulable Kubernetes resources
 #   - Each node gets gpu.intel.com/i915 resources (sharedDevNum per GPU)

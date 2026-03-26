@@ -1,0 +1,13 @@
+# Intel Device Plugins Operator - Helm values for intel-device-plugins-operator v0.35.0
+# Chart: intel/intel-device-plugins-operator
+# Installed via: helm-homelab upgrade -i -n intel-device-plugins intel-device-plugins-operator intel/intel-device-plugins-operator --version 0.35.0 -f helm/intel-device-plugins-operator/values.yaml
+#
+# Purpose: Manages lifecycle of Intel device plugin CRDs (GpuDevicePlugin, etc.)
+#   - Watches for GpuDevicePlugin CRs and creates corresponding DaemonSets
+#   - Handles upgrades and rollback of device plugin pods
+#
+# Requires: Nothing (cluster-level operator)
+# Required by: Intel Device Plugins GPU (creates GpuDevicePlugin CR)
+
+# Pure defaults - no custom overrides needed
+# The operator watches for Intel device plugin CRs in all namespaces
