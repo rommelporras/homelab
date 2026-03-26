@@ -91,21 +91,31 @@
   **Gap 6: Intel GPU operator has no separate values file**
   Both intel releases share `helm/intel-gpu-plugin/values.yaml`.
   Create `helm/intel-device-plugins-operator/values.yaml` for the operator release.
+  Also rename `helm/intel-gpu-plugin/` to `helm/intel-device-plugins-gpu/` to match
+  the actual Helm release name (`intel-device-plugins-gpu`). The current name mismatch
+  means the verification script in Gap 7 reports it as missing even though values exist.
 
-  **Gap 7: 18 existing Helm releases need adoption strategy**
+  **Gap 7: 3 Helm releases missing tracked values files**
   ArgoCD uses `helm template`, not `helm install` - it does not create Helm releases.
   When ArgoCD takes over a Helm-managed service, two owners exist simultaneously
-  until the old Helm release is removed. Each of the 18 Helm releases needs:
-  (1) a tracked values file in `helm/<chart>/values.yaml` (most already exist),
+  until the old Helm release is removed. All 18 Helm releases need:
+  (1) a tracked values file in `helm/<release-name>/values.yaml`,
   (2) an ArgoCD Application manifest pointing at the chart + values,
   (3) a handover procedure to remove the old `helm install` release.
   Phase 5.8 handles the actual migration. Pre-validate: ensure every Helm release
-  has a corresponding values file in the repo.
+  has a corresponding values file in the repo. 15 of 18 already have matching
+  `helm/<name>/values.yaml` directories. The 3 gaps are:
+  - `node-feature-discovery` - no `helm/node-feature-discovery/` (Gap 2, installed with pure defaults)
+  - `intel-device-plugins-operator` - no `helm/intel-device-plugins-operator/` (Gap 6, pure defaults)
+  - `intel-device-plugins-gpu` - values exist at `helm/intel-gpu-plugin/` but directory name
+    doesn't match release name (Gap 6 rename)
   ```bash
   # Verify values files exist for all releases
   helm --kubeconfig ~/.kube/homelab.yaml list -A -o json | jq -r '.[].name' | while read rel; do
     if [ ! -d "helm/$rel" ]; then echo "MISSING: helm/$rel/"; fi
   done
+  # Expected output: 3 MISSING entries (node-feature-discovery, intel-device-plugins-operator,
+  # intel-device-plugins-gpu). The intel-gpu-plugin directory exists but name doesn't match.
   ```
 
 ---

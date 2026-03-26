@@ -134,7 +134,6 @@
   kubectl-admin apply -f manifests/argocd/apps/atuin.yaml
   kubectl-admin apply -f manifests/argocd/apps/cloudflare.yaml
   kubectl-admin apply -f manifests/argocd/apps/tailscale.yaml
-  # MySpeed is part of home namespace - migrated in Wave 2
   ```
 
 - [ ] 5.8.1.3 Verify all Wave 1 apps in ArgoCD UI
@@ -173,7 +172,10 @@
 
 | Service | Namespace | Manifest Path | Complexity |
 |---------|-----------|---------------|------------|
-| Home (AdGuard, Homepage) | home | manifests/home/ | Kustomize (Homepage), multi-service |
+| Home - AdGuard | home | manifests/home/adguard/ | Plain manifests |
+| Home - Homepage | home | manifests/home/homepage/ | Kustomize (auto-detected) |
+| Home - MySpeed | home | manifests/home/myspeed/ | Plain manifests |
+| Home - namespace resources | home | manifests/home/*.yaml | LimitRange, ResourceQuota, CNP, namespace |
 | ARR Stack | arr-stack | manifests/arr-stack/ | 15+ subdirectories, NFS PVs |
 | Ghost Dev | ghost-dev | manifests/ghost-dev/ | Per-env deployment |
 | Ghost Prod | ghost-prod | manifests/ghost-prod/ | Per-env deployment |
@@ -184,15 +186,33 @@
 
 ### Special Handling:
 
-**Homepage (Kustomize):**
+**Home namespace (multi-Application):**
+The `home` namespace has 3 services with different apply methods: Homepage uses Kustomize,
+AdGuard and MySpeed use plain manifests. A single recursive-directory Application would
+break Homepage (ArgoCD would apply Kustomize files as raw manifests). Split into:
+- `home-adguard` Application -> `manifests/home/adguard/` (directory, recurse)
+- `home-homepage` Application -> `manifests/home/homepage/` (auto-detects kustomization.yaml)
+- `home-myspeed` Application -> `manifests/home/myspeed/` (directory, recurse)
+- `home-infra` Application -> `manifests/home/` (non-recursive, picks up namespace.yaml,
+  limitrange.yaml, resourcequota.yaml, networkpolicy.yaml only)
+
 ```yaml
-# ArgoCD natively supports Kustomize - just point at the directory
+# Homepage: ArgoCD natively supports Kustomize - just point at the directory
 spec:
   source:
     repoURL: https://gitlab.k8s.rommelporras.com/wsh/homelab.git
     path: manifests/home/homepage
     targetRevision: main
     # ArgoCD auto-detects kustomization.yaml
+
+# AdGuard/MySpeed: plain directory Application
+spec:
+  source:
+    repoURL: https://gitlab.k8s.rommelporras.com/wsh/homelab.git
+    path: manifests/home/adguard  # or manifests/home/myspeed
+    targetRevision: main
+    directory:
+      recurse: true
 ```
 
 **ARR Stack (large directory):**

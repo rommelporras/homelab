@@ -91,7 +91,7 @@
 
 - [ ] 5.10.1.3 Create Helm values file
   ```yaml
-  # manifests/argo-rollouts/values.yaml
+  # helm/argo-rollouts/values.yaml
   controller:
     replicas: 1
     image:
@@ -142,14 +142,17 @@
     name: argo-rollouts
     namespace: argocd
   spec:
-    project: platform
-    source:
-      repoURL: https://argoproj.github.io/argo-helm
-      chart: argo-rollouts
-      targetRevision: <chart-version>
-      helm:
-        valueFiles:
-          - $repo/manifests/argo-rollouts/values.yaml
+    project: infrastructure
+    sources:
+      - repoURL: https://argoproj.github.io/argo-helm
+        chart: argo-rollouts
+        targetRevision: <chart-version>
+        helm:
+          valueFiles:
+            - $values/helm/argo-rollouts/values.yaml
+      - repoURL: https://gitlab.k8s.rommelporras.com/wsh/homelab.git
+        targetRevision: main
+        ref: values
     destination:
       server: https://kubernetes.default.svc
       namespace: argo-rollouts
@@ -303,7 +306,7 @@ See section 5.10.9 for future evaluation criteria.
   kind: Service
   metadata:
     name: portfolio-preview
-    namespace: portfolio
+    namespace: portfolio-prod
   spec:
     selector:
       app: portfolio
@@ -321,7 +324,7 @@ See section 5.10.9 for future evaluation criteria.
   kind: Rollout
   metadata:
     name: portfolio
-    namespace: portfolio
+    namespace: portfolio-prod
   spec:
     replicas: 2
     selector:
@@ -344,35 +347,41 @@ See section 5.10.9 for future evaluation criteria.
             - name: service-name
               value: portfolio
             - name: namespace
-              value: portfolio
+              value: portfolio-prod
   ```
 
 - [ ] 5.10.4.4 Delete old Deployment and apply Rollout
+  > **Why imperative?** The Deployment-to-Rollout conversion requires careful ordering
+  > (delete Deployment before creating Rollout to avoid ReplicaSet conflicts). ArgoCD
+  > can't guarantee atomic ordering. After this one-time migration step, ArgoCD manages
+  > the Rollout resource going forward. Commit rollout.yaml and service-preview.yaml
+  > to Git, remove deployment.yaml, then apply imperatively for the cutover.
   ```bash
-  # Delete Deployment (Rollout creates its own ReplicaSets)
-  kubectl-admin delete deployment portfolio -n portfolio
-
-  # Apply Rollout and preview Service
+  # Commit manifests/portfolio/rollout.yaml and service-preview.yaml to Git first
+  # Remove manifests/portfolio/deployment.yaml from Git
+  # Then perform the imperative cutover:
+  kubectl-admin delete deployment portfolio -n portfolio-prod
   kubectl-admin apply -f manifests/portfolio/rollout.yaml
   kubectl-admin apply -f manifests/portfolio/service-preview.yaml
+  # ArgoCD will sync to the new Git state (Rollout + preview Service, no Deployment)
   ```
 
 - [ ] 5.10.4.5 Verify initial Rollout is Healthy
   ```bash
-  kubectl-argo-rollouts get rollout portfolio -n portfolio
+  kubectl-argo-rollouts get rollout portfolio -n portfolio-prod
   # Expected: Status: Healthy, 2 active replicas, no preview replicas
 
-  kubectl-homelab get rollout portfolio -n portfolio
+  kubectl-homelab get rollout portfolio -n portfolio-prod
   # Expected: DESIRED=2, READY=2, STATUS=Healthy
   ```
 
 - [ ] 5.10.4.6 Test blue-green promotion flow
   ```bash
   # Trigger a rollout by updating the image (use a new tag)
-  kubectl-admin set image rollout/portfolio portfolio=<new-image> -n portfolio
+  kubectl-admin set image rollout/portfolio portfolio=<new-image> -n portfolio-prod
 
   # Watch rollout progress
-  kubectl-argo-rollouts get rollout portfolio -n portfolio --watch
+  kubectl-argo-rollouts get rollout portfolio -n portfolio-prod --watch
 
   # Expected sequence:
   # 1. Preview ReplicaSet created (1 pod)
@@ -380,11 +389,11 @@ See section 5.10.9 for future evaluation criteria.
   # 3. Status: Paused (waiting for manual promotion after analysis)
 
   # Check preview is accessible via port-forward
-  kubectl-homelab port-forward svc/portfolio-preview -n portfolio 8080:80
+  kubectl-homelab port-forward svc/portfolio-preview -n portfolio-prod 8080:80
   # curl http://localhost:8080 - should return new version
 
   # Manually promote after validation
-  kubectl-argo-rollouts promote portfolio -n portfolio
+  kubectl-argo-rollouts promote portfolio -n portfolio-prod
 
   # Expected: active Service switches to new ReplicaSet, old scales down after delay
   ```
@@ -412,12 +421,12 @@ See section 5.10.9 for future evaluation criteria.
 
 - [ ] 5.10.5.2 Create preview Service for ghost-prod
   ```yaml
-  # manifests/ghost/service-preview.yaml
+  # manifests/ghost-prod/service-preview.yaml
   apiVersion: v1
   kind: Service
   metadata:
     name: ghost-preview
-    namespace: ghost
+    namespace: ghost-prod
   spec:
     selector:
       app: ghost
@@ -428,12 +437,12 @@ See section 5.10.9 for future evaluation criteria.
 
 - [ ] 5.10.5.3 Convert Deployment to Rollout
   ```yaml
-  # manifests/ghost/rollout.yaml (replaces deployment.yaml)
+  # manifests/ghost-prod/rollout.yaml (replaces deployment.yaml)
   apiVersion: argoproj.io/v1alpha1
   kind: Rollout
   metadata:
     name: ghost
-    namespace: ghost
+    namespace: ghost-prod
   spec:
     replicas: 1
     selector:
@@ -458,26 +467,28 @@ See section 5.10.9 for future evaluation criteria.
             - name: service-name
               value: ghost
             - name: namespace
-              value: ghost
+              value: ghost-prod
             - name: rollout-name
               value: ghost
   ```
 
 - [ ] 5.10.5.4 Apply Rollout and preview Service
+  > Same imperative cutover pattern as portfolio (see 5.10.4.4 note).
   ```bash
-  kubectl-admin delete deployment ghost -n ghost
-  kubectl-admin apply -f manifests/ghost/rollout.yaml
-  kubectl-admin apply -f manifests/ghost/service-preview.yaml
+  # Commit rollout.yaml and service-preview.yaml, remove deployment.yaml in Git first
+  kubectl-admin delete deployment ghost -n ghost-prod
+  kubectl-admin apply -f manifests/ghost-prod/rollout.yaml
+  kubectl-admin apply -f manifests/ghost-prod/service-preview.yaml
   ```
 
 - [ ] 5.10.5.5 Verify Rollout is Healthy and run a test promotion
   ```bash
-  kubectl-argo-rollouts get rollout ghost -n ghost
+  kubectl-argo-rollouts get rollout ghost -n ghost-prod
   # Expected: Status: Healthy
 
   # Trigger with a minor config change to test the full flow
   # Promote manually, confirm postPromotionAnalysis passes
-  kubectl-argo-rollouts promote ghost -n ghost
+  kubectl-argo-rollouts promote ghost -n ghost-prod
   ```
 
 ---
@@ -499,7 +510,7 @@ See section 5.10.9 for future evaluation criteria.
   kind: Rollout
   metadata:
     name: homepage
-    namespace: homepage
+    namespace: home
   spec:
     replicas: 2
     selector:
@@ -521,31 +532,33 @@ See section 5.10.9 for future evaluation criteria.
                 - name: service-name
                   value: homepage
                 - name: namespace
-                  value: homepage
+                  value: home
           - setWeight: 100         # promote all replicas
   ```
 
 - [ ] 5.10.6.2 Apply Rollout
+  > Same imperative cutover pattern as portfolio (see 5.10.4.4 note).
   ```bash
-  kubectl-admin delete deployment homepage -n homepage
-
-  # homepage uses kustomize - update kustomization.yaml to reference rollout.yaml
-  # instead of deployment.yaml, then apply
+  # Update kustomization.yaml to reference rollout.yaml instead of deployment.yaml
+  # Commit changes to Git (add rollout.yaml, update kustomization.yaml, remove deployment.yaml)
+  # Then perform the imperative cutover:
+  kubectl-admin delete deployment homepage -n home
   kubectl-admin apply -k manifests/home/homepage/
+  # ArgoCD will sync to the new Git state
   ```
 
 - [ ] 5.10.6.3 Verify Rollout is Healthy
   ```bash
-  kubectl-argo-rollouts get rollout homepage -n homepage
+  kubectl-argo-rollouts get rollout homepage -n home
   # Expected: Status: Healthy, 2 replicas
   ```
 
 - [ ] 5.10.6.4 Test canary flow
   ```bash
   # Trigger by updating image
-  kubectl-admin set image rollout/homepage homepage=<new-image> -n homepage
+  kubectl-admin set image rollout/homepage homepage=<new-image> -n home
 
-  kubectl-argo-rollouts get rollout homepage -n homepage --watch
+  kubectl-argo-rollouts get rollout homepage -n home --watch
   # Expected sequence:
   # 1. setWeight 50 - 1 pod updated, 1 pod old
   # 2. pause 5m
@@ -747,7 +760,7 @@ See section 5.10.9 for future evaluation criteria.
   # Trigger a no-op rollout on homepage to test
   kubectl-admin annotate rollout homepage \
     rollout.argoproj.io/restart-at="$(date +%Y-%m-%dT%H:%M:%SZ)" \
-    -n homepage
+    -n home
   # Expected: Discord #gitops message when rollout completes
   ```
 
@@ -861,9 +874,9 @@ kubectl-admin delete namespace argo-rollouts
 # 3. kubectl-admin delete service <name>-preview -n <namespace>  # remove preview Services
 
 # Example for portfolio
-kubectl-admin delete rollout portfolio -n portfolio
+kubectl-admin delete rollout portfolio -n portfolio-prod
 kubectl-admin apply -f manifests/portfolio/deployment.yaml
-kubectl-admin delete service portfolio-preview -n portfolio
+kubectl-admin delete service portfolio-preview -n portfolio-prod
 ```
 
 **ArgoCD shows OutOfSync after auto-rollback:**

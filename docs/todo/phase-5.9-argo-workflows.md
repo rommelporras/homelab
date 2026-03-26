@@ -82,7 +82,7 @@
 
 - [ ] 5.9.1.3 Create Helm values file
   ```yaml
-  # manifests/argo-workflows/values.yaml
+  # helm/argo-workflows/values.yaml
   controller:
     replicas: 1
     image:
@@ -138,14 +138,17 @@
     name: argo-workflows
     namespace: argocd
   spec:
-    project: platform
-    source:
-      repoURL: https://argoproj.github.io/argo-helm
-      chart: argo-workflows
-      targetRevision: <chart-version>
-      helm:
-        valueFiles:
-          - $repo/manifests/argo-workflows/values.yaml
+    project: infrastructure
+    sources:
+      - repoURL: https://argoproj.github.io/argo-helm
+        chart: argo-workflows
+        targetRevision: <chart-version>
+        helm:
+          valueFiles:
+            - $values/helm/argo-workflows/values.yaml
+      - repoURL: https://gitlab.k8s.rommelporras.com/wsh/homelab.git
+        targetRevision: main
+        ref: values
     destination:
       server: https://kubernetes.default.svc
       namespace: argo-workflows
@@ -686,12 +689,12 @@ kubectl-admin delete namespace argo-workflows
 **Restore migrated CronJobs if rollback needed:**
 ```bash
 # vault-snapshot: re-apply original CronJob manifest
-kubectl-admin apply -f manifests/vault/cronjob-vault-snapshot.yaml
+kubectl-admin apply -f manifests/vault/snapshot-cronjob.yaml
 
 # arr-backup: re-apply original 3 CronJob manifests
-kubectl-admin apply -f manifests/arr-stack/cronjob-arr-backup-cp1.yaml
-kubectl-admin apply -f manifests/arr-stack/cronjob-arr-backup-cp2.yaml
-kubectl-admin apply -f manifests/arr-stack/cronjob-arr-backup-cp3.yaml
+kubectl-admin apply -f manifests/arr-stack/backup-cronjob-cp1.yaml
+kubectl-admin apply -f manifests/arr-stack/backup-cronjob-cp2.yaml
+kubectl-admin apply -f manifests/arr-stack/backup-cronjob-cp3.yaml
 ```
 
 **CiliumNP too restrictive:**

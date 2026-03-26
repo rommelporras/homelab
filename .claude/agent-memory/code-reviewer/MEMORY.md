@@ -56,3 +56,14 @@ Kubernetes homelab infrastructure repo (public). 3-node HA cluster (kubeadm, Cil
 - Secret seeding always goes: 1Password → `scripts/seed-vault-from-1password.sh` → Vault. Never raw `vault kv put` in specs/docs; never `op read` in unattended/automated scripts (Family plan has no Connect)
 - `restic forget --prune` on large repos (300GB+) can run 30-60 min — don't run after every backup on media repos
 - `restic check` without `--with-cache` reads all pack files (slow on large repos); use `--with-cache` for routine post-backup checks
+- **Node names are `k8s-cp1`, `k8s-cp2`, `k8s-cp3`** — bare `cp1`/`cp2`/`cp3` is wrong in `nodeName` fields and SSH targets
+- **`helm uninstall --keep-history` does NOT protect resources** — it only keeps the Helm release secret; ArgoCD SSA field ownership is what prevents resource deletion during Helm handover
+- **Cilium `ingress: [{}]` = allow-all, `ingress: []` = deny-all** — the opposite of the name "default-deny". Always verify the body matches the intent when reviewing CiliumNetworkPolicy.
+- **ArgoCD `kubectl-homelab get secret -o jsonpath` will fail** — `kubectl-homelab` RBAC blocks secret `get`. Retrieve passwords from 1Password or Vault UI instead.
+- **ESO `creationPolicy: Merge` requires the target Secret to pre-exist** — ArgoCD `argocd-secret` must be created by Helm first before ESO can Merge into it. Ordering: Helm install → then apply ExternalSecrets.
+
+## ArgoCD-Specific Review Checks (Phase 5.7-5.8)
+- AppProject `destinations` must include ALL namespaces used by its Applications (e.g., `default` for Gateway)
+- `spec.source` and `spec.sources` are mutually exclusive in ArgoCD Applications — remove `spec.source` when using multi-source
+- Wave 3 has 11 Helm releases (not 6): includes tailscale-operator, NFD, intel-device-plugins-operator, intel-device-plugins-gpu, velero in addition to the 6 in the summary table
+- OCI chart URLs must be fully qualified: `oci://quay.io/jetstack/charts/cert-manager` not `oci://jetstack/cert-manager`

@@ -552,13 +552,11 @@
           - ports:
               - port: "6443"
                 protocol: TCP
-      # Allow GitLab access (repo-server clones from GitLab)
+      # Allow GitLab access (repo-server clones from GitLab via Gateway VIP)
+      # Gateway LB VIP requires L4-only rule (no toPorts) - L7 envoy interferes
+      # See docs/context/Networking.md "Reach Gateway LB VIP from pods"
       - toCIDR:
           - 10.10.30.20/32
-        toPorts:
-          - ports:
-              - port: "443"
-                protocol: TCP
       # Allow Discord webhooks (notifications-controller)
       - toFQDNs:
           - matchName: discord.com
@@ -574,7 +572,10 @@
   ```
 
   > **Note:** GitLab is accessed via HTTPS through the Cilium Gateway (10.10.30.20),
-  > not directly to GitLab pods. The CIDR rule for 10.10.30.20 covers this.
+  > not directly to GitLab pods. The CIDR rule uses L4-only (no `toPorts`) because
+  > the Gateway LB VIP has its own Cilium identity and L7 envoy interferes with
+  > port-specific rules (see Networking.md gotcha table). This is the same pattern
+  > used by Homepage egress.
   > The `remote-node` entity is needed for cross-node API server traffic in Cilium
   > tunnel mode (same pattern as cert-manager and ESO webhook policies from Phase 5.3).
 
@@ -673,6 +674,7 @@
       - oci://registry.k8s.io/nfd/charts/*
       - https://intel.github.io/helm-charts/
       - https://prometheus-community.github.io/helm-charts
+      - https://argoproj.github.io/argo-helm
     destinations:
       - namespace: default
         server: https://kubernetes.default.svc
@@ -693,6 +695,10 @@
       - namespace: intel-device-plugins
         server: https://kubernetes.default.svc
       - namespace: velero
+        server: https://kubernetes.default.svc
+      - namespace: argo-workflows
+        server: https://kubernetes.default.svc
+      - namespace: argo-rollouts
         server: https://kubernetes.default.svc
     clusterResourceWhitelist:
       - group: ''
@@ -1019,8 +1025,8 @@
   Follow homelab convention:
   - Row 1: Pod Status (all ArgoCD component pods)
   - Row 2: Network Traffic (server, repo-server, controller)
-  - Row 3: Resource Usage (CPU/Memory with request/limit lines)
-  - Row 4: ArgoCD-specific (sync status, app health, reconciliation time)
+  - Row 3: ArgoCD-specific (sync status, app health, reconciliation time)
+  - Row 4: Resource Usage (CPU/Memory with request/limit lines, must be last per convention)
   - Descriptions on every panel and row
   - ConfigMap with grafana_dashboard: "1" label, grafana_folder: "Homelab" annotation
   ```
