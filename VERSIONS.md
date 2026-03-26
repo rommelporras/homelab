@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** March 23, 2026
+> **Last Updated:** March 26, 2026
 
 ---
 
@@ -149,6 +149,7 @@ helm-homelab repo update
 | Atuin Server | 18.12.0 | Running | Self-hosted shell history sync (E2E encrypted) |
 | PostgreSQL (Atuin) | 18.3 | Running | Atuin dedicated database (atuin namespace) |
 | Cluster Janitor | CronJob (alpine/k8s:1.35.3) | Running | Automated cleanup: Failed pods + stopped Longhorn replicas (kube-system) |
+| kube-bench | CronJob (aquasec/kube-bench:v0.10.6) | Running | Weekly CIS benchmark regression detection (kube-system) |
 | HashiCorp Vault | 1.21.4 | Running | Secrets management (standalone, Raft on Longhorn 5Gi) |
 | Vault Auto-Unsealer | 1.21.4 | Running | Polls vault-0 every 30s, auto-unseals with 3 Shamir keys |
 | External Secrets Operator | v2.1.0 | Running | Syncs K8s Secrets from Vault via ExternalSecret CRDs |

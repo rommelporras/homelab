@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, security, pss, eso, vault, service-accounts, cis, hardening, network-policies, backup, resilience]
-updated: 2026-03-21
+updated: 2026-03-26
 ---
 
 # Security
@@ -11,11 +11,13 @@ Control plane hardening, pod security, secrets infrastructure, and service accou
 
 ### CIS Kubernetes Benchmark Scores
 
-| Metric | Before (v0.30.0) | After (v0.31.0) |
-|--------|-------------------|------------------|
-| PASS | 51 | 58 |
-| FAIL | 20 | 13 |
-| WARN | 47 | 47 |
+| Metric | Before (v0.30.0) | After (v0.31.0) | Phase 5.6 (v0.36.0) |
+|--------|-------------------|------------------|----------------------|
+| PASS | 51 | 58 | 69 |
+| FAIL | 20 | 13 | 7 |
+| WARN | 47 | 47 | 36 |
+
+Phase 5.6 results are identical across all 3 CP nodes (kube-bench v0.10.6, targets: master,node,policies).
 
 ### Applied Hardening
 
@@ -29,13 +31,21 @@ Control plane hardening, pod security, secrets infrastructure, and service accou
 | Controller-manager | `--profiling=false` | 1.3.2 |
 | Scheduler | `--profiling=false` | 1.4.1 |
 
-### Intentionally Excluded
+### Remaining FAIL Items (7 - all justified)
 
-| Setting | CIS Check | Reason |
-|---------|-----------|--------|
-| `--anonymous-auth=false` | 1.2.1 (WARN/Manual) | Breaks kubelet startup probes in k8s 1.35 — `/livez` returns 401 for unauthenticated requests. RBAC blocks `system:anonymous` (403) instead. Security posture equivalent. |
-| `--bind-address=127.0.0.1` (CM/scheduler) | 1.3.7, 1.4.2 | Intentionally `0.0.0.0` for Prometheus scraping. |
-| etcd data dir `etcd:etcd` ownership | 1.1.12 | etcd runs as static pod (root). Expected with kubeadm. |
+| CIS Check | Setting | Reason |
+|-----------|---------|--------|
+| 1.1.12 | etcd data dir `etcd:etcd` ownership | Architectural: kubeadm stacked etcd runs as root in static pod. No etcd user. |
+| 1.2.6 | kubelet-certificate-authority not set | By design: kubeadm uses TLS bootstrapping with auto-rotating certs. Modern approach, functionally equivalent. |
+| 1.2.16 | PodSecurityPolicy admission plugin | Stale CIS check: PSP removed in K8s 1.25. Replaced with PSS via namespace labels (Phase 5.0). |
+| 1.2.19 | insecure-port not set to 0 | Stale CIS check: `--insecure-port` flag removed in K8s 1.24+. |
+| 1.3.7 | controller-manager bind-address not 127.0.0.1 | Intentional: `0.0.0.0` for Prometheus ServiceMonitor scraping. |
+| 1.4.2 | scheduler bind-address not 127.0.0.1 | Intentional: `0.0.0.0` for Prometheus ServiceMonitor scraping. |
+| 4.1.1 | kubelet service file permissions | False positive: kube-bench checks `/etc/systemd/system/kubelet.service.d/` but Ubuntu 24.04 places file at `/usr/lib/systemd/system/kubelet.service.d/` with correct 644 permissions. |
+
+### Regression Detection
+
+kube-bench runs weekly as a CronJob (`kube-bench-weekly` in kube-system). Alerts to Discord #infra if FAIL count exceeds threshold (7 baseline + 3 buffer = 10). Schedule: Sunday 04:00 Manila time.
 
 ### Audit Logging
 
@@ -48,6 +58,38 @@ Logs shipped to Loki via Alloy DaemonSet hostPath mount. Query with `{source="au
 All kubeadm certs expire ~Jan 2027 (307 days from Phase 5.1 execution). CAs expire 2036. Weekly CronJob (`cert-expiry-check`) monitors expiry and alerts via Discord when <30 days remaining. PKI backed up weekly to NFS (`/Kubernetes/Backups/pki/`).
 
 Renewal: `sudo kubeadm certs renew all` on each CP node, followed by kubelet restart.
+
+## Image Registry Restriction (Phase 5.6)
+
+ValidatingAdmissionPolicy (VAP) restricts container images to trusted registries. Native K8s admission control (GA since v1.30), no third-party dependencies.
+
+### Trusted Registries
+
+| Registry | Examples |
+|----------|----------|
+| `docker.io/` | Docker Hub explicit prefix |
+| `ghcr.io/` | GitHub Container Registry |
+| `registry.k8s.io/` | Kubernetes official images |
+| `quay.io/` | Red Hat Quay (ArgoCD) |
+| `registry.k8s.rommelporras.com/` | Self-hosted GitLab container registry |
+| `registry.gitlab.com/` | GitLab upstream (GitLab CE components) |
+| `lscr.io/` | LinuxServer.io (arr-stack apps) |
+| `gcr.io/` | Google Container Registry |
+| `public.ecr.aws/` | AWS ECR Public (ArgoCD Redis) |
+| Docker Hub short names | `org/image` (no dot before first slash) |
+| Bare library images | `alpine`, `redis` (no slash) |
+
+### Design Decisions
+
+- CEL expression `!c.image.split('/')[0].contains('.')` allows all Docker Hub orgs without maintaining a list
+- `object.spec.?containers.orValue([])` is vacuously true for Deployments/StatefulSets (containers at `spec.template.spec`). Pod-level admission is the real enforcement gate.
+- kube-system, kube-node-lease, kube-public exempted from policy
+- Covers containers, initContainers, and ephemeralContainers
+- Deployed in Warn mode initially; switch to Deny after 1 week of clean operation
+
+### Manifest
+
+`manifests/kube-system/image-registry-policy.yaml` - ValidatingAdmissionPolicy + Binding
 
 ## Pod Security Standards (PSS)
 
@@ -243,13 +285,15 @@ Kubernetes Secrets (consumed by pods)
 |---------|----------|---------|
 | `cluster-admin` → `Group/system:masters` | kubeadm bootstrap | ✅ Expected |
 | `kubeadm:cluster-admins` → `Group/kubeadm:cluster-admins` | kubeadm bootstrap | ✅ Expected |
-| `longhorn-support-bundle` → `SA/longhorn-system/longhorn-support-bundle` | Longhorn support bundle collection | ✅ Accepted — see below |
+| `longhorn-support-bundle` → `SA/longhorn-system/longhorn-support-bundle` | Longhorn support bundle collection | ✅ Accepted - see below |
+| `velero-server` → `SA/velero/velero-server` | Cross-namespace backup/restore | ✅ Accepted - see below |
 
 ### Decisions
 
 | Decision | Rationale |
 |----------|-----------|
-| longhorn-support-bundle cluster-admin accepted | Required for bundle collection across all namespaces. Only one manual CRD triggers it; no continuous privilege. Longhorn upstream — not fixable without forking. Documented as known exception. |
+| longhorn-support-bundle cluster-admin accepted | Required for bundle collection across all namespaces. Only one manual CRD triggers it; no continuous privilege. Longhorn upstream - not fixable without forking. Documented as known exception. |
+| velero-server cluster-admin accepted | Velero needs cross-namespace access for backup/restore of all K8s resources. Helm chart creates the binding. Required for Velero's core functionality. Single admin homelab - acceptable risk. |
 | GitLab Runner `clusterWideAccess: false` | Runner was using a ClusterRole with `resources: ["*"], verbs: ["*"]` on core API. All job pods run in `gitlab-runner` namespace; cross-namespace deploys use `gitlab-deploy` SA (separate namespace Roles). Changed to namespace-scoped Role in Helm values. Helm upgrade applied (rev 5), ClusterRole deleted. |
 | version-check-cronjob `automountServiceAccountToken` restored | Phase 5.0 hardening set this to `false` on the CronJob pod spec. Nova (Fairwinds) requires in-cluster API access to read Helm release Secrets (`type: helm.sh/release.v1`) across all namespaces for chart drift detection. Removing the flag restored Nova auth. |
 
@@ -257,9 +301,10 @@ Kubernetes Secrets (consumed by pods)
 
 ```
 cluster-admin
-    ├── system:masters (kubeadm bootstrap — cluster-admin)
-    ├── kubeadm:cluster-admins (kubeadm bootstrap — cluster-admin)
-    └── longhorn-support-bundle (Longhorn SA — cluster-admin, manual trigger only)
+    ├── system:masters (kubeadm bootstrap - cluster-admin)
+    ├── kubeadm:cluster-admins (kubeadm bootstrap - cluster-admin)
+    ├── longhorn-support-bundle (Longhorn SA - cluster-admin, manual trigger only)
+    └── velero-server (Velero SA - cross-namespace backup/restore)
 
 Read-only (restricted)
     └── claude-code SA (kube-system)
@@ -467,3 +512,34 @@ Suspended (GitHub App). Decision: version-checker + Nova covers drift detection.
 ### CronJob Monitoring
 
 All CronJobs monitored by `KubeCronJobNotScheduled` and `KubeJobFailed` Prometheus alerts. Backup-specific: `VeleroBackupFailure`, `EtcdBackupStale`, `LonghornVolumeAllReplicasStopped`.
+
+## GitOps Security Model (Phase 5.6)
+
+Security controls for ArgoCD-managed cluster operations (Phase 5.7+).
+
+| Layer | Control | Details |
+|-------|---------|---------|
+| Source | Self-hosted GitLab | Deploy token with `read_repository` scope |
+| Admission | ValidatingAdmissionPolicy | Trusted image registries only (CEL-based) |
+| Secrets | Vault + ESO | Never raw Secrets in Git. 33 ExternalSecrets from Vault. |
+| Network | CiliumNetworkPolicy | Default-deny on 24 namespaces (127 policies) |
+| Drift | Manual sync initially | ArgoCD auto-sync disabled until trust established |
+| Imperative exceptions | vault-unseal-keys | Bootstrap secret - ArgoCD must never prune vault namespace Secrets |
+
+## Security Posture Summary (Phase 5.6)
+
+| Control | Status | Coverage | Known Gaps |
+|---------|--------|----------|------------|
+| PSS | Enforced | 27/31 namespaces | 4 empty/system ns (cilium-secrets, default, kube-node-lease, kube-public) |
+| CiliumNP | Default-deny | 24/31 namespaces (127 policies) | longhorn-system, NFD, intel-dp (privileged, low attack surface) |
+| RBAC | Audited | 4 cluster-admin bindings | velero-server (accepted - cross-ns backup) |
+| etcd encryption | Active (secretbox) | All secrets | |
+| Audit logging | Active | All API calls | Audit alerts deferred (needs Loki Ruler) |
+| Backup | 3-layer | Longhorn+Velero+etcd (24 CronJobs) | |
+| CIS benchmark | 69 pass / 7 fail | All 3 CP nodes identical | 7 justified FAILs documented |
+| Image restriction | VAP Warn mode | All non-system namespaces | Deny mode target: 2026-04-02 |
+| ESO | Healthy | 33 ExternalSecrets (14 namespaces) | |
+| Supply chain | Tag pinning | All images except 1 | portfolio:latest (CI/CD pattern, Phase 5.8) |
+| ResourceQuotas | Active | 14 namespaces | System ns excluded (variable needs) |
+| PDBs | Active | 24 PDBs | |
+| Vault | Healthy | Auto-unseal, daily snapshots | |

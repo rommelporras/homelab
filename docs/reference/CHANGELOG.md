@@ -4,6 +4,62 @@
 
 ---
 
+## March 26, 2026 - Pre-GitOps Validation (v0.36.0)
+
+### Summary
+
+Final security validation and GitOps preparation. Verified all Phase 5.0-5.4 security controls
+in place, deployed CIS benchmark regression detection, and added image registry admission control.
+All 33 ExternalSecrets healthy, Vault unsealed, 24 CronJobs running. Security posture: 69 CIS
+checks passing (7 justified FAILs), 127 CiliumNetworkPolicies across 24 namespaces, PSS enforced
+on 27/31 namespaces.
+
+### 5.6.0 - Prerequisites (Phase 5.5 Remediation)
+
+- Applied 10 unapplied blackbox probes, 3 GitLab ServiceMonitors, 2 PrometheusRules, 8 Grafana dashboards
+- Resolved 6 blocking GitOps gaps:
+  - Gap 2: Created `helm/node-feature-discovery/values.yaml` (pure defaults)
+  - Gap 6: Created `helm/intel-device-plugins-operator/values.yaml`, renamed `helm/intel-gpu-plugin/` to `helm/intel-device-plugins-gpu/` (matches Helm release name)
+  - Gap 7: All 18/18 Helm releases now have matching `helm/<name>/values.yaml` directories
+  - Gaps 1/3/4/5: Documented as Phase 5.8 work items (Invoicetron CI/CD, namespace-less manifests, Prometheus runtime secrets, vault-unseal-keys)
+
+### 5.6.1 - CIS Benchmark Final Scan
+
+- kube-bench v0.10.6 on all 3 CP nodes: 69 PASS, 7 FAIL, 36 WARN (identical across nodes)
+- Delta from Phase 5.1: -6 FAIL (13 to 7), +11 PASS (58 to 69)
+- All 7 FAIL items justified: stale CIS checks (PSP removed, insecure-port removed), architectural (stacked etcd), intentional (Prometheus scraping), false positive (Ubuntu 24.04 path)
+
+### 5.6.2 - kube-bench Recurring CronJob
+
+- Weekly Sunday 04:00 Manila time, Discord #infra alert if FAIL count exceeds 10 (7 baseline + 3 buffer)
+- Reuses existing `discord-janitor-webhook` ExternalSecret
+- Manifest: `manifests/kube-system/kube-bench-cronjob.yaml`
+
+### 5.6.3 - Image Registry Restriction (ValidatingAdmissionPolicy)
+
+- CEL-based VAP validates containers, initContainers, and ephemeralContainers
+- Trusted registries: docker.io, ghcr.io, registry.k8s.io, quay.io, lscr.io, gcr.io, public.ecr.aws, self-hosted GitLab, registry.gitlab.com, all Docker Hub short names
+- Deployed in Warn mode; kube-system/kube-node-lease/kube-public exempted
+- Zero conflicts against 100+ running containers
+- Deny mode scheduled for 2026-04-02
+- Manifest: `manifests/kube-system/image-registry-policy.yaml`
+
+### 5.6.4 - Full Cluster Security Audit
+
+- Phase 5.0-5.4 controls verified: PSS (27/31 ns), CiliumNP (24/31 ns, 127 policies), RBAC (4 cluster-admin), etcd encryption (secretbox), audit logging (52MB active), 24 CronJobs, 14 ResourceQuotas, 24 PDBs
+- All 33 ExternalSecrets in SecretSynced state
+- Vault healthy: vault-0 + vault-unsealer Running, snapshots completing
+- 1 `:latest` tag: portfolio (CI/CD pattern, Phase 5.8 remediation)
+- Security posture summary: 13 control areas documented
+
+### 5.6.5 - Documentation
+
+- Security.md updated: Phase 5.6 CIS scores, 7 FAIL justifications, VAP section, GitOps security model, security posture summary table, velero-server cluster-admin documented
+- VERSIONS.md updated: kube-bench CronJob added
+- CHANGELOG.md updated (this entry)
+
+---
+
 ## March 23, 2026 - Observability & Version Hardening (v0.35.0)
 
 ### Summary

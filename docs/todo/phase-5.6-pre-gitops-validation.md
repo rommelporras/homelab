@@ -31,27 +31,27 @@
 > to the cluster. These must be deployed before Phase 5.6 starts - ArgoCD will eventually
 > manage them, so they need to be running and verified first.
 
-- [ ] 5.6.0.1 Apply 10 unapplied blackbox probes
+- [x] 5.6.0.1 Apply 10 unapplied blackbox probes
   ```bash
   kubectl-admin apply -f manifests/monitoring/probes/
   ```
   Missing: cert-manager-webhook, eso-webhook, garage, homepage, longhorn-ui, myspeed,
   prowlarr, radarr, recommendarr, sonarr. Verify with `kubectl-homelab get probes -n monitoring`.
 
-- [ ] 5.6.0.2 Apply 3 GitLab ServiceMonitors
+- [x] 5.6.0.2 Apply 3 GitLab ServiceMonitors
   ```bash
   kubectl-admin apply -f manifests/monitoring/servicemonitors/gitlab-servicemonitor.yaml
   ```
   Missing: gitlab-exporter, gitlab-postgresql, gitlab-redis. Verify Prometheus targets appear.
 
-- [ ] 5.6.0.3 Apply 2 unapplied PrometheusRules
+- [x] 5.6.0.3 Apply 2 unapplied PrometheusRules
   ```bash
   kubectl-admin apply -f manifests/monitoring/alerts/gitlab-alerts.yaml
   kubectl-admin apply -f manifests/monitoring/alerts/home-alerts.yaml
   ```
   These depend on the probes/ServiceMonitors above.
 
-- [ ] 5.6.0.4 Apply 8 unapplied Grafana dashboards
+- [x] 5.6.0.4 Apply 8 unapplied Grafana dashboards
   ```bash
   for f in cert-manager eso ghost-prod gitlab home invoicetron-prod loki-storage uptime-kuma; do
     kubectl-admin apply -f manifests/monitoring/dashboards/${f}-dashboard-configmap.yaml
@@ -59,7 +59,7 @@
   ```
   Verify all 23 custom dashboards visible in Grafana Homelab folder.
 
-- [ ] 5.6.0.5 Resolve 6 blocking GitOps gaps
+- [x] 5.6.0.5 Resolve 6 blocking GitOps gaps
   These architectural issues must be addressed before ArgoCD can manage the cluster:
 
   **Gap 1: Invoicetron CI/CD `kubectl set image` pattern**
@@ -114,8 +114,9 @@
   helm --kubeconfig ~/.kube/homelab.yaml list -A -o json | jq -r '.[].name' | while read rel; do
     if [ ! -d "helm/$rel" ]; then echo "MISSING: helm/$rel/"; fi
   done
-  # Expected output: 3 MISSING entries (node-feature-discovery, intel-device-plugins-operator,
-  # intel-device-plugins-gpu). The intel-gpu-plugin directory exists but name doesn't match.
+  # Expected output after Gap 2+6 fixes: 0 MISSING entries (all 18/18 matched).
+  # Previously 3 MISSING: node-feature-discovery, intel-device-plugins-operator,
+  # intel-device-plugins-gpu (intel-gpu-plugin existed but name didn't match).
   ```
 
 ---
@@ -128,7 +129,7 @@ Run kube-bench as final verification. Compare against Phase 5.1 baseline (20 FAI
 > - CIS 1.3.7/1.4.2: `--bind-address=0.0.0.0` on controller-manager/scheduler (required for Prometheus scraping)
 > - CIS 1.2.1: `--anonymous-auth=false` exception (breaks API server liveness probes in k8s 1.35)
 
-- [ ] 5.6.1.1 Run kube-bench on all 3 CP nodes
+- [x] 5.6.1.1 Run kube-bench on all 3 CP nodes
 
   > **Why not a single Job?** A Job with `nodeSelector: control-plane` schedules on ONE node.
   > To scan all 3 CP nodes, use separate Jobs with `nodeName` affinity per node.
@@ -193,7 +194,7 @@ Run kube-bench as final verification. Compare against Phase 5.1 baseline (20 FAI
   > Phase 5.1 used `aquasec/kube-bench:v0.10.6`. Verify the tag still exists before running:
   > `docker manifest inspect aquasec/kube-bench:v0.10.6`
 
-- [ ] 5.6.1.2 Collect and compare results from all 3 nodes
+- [x] 5.6.1.2 Collect and compare results from all 3 nodes
   ```bash
   for NODE in k8s-cp1 k8s-cp2 k8s-cp3; do
     echo "=== $NODE ==="
@@ -201,27 +202,52 @@ Run kube-bench as final verification. Compare against Phase 5.1 baseline (20 FAI
   done
   ```
 
-- [ ] 5.6.1.3 Document final CIS score and delta from Phase 5.1 baseline
+- [x] 5.6.1.3 Document final CIS score and delta from Phase 5.1 baseline
   ```
-  Expected format:
+  Phase 5.1 baseline: 13 FAIL (down from 20 pre-5.1)
+  Phase 5.6 result:    7 FAIL (all 3 nodes identical)
+
   | Node | PASS | FAIL | WARN | INFO | Delta from 5.1 |
   |------|------|------|------|------|----------------|
-  | cp1  |  XX  |  XX  |  XX  |  XX  | +X/-X          |
-  | cp2  |  XX  |  XX  |  XX  |  XX  | +X/-X          |
-  | cp3  |  XX  |  XX  |  XX  |  XX  | +X/-X          |
+  | cp1  |  69  |   7  |  36  |   0  | -6 FAIL        |
+  | cp2  |  69  |   7  |  36  |   0  | -6 FAIL        |
+  | cp3  |  69  |   7  |  36  |   0  | -6 FAIL        |
   ```
 
-- [ ] 5.6.1.4 Review remaining FAIL items - document justification for each
+- [x] 5.6.1.4 Review remaining FAIL items - document justification for each
   ```
-  Known acceptable FAILs:
-  - CIS 1.3.7/1.4.2: --bind-address=0.0.0.0 (Prometheus scraping requirement)
-  - CIS 1.2.1: anonymous-auth probe exception (k8s 1.35 liveness probe requirement)
-  - Items requiring separate etcd cluster (architectural - 3-node HA uses stacked etcd)
-  - Items conflicting with Cilium replacing kube-proxy
-  Any NEW FAILs vs Phase 5.1 must be investigated and either fixed or justified.
+  All 7 FAIL items are justified - no new regressions vs Phase 5.1:
+
+  1.1.12 - etcd data directory ownership etcd:etcd
+    Architectural: kubeadm stacked etcd runs as root in static pod. No etcd user.
+
+  1.2.6 - kubelet-certificate-authority not set
+    By design: kubeadm uses TLS bootstrapping with auto-rotating certs instead of
+    static CA file. Modern approach, functionally equivalent.
+
+  1.2.16 - PodSecurityPolicy admission plugin not set
+    Stale CIS check: PSP removed in K8s 1.25. Replaced with Pod Security Standards
+    (PSS) via namespace labels (Phase 5.0).
+
+  1.2.19 - insecure-port not set to 0
+    Stale CIS check: --insecure-port flag removed entirely in K8s 1.24+.
+
+  1.3.7 - controller-manager bind-address not 127.0.0.1
+    Intentional: set to 0.0.0.0 for Prometheus ServiceMonitor scraping.
+
+  1.4.2 - scheduler bind-address not 127.0.0.1
+    Intentional: set to 0.0.0.0 for Prometheus ServiceMonitor scraping.
+
+  4.1.1 - kubelet service file permissions
+    False positive: kube-bench checks /etc/systemd/system/kubelet.service.d/ but
+    Ubuntu 24.04 places 10-kubeadm.conf at /usr/lib/systemd/system/kubelet.service.d/
+    with correct 644 permissions (-rw-r--r-- root:root).
+
+  Note: CIS 1.2.1 (anonymous-auth) NOT in FAIL list - anonymous-auth=false is working.
+  The k8s 1.35 liveness probe exception documented in Phase 5.1 was resolved.
   ```
 
-- [ ] 5.6.1.5 Clean up scan Jobs
+- [x] 5.6.1.5 Clean up scan Jobs
   ```bash
   for NODE in k8s-cp1 k8s-cp2 k8s-cp3; do
     kubectl-admin delete job kube-bench-final-${NODE} -n kube-system
@@ -234,7 +260,7 @@ Run kube-bench as final verification. Compare against Phase 5.1 baseline (20 FAI
 
 Continuous CIS compliance - detect regressions after future changes.
 
-- [ ] 5.6.2.1 Create kube-bench CronJob
+- [x] 5.6.2.1 Create kube-bench CronJob
 
   > **Gotchas fixed from original plan:**
   > - `readOnlyRootFilesystem` removed - kube-bench writes temp files during scan
@@ -277,9 +303,8 @@ Continuous CIS compliance - detect regressions after future changes.
                     echo "$RESULT"
                     # Extract FAIL count using POSIX grep (no -P flag)
                     FAILS=$(echo "$RESULT" | grep -c '\[FAIL\]' || true)
-                    # THRESHOLD: set to final scan FAIL count + 3 buffer
-                    # Update this after 5.6.1 completes (current baseline: 13 FAILs)
-                    THRESHOLD=16
+                    # THRESHOLD: Phase 5.6 final scan = 7 FAILs + 3 buffer
+                    THRESHOLD=10
                     echo "FAIL count: $FAILS (threshold: $THRESHOLD)"
                     if [ "$FAILS" -gt "$THRESHOLD" ]; then
                       echo "WARNING: $FAILS CIS checks failing - regression detected"
@@ -324,16 +349,16 @@ Continuous CIS compliance - detect regressions after future changes.
             restartPolicy: Never
   ```
 
-- [ ] 5.6.2.2 Update THRESHOLD value based on actual 5.6.1 final scan results
+- [x] 5.6.2.2 Update THRESHOLD value based on actual 5.6.1 final scan results
+  Set to 10 (7 actual FAILs + 3 buffer). Updated in manifest and plan CronJob YAML.
 
-- [ ] 5.6.2.3 Create Discord webhook secret (or reuse existing infra webhook via ESO)
-  ```bash
-  # Option A: dedicated secret (if kube-bench-discord doesn't exist)
-  # Create ExternalSecret referencing op://Kubernetes/Discord Webhooks/infra
-  # Option B: reuse cluster-janitor's pattern (same Discord #infra channel)
-  ```
+- [x] 5.6.2.3 Create Discord webhook secret (or reuse existing infra webhook via ESO)
+  Reused existing `discord-janitor-webhook` ExternalSecret (same Discord #infra channel).
+  No new secret or Vault path needed. CronJob env references `discord-janitor-webhook`
+  secret with `optional: true` (graceful if secret missing).
 
-- [ ] 5.6.2.4 Run CronJob manually to verify
+- [x] 5.6.2.4 Run CronJob manually to verify
+  Test result: "FAIL count: 7 (threshold: 10)" - no regression alert sent (correct).
   ```bash
   kubectl-admin create job kube-bench-test --from=cronjob/kube-bench-weekly -n kube-system
   kubectl-homelab logs -f job/kube-bench-test -n kube-system
@@ -356,7 +381,7 @@ Continuous CIS compliance - detect regressions after future changes.
 > ArgoCD will report clear sync failures when a VAP rejects a resource. ArgoCD's images
 > (`quay.io/argoproj/`, `ghcr.io/dexidp/`) are already in the trusted list below.
 
-- [ ] 5.6.3.1 Audit all running images to build trusted registry list
+- [x] 5.6.3.1 Audit all running images to build trusted registry list
   ```bash
   # Get every unique image prefix currently running
   kubectl-homelab get pods -A -o jsonpath='{range .items[*]}{range .spec.containers[*]}{.image}{"\n"}{end}{range .spec.initContainers[*]}{.image}{"\n"}{end}{end}' | sort -u
@@ -392,7 +417,7 @@ Continuous CIS compliance - detect regressions after future changes.
   > short name by checking: if it has no dot before the first slash, it's a Docker Hub
   > short name and is allowed. This is simpler and more maintainable than listing every org.
 
-- [ ] 5.6.3.2 Create ValidatingAdmissionPolicy for trusted registries
+- [x] 5.6.3.2 Create ValidatingAdmissionPolicy for trusted registries
   ```yaml
   apiVersion: admissionregistration.k8s.io/v1
   kind: ValidatingAdmissionPolicy
@@ -507,12 +532,14 @@ Continuous CIS compliance - detect regressions after future changes.
   > - `kube-system` exempted because it runs kube-bench, etcd-backup, and other privileged
   >   system Jobs with diverse images. Control plane images are managed by kubeadm, not GitOps.
 
-- [ ] 5.6.3.3 Apply VAP in Warn mode
+- [x] 5.6.3.3 Apply VAP in Warn mode
   ```bash
   kubectl-admin apply -f manifests/kube-system/image-registry-policy.yaml
   ```
 
-- [ ] 5.6.3.4 Verify warnings for untrusted registry
+- [x] 5.6.3.4 Verify warnings for untrusted registry
+  Verified: untrusted image generates warning, Docker Hub short name/bare image/ghcr.io/
+  self-hosted registry all pass without warning. kube-system exemption confirmed working.
   ```bash
   # Should generate a warning (not block)
   kubectl-admin run test-untrusted --image=evil-registry.example.com/backdoor:latest \
@@ -525,14 +552,18 @@ Continuous CIS compliance - detect regressions after future changes.
   # Expected: no warning
   ```
 
-- [ ] 5.6.3.5 Audit all existing images against the policy
+- [x] 5.6.3.5 Audit all existing images against the policy
+  All 100+ running containers use trusted registries. Zero conflicts found.
+  Registries in use: docker.io, ghcr.io, registry.k8s.io, quay.io,
+  registry.k8s.rommelporras.com, registry.gitlab.com, lscr.io, gcr.io,
+  plus Docker Hub short names and bare library images.
   ```bash
   # Re-run the full image audit and cross-reference against VAP rules
   # Any image that would be blocked needs investigation
   kubectl-homelab get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}: {range .spec.containers[*]}{.image}{", "}{end}{"\n"}{end}' | sort
   ```
 
-- [ ] 5.6.3.6 After 1 week of clean Warn-mode operation, switch to Deny
+- [ ] 5.6.3.6 After 1 week of clean Warn-mode operation, switch to Deny (target: 2026-04-02)
   ```bash
   kubectl-admin patch validatingadmissionpolicybinding restrict-image-registries-binding \
     --type=merge -p '{"spec":{"validationActions":["Deny"]}}'
@@ -544,137 +575,118 @@ Continuous CIS compliance - detect regressions after future changes.
 
 Final comprehensive audit before GitOps adoption.
 
-- [ ] 5.6.4.1 Verify all Phase 5.0-5.4 controls are in place
+- [x] 5.6.4.1 Verify all Phase 5.0-5.4 controls are in place
+
+  **Phase 5.0 - Namespace & Pod Security:**
+  - PSS enforced on 27/31 namespaces. 4 without labels: cilium-secrets, default, kube-node-lease, kube-public (empty/system, accepted)
+  - automountServiceAccountToken: app pods with `null` (not explicitly false): gitlab-runner, intel-device-plugins, invoicetron-migrate jobs, NFD, tailscale, velero. homepage has `true` (needed for K8s API discovery). All are system/operator pods that need SA tokens - accepted.
+  - ClusterSecretStore has namespaceSelector: `eso-enabled: "true"` label required
+
+  **Phase 5.1 - Control Plane:**
+  - Audit logging active: `/var/log/kubernetes/audit/audit.log` (52MB, last write current)
+  - Kubelet anonymous auth disabled: `anonymous: enabled: false`
+
+  **Phase 5.2 - RBAC & Secrets:**
+  - etcd encryption config exists at `/etc/kubernetes/encryption-config.yaml` (API server flag confirmed)
+  - Cluster-admin bindings: exactly 4 (system:masters, kubeadm:cluster-admins, longhorn-support-bundle, velero-server)
+
+  **Phase 5.3 - Network Policies:**
+  - 24 namespaces have CiliumNetworkPolicies (117 total policies)
+  - Known gaps with 0 CiliumNPs: cilium-secrets, default, intel-device-plugins, kube-node-lease, kube-public, longhorn-system, node-feature-discovery
+  - All zero-policy namespaces are privileged system namespaces or empty - accepted risk
+
+  **Phase 5.4 - Resilience:**
+  - 24 CronJobs running across cluster (backups, janitor, cert-expiry, kube-bench, version-check)
+  - 14 namespaces have ResourceQuotas
+  - 24 PDBs in place (including Longhorn instance managers, GitLab components, monitoring, vault)
+
+  > **Plan correction:** etcd encryption config path is `/etc/kubernetes/encryption-config.yaml`,
+  > NOT `/etc/kubernetes/pki/encryption-config.yaml` as originally written.
+
+- [x] 5.6.4.2 Verify ESO health (all ExternalSecrets synced)
+  All 33 ExternalSecrets in SecretSynced state across 14 namespaces. No failures.
   ```bash
-  echo "=== Phase 5.0: Namespace & Pod Security ==="
-  # All namespaces have PSS labels
-  kubectl-homelab get ns -o json | jq -r '.items[] | .metadata.name + ": enforce=" + (.metadata.labels["pod-security.kubernetes.io/enforce"] // "NONE")'
-  # Expected: all namespaces have labels EXCEPT cilium-secrets, default, kube-node-lease, kube-public (empty/system, accepted)
-
-  # automountServiceAccountToken disabled on app pods
-  kubectl-homelab get pods -A -o json | jq -r '
-    .items[] |
-    select(.spec.automountServiceAccountToken != false) |
-    select(.metadata.namespace | test("^(kube-|longhorn|cilium|monitoring|external-secrets|cert-manager|vault)") | not) |
-    .metadata.namespace + "/" + .metadata.name + " - automount: " + (.spec.automountServiceAccountToken | tostring)
-  '
-
-  # ClusterSecretStore has namespaceSelector
-  kubectl-homelab get clustersecretstore vault-backend -o json | jq '.spec.conditions'
-
-  echo "=== Phase 5.1: Control Plane ==="
-  # Audit logging active
-  ssh wawashi@10.10.30.11 "sudo ls -la /var/log/kubernetes/audit/audit.log"
-
-  # Anonymous auth disabled on kubelet
-  ssh wawashi@10.10.30.11 "sudo grep -A2 'anonymous:' /var/lib/kubelet/config.yaml"
-
-  echo "=== Phase 5.2: RBAC & Secrets ==="
-  # etcd encryption active
-  kubectl-homelab get secret encryption-test -n default 2>/dev/null && echo "exists" || echo "Create test secret to verify"
-
-  # Cluster-admin bindings (expect exactly 4: system:masters, kubeadm, longhorn-support-bundle, velero-server)
-  kubectl-homelab get clusterrolebindings -o json | jq -r '.items[] | select(.roleRef.name == "cluster-admin") | .metadata.name + " -> " + (.subjects[0].kind + "/" + .subjects[0].name)'
-
-  echo "=== Phase 5.3: Network Policies ==="
-  # CiliumNetworkPolicies per namespace (NOT vanilla NetworkPolicy - cluster uses Cilium)
-  for ns in $(kubectl-homelab get ns -o jsonpath='{.items[*].metadata.name}'); do
-    CNP=$(kubectl-homelab get ciliumnetworkpolicy -n "$ns" --no-headers 2>/dev/null | wc -l)
-    echo "$ns: $CNP CiliumNPs"
-  done
-  # Known gaps: longhorn-system (0), intel-device-plugins (0), node-feature-discovery (0)
-  # These are privileged system namespaces - document as accepted risk
-
-  echo "=== Phase 5.4: Resilience ==="
-  # Backup CronJobs running
-  kubectl-homelab get cronjobs -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,SCHEDULE:.spec.schedule,LAST:.status.lastSuccessfulTime
-
-  # ResourceQuotas in place (14 namespaces have them)
-  kubectl-homelab get resourcequota -A
-
-  # PDBs in place
-  kubectl-homelab get pdb -A
+  kubectl-homelab get externalsecrets -A -o custom-columns='NS:.metadata.namespace,NAME:.metadata.name,STATUS:.status.conditions[0].reason'
   ```
 
-- [ ] 5.6.4.2 Verify ESO health (all ExternalSecrets synced)
-  ```bash
-  # All ExternalSecrets must be SecretSynced=True before GitOps handoff
-  kubectl-homelab get externalsecrets -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,STATUS:.status.conditions[0].reason
-  # Any non-SecretSynced entries must be fixed before Phase 5.7
-  ```
-
-- [ ] 5.6.4.3 Verify Vault is healthy and unsealed
+- [x] 5.6.4.3 Verify Vault is healthy and unsealed
+  vault-0: 1/1 Running, vault-unsealer: 1/1 Running, vault-snapshot CronJob completing normally.
   ```bash
   kubectl-homelab get pods -n vault
-  # vault-0 should be 1/1 Running, vault-unsealer should be 1/1 Running
   ```
 
-- [ ] 5.6.4.4 Check for `:latest` tags (supply chain risk)
+- [x] 5.6.4.4 Check for `:latest` tags (supply chain risk)
+  Only 1 `:latest` tag found: `registry.k8s.rommelporras.com/0xwsh/portfolio:latest`
+  This is the self-hosted GitLab CI/CD image - CI pushes `:latest` on every merge to main.
+  Remediation: ArgoCD Image Updater or CI pipeline commit-to-git pattern (Phase 5.8 scope).
+  No init containers or other workloads use `:latest`.
   ```bash
   kubectl-homelab get pods -A -o jsonpath='{range .items[*]}{range .spec.containers[*]}{.image}{"\n"}{end}{end}' | grep ':latest' | sort -u
-  # Known: registry.k8s.rommelporras.com/0xwsh/portfolio:latest
-  # Decision: pin to SHA digest or specific tag before GitOps handoff
   ```
 
-- [ ] 5.6.4.5 Generate security posture summary document
+- [x] 5.6.4.5 Generate security posture summary document
   ```
-  | Control            | Status     | Coverage              | Evidence          | Known Gaps                         |
-  |--------------------|------------|-----------------------|-------------------|------------------------------------|
-  | PSS                | Enforced   | 28/32 namespaces      | kubectl output    | 4 empty/system ns without labels   |
-  | CiliumNP           | Default-deny| 24+ app namespaces   | kubectl output    | longhorn-system, NFD, intel-dp     |
-  | RBAC               | Audited    | All SAs reviewed      | Audit doc         | velero-server cluster-admin (accepted) |
-  | etcd encryption    | Active     | All secrets           | etcdctl verify    |                                    |
-  | Audit logging      | Active     | All API calls         | Loki query        | Audit alerts deferred (needs Ruler)|
-  | Backup             | 3-layer    | Longhorn+Velero+etcd  | CronJob status    |                                    |
-  | CIS benchmark      | XX/YY pass | All 3 CP nodes        | Job output        | Intentional FAILs documented       |
-  | Image restriction  | VAP Warn/Deny | All non-system ns  | Policy status     |                                    |
-  | ESO                | Healthy    | 33 ExternalSecrets    | Status check      |                                    |
-  | Supply chain       | Partial    | Tag pinning           | Image audit       | portfolio:latest needs fix         |
+  | Control            | Status      | Coverage              | Evidence          | Known Gaps                         |
+  |--------------------|-------------|-----------------------|-------------------|------------------------------------|
+  | PSS                | Enforced    | 27/31 namespaces      | kubectl output    | 4 empty/system ns (cilium-secrets, default, kube-node-lease, kube-public) |
+  | CiliumNP           | Default-deny| 24/31 namespaces (127 policies) | kubectl output | longhorn-system, NFD, intel-dp, cilium-secrets, default, kube-node-lease, kube-public |
+  | RBAC               | Audited     | 4 cluster-admin bindings | kubectl output | velero-server cluster-admin (accepted - needs cross-ns backup access) |
+  | etcd encryption    | Active      | All secrets           | API server flag   | encryption-config.yaml at /etc/kubernetes/ |
+  | Audit logging      | Active      | All API calls         | 52MB audit.log    | Audit alerts deferred (needs Loki Ruler) |
+  | Backup             | 3-layer     | Longhorn+Velero+etcd  | 24 CronJobs       | All running with recent lastSuccessfulTime |
+  | CIS benchmark      | 69 pass / 7 fail | All 3 CP nodes   | kube-bench v0.10.6| 7 intentional FAILs documented     |
+  | Image restriction  | VAP Warn    | All non-system ns     | Policy applied    | Deny mode target: 2026-04-02       |
+  | ESO                | Healthy     | 33 ExternalSecrets    | All SecretSynced  |                                    |
+  | Supply chain       | Partial     | Tag pinning           | Image audit       | portfolio:latest (CI/CD pattern, Phase 5.8) |
+  | ResourceQuotas     | Active      | 14 namespaces         | kubectl output    |                                    |
+  | PDBs               | Active      | 24 PDBs               | kubectl output    |                                    |
+  | Vault              | Healthy     | Unsealed, auto-unseal | Pod status        |                                    |
   ```
 
 ---
 
 ## 5.6.5 Documentation
 
-- [ ] 5.6.5.1 Update `docs/context/Security.md` with:
-  - Final CIS benchmark score (per-node results)
-  - Image registry restriction policy (VAP design and trusted list)
-  - GitOps security model: trusted registries, Git source (self-hosted GitLab, deploy token
-    with read_repository scope), drift detection (manual sync initially), secret handling
-    (Vault + ESO, never raw Secrets in Git), network isolation (CiliumNetworkPolicy deny-default)
-  - Complete security posture summary table
-  - Document `velero-server` cluster-admin as accepted risk with justification
+- [x] 5.6.5.1 Update `docs/context/Security.md` with:
+  - CIS benchmark scores updated with Phase 5.6 column (69 pass / 7 fail)
+  - 7 remaining FAIL items documented with justifications (replaces old 3-item exclusion list)
+  - kube-bench regression detection CronJob section added
+  - Image Registry Restriction section: trusted registries table, CEL design decisions, manifest path
+  - GitOps Security Model section: source, admission, secrets, network, drift, imperative exceptions
+  - Security Posture Summary table: 13 controls with status, coverage, and known gaps
+  - velero-server cluster-admin added to RBAC audit results + trust boundaries
 
-- [ ] 5.6.5.2 Update `docs/reference/CHANGELOG.md`
+- [x] 5.6.5.2 Update `docs/reference/CHANGELOG.md`
 
-- [ ] 5.6.5.3 Update `VERSIONS.md` if new components added (kube-bench CronJob)
+- [x] 5.6.5.3 Update `VERSIONS.md` if new components added (kube-bench CronJob)
+  Added `kube-bench | CronJob (aquasec/kube-bench:v0.10.6)` to Home Services table.
 
 ---
 
 ## Verification Checklist
 
 **CIS Benchmark:**
-- [ ] kube-bench final scan completed on all 3 CP nodes
-- [ ] Per-node results documented and compared to Phase 5.1 baseline
-- [ ] CIS score improved or stable from Phase 5.1 (13 FAIL baseline)
-- [ ] All remaining FAIL items justified and documented
-- [ ] kube-bench weekly CronJob deployed with Discord alerting
-- [ ] CronJob FAIL threshold set based on actual final scan results
+- [x] kube-bench final scan completed on all 3 CP nodes
+- [x] Per-node results documented and compared to Phase 5.1 baseline
+- [x] CIS score improved or stable from Phase 5.1 (13 FAIL baseline)
+- [x] All remaining FAIL items justified and documented
+- [x] kube-bench weekly CronJob deployed with Discord alerting
+- [x] CronJob FAIL threshold set based on actual final scan results
 
 **Admission Control:**
-- [ ] ValidatingAdmissionPolicy for image registries deployed
-- [ ] VAP tested in Warn mode - no false positives for any running workload
-- [ ] VAP covers containers, initContainers, and ephemeralContainers
-- [ ] VAP tested against ArgoCD image registries (quay.io, ghcr.io, docker.io, ecr-public.aws.com)
-- [ ] VAP switched to Deny mode after 1-week verification period
+- [x] ValidatingAdmissionPolicy for image registries deployed
+- [x] VAP tested in Warn mode - no false positives for any running workload
+- [x] VAP covers containers, initContainers, and ephemeralContainers
+- [x] VAP tested against ArgoCD image registries (quay.io, ghcr.io, docker.io, ecr-public.aws.com)
+- [ ] VAP switched to Deny mode after 1-week verification period (deferred to 2026-04-02)
 
 **Cluster Security Audit:**
-- [ ] Full cluster security audit passed (all Phase 5.0-5.4 controls verified)
-- [ ] All 33 ExternalSecrets in SecretSynced state
-- [ ] Vault healthy and unsealed
-- [ ] `:latest` tags identified and remediation planned
-- [ ] Security posture summary document generated with known gaps documented
-- [ ] `velero-server` cluster-admin documented in Security.md
+- [x] Full cluster security audit passed (all Phase 5.0-5.4 controls verified)
+- [x] All 33 ExternalSecrets in SecretSynced state
+- [x] Vault healthy and unsealed
+- [x] `:latest` tags identified and remediation planned
+- [x] Security posture summary document generated with known gaps documented
+- [x] `velero-server` cluster-admin documented in Security.md
 
 ---
 

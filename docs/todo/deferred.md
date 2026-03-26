@@ -241,6 +241,22 @@ fix applied to kube-vip metrics (port 2112). Both now working.
 
 ---
 
+## Phase 5.6 VAP Deny Mode
+
+**Status:** Deferred - waiting 1 week of clean Warn-mode operation
+**Priority:** Medium
+**Added:** 2026-03-26 (Phase 5.6)
+
+Phase 5.6.3.6: Switch the ValidatingAdmissionPolicy `image-registry-restriction` from
+Warn mode to Deny mode. The VAP was deployed in Warn mode on 2026-03-26. After 1 week
+of clean operation (no false positives in `kubectl-homelab get events -A | grep ValidatingAdmissionPolicy`),
+switch `validationActions: [Warn]` to `validationActions: [Deny]` in
+`manifests/kube-system/image-registry-policy.yaml`.
+
+**Target date:** 2026-04-02
+
+---
+
 ## Aurora Off-Site Backup (Google Drive)
 
 **Status:** Deferred - waiting for Aurora NFS + rclone setup

@@ -66,10 +66,13 @@ homelab/
 │   ├── longhorn/values.yaml
 │   ├── metrics-server/values.yaml
 │   ├── prometheus/values.yaml
-│   ├── intel-gpu-plugin/values.yaml
+│   ├── intel-device-plugins-gpu/values.yaml
+│   ├── intel-device-plugins-operator/values.yaml
+│   ├── node-feature-discovery/values.yaml
 │   ├── smartctl-exporter/values.yaml
 │   ├── tailscale-operator/values.yaml
 │   ├── vault/values.yaml
+│   ├── velero/values.yaml
 │   └── external-secrets/values.yaml
 ├── manifests/               # Raw K8s manifests
 │   ├── ai/                  # Ollama LLM inference server
