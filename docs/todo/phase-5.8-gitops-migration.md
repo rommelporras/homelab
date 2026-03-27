@@ -41,8 +41,19 @@
 > ArgoCD MUST be Synced/Healthy (step 3) AND selfHeal MUST be enabled (step 4)
 > BEFORE running `helm uninstall` (step 5). If you run `helm uninstall` before
 > ArgoCD has synced, the resources will be deleted with no automatic recovery.
-> Optional: use `--keep-history` to preserve Helm release history for emergency
-> `helm rollback` if ArgoCD fails to re-create resources.
+>
+> **Downtime mitigation:** `helm uninstall` deletes resources immediately, but
+> ArgoCD reconciliation runs every `timeout.reconciliation` (180s in our config).
+> Worst case: ~3 minutes of downtime per service. To minimize this:
+> 1. After `helm uninstall`, immediately force a refresh:
+>    `kubectl-admin annotate application <name> -n argocd argocd.argoproj.io/refresh=hard --overwrite`
+> 2. This triggers re-sync within seconds instead of waiting for the next cycle.
+> 3. For critical services (Prometheus, Vault), monitor pod status during handover.
+>
+> **Do NOT use `--keep-history`** - it preserves stale Helm release metadata that
+> conflicts with ArgoCD's server-side apply ownership. A stale `helm list` entry
+> confuses operators and can cause problems if someone runs `helm upgrade` on a
+> release ArgoCD now owns. Clean break is safer.
 
 ---
 
@@ -59,14 +70,46 @@
   Gap 7: All 18 Helm releases have values files in helm/
   ```
 
-- [ ] 5.8.0.2 Ensure Git state matches cluster state (drift check)
+- [ ] 5.8.0.2 Update ArgoCD CiliumNP for Helm chart repo egress
   ```bash
-  # For each manifest directory, compare Git vs cluster
-  # This is critical - ArgoCD will show everything as OutOfSync if Git != cluster
-  # Fix drift BEFORE creating ArgoCD Applications
+  # Phase 5.7 CNP only allows github.com + *.github.io + discord.com egress.
+  # Wave 3/4 Helm Applications need repo-server to fetch charts from these domains:
+  #   charts.longhorn.io, helm.cilium.io, charts.jetstack.io,
+  #   charts.gitlab.io, charts.external-secrets.io,
+  #   helm.releases.hashicorp.com, pkgs.tailscale.com
+  # OCI registries (ArgoCD uses HTTPS, same port 443):
+  #   quay.io, ghcr.io, registry.k8s.io
+  # Already covered by *.github.io wildcard:
+  #   prometheus-community, grafana, kubernetes-sigs, intel, vmware-tanzu, argoproj
+  #
+  # Add all non-*.github.io domains to argocd-egress CiliumNP toFQDNs rules.
+  # IMPORTANT: DNS inspection rule (rules.dns.matchPattern: "*") must be in the
+  # same policy as toFQDNs rules, otherwise FQDN-to-IP cache never populates.
   ```
 
-- [ ] 5.8.0.3 Verify ArgoCD is healthy
+- [ ] 5.8.0.3 Ensure Git state matches cluster state (drift check)
+  ```bash
+  # This is the most critical pre-migration step. ArgoCD shows OutOfSync for ANY
+  # difference between Git and cluster state. Fix drift BEFORE creating Applications.
+
+  # Check for kubectl edits (fields not in manifests):
+  for ns in ai browser uptime-kuma atuin cloudflare arr-stack home ghost-dev ghost-prod karakeep; do
+    echo "=== $ns ===" && kubectl-admin diff -f manifests/$ns/ 2>&1 | head -20
+  done
+
+  # Check for Helm values drift (--set overrides not in values files):
+  for release in $(helm-homelab list -A --no-headers | awk '{print $1}'); do
+    echo "=== $release ===" && helm-homelab get values $release -n $(helm-homelab list -A --no-headers | grep "^$release " | awk '{print $2}') 2>&1 | head -10
+  done
+
+  # Known drift sources to check:
+  # - Invoicetron image tags (CI/CD patches via kubectl set image)
+  # - Portfolio image tags (same CI/CD pattern)
+  # - Any resources created by operators (Longhorn volumes, cert-manager certs)
+  # - Helm --set overrides at install time not captured in values files
+  ```
+
+- [ ] 5.8.0.4 Verify ArgoCD is healthy
   ```bash
   kubectl-homelab get pods -n argocd
   # All pods Running
@@ -109,7 +152,7 @@
   spec:
     project: homelab-apps
     source:
-      repoURL: https://gitlab.k8s.rommelporras.com/wsh/homelab.git
+      repoURL: https://github.com/rommelporras/homelab.git
       path: manifests/ai
       targetRevision: main
     destination:
@@ -200,7 +243,7 @@ break Homepage (ArgoCD would apply Kustomize files as raw manifests). Split into
 # Homepage: ArgoCD natively supports Kustomize - just point at the directory
 spec:
   source:
-    repoURL: https://gitlab.k8s.rommelporras.com/wsh/homelab.git
+    repoURL: https://github.com/rommelporras/homelab.git
     path: manifests/home/homepage
     targetRevision: main
     # ArgoCD auto-detects kustomization.yaml
@@ -208,7 +251,7 @@ spec:
 # AdGuard/MySpeed: plain directory Application
 spec:
   source:
-    repoURL: https://gitlab.k8s.rommelporras.com/wsh/homelab.git
+    repoURL: https://github.com/rommelporras/homelab.git
     path: manifests/home/adguard  # or manifests/home/myspeed
     targetRevision: main
     directory:
@@ -300,19 +343,19 @@ kubectl-homelab get application <service> -n argocd
 kubectl-admin patch application <service> -n argocd --type=merge \
   -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":true,"prune":false}}}}'
 
-# 5. Remove old Helm release metadata
-# helm uninstall DOES delete resources, but ArgoCD's selfHeal detects the drift
-# and re-creates them within the reconciliation interval (~3 min).
-# Use --keep-history to preserve rollback option as extra safety net.
-helm-homelab uninstall <release-name> -n <namespace> --keep-history
+# 5. Remove old Helm release metadata (resources will be deleted briefly)
+helm-homelab uninstall <release-name> -n <namespace>
 
-# 6. Wait for ArgoCD to detect drift and re-sync (~1-3 minutes)
-# Watch the Application status - should go OutOfSync -> Synced
-kubectl-homelab get application <service> -n argocd -w
+# 6. Immediately force ArgoCD to detect the drift (don't wait 3 min for reconciliation)
+kubectl-admin annotate application <service> -n argocd argocd.argoproj.io/refresh=hard --overwrite
 
-# 7. Verify Application is Synced/Healthy (ArgoCD re-created any deleted resources)
-kubectl-homelab get application <service> -n argocd
-# Resources should be running - ArgoCD reconciled them
+# 7. Watch ArgoCD re-create resources (~10-30 seconds after forced refresh)
+kubectl-admin get application <service> -n argocd -w
+# Should go OutOfSync -> Synced
+
+# 8. Verify Application is Synced/Healthy and pods are running
+kubectl-admin get application <service> -n argocd
+kubectl-homelab get pods -n <namespace>
 ```
 
 ### Services in Wave 3:
@@ -351,9 +394,12 @@ kubectl-homelab get application <service> -n argocd
   metadata:
     name: metrics-server
     namespace: argocd
+    annotations:
+      notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+      notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
   spec:
     project: infrastructure
-    # Multi-source: chart from Helm repo + values from GitLab repo
+    # Multi-source: chart from Helm repo + values from GitHub repo
     sources:
       - repoURL: https://kubernetes-sigs.github.io/metrics-server/
         chart: metrics-server
@@ -361,7 +407,7 @@ kubectl-homelab get application <service> -n argocd
         helm:
           valueFiles:
             - $values/helm/metrics-server/values.yaml
-      - repoURL: https://gitlab.k8s.rommelporras.com/wsh/homelab.git
+      - repoURL: https://github.com/rommelporras/homelab.git
         targetRevision: main
         ref: values
     destination:
@@ -377,11 +423,17 @@ kubectl-homelab get application <service> -n argocd
   ```bash
   # Apply ArgoCD Application
   kubectl-admin apply -f manifests/argocd/apps/metrics-server.yaml
-  # Manual sync via ArgoCD UI
+  # Manual sync via ArgoCD UI (check "Server Side Apply")
   # Verify Synced/Healthy
-  # Then:
-  helm-homelab uninstall metrics-server -n kube-system --keep-history
-  # Verify still Synced/Healthy
+  # Enable selfHeal:
+  kubectl-admin patch application metrics-server -n argocd --type=merge \
+    -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":true,"prune":false}}}}'
+  # Uninstall Helm release (resources will be briefly deleted):
+  helm-homelab uninstall metrics-server -n kube-system
+  # Force immediate re-sync:
+  kubectl-admin annotate application metrics-server -n argocd argocd.argoproj.io/refresh=hard --overwrite
+  # Verify ArgoCD re-creates resources:
+  kubectl-admin get application metrics-server -n argocd -w
   # Verify metrics-server still works:
   kubectl-homelab top nodes
   ```
@@ -434,9 +486,14 @@ kubectl-homelab get application <service> -n argocd
 > - After ArgoCD adoption, `upgrade-prometheus.sh` is DEPRECATED
 >   (ArgoCD syncs from `helm/prometheus/values.yaml` directly)
 >
-> **Loki/Alloy:** OCI vs traditional Helm repos have different ArgoCD source configs.
-> Loki uses OCI (`oci://ghcr.io/grafana/helm-charts/loki`), Alloy uses traditional
-> (`https://grafana.github.io/helm-charts`).
+> **OCI chart sources (cert-manager, prometheus, loki, NFD):**
+> OCI charts need different ArgoCD source config than traditional HTTPS repos.
+> Traditional: `repoURL: https://charts.longhorn.io` + `chart: longhorn`
+> OCI: `repoURL: ghcr.io/grafana/helm-charts` + `chart: loki` (no `oci://` prefix in ArgoCD)
+> OCI registries used: `quay.io` (cert-manager), `ghcr.io` (prometheus, loki),
+> `registry.k8s.io` (NFD). All need CiliumNP egress (added in 5.8.0.2).
+>
+> **Alloy:** Uses traditional HTTPS repo (`https://grafana.github.io/helm-charts`).
 
 - [ ] 5.8.4.1 Resolve Prometheus runtime secret dependency (Gap 4)
   ```
@@ -456,9 +513,8 @@ kubectl-homelab get application <service> -n argocd
 
 ## 5.8.5 Wave 5 - Helm Releases: GitLab
 
-> **Why last Helm wave?** GitLab is the Git source for ArgoCD.
-> A failed migration could break ArgoCD's ability to read manifests.
-> Migrate only after all other waves are stable.
+> **Why last Helm wave?** GitLab is a large, multi-component Helm chart with
+> strict upgrade path requirements. Migrate last to build handover confidence.
 
 ### Services in Wave 5:
 
@@ -467,20 +523,25 @@ kubectl-homelab get application <service> -n argocd
 | gitlab | gitlab/gitlab | gitlab | Large chart, many subcomponents |
 | gitlab-runner | gitlab/gitlab-runner | gitlab-runner | CI/CD executor |
 
-> **GitLab chicken-and-egg:** ArgoCD reads from GitLab. If ArgoCD manages GitLab
-> and a bad sync breaks GitLab, ArgoCD can't read manifests to fix it.
+> **GitLab chicken-and-egg is NOT an issue here.** ArgoCD reads from GitHub
+> (public repo), not self-hosted GitLab. A broken GitLab sync does not affect
+> ArgoCD's ability to read manifests. This was the Phase 5.7 decision - public
+> GitHub repo with no deploy token.
+>
+> **GitLab is still high-risk** for a different reason: the Helm chart is large
+> and has strict upgrade path requirements. A bad sync could break GitLab services
+> (web, gitaly, registry, sidekiq). Auto-sync is acceptable but start with manual.
 >
 > **Mitigation:**
-> - Keep GitLab on MANUAL sync only (never auto-sync)
-> - Test sync in dry-run mode first (`argocd app sync gitlab --dry-run`)
+> - Start with manual sync, enable auto-sync after 48h stability
 > - Ensure GitLab values file is thoroughly tested before migration
 > - Have `helm-homelab upgrade gitlab` command ready as emergency rollback
 
-- [ ] 5.8.5.1 Create GitLab Application manifest (manual sync only)
+- [ ] 5.8.5.1 Create GitLab Application manifest (manual sync initially)
 - [ ] 5.8.5.2 Dry-run sync, verify no unexpected changes
 - [ ] 5.8.5.3 Execute handover procedure
 - [ ] 5.8.5.4 Verify GitLab accessible, CI/CD pipelines working
-- [ ] 5.8.5.5 Do NOT enable auto-sync on GitLab
+- [ ] 5.8.5.5 Enable auto-sync after 48h stability confirmed
 
 ---
 
@@ -504,7 +565,7 @@ kubectl-homelab get application <service> -n argocd
   spec:
     project: argocd-self
     source:
-      repoURL: https://gitlab.k8s.rommelporras.com/wsh/homelab.git
+      repoURL: https://github.com/rommelporras/homelab.git
       path: manifests/argocd/apps
       targetRevision: main
     destination:
@@ -532,13 +593,38 @@ kubectl-homelab get application <service> -n argocd
 
 ## 5.8.7 Post-Migration Cleanup
 
-- [ ] 5.8.7.1 Verify `helm list -A` shows only `argocd` (self-managed)
+- [ ] 5.8.7.1 Complete ArgoCD self-management Helm handover
   ```bash
-  helm --kubeconfig ~/.kube/homelab.yaml list -A
-  # Expected: only argocd release (or none if fully self-managed via ArgoCD)
+  # ArgoCD was installed via `helm install` in Phase 5.7. The self-management
+  # Application uses `helm template`. The Helm release still exists:
+  helm --kubeconfig ~/.kube/homelab.yaml list -n argocd
+  # Expected: argocd release present
+
+  # This is the most dangerous handover - if it fails, ArgoCD can't fix itself.
+  # Prerequisites: self-management Application MUST be Synced/Healthy first.
+  # The Application was created in Phase 5.7.7 and should be stable by now.
+
+  # 1. Verify self-management app is Synced/Healthy
+  kubectl-admin get application argocd -n argocd
+  # 2. Enable selfHeal on the self-management app
+  kubectl-admin patch application argocd -n argocd --type=merge \
+    -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":true,"prune":false}}}}'
+  # 3. Uninstall the Helm release
+  helm-homelab uninstall argocd -n argocd
+  # 4. Immediately force refresh
+  kubectl-admin annotate application argocd -n argocd argocd.argoproj.io/refresh=hard --overwrite
+  # 5. Watch ArgoCD self-heal (pods will be briefly deleted then recreated)
+  kubectl-admin get pods -n argocd -w
+  # 6. Verify all pods Running and Application Synced/Healthy
   ```
 
-- [ ] 5.8.7.2 Archive deprecated scripts
+- [ ] 5.8.7.2 Verify `helm list -A` shows NO releases
+  ```bash
+  helm --kubeconfig ~/.kube/homelab.yaml list -A
+  # Expected: empty (all releases handed over to ArgoCD)
+  ```
+
+- [ ] 5.8.7.3 Archive deprecated scripts
   ```bash
   # These scripts are replaced by GitOps:
   # scripts/monitoring/upgrade-prometheus.sh -> DEPRECATED (ArgoCD syncs Helm values)
@@ -548,17 +634,17 @@ kubectl-homelab get application <service> -n argocd
   # Keep scripts/ghost/ (data sync scripts, not deployment)
   ```
 
-- [ ] 5.8.7.3 Update CLAUDE.md with GitOps workflow
+- [ ] 5.8.7.4 Update CLAUDE.md with GitOps workflow
   ```
   Add to CLAUDE.md:
   - Changes go through Git, not kubectl apply
-  - ArgoCD syncs from main branch
-  - Manual sync required for: GitLab, Cilium, Longhorn
+  - ArgoCD syncs from main branch (GitHub, public repo)
+  - Manual sync required for: Cilium, Longhorn (high-risk infrastructure)
   - To add a new service: manifest + ArgoCD Application YAML + push
   - Helm values changes: edit helm/<chart>/values.yaml + push
   ```
 
-- [ ] 5.8.7.4 Update docs/context/ files
+- [ ] 5.8.7.5 Update docs/context/ files
   ```
   - Architecture.md: add GitOps section
   - Conventions.md: update deployment workflow
@@ -623,7 +709,7 @@ kubectl-homelab get application <service> -n argocd
 
 **Wave 5 - GitLab Helm:**
 - [ ] GitLab and GitLab Runner adopted by ArgoCD
-- [ ] GitLab on manual sync only (chicken-and-egg safety)
+- [ ] Auto-sync enabled after 48h stability (no chicken-and-egg - ArgoCD reads from GitHub)
 - [ ] CI/CD pipelines still working
 
 **App-of-Apps:**
@@ -632,7 +718,8 @@ kubectl-homelab get application <service> -n argocd
 - [ ] Self-management Application (ArgoCD managing itself) stable
 
 **Post-Migration:**
-- [ ] `helm list -A` shows only `argocd` (or nothing)
+- [ ] ArgoCD self-management Helm handover complete
+- [ ] `helm list -A` shows NO releases (all handed to ArgoCD)
 - [ ] Deprecated scripts archived
 - [ ] CLAUDE.md updated with GitOps workflow
 - [ ] Drift detection verified (manual change -> auto-heal)

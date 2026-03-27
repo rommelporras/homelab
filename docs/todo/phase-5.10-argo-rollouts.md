@@ -150,7 +150,7 @@
         helm:
           valueFiles:
             - $values/helm/argo-rollouts/values.yaml
-      - repoURL: https://gitlab.k8s.rommelporras.com/wsh/homelab.git
+      - repoURL: https://github.com/rommelporras/homelab.git
         targetRevision: main
         ref: values
     destination:
