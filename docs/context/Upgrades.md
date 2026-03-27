@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, upgrades, runbook]
-updated: 2026-03-23
+updated: 2026-03-28
 ---
 
 # Upgrade & Rollback Runbook
@@ -34,7 +34,7 @@ kubectl-homelab get pvc -A | grep -v Bound
 
 ### Helm Charts
 
-**Applies to:** Prometheus stack, Grafana, Loki, Alloy, cert-manager, Longhorn, Cilium, metrics-server, blackbox-exporter, Tailscale operator, GitLab, GitLab Runner, Intel GPU plugin
+**Applies to:** Prometheus stack, Grafana, Loki, Alloy, cert-manager, Longhorn, Cilium, metrics-server, blackbox-exporter, Tailscale operator, GitLab, GitLab Runner, Intel GPU plugin, ArgoCD
 
 ```bash
 # Upgrade
@@ -159,6 +159,12 @@ helm-homelab rollback cilium <revision> -n kube-system
 - GitLab has strict upgrade path requirements — use the [upgrade path tool](https://gitlab-com.gitlab.io/support/toolbox/upgrade-path/)
 - Never skip required stop versions (e.g., 16.x → 17.x has mandatory stops)
 - Database migrations run on startup and can take several minutes
+
+### ArgoCD
+- Minor version upgrades (e.g., 3.3 to 3.4) may include breaking changes - review the migration guide at `argo-cd.readthedocs.io/en/stable/operator-manual/upgrading/`
+- Self-management Application must be updated carefully: update the `targetRevision` in `manifests/argocd/self-management.yaml` before syncing
+- CRD size requires `--server-side --force-conflicts` for manual CRD upgrades (Helm handles this automatically)
+- Test with manual sync before enabling auto-sync after upgrades
 
 ### Jellyfin
 - Database schema changes are one-way — cannot downgrade after migration

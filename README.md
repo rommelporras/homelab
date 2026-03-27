@@ -103,6 +103,9 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Atuin (self-hosted shell history sync, E2E encrypted, PostgreSQL)
 - Homepage dashboard, MySpeed, Firefox browser (KasmVNC)
 
+**GitOps**
+- ArgoCD v3.3.5 (non-HA, self-management Application, Discord notifications)
+
 **Secrets Management**
 - HashiCorp Vault 1.21.4 (standalone, Raft on Longhorn, auto-unsealer, daily NFS snapshots)
 - External Secrets Operator v2.1.0 (33 ExternalSecrets, Kubernetes auth, all namespaces)

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-03-23
+updated: 2026-03-28
 ---
 
 # Monitoring
@@ -299,6 +299,11 @@ All probes use the `http_2xx` module (Blackbox Exporter at `blackbox-exporter-pr
 | `manifests/vault/servicemonitor.yaml` | Vault /v1/sys/metrics (:8200) | vault | 30s |
 | `garage-servicemonitor.yaml` | Garage S3 /metrics (:3903, bearer auth) | velero | 30s |
 | `manifests/arr-stack/scraparr/servicemonitor.yaml` | Scraparr /metrics (:7100) | arr-stack | 5m |
+| (Helm-managed) argocd-application-controller-metrics | ArgoCD controller (:8082) | argocd | 30s |
+| (Helm-managed) argocd-server-metrics | ArgoCD server (:8083) | argocd | 30s |
+| (Helm-managed) argocd-repo-server-metrics | ArgoCD repo-server (:8084) | argocd | 30s |
+| (Helm-managed) argocd-applicationset-controller-metrics | ArgoCD appset (:8080) | argocd | 30s |
+| (Helm-managed) argocd-notifications-controller-metrics | ArgoCD notifications (:9001) | argocd | 30s |
 
 All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kube-prometheus-stack` labels for Prometheus Operator discovery.
 
@@ -340,6 +345,7 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | `longhorn-alerts.yaml` | Longhorn volume all replicas stopped | v0.34.0 |
 | `gitlab-alerts.yaml` | GitLab pod health, runner connectivity | v0.35.0 |
 | `home-alerts.yaml` | Homepage pod health, HTTP probe failures | v0.35.0 |
+| `argocd-alerts.yaml` | ArgocdAppOutOfSync, ArgocdAppUnhealthy, ArgocdSyncFailed, ArgocdRepoServerDown, ArgocdControllerDown | v0.37.0 |
 
 **Severity routing:**
 - `critical` → Discord #incidents + Email (3 recipients)

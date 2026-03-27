@@ -255,6 +255,8 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 | PostgreSQL (Atuin) | 18.3 | v0.28.0 |
 | HashiCorp Vault | 1.21.2 | v0.29.0 |
 | External Secrets Operator | v2.1.0 | v0.29.0 |
+| Velero | v1.18.0 | v0.34.0 |
+| ArgoCD | v3.3.5 (chart 9.4.16) | v0.37.0 |
 
 ---
 
@@ -277,7 +279,8 @@ homelab/
 │   ├── node-feature-discovery/values.yaml  # v0.36.0
 │   ├── smartctl-exporter/values.yaml # v0.27.0
 │   ├── vault/values.yaml            # v0.29.0
-│   └── external-secrets/values.yaml # v0.29.0
+│   ├── external-secrets/values.yaml # v0.29.0
+│   └── argocd/values.yaml          # v0.37.0
 │
 ├── manifests/
 │   ├── cert-manager/                   # v0.4.0
@@ -286,6 +289,16 @@ homelab/
 │   ├── cilium/                         # v0.4.0
 │   │   ├── ip-pool.yaml
 │   │   └── l2-announcement.yaml
+│   ├── argocd/                         # v0.37.0
+│   │   ├── namespace.yaml
+│   │   ├── externalsecret.yaml
+│   │   ├── httproute.yaml
+│   │   ├── networkpolicy.yaml
+│   │   ├── appprojects.yaml
+│   │   ├── repository.yaml
+│   │   ├── self-management.yaml
+│   │   ├── limitrange.yaml
+│   │   └── resourcequota.yaml
 │   ├── gateway/                        # v0.4.0
 │   │   ├── homelab-gateway.yaml
 │   │   └── routes/

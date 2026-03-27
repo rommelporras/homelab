@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-03-21
+updated: 2026-03-28
 ---
 
 # Conventions
@@ -76,6 +76,7 @@ homelab/
 │   └── external-secrets/values.yaml
 ├── manifests/               # Raw K8s manifests
 │   ├── ai/                  # Ollama LLM inference server
+│   ├── argocd/              # ArgoCD installation + networking + monitoring
 │   ├── arr-stack/           # ARR media stack (core + companions: 13 apps)
 │   ├── atuin/               # Atuin self-hosted shell history sync
 │   ├── browser/             # Firefox browser (KasmVNC)

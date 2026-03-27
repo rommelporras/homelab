@@ -4,6 +4,38 @@
 
 ---
 
+## March 28, 2026 - ArgoCD Installation & Bootstrap (v0.37.0)
+
+### Summary
+
+ArgoCD v3.3.5 (Helm chart 9.4.16) deployed as the GitOps engine. Non-HA with 6 pods (controller,
+server, repo-server, applicationset, notifications, redis). Self-management Application tracks its
+own Helm values from GitHub. Public GitHub repo - no deploy token needed.
+
+### Components
+
+- ArgoCD v3.3.5 (non-HA, chart 9.4.16) in argocd namespace
+- 6 AppProjects (infrastructure, homelab-apps, arr-stack, gitlab, cicd-apps, argocd-self)
+- Self-management Application (multi-source: Helm chart + GitHub values, manual sync)
+- Discord notifications (sync succeeded/failed, health degraded) to #gitops channel
+- CiliumNetworkPolicy (2 policies: ingress + egress, FQDN rules for GitHub + Discord)
+- PrometheusRules (5 alerts), Grafana dashboard, blackbox probe
+- LimitRange + ResourceQuota (2 CPU / 3Gi mem requests, 20 pods max)
+- 2 ExternalSecrets (admin password, notifications webhook from Vault)
+
+### Decisions
+
+- **v3.3.5 not v3.4.0** - v3.4.0 not GA yet (rc3 as of March 25). v3.3.5 works on K8s 1.35
+  despite official matrix covering 1.31-1.34. Upgrade deferred to ~May 2026.
+- **Public GitHub repo** - no deploy token or repo-creds ExternalSecret needed. ArgoCD clones
+  via HTTPS without authentication.
+- **Redis image override** - chart default uses ecr-public.aws.com which triggers VAP warning.
+  Overridden to public.ecr.aws (in allowed registry list).
+- **DNS inspection for FQDN rules** - CiliumNP toFQDNs requires `rules: dns: matchPattern: "*"`
+  in the same policy's DNS egress rule. Without it, FQDN-to-IP cache never populates.
+
+---
+
 ## March 26, 2026 - Pre-GitOps Validation (v0.36.0)
 
 ### Summary

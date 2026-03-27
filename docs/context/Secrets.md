@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password, vault, external-secrets, backup]
-updated: 2026-03-21
+updated: 2026-03-28
 ---
 
 # Secrets
@@ -90,6 +90,8 @@ Local backup: `~/.vault-keys` (chmod 600). Delete after confirming 1Password bac
 | monitoring/healthchecks | monitoring-healthchecks | monitoring | manifests/monitoring/externalsecret.yaml |
 | velero/garage | garage-secrets | velero | manifests/velero/externalsecret.yaml |
 | velero/s3-credentials | velero-s3-credentials | velero | manifests/velero/externalsecret.yaml |
+| argocd | argocd-secret (Merge) | argocd | manifests/argocd/externalsecret.yaml |
+| argocd | argocd-notifications-secret | argocd | manifests/argocd/externalsecret.yaml |
 | backups/restic-k8s-configs | (WSL2 only - not a K8s Secret) | - | scripts/backup/.password |
 
 **Note:** Grafana uses `existingSecret` (fully declarative). Alertmanager SMTP/webhooks/healthchecks
@@ -108,7 +110,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 |------|--------|---------|
 | Grafana | `password` | kube-prometheus-stack |
 | Cloudflare DNS API Token | `credential` | cert-manager (Let's Encrypt) |
-| Discord Webhooks | `incidents`, `apps`, `infra`, `versions`, `janitor`, `speedtest` | Alertmanager, Version Check CronJob, Cluster Janitor, MySpeed |
+| Discord Webhooks | `incidents`, `apps`, `infra`, `versions`, `janitor`, `speedtest`, `gitops` | Alertmanager, Version Check CronJob, Cluster Janitor, MySpeed, ArgoCD |
 | iCloud SMTP | `username`, `password`, `server`, `port` | Alertmanager, GitLab |
 | GitLab | `username`, `password`, `postgresql-password`, `postgresql-postgres-password`, `runner-token` | GitLab CE, GitLab Runner |
 | Healthchecks Ping URL | `website` | Alertmanager Watchdog (dead man's switch) |
@@ -137,6 +139,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | Cloudflare Tunnel | `token` | cloudflared Deployment (cloudflare namespace) |
 | iCloud SMTP | (reused) | Ghost mail (ghost-dev, ghost-prod) |
 | etcd Encryption Key | `password` | etcd encryption at rest (secretbox). Passed to Ansible: `--extra-vars "etcd_encryption_key=$(op read '...')"` |
+| ArgoCD | `password`, `admin-password`, `server-secret-key` | ArgoCD admin login (password=plain, admin-password=bcrypt hash), JWT signing key |
 | Kubeconfig | `admin-kubeconfig`, `claude-kubeconfig` | Device sync — admin (full access) and restricted (Claude Code read-only) kubeconfigs |
 
 ## 1Password Paths
@@ -148,13 +151,14 @@ op://Kubernetes/Grafana/password
 # Cloudflare (cert-manager)
 op://Kubernetes/Cloudflare DNS API Token/credential
 
-# Discord webhooks (single consolidated item, 6 fields)
+# Discord webhooks (single consolidated item, 7 fields)
 op://Kubernetes/Discord Webhooks/incidents
 op://Kubernetes/Discord Webhooks/apps
 op://Kubernetes/Discord Webhooks/infra
 op://Kubernetes/Discord Webhooks/versions
 op://Kubernetes/Discord Webhooks/janitor
 op://Kubernetes/Discord Webhooks/speedtest
+op://Kubernetes/Discord Webhooks/gitops
 
 # SMTP (Alertmanager, GitLab)
 op://Kubernetes/iCloud SMTP/username
@@ -271,6 +275,11 @@ op://Kubernetes/Garage S3/admin-token
 op://Kubernetes/Garage S3/metrics-token
 op://Kubernetes/Garage S3/s3-access-key-id
 op://Kubernetes/Garage S3/s3-secret-access-key
+
+# ArgoCD (admin login + JWT signing)
+op://Kubernetes/ArgoCD/password
+op://Kubernetes/ArgoCD/admin-password
+op://Kubernetes/ArgoCD/server-secret-key
 
 # Restic Backup Keys (off-site backup encryption)
 op://Kubernetes/Restic Backup Keys/k8s-configs-password

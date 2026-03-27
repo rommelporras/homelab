@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, security, pss, eso, vault, service-accounts, cis, hardening, network-policies, backup, resilience]
-updated: 2026-03-26
+updated: 2026-03-28
 ---
 
 # Security
@@ -98,7 +98,7 @@ Every namespace has an `enforce` level plus `audit: restricted` and `warn: restr
 | Level | Namespaces |
 |-------|------------|
 | **restricted** | cloudflare |
-| **baseline** | ai, arr-stack, atuin, browser, cert-manager, external-secrets, ghost-dev, ghost-prod, gitlab, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, vault, velero |
+| **baseline** | ai, argocd, arr-stack, atuin, browser, cert-manager, external-secrets, ghost-dev, ghost-prod, gitlab, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, vault, velero |
 | **privileged** | gitlab-runner, intel-device-plugins, kube-system, longhorn-system, monitoring, node-feature-discovery, tailscale |
 | **no labels** | cilium-secrets, default, kube-node-lease, kube-public |
 

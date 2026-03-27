@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.35.0 (Observability & Version Hardening)
+> **Latest Release:** v0.36.0 (Pre-GitOps Validation)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -52,6 +52,8 @@
 | v0.33.2 | Loki Storage Fix | - | ✅ Released |
 | v0.34.0 | Resilience & Backup | Phase 5.4 | ✅ Released |
 | v0.35.0 | Observability & Version Hardening | Phase 5.5 | ✅ Released |
+| v0.36.0 | Pre-GitOps Validation | Phase 5.6 | ✅ Released |
+| v0.37.0 | ArgoCD Installation & Bootstrap | Phase 5.7 | ⬜ In Progress |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 
 ---

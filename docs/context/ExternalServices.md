@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, external-services, cloudflare, analytics, tinybird, smtp, tailscale]
-updated: 2026-03-26
+updated: 2026-03-28
 ---
 
 # External Services
@@ -131,7 +131,7 @@ Dead man's switch — Alertmanager sends periodic pings to validate the alerting
 
 ## Discord
 
-Seven webhook channels for notification routing. Six use the `Discord Webhooks` 1Password item; #arr uses a separate `ARR Stack` item.
+Eight webhook channels for notification routing. Seven use the `Discord Webhooks` 1Password item; #arr uses a separate `ARR Stack` item.
 
 | Channel | Purpose | Secret Field |
 |---------|---------|--------------|
@@ -141,6 +141,7 @@ Seven webhook channels for notification routing. Six use the `Discord Webhooks` 
 | #versions | Helm chart drift (Nova CronJob) | `op://Kubernetes/Discord Webhooks/versions` |
 | #janitor | Cluster Janitor cleanup reports | `op://Kubernetes/Discord Webhooks/janitor` |
 | #speedtest | MySpeed internet speed test alerts | `op://Kubernetes/Discord Webhooks/speedtest` |
+| #gitops | ArgoCD GitOps sync events | `op://Kubernetes/Discord Webhooks/gitops` |
 | #arr | ARR media stack notifications | `op://Kubernetes/ARR Stack/discord-webhook-url` |
 
 ## iCloud SMTP

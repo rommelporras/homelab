@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, backup, restic, velero, longhorn]
-updated: 2026-03-23
+updated: 2026-03-28
 ---
 
 # Backups
@@ -35,7 +35,8 @@ S3 target: Garage (`velero` namespace).
 Schedule: `daily-k8s-backup` at 20:30 UTC (04:30 Manila).
 TTL: 720h (30 days).
 Backs up all K8s resources (deployments, services, configmaps, etc.) except Secrets.
-Covers 18 namespaces (all application + infrastructure except kube-system, longhorn-system, cilium, cert-manager).
+Covers 20 namespaces (all application + infrastructure except kube-system, longhorn-system, cilium, cert-manager, argocd).
+ArgoCD excluded intentionally - stateless (app definitions in git, redis ephemeral, secrets from Vault/ESO).
 
 ```bash
 # All velero CLI commands from WSL2 need --kubeconfig

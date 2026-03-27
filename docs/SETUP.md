@@ -144,6 +144,7 @@ helm-homelab repo add tailscale https://pkgs.tailscale.com/helmcharts
 helm-homelab repo add intel https://intel.github.io/helm-charts/
 helm-homelab repo add hashicorp https://helm.releases.hashicorp.com
 helm-homelab repo add external-secrets https://charts.external-secrets.io
+helm-homelab repo add argo https://argoproj.github.io/argo-helm
 helm-homelab repo update
 ```
 

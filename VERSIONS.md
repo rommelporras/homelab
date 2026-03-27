@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** March 26, 2026
+> **Last Updated:** March 28, 2026
 
 ---
 
@@ -55,6 +55,7 @@
 | hashicorp/vault | 0.32.0 | v1.21.4 | Installed | vault |
 | external-secrets/external-secrets | 2.1.0 | v2.1.0 | Installed | external-secrets |
 | vmware-tanzu/velero | 12.0.0 | v1.18.0 | Installed | velero |
+| argo/argo-cd | 9.4.16 | v3.3.5 | Installed | argocd |
 
 > **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
 > Use `grafana/loki` + `grafana/alloy` instead.
@@ -201,6 +202,7 @@ helm-homelab repo update
 | Atuin | atuin.k8s.rommelporras.com | base | atuin |
 | Loki | loki.k8s.rommelporras.com | base | monitoring |
 | Vault UI | vault.k8s.rommelporras.com | base | vault |
+| ArgoCD | argocd.k8s.rommelporras.com | base | argocd |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |

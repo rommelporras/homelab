@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, networking, dns, vlan, network-policies]
-updated: 2026-03-17
+updated: 2026-03-28
 ---
 
 # Networking
@@ -86,6 +86,7 @@ Network configuration for the homelab cluster.
 | Loki | https://loki.k8s.rommelporras.com | base |
 | Vault | https://vault.k8s.rommelporras.com | base |
 | Atuin | https://atuin.k8s.rommelporras.com | base |
+| ArgoCD | https://argocd.k8s.rommelporras.com | base |
 
 ## Tailscale (Remote Access)
 
@@ -161,7 +162,7 @@ Phone → WireGuard tunnel → Connector Pod → AdGuard DNS (10.10.30.53)
 
 ## CiliumNetworkPolicy Traffic Matrix (Phase 5.3)
 
-CiliumNetworkPolicies across 24 namespaces + 1 CiliumClusterwideNetworkPolicy.
+CiliumNetworkPolicies across 25 namespaces + 1 CiliumClusterwideNetworkPolicy.
 See [[Security]] for policy strategy, Cilium identity reference, and known limitations.
 
 ### Cluster-Wide
@@ -178,6 +179,7 @@ See [[Security]] for policy strategy, Cilium identity reference, and known limit
 | vault | ESO ns (8200), monitoring (8200), Gateway (8200), home (8200), unsealer+snapshot (8200/8201) | kube-dns, kube-apiserver (6443) |
 | cert-manager | monitoring (9402), kube-apiserver (10250 webhook), host (controller:9403, cainjector:9402, webhook:6080) | kube-dns, kube-apiserver (6443), FQDN: Let's Encrypt + Cloudflare API (443) |
 | monitoring | intra-namespace (all), Gateway (grafana:3000, prometheus:9090, alertmanager:9093, loki:3100), OTel: world+host+remote-node+cluster (4317/4318) | intra-namespace, DNS, cluster (Prometheus scrape), kube-apiserver, remote-node (kube-vip:2112, NUT:3493), FQDN: Alertmanager SMTP/Discord/healthchecks, blackbox: internet+cluster+LAN, version-checker: internet (443) |
+| argocd | intra-namespace (part-of: argocd), monitoring (:8082/8083/8084/8080/9001), Gateway (:8080) | DNS (with FQDN inspection), kube-apiserver (6443), FQDN: github.com + *.githubusercontent.com + *.github.io (443), FQDN: discord.com (443), intra-namespace |
 | kube-system | (CronJobs only) | cluster-janitor: DNS + kube-apiserver (6443) + internet HTTPS (Discord). cert-expiry-check: DNS + internet HTTPS (Discord) only |
 
 ### Application Namespaces
