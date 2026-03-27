@@ -714,6 +714,6 @@ kubectl-admin delete cronjob kube-bench-weekly -n kube-system
 
 - [x] `/audit-security` then `/commit`
 - [x] `/audit-docs` then `/commit`
-- [ ] `/release v0.36.0 "Pre-GitOps Validation"`
-- [ ] `mv docs/todo/phase-5.6-pre-gitops-validation.md docs/todo/completed/`
+- [x] `/release v0.36.0 "Pre-GitOps Validation"` (released 2026-03-27)
+- [x] `mv docs/todo/phase-5.6-pre-gitops-validation.md docs/todo/completed/`
 - [ ] Proceed to Phase 5.7 (ArgoCD Installation & Bootstrap, v0.37.0)
