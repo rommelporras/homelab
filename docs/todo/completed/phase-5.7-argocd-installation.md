@@ -1,6 +1,6 @@
 # Phase 5.7: ArgoCD Installation & Bootstrap
 
-> **Status:** In Progress
+> **Status:** Complete (v0.37.0 released 2026-03-28)
 > **Target:** v0.37.0
 > **Prerequisite:** Phase 5.6 (v0.36.0 - pre-GitOps validation complete, VAP in Deny mode)
 > **DevOps Topics:** GitOps, declarative infrastructure, continuous delivery, app-of-apps
