@@ -45,6 +45,8 @@
 | v0.33.2 | - | Loki Storage Fix (retention reductions, backup/pod alerts) | *Hotfix - baked into helm/loki/values.yaml and monitoring alerts* |
 | v0.34.0 | Phase 5.4 | Resilience & Backup (Velero + Garage S3, etcd CronJob, Longhorn snapshots, cluster-wide backup strategy) | *Hardening - baked into existing component guides and backup runbooks* |
 | v0.35.0 | Phase 5.5 | Observability & Version Hardening (component version pinning, image digest enforcement, alert coverage) | *Hardening - baked into existing guides* |
+| v0.36.0 | Phase 5.6 | Pre-GitOps Validation (VAP image registry restriction, kube-bench CronJob, security audit) | *Hardening - baked into manifests/kube-system/ and Helm values* |
+| v0.37.0 | Phase 5.7 | ArgoCD Installation & Bootstrap (GitOps engine, self-management, Discord notifications) | [v0.37.0-argocd.md](v0.37.0-argocd.md) |
 
 > **Note:** v0.30.0+ are hardening phases that modify configs on existing components rather than
 > deploying new ones. Their settings are baked into the Ansible playbooks and kubeadm config
