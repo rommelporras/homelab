@@ -257,6 +257,26 @@ switch `validationActions: [Warn]` to `validationActions: [Deny]` in
 
 ---
 
+## ArgoCD Upgrade to v3.4.0 (K8s 1.35 Official Support)
+
+**Status:** Deferred - waiting for v3.4.0 GA release
+**Priority:** Medium
+**Added:** 2026-03-27 (Phase 5.7)
+
+ArgoCD v3.3.5 installed on K8s 1.35 cluster. v3.3.x officially tests K8s 1.31-1.34 only.
+v3.4.0 adds official K8s 1.35 support (Go client upgrade, argoproj/argo-cd#25767).
+
+v3.4.0 RC timeline: rc1 (2026-03-16), rc2 (2026-03-19), rc3 (2026-03-25).
+Historical pattern: ~49 days from rc1 to GA, so estimated GA ~May 4, 2026.
+
+**Check:** `helm-homelab search repo argo/argo-cd --versions | head -5`
+**Upgrade:** `helm-homelab upgrade argocd argo/argo-cd --namespace argocd --version <new-chart-version> --values helm/argocd/values.yaml`
+Review migration notes at: https://argo-cd.readthedocs.io/en/stable/operator-manual/upgrading/3.3-3.4/
+
+**Target date:** 2026-05-04 (check weekly from 2026-04-14)
+
+---
+
 ## Aurora Off-Site Backup (Google Drive)
 
 **Status:** Deferred - waiting for Aurora NFS + rclone setup

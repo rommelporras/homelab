@@ -1,0 +1,112 @@
+# CiliumNetworkPolicy for argocd namespace
+# Phase 5.7: ArgoCD Installation & Bootstrap
+#
+# Pods (all labeled app.kubernetes.io/part-of: argocd):
+#   argocd-application-controller (StatefulSet) - metrics: 8082
+#   argocd-server (Deployment) - server: 8080, metrics: 8083
+#   argocd-repo-server (Deployment) - repo: 8081, metrics: 8084
+#   argocd-applicationset-controller (Deployment) - webhook: 7000, metrics: 8080
+#   argocd-notifications-controller (Deployment) - metrics: 9001
+#   argocd-redis (Deployment) - redis: 6379
+#
+# Default-deny enforced implicitly (Cilium deny-by-default when policy exists)
+
+# ============================================================
+# All ArgoCD pods - ingress
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argocd-ingress
+  namespace: argocd
+spec:
+  endpointSelector: {}
+  ingress:
+    # Intra-namespace: ArgoCD components talk to each other + redis
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/part-of: argocd
+    # Prometheus scraping from monitoring namespace
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8082"
+              protocol: TCP
+            - port: "8083"
+              protocol: TCP
+            - port: "8084"
+              protocol: TCP
+            - port: "9001"
+              protocol: TCP
+            - port: "8080"
+              protocol: TCP
+    # Gateway (Cilium) to argocd-server for UI access
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+# ============================================================
+# All ArgoCD pods - egress
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argocd-egress
+  namespace: argocd
+spec:
+  endpointSelector: {}
+  egress:
+    # DNS with inspection (required for toFQDNs FQDN-to-IP cache)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*"
+    # kube-apiserver (controller + server manage resources)
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    # GitHub (public repo - repo-server clones via HTTPS)
+    - toFQDNs:
+        - matchName: github.com
+        - matchName: codeload.github.com
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # Helm chart repos + GitHub content delivery
+    - toFQDNs:
+        - matchName: argoproj.github.io
+        - matchPattern: "*.githubusercontent.com"
+        - matchPattern: "*.github.io"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # Discord webhooks (notifications-controller)
+    - toFQDNs:
+        - matchName: discord.com
+        - matchName: discordapp.com
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # Intra-namespace (components talk to each other + redis)
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/part-of: argocd

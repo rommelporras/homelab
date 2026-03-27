@@ -232,6 +232,13 @@ echo "  backups/restic-k8s-configs"
 vault kv put secret/backups/restic-k8s-configs \
   password="$(op read 'op://Kubernetes/Restic Backup Keys/k8s-configs-password')"
 
+# argocd (no repo creds - public GitHub repo, ArgoCD clones without auth)
+echo "  argocd"
+vault kv put secret/argocd \
+  admin-password="$(op read 'op://Kubernetes/ArgoCD/admin-password')" \
+  discord-webhook-url="$(op read 'op://Kubernetes/Discord Webhooks/gitops')" \
+  server-secret-key="$(op read 'op://Kubernetes/ArgoCD/server-secret-key')"
+
 echo ""
 echo "=== Verification ==="
 vault kv list secret/

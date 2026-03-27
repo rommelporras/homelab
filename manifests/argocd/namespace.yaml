@@ -1,0 +1,15 @@
+# ArgoCD namespace for GitOps continuous delivery
+# Phase 5.7 - ArgoCD Installation & Bootstrap
+#
+# PSS: enforce baseline (ArgoCD Helm chart doesn't fully satisfy restricted)
+#      audit + warn restricted (guidance for future hardening)
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    eso-enabled: "true"

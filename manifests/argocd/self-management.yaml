@@ -1,0 +1,35 @@
+# ArgoCD self-management Application
+# Phase 5.7: ArgoCD Installation & Bootstrap
+#
+# Multi-source: Helm chart from argo repo + values from GitHub repo.
+# Manual sync mode - do NOT enable auto-sync until stable.
+# A broken auto-sync on self-management can brick ArgoCD.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  project: argocd-self
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      targetRevision: 9.4.16
+      helm:
+        valueFiles:
+          - $values/helm/argocd/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+    # Manual sync - enable auto-sync after verifying stability:
+    # automated:
+    #   prune: false
+    #   selfHeal: true

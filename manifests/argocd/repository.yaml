@@ -1,0 +1,13 @@
+# ArgoCD repository connection - public GitHub repo (no credentials needed)
+# Phase 5.7: ArgoCD Installation & Bootstrap
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: homelab-repo
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  type: git
+  url: https://github.com/rommelporras/homelab.git

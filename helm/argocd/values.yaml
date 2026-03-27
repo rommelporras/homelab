@@ -1,0 +1,170 @@
+global:
+  domain: argocd.k8s.rommelporras.com
+
+configs:
+  params:
+    # TLS terminated at Cilium Gateway - ArgoCD serves plain HTTP
+    server.insecure: true
+    # gRPC-web for CLI access through Gateway (no separate GRPCRoute needed)
+    server.enable.gzip: true
+
+  cm:
+    # Increase status processing to handle 30+ apps
+    timeout.reconciliation: 180s
+    # Resource exclusions for dynamic resources ArgoCD should ignore.
+    # ArgoCD v3 defaults already exclude CiliumIdentity, CiliumEndpoint,
+    # CertificateRequest, Endpoints, EndpointSlice, and Lease.
+    # We add Longhorn and Velero dynamic resources which are NOT in defaults.
+    resource.exclusions: |
+      - apiGroups: ["longhorn.io"]
+        kinds: ["Volume", "Replica", "Snapshot", "Backup", "BackupVolume",
+                "InstanceManager", "Engine", "ShareManager", "Node",
+                "BackupBackingImage"]
+        clusters: ["*"]
+      - apiGroups: ["velero.io"]
+        kinds: ["Backup", "Restore", "PodVolumeBackup", "PodVolumeRestore",
+                "BackupStorageLocation", "VolumeSnapshotLocation"]
+        clusters: ["*"]
+
+  rbac:
+    policy.default: role:readonly
+    policy.csv: |
+      # Admin access for the admin user
+      p, role:admin, applications, *, */*, allow
+      p, role:admin, clusters, get, *, allow
+      p, role:admin, repositories, *, *, allow
+      p, role:admin, logs, get, *, allow
+      p, role:admin, exec, create, */*, allow
+      g, admin, role:admin
+
+  notifications:
+    enabled: true
+
+# Non-HA: single replica for all components
+controller:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      additionalLabels:
+        release: prometheus
+
+server:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      additionalLabels:
+        release: prometheus
+
+repoServer:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      additionalLabels:
+        release: prometheus
+
+applicationSet:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      additionalLabels:
+        release: prometheus
+
+notifications:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      additionalLabels:
+        release: prometheus
+  notifiers:
+    service.webhook.discord: |
+      url: $discord-webhook-url
+      headers:
+        - name: Content-Type
+          value: application/json
+  templates:
+    template.app-sync-succeeded: |
+      webhook:
+        discord:
+          method: POST
+          body: |
+            {"embeds": [{"title": "{{.app.metadata.name}}", "description": "Sync succeeded - {{.app.spec.source.targetRevision}}", "color": 65280, "fields": [{"name": "Project", "value": "{{.app.spec.project}}", "inline": true}, {"name": "Namespace", "value": "{{.app.spec.destination.namespace}}", "inline": true}]}]}
+    template.app-sync-failed: |
+      webhook:
+        discord:
+          method: POST
+          body: |
+            {"embeds": [{"title": "{{.app.metadata.name}}", "description": "Sync FAILED: {{.app.status.operationState.message}}", "color": 16711680, "fields": [{"name": "Project", "value": "{{.app.spec.project}}", "inline": true}, {"name": "Namespace", "value": "{{.app.spec.destination.namespace}}", "inline": true}]}]}
+    template.app-health-degraded: |
+      webhook:
+        discord:
+          method: POST
+          body: |
+            {"embeds": [{"title": "{{.app.metadata.name}}", "description": "Health: DEGRADED", "color": 16776960, "fields": [{"name": "Project", "value": "{{.app.spec.project}}", "inline": true}, {"name": "Status", "value": "{{.app.status.health.status}}", "inline": true}]}]}
+  triggers:
+    trigger.on-sync-succeeded: |
+      - when: app.status.operationState.phase in ['Succeeded']
+        send: [app-sync-succeeded]
+    trigger.on-sync-failed: |
+      - when: app.status.operationState.phase in ['Error', 'Failed']
+        send: [app-sync-failed]
+    trigger.on-health-degraded: |
+      - when: app.status.health.status == 'Degraded'
+        oncePer: app.status.operationState.syncResult.revision
+        send: [app-health-degraded]
+
+redis:
+  image:
+    # Override: chart default uses ecr-public.aws.com which triggers VAP warning.
+    # public.ecr.aws is in the allowed registry list.
+    repository: public.ecr.aws/docker/library/redis
+    tag: 8.2.3-alpine
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+dex:
+  # Disable Dex (SSO) - homelab uses local admin account
+  # Enable later if SSO is needed
+  enabled: false

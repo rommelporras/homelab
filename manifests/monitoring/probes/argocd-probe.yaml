@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: argocd-web
+  namespace: monitoring
+  labels:
+    app: argocd-probe
+    release: prometheus
+spec:
+  jobName: argocd
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - https://argocd.k8s.rommelporras.com
+      labels:
+        target_name: argocd

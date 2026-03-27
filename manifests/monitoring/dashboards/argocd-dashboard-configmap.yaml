@@ -1,0 +1,487 @@
+# Grafana Dashboard - ArgoCD GitOps Health
+# Phase 5.x: App sync status, health, reconciliation, and component resource usage
+# Auto-provisioned via grafana_dashboard label
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-dashboard
+  namespace: monitoring
+  annotations:
+    grafana_folder: "Homelab"
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus-stack
+data:
+  argocd.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "title": "Pod Status",
+          "description": "Running state of all ArgoCD component pods. All five components must be healthy for GitOps reconciliation and UI access to function.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] },
+              "noValue": "DOWN"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 5, "x": 0, "y": 1 },
+          "id": 2,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "ArgoCD application controller pod status. The application controller watches live cluster state, compares it against Git, and triggers sync operations.",
+          "title": "Application Controller",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "kube_pod_info{namespace=\"argocd\", pod=~\"argocd-application-controller.*\"}",
+              "legendFormat": "{{pod}}",
+              "instant": true
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] },
+              "noValue": "DOWN"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 5, "x": 5, "y": 1 },
+          "id": 3,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "ArgoCD server pod status. The API server and UI front-end - required for dashboard access and CLI/SSO authentication.",
+          "title": "Server",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "kube_pod_info{namespace=\"argocd\", pod=~\"argocd-server.*\"}",
+              "legendFormat": "{{pod}}",
+              "instant": true
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] },
+              "noValue": "DOWN"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 5, "x": 10, "y": 1 },
+          "id": 4,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "ArgoCD repo server pod status. Clones Git repositories, renders Helm/Kustomize manifests, and caches repository content.",
+          "title": "Repo Server",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "kube_pod_info{namespace=\"argocd\", pod=~\"argocd-repo-server.*\"}",
+              "legendFormat": "{{pod}}",
+              "instant": true
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] },
+              "noValue": "DOWN"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 5, "x": 15, "y": 1 },
+          "id": 5,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "ArgoCD applicationset controller pod status. Generates Application resources from ApplicationSet templates (e.g. cluster generators, git directory generators).",
+          "title": "ApplicationSet Controller",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "kube_pod_info{namespace=\"argocd\", pod=~\"argocd-applicationset-controller.*\"}",
+              "legendFormat": "{{pod}}",
+              "instant": true
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+              ],
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] },
+              "noValue": "DOWN"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+          "id": 6,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+          "description": "ArgoCD notifications controller pod status. Sends sync and health status change alerts to configured triggers (e.g. Discord, Slack).",
+          "title": "Notifications Controller",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "kube_pod_info{namespace=\"argocd\", pod=~\"argocd-notifications-controller.*\"}",
+              "legendFormat": "{{pod}}",
+              "instant": true
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "id": 10,
+          "title": "Network Traffic",
+          "description": "Inbound and outbound bytes for key ArgoCD components. Repo server traffic reflects Git clone and fetch activity; server traffic reflects UI and API usage.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "Bps"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "id": 11,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Network bytes received per second by ArgoCD components. Spikes on the repo server indicate Git fetch/clone operations from the upstream repository.",
+          "title": "Network Receive",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (pod) (rate(container_network_receive_bytes_total{namespace=\"argocd\", pod=~\"argocd-(server|repo-server|application-controller).*\"}[5m]))",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "Bps"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "id": 12,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Network bytes transmitted per second by ArgoCD components. Server transmit traffic reflects API responses to the UI, CLI, and webhooks.",
+          "title": "Network Transmit",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (pod) (rate(container_network_transmit_bytes_total{namespace=\"argocd\", pod=~\"argocd-(server|repo-server|application-controller).*\"}[5m]))",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+          "id": 20,
+          "title": "ArgoCD Metrics",
+          "description": "GitOps-specific indicators: application sync status, health state distribution, sync operation rate, and reconciliation duration. These metrics reflect overall GitOps posture.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] },
+              "noValue": "0"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Synced" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "OutOfSync" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Unknown" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "grey", "mode": "fixed" } } ]
+              }
+            ]
+          },
+          "gridPos": { "h": 4, "w": 8, "x": 0, "y": 15 },
+          "id": 21,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value_and_name" },
+          "description": "Count of applications by sync status. OutOfSync means the live cluster state differs from the desired Git state and may require a sync operation.",
+          "title": "App Sync Status",
+          "type": "stat",
+          "targets": [
+            { "expr": "sum(argocd_app_info{sync_status=\"Synced\"})", "legendFormat": "Synced", "instant": true },
+            { "expr": "sum(argocd_app_info{sync_status=\"OutOfSync\"})", "legendFormat": "OutOfSync", "instant": true },
+            { "expr": "sum(argocd_app_info{sync_status=\"Unknown\"}) or vector(0)", "legendFormat": "Unknown", "instant": true }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] },
+              "noValue": "0"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Healthy" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Degraded" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Progressing" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Missing" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } } ]
+              }
+            ]
+          },
+          "gridPos": { "h": 4, "w": 8, "x": 8, "y": 15 },
+          "id": 22,
+          "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value_and_name" },
+          "description": "Count of applications by health status. Degraded apps have resources in a failed or crashlooping state. Missing means the app target namespace or resources cannot be found.",
+          "title": "App Health Status",
+          "type": "stat",
+          "targets": [
+            { "expr": "sum(argocd_app_info{health_status=\"Healthy\"})", "legendFormat": "Healthy", "instant": true },
+            { "expr": "sum(argocd_app_info{health_status=\"Degraded\"}) or vector(0)", "legendFormat": "Degraded", "instant": true },
+            { "expr": "sum(argocd_app_info{health_status=\"Progressing\"}) or vector(0)", "legendFormat": "Progressing", "instant": true },
+            { "expr": "sum(argocd_app_info{health_status=\"Missing\"}) or vector(0)", "legendFormat": "Missing", "instant": true }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 8, "x": 16, "y": 15 },
+          "id": 23,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Rate of sync operations per second across all applications. Sustained high sync rates may indicate a reconciliation loop or frequent Git repository pushes.",
+          "title": "Sync Operations Rate",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (phase) (rate(argocd_app_sync_total[5m]))",
+              "legendFormat": "{{phase}}"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 19 },
+          "id": 24,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Average reconciliation duration per application. High or growing reconciliation times indicate a large number of managed resources or slow API server responses.",
+          "title": "Reconciliation Duration (avg)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (app) (rate(argocd_app_reconciliation_sum[5m])) / sum by (app) (rate(argocd_app_reconciliation_count[5m]))",
+              "legendFormat": "{{app}}"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
+          "id": 30,
+          "title": "Resource Usage",
+          "description": "CPU and memory consumption for ArgoCD components. The application controller is the most resource-intensive component, scaling with the number of managed applications and resources.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byFrameRefID", "options": "cpu_request" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "dash": [6, 4], "fill": "dash" } },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "displayName", "value": "request" }
+                ]
+              },
+              {
+                "matcher": { "id": "byFrameRefID", "options": "cpu_limit" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "dash": [6, 4], "fill": "dash" } },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "displayName", "value": "limit" }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+          "id": 31,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "CPU cores used by ArgoCD components. Dashed lines show configured CPU requests and limits. Application controller usage grows with cluster resource count.",
+          "title": "CPU Usage",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"argocd\", container=~\"argocd-.*\"}[5m]))",
+              "legendFormat": "{{container}}",
+              "refId": "cpu_usage"
+            },
+            {
+              "expr": "sum by (container) (kube_pod_container_resource_requests{namespace=\"argocd\", container=~\"argocd-.*\", resource=\"cpu\"})",
+              "legendFormat": "{{container}} request",
+              "refId": "cpu_request"
+            },
+            {
+              "expr": "sum by (container) (kube_pod_container_resource_limits{namespace=\"argocd\", container=~\"argocd-.*\", resource=\"cpu\"})",
+              "legendFormat": "{{container}} limit",
+              "refId": "cpu_limit"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "bytes"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byFrameRefID", "options": "mem_request" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "dash": [6, 4], "fill": "dash" } },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "displayName", "value": "request" }
+                ]
+              },
+              {
+                "matcher": { "id": "byFrameRefID", "options": "mem_limit" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "dash": [6, 4], "fill": "dash" } },
+                  { "id": "custom.fillOpacity", "value": 0 },
+                  { "id": "displayName", "value": "limit" }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+          "id": 32,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Memory working set bytes used by ArgoCD components. Dashed lines show configured memory requests and limits. Repo server memory grows with repository size and cache usage.",
+          "title": "Memory Usage",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"argocd\", container=~\"argocd-.*\"})",
+              "legendFormat": "{{container}}",
+              "refId": "mem_usage"
+            },
+            {
+              "expr": "sum by (container) (kube_pod_container_resource_requests{namespace=\"argocd\", container=~\"argocd-.*\", resource=\"memory\"})",
+              "legendFormat": "{{container}} request",
+              "refId": "mem_request"
+            },
+            {
+              "expr": "sum by (container) (kube_pod_container_resource_limits{namespace=\"argocd\", container=~\"argocd-.*\", resource=\"memory\"})",
+              "legendFormat": "{{container}} limit",
+              "refId": "mem_limit"
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": [
+        "argocd",
+        "gitops",
+        "infrastructure"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "Asia/Manila",
+      "title": "ArgoCD",
+      "uid": "argocd",
+      "version": 1
+    }

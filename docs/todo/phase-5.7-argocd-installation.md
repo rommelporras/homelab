@@ -1,6 +1,6 @@
 # Phase 5.7: ArgoCD Installation & Bootstrap
 
-> **Status:** Planned
+> **Status:** In Progress
 > **Target:** v0.37.0
 > **Prerequisite:** Phase 5.6 (v0.36.0 - pre-GitOps validation complete, VAP in Deny mode)
 > **DevOps Topics:** GitOps, declarative infrastructure, continuous delivery, app-of-apps
@@ -20,9 +20,9 @@
 > blocks new syncs - running applications are unaffected. Upgrade to HA later
 > by switching Helm values if needed.
 >
-> **ArgoCD version:** v3.4.x (first version with K8s 1.35 support).
-> Helm chart: `argo/argo-cd`. Verify chart version at install time:
-> `helm search repo argo/argo-cd --versions | head -5`
+> **ArgoCD version:** v3.3.5 (chart 9.4.16). v3.4.0 not GA yet - upgrade deferred
+> (see docs/todo/deferred.md). v3.3.5 works on K8s 1.35 despite official matrix
+> covering 1.31-1.34. Helm chart: `argo/argo-cd`.
 >
 > **Key ArgoCD v3 behaviors:**
 > - Uses `helm template` to render charts, NOT `helm install` - no Helm releases in cluster
@@ -43,8 +43,8 @@
 >
 > **K8s 1.35 Compatibility:** ArgoCD v3.3.x officially tests K8s 1.31-1.34 only.
 > K8s 1.35 Go client upgrade tracked in argoproj/argo-cd#25767, milestoned to v3.4.
-> v3.4.0-rc2 released March 19, 2026 - stable expected before this phase executes.
-> Use v3.4.0+ for K8s 1.35 support.
+> v3.4.0-rc3 released March 25, 2026 - GA estimated ~May 4, 2026.
+> Installing v3.3.5 now; upgrade to v3.4.0 deferred (see docs/todo/deferred.md).
 
 ---
 
@@ -52,40 +52,47 @@
 
 > **Gate:** Do not proceed until ALL Phase 5.6 verification items are checked.
 
-- [ ] 5.7.0.1 Verify Phase 5.6 is complete
+- [x] 5.7.0.1 Verify Phase 5.6 is complete
   ```bash
-  # VAP in Deny mode
-  kubectl-homelab get validatingadmissionpolicybinding restrict-image-registries-binding \
+  # VAP mode (requires kubectl-admin - claude-code RBAC can't read VAP bindings)
+  kubectl-admin get validatingadmissionpolicybinding restrict-image-registries-binding \
     -o jsonpath='{.spec.validationActions}'
-  # Expected: ["Deny"]
+  # Actual: ["Warn"] - Deny mode deferred to 2026-04-02 (see deferred.md). Not a blocker.
 
   # kube-bench CronJob deployed
   kubectl-homelab get cronjob kube-bench-weekly -n kube-system
+  # Actual: deployed, schedule 0 20 * * 0 Asia/Manila
 
   # All ExternalSecrets synced
   kubectl-homelab get externalsecrets -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,STATUS:.status.conditions[0].reason | grep -v SecretSynced
-  # Expected: no output (all synced)
+  # Actual: no output (all synced)
   ```
 
-- [ ] 5.7.0.2 Verify ArgoCD chart version supports K8s 1.35
+- [x] 5.7.0.2 Verify ArgoCD chart version supports K8s 1.35
   ```bash
   helm-homelab repo add argo https://argoproj.github.io/argo-helm
-  helm-homelab repo update
+  helm-homelab repo update argo
   helm-homelab search repo argo/argo-cd --versions | head -10
-  # Look for chart version mapping to ArgoCD v3.4.0+
-  # Record: CHART_VERSION=<version> APP_VERSION=<version>
+  # Actual: v3.4.0 not GA yet. Latest: chart 9.4.16 = app v3.3.5.
+  # No pre-release charts available (--devel checked).
+  # Decision: proceed with v3.3.5, upgrade to v3.4.0 deferred.
+  # CHART_VERSION=9.4.16 APP_VERSION=v3.3.5
   ```
 
-- [ ] 5.7.0.3 Verify VAP allows ArgoCD images (dry-run test)
+- [x] 5.7.0.3 Verify VAP allows ArgoCD images (dry-run test)
   ```bash
-  # ArgoCD images come from quay.io/argoproj/ and ecr-public.aws.com/
-  kubectl-admin run test-argocd --image=quay.io/argoproj/argocd:v3.4.0 \
+  # ArgoCD image: quay.io - passes VAP
+  kubectl-admin run test-argocd --image=quay.io/argoproj/argocd:v3.3.5 \
     --dry-run=server -n default
-  # Expected: pod created (dry-run), no VAP warning
+  # Actual: pod created (dry-run), no VAP warning
 
-  kubectl-admin run test-redis --image=ecr-public.aws.com/docker/library/redis:7.2.8-alpine \
+  # Redis image: chart uses ecr-public.aws.com (NOT public.ecr.aws)
+  kubectl-admin run test-redis --image=ecr-public.aws.com/docker/library/redis:8.2.3-alpine \
     --dry-run=server -n default
-  # Expected: pod created (dry-run), no VAP warning
+  # Actual: pod created BUT VAP warns - ecr-public.aws.com not in allowed list.
+  # VAP allows public.ecr.aws, not ecr-public.aws.com (different domain).
+  # Fix: override redis image in Helm values to use public.ecr.aws registry.
+  # (Warn-only now; would block when VAP switches to Deny)
   ```
 
 ---
@@ -94,7 +101,7 @@
 
 ### 5.7.1.1 Create argocd namespace
 
-- [ ] 5.7.1.1a Create namespace manifest
+- [x] 5.7.1.1a Create namespace manifest
   ```yaml
   # manifests/argocd/namespace.yaml
   apiVersion: v1
@@ -109,51 +116,51 @@
       eso-enabled: "true"
   ```
 
-- [ ] 5.7.1.1b Apply namespace
+- [x] 5.7.1.1b Apply namespace
   ```bash
   kubectl-admin apply -f manifests/argocd/namespace.yaml
+  # Actual: namespace/argocd created
+  # Note: used repo pattern (audit+warn restricted) instead of plan's enforce-version/warn-version
   ```
 
 ### 5.7.1.2 Vault secrets preparation
 
 > **Manual step:** Run on a terminal with `op` access (not this one).
 
-- [ ] 5.7.1.2a Add ArgoCD secrets to 1Password
+- [x] 5.7.1.2a Add ArgoCD secrets to 1Password
   ```
-  Create 1Password item: op://Kubernetes/ArgoCD/
-  Fields:
-  - admin-password: bcrypt-hashed admin password (generate with: htpasswd -nbBC 10 "" <password> | tr -d ':\n' | sed 's/$2y/$2a/')
-  - gitlab-deploy-token-username: deploy token username from GitLab
-  - gitlab-deploy-token-password: deploy token password from GitLab
-  - discord-webhook-url: webhook URL for #gitops or #apps Discord channel
-  - server-secret-key: random 32-char string for JWT signing (openssl rand -hex 16)
+  1. Add gitops webhook to shared item:
+     op item edit "Discord Webhooks" --vault "Kubernetes" "gitops=<webhook URL>"
 
-  GitLab deploy token:
-  GitLab > Settings > Repository > Deploy Tokens
-  - Name: argocd-readonly
-  - Scopes: read_repository
-  - URL format: https://<username>:<token>@gitlab.k8s.rommelporras.com/wsh/homelab.git
-  - NOTE: GitLab requires .git suffix (otherwise 301 redirect ArgoCD won't follow)
+  2. Create ArgoCD item: op://Kubernetes/ArgoCD/
+     Fields:
+     - admin-password: bcrypt hash (htpasswd -nbBC 10 "" <pw> | tr -d ':\n' | sed 's/$2y/$2a/')
+     - server-secret-key: random hex (openssl rand -hex 16)
+
+  Discord webhook uses shared item: op://Kubernetes/Discord Webhooks/gitops
+  No GitLab deploy token needed - repo is public on GitHub.
   ```
 
-- [ ] 5.7.1.2b Seed Vault with ArgoCD secrets
+- [x] 5.7.1.2b Seed Vault with ArgoCD secrets
   ```bash
-  # Run from trusted terminal with op access:
-  # Add to scripts/vault/seed-vault-from-1password.sh:
+  # ArgoCD section added to scripts/vault/seed-vault-from-1password.sh
+  # Run from trusted terminal with op + vault access:
   #   vault kv put secret/argocd \
   #     admin-password="$(op read 'op://Kubernetes/ArgoCD/admin-password')" \
-  #     gitlab-deploy-token-username="$(op read 'op://Kubernetes/ArgoCD/gitlab-deploy-token-username')" \
-  #     gitlab-deploy-token-password="$(op read 'op://Kubernetes/ArgoCD/gitlab-deploy-token-password')" \
-  #     discord-webhook-url="$(op read 'op://Kubernetes/ArgoCD/discord-webhook-url')" \
+  #     discord-webhook-url="$(op read 'op://Kubernetes/Discord Webhooks/gitops')" \
   #     server-secret-key="$(op read 'op://Kubernetes/ArgoCD/server-secret-key')"
+  #   vault kv get secret/argocd  # verify
+  # Discord webhook reads from shared "Discord Webhooks" item, not ArgoCD item.
   ```
 
 ### 5.7.1.3 ExternalSecrets
 
-- [ ] 5.7.1.3a Create ExternalSecret for ArgoCD
+- [x] 5.7.1.3a Create ExternalSecret for ArgoCD
   ```yaml
   # manifests/argocd/externalsecret.yaml
-  apiVersion: external-secrets.io/v1beta1
+  # Actual: used external-secrets.io/v1 (not v1beta1) to match repo convention
+  # Actual: remoteRef.key uses "argocd" not "secret/argocd" (ClusterSecretStore has path: secret)
+  apiVersion: external-secrets.io/v1
   kind: ExternalSecret
   metadata:
     name: argocd-vault-secrets
@@ -240,19 +247,19 @@
   > a separate Secret for each repo. When ArgoCD sees a repo URL matching the template prefix,
   > it automatically uses these credentials.
 
-- [ ] 5.7.1.3b Apply ExternalSecrets
+- [x] 5.7.1.3b Apply ExternalSecrets
   ```bash
   kubectl-admin apply -f manifests/argocd/externalsecret.yaml
-  # Wait for sync
-  kubectl-homelab get externalsecrets -n argocd
-  # All should show SecretSynced
+  # Actual: all 3 created. Status: SecretSyncedError (expected - Vault secret/argocd
+  # not seeded yet). ESO will auto-retry once user seeds Vault (step 5.7.1.2b).
+  # argocd-vault-secrets (Merge) will also wait for Helm to create argocd-secret.
   ```
 
 ---
 
 ## 5.7.2 Helm Installation
 
-- [ ] 5.7.2.1 Create Helm values file
+- [x] 5.7.2.1 Create Helm values file
   ```yaml
   # helm/argocd/values.yaml
   global:
@@ -399,21 +406,23 @@
   >
   > ~1Gi memory on a cluster at ~60% (9.6GB/16GB per node). Comfortable fit.
 
-- [ ] 5.7.2.2 Install ArgoCD via Helm
+- [x] 5.7.2.2 Install ArgoCD via Helm
   ```bash
-  # IMPORTANT: --server-side --force-conflicts required for CRD size
-  CHART_VERSION="<version from 5.7.0.2>"
-
   helm-homelab install argocd argo/argo-cd \
     --namespace argocd \
-    --version "$CHART_VERSION" \
-    --values helm/argocd/values.yaml \
-    --set configs.params.server.insecure=true
+    --version 9.4.16 \
+    --values helm/argocd/values.yaml
+  # Note: server.insecure already in values.yaml, no need for --set override
+  # Note: --server-side --force-conflicts not needed for helm install (only for kubectl apply of CRDs)
 
-  # Wait for all pods to be ready
-  kubectl-homelab get pods -n argocd -w
-  # Expected: 5 pods (controller, server, repo-server, applicationset, redis)
-  # notifications-controller is a 6th pod
+  # Actual: 6 pods all Running/Ready (+ 1 completed redis-secret-init Job):
+  #   argocd-application-controller-0 (StatefulSet)
+  #   argocd-applicationset-controller (Deployment)
+  #   argocd-notifications-controller (Deployment)
+  #   argocd-redis (Deployment)
+  #   argocd-repo-server (Deployment)
+  #   argocd-server (Deployment)
+  # Redis image override to public.ecr.aws worked (no VAP warnings)
   ```
 
   > **Gotcha:** If CRD installation fails with "metadata annotations too long",
@@ -427,16 +436,17 @@
   >   -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.4.0/manifests/crds/appproject-crd.yaml
   > ```
 
-- [ ] 5.7.2.3 Verify installation
+- [x] 5.7.2.3 Verify installation
   ```bash
   kubectl-homelab get pods -n argocd
-  # All pods Running and Ready
+  # Actual: 6/6 Running, 1/1 Ready each
 
   kubectl-homelab get svc -n argocd
-  # argocd-server ClusterIP on port 8080
+  # Actual: argocd-server ClusterIP on ports 80 (http->8080) and 443 (https->8443)
+  # Note: service port is 80, not 8080 - HTTPRoute must target port 80
 
-  # Check ArgoCD version
-  kubectl-homelab exec -n argocd deployment/argocd-server -- argocd version --short
+  # ArgoCD version
+  # Actual: quay.io/argoproj/argocd:v3.3.5
   ```
 
 ---
@@ -445,7 +455,7 @@
 
 ### 5.7.3.1 HTTPRoute
 
-- [ ] 5.7.3.1a Create HTTPRoute for ArgoCD UI
+- [x] 5.7.3.1a Create HTTPRoute for ArgoCD UI
   ```yaml
   # manifests/argocd/httproute.yaml
   apiVersion: gateway.networking.k8s.io/v1
@@ -467,27 +477,29 @@
               value: /
         backendRefs:
           - name: argocd-server
-            port: 8080
+            port: 80
+            # Note: plan had port 8080 (container port) but service port is 80
   ```
 
-- [ ] 5.7.3.1b Add DNS entry in AdGuard
+- [x] 5.7.3.1b Add DNS entry in AdGuard
   ```
   argocd.k8s.rommelporras.com -> 10.10.30.20
-  (Already covered by *.k8s.rommelporras.com wildcard if configured)
-  Verify: nslookup argocd.k8s.rommelporras.com 10.10.30.53
+  # Actual: covered by *.k8s.rommelporras.com wildcard. No AdGuard change needed.
+  # nslookup from WSL resolves via 10.255.255.254 (WSL DNS) -> 10.10.30.20
+  # Note: 10.10.30.53 (AdGuard direct) unreachable from WSL
   ```
 
-- [ ] 5.7.3.1c Apply and verify
+- [x] 5.7.3.1c Apply and verify
   ```bash
   kubectl-admin apply -f manifests/argocd/httproute.yaml
-  # Test HTTPS access
+  # Actual: httproute.gateway.networking.k8s.io/argocd created
   curl -sk https://argocd.k8s.rommelporras.com | head -5
-  # Expected: ArgoCD HTML response
+  # Actual: ArgoCD HTML response (Argo CD title, main.js loaded)
   ```
 
 ### 5.7.3.2 CiliumNetworkPolicy
 
-- [ ] 5.7.3.2a Create CiliumNetworkPolicy for argocd namespace
+- [x] 5.7.3.2a Create CiliumNetworkPolicy for argocd namespace
   ```yaml
   # manifests/argocd/networkpolicy.yaml
   # Single policy: endpointSelector: {} = all pods in namespace.
@@ -579,21 +591,29 @@
   > The `remote-node` entity is needed for cross-node API server traffic in Cilium
   > tunnel mode (same pattern as cert-manager and ESO webhook policies from Phase 5.3).
 
-- [ ] 5.7.3.2b Apply and test
+- [x] 5.7.3.2b Apply and test
   ```bash
   kubectl-admin apply -f manifests/argocd/networkpolicy.yaml
-  # Verify ArgoCD can still reach GitLab and kube-apiserver
-  kubectl-homelab logs -n argocd deployment/argocd-server --tail=20
-  # No connection refused errors
+  # Actual: argocd-ingress and argocd-egress created
+  # Actual: split into 2 policies (ingress/egress) following repo pattern (not single policy)
+  # Actual: used fromEntities: ingress (not cluster) for Gateway, matching vault/other NPs
+  # Actual: used k8s:io.kubernetes.pod.namespace for cross-ns selectors (repo convention)
+  # Actual: added applicationset-controller metrics port 8080 (missing from plan)
+  # Verification:
+  #   curl -sk https://argocd.k8s.rommelporras.com -> ArgoCD HTML (UI works)
+  #   kubectl-admin logs: no connection refused errors, clean info-level logs
+  #   Note: kubectl-homelab can't read logs in argocd ns (RBAC restriction)
   ```
 
 ---
 
 ## 5.7.4 Discord Notifications
 
-- [ ] 5.7.4.1 Create notifications ConfigMap
+- [x] 5.7.4.1 Create notifications ConfigMap
   ```yaml
-  # Add to helm/argocd/values.yaml under configs.notifications:
+  # Added to helm/argocd/values.yaml under top-level notifications: key
+  # (NOT configs.notifications - plan had wrong path)
+  # Helm upgrade applied (revision 2). Verified argocd-notifications-cm has all keys.
   notifications:
     enabled: true
     notifiers:
@@ -648,7 +668,10 @@
 
 ## 5.7.5 AppProjects
 
-- [ ] 5.7.5.1 Create AppProject manifests
+- [x] 5.7.5.1 Create AppProject manifests
+  # Actual: all sourceRepos changed from gitlab.k8s.rommelporras.com to github.com/rommelporras/homelab.git
+  # Actual: infrastructure sourceRepos updated to match actual helm repo list (removed OCI refs, added velero/tailscale repos)
+  # Actual: removed argo-workflows/argo-rollouts destinations (don't exist yet, add when needed)
   ```yaml
   # manifests/argocd/appprojects.yaml
   apiVersion: argoproj.io/v1alpha1
@@ -833,32 +856,30 @@
   > A compromised Application in `arr-stack` cannot deploy to `monitoring` or `vault`.
   > Only `infrastructure` project can create cluster-scoped resources (CRDs, ClusterRoles).
 
-- [ ] 5.7.5.2 Apply AppProjects
+- [x] 5.7.5.2 Apply AppProjects
   ```bash
   kubectl-admin apply -f manifests/argocd/appprojects.yaml
-  kubectl-homelab get appprojects -n argocd
+  # Actual: 6 created. Finalizer warning is expected (ArgoCD's standard finalizer format).
+  # Note: kubectl-homelab can't list appprojects (RBAC). Use kubectl-admin.
+  kubectl-admin get appprojects -n argocd
+  # Actual: 7 total (6 custom + default from Helm)
   ```
 
 ---
 
 ## 5.7.6 GitLab Repository Connection
 
-- [ ] 5.7.6.1 Verify repo credentials work
+- [x] 5.7.6.1 Verify repo credentials work
   ```bash
-  # ESO should have created the argocd-repo-gitlab Secret
-  kubectl-homelab get secret argocd-repo-gitlab -n argocd
-  # Verify the label
-  kubectl-homelab get secret argocd-repo-gitlab -n argocd -o jsonpath='{.metadata.labels}'
-  # Should contain: argocd.argoproj.io/secret-type: repo-creds
-
-  # ArgoCD should auto-discover the credential template
-  # Check ArgoCD server logs for repo connection
-  kubectl-homelab logs -n argocd deployment/argocd-server --tail=20 | grep -i repo
+  # SKIPPED - repo is public on GitHub, no credentials needed.
+  # No argocd-repo-gitlab ExternalSecret exists (removed in session 1).
+  # No deploy token, no repo-creds template.
   ```
 
-- [ ] 5.7.6.2 Add the homelab repository
+- [x] 5.7.6.2 Add the homelab repository
   ```yaml
   # manifests/argocd/repository.yaml
+  # Actual: simplified - public GitHub repo, no credentials
   apiVersion: v1
   kind: Secret
   metadata:
@@ -868,18 +889,14 @@
       argocd.argoproj.io/secret-type: repository
   stringData:
     type: git
-    url: https://gitlab.k8s.rommelporras.com/wsh/homelab.git
-    # Credentials inherited from repo-creds template (argocd-repo-gitlab)
+    url: https://github.com/rommelporras/homelab.git
   ```
 
-  > **Note:** The `url` must end with `.git` for GitLab. Without it, GitLab returns
-  > a 301 redirect that ArgoCD won't follow, causing "repository not found" errors.
-
-- [ ] 5.7.6.3 Apply and verify
+- [x] 5.7.6.3 Apply and verify
   ```bash
   kubectl-admin apply -f manifests/argocd/repository.yaml
-  # Access ArgoCD UI and check Settings > Repositories
-  # Should show the homelab repo as "Successful"
+  # Actual: secret/homelab-repo created. No errors in repo-server logs.
+  # Full connection test deferred to 5.7.10 (test Application).
   ```
 
 ---
@@ -890,7 +907,8 @@
 > Changes to ArgoCD config are made by editing `helm/argocd/values.yaml` and pushing
 > to Git. ArgoCD detects the drift and syncs itself.
 
-- [ ] 5.7.7.1 Create self-management Application
+- [x] 5.7.7.1 Create self-management Application
+  # Actual: GitHub URL instead of GitLab, chart version 9.4.16 (not placeholder)
   ```yaml
   # manifests/argocd/self-management.yaml
   apiVersion: argoproj.io/v1alpha1
@@ -931,11 +949,16 @@
   > **Manual sync first:** Auto-sync is commented out. Enable after verifying ArgoCD
   > is stable. A broken auto-sync on the self-management app can brick ArgoCD.
 
-- [ ] 5.7.7.2 Apply self-management Application
+- [x] 5.7.7.2 Apply self-management Application
   ```bash
   kubectl-admin apply -f manifests/argocd/self-management.yaml
-  # Check Application status in ArgoCD UI
-  kubectl-homelab get application argocd -n argocd
+  # Actual: application.argoproj.io/argocd created
+  # Status: Unknown/Healthy with ComparisonError - expected because
+  # helm/argocd/values.yaml not yet pushed to GitHub. Will resolve after commit+push.
+  #
+  # CiliumNP gotcha: GitHub access needed DNS inspection rule (rules.dns.matchPattern: "*")
+  # in same policy as toFQDNs. Without it, FQDN-to-IP cache never populates.
+  # Also added *.githubusercontent.com and *.github.io for chart downloads.
   ```
 
 ---
@@ -944,7 +967,9 @@
 
 ### 5.7.8.1 PrometheusRules
 
-- [ ] 5.7.8.1a Create ArgoCD alert rules
+- [x] 5.7.8.1a Create ArgoCD alert rules
+  # Actual: 5 alerts. Runbook URLs use github.com pattern (repo convention).
+  # Fixed job names to match actual: argocd-repo-server-metrics, argocd-application-controller-metrics
   ```yaml
   # manifests/monitoring/alerts/argocd-alerts.yaml
   apiVersion: monitoring.coreos.com/v1
@@ -1020,7 +1045,7 @@
 
 ### 5.7.8.2 Grafana Dashboard
 
-- [ ] 5.7.8.2a Create ArgoCD Grafana dashboard
+- [x] 5.7.8.2a Create ArgoCD Grafana dashboard
   ```
   Follow homelab convention:
   - Row 1: Pod Status (all ArgoCD component pods)
@@ -1033,7 +1058,7 @@
 
 ### 5.7.8.3 Blackbox Probe
 
-- [ ] 5.7.8.3a Create ArgoCD blackbox probe
+- [x] 5.7.8.3a Create ArgoCD blackbox probe
   ```yaml
   # manifests/monitoring/probes/argocd-probe.yaml
   apiVersion: monitoring.coreos.com/v1
@@ -1054,18 +1079,21 @@
           - https://argocd.k8s.rommelporras.com
   ```
 
-- [ ] 5.7.8.4 Apply monitoring resources
+- [x] 5.7.8.4 Apply monitoring resources
   ```bash
   kubectl-admin apply -f manifests/monitoring/alerts/argocd-alerts.yaml
+  # Actual: prometheusrule.monitoring.coreos.com/argocd-alerts created
   kubectl-admin apply -f manifests/monitoring/probes/argocd-probe.yaml
-  # Dashboard ConfigMap created separately
+  # Actual: probe.monitoring.coreos.com/argocd-web created
+  kubectl-admin apply -f manifests/monitoring/dashboards/argocd-dashboard-configmap.yaml
+  # Actual: configmap/argocd-dashboard created
   ```
 
 ---
 
 ## 5.7.9 LimitRange and ResourceQuota
 
-- [ ] 5.7.9.1 Create LimitRange
+- [x] 5.7.9.1 Create LimitRange
   ```yaml
   # manifests/argocd/limitrange.yaml
   apiVersion: v1
@@ -1084,7 +1112,7 @@
         type: Container
   ```
 
-- [ ] 5.7.9.2 Create ResourceQuota
+- [x] 5.7.9.2 Create ResourceQuota
   ```yaml
   # manifests/argocd/resourcequota.yaml
   apiVersion: v1
@@ -1101,70 +1129,46 @@
       pods: "20"
   ```
 
-- [ ] 5.7.9.3 Apply
+- [x] 5.7.9.3 Apply
   ```bash
   kubectl-admin apply -f manifests/argocd/limitrange.yaml
   kubectl-admin apply -f manifests/argocd/resourcequota.yaml
+  # Actual: both created. Usage: 550m/2 CPU req, 1088Mi/3Gi mem req, 6/20 pods
   ```
 
 ---
 
 ## 5.7.10 Initial Verification
 
-- [ ] 5.7.10.1 Access ArgoCD UI
+- [x] 5.7.10.1 Access ArgoCD UI
   ```bash
-  # Admin password is in 1Password: op://Kubernetes/ArgoCD/admin-password
-  # Retrieve from 1Password (run on trusted terminal with op access):
-  #   op read 'op://Kubernetes/ArgoCD/admin-password'
-  # Do NOT use kubectl to read secrets (RBAC blocks it + policy violation)
-  # Login at https://argocd.k8s.rommelporras.com
+  # UI accessible: curl -sk https://argocd.k8s.rommelporras.com returns ArgoCD HTML
+  # Admin password: op://Kubernetes/ArgoCD/password (plain text for login)
   # Username: admin
   ```
 
-- [ ] 5.7.10.2 Verify repository connection
+- [x] 5.7.10.2 Verify repository connection
   ```
-  ArgoCD UI > Settings > Repositories
-  - homelab repo should show "Successful" connection status
-  - If failed, check argocd-server logs for auth errors
-  ```
-
-- [ ] 5.7.10.3 Test with a simple Application (dry-run)
-  ```yaml
-  # Do NOT commit this - manual test only
-  apiVersion: argoproj.io/v1alpha1
-  kind: Application
-  metadata:
-    name: test-homepage
-    namespace: argocd
-  spec:
-    project: homelab-apps
-    source:
-      repoURL: https://gitlab.k8s.rommelporras.com/wsh/homelab.git
-      path: manifests/home/homepage
-      targetRevision: main
-    destination:
-      server: https://kubernetes.default.svc
-      namespace: home
-    syncPolicy:
-      syncOptions:
-        - ServerSideApply=true
+  # Verified via test Application (5.7.10.3): ArgoCD cloned GitHub repo and read manifests.
+  # Test app showed OutOfSync/Healthy = repo connection works, manifests parsed.
   ```
 
+- [x] 5.7.10.3 Test with a simple Application (dry-run)
   ```bash
-  # Apply test application (manual sync mode - won't change anything yet)
-  kubectl-admin apply -f /tmp/test-app.yaml
-  # Check in ArgoCD UI - should show as OutOfSync (manual sync)
-  # Verify it can READ the manifests from GitLab
-  # Then clean up:
-  kubectl-admin delete application test-homepage -n argocd
+  # Actual: used GitHub URL (not GitLab). Created test-homepage Application.
+  # Status: OutOfSync/Healthy - ArgoCD read manifests/home/homepage from GitHub main branch.
+  # Cleaned up: kubectl-admin delete application test-homepage -n argocd
   ```
 
-- [ ] 5.7.10.4 Verify monitoring
+- [x] 5.7.10.4 Verify monitoring
   ```bash
-  # Check ServiceMonitors are scraped
-  # Prometheus UI > Targets - look for argocd-* targets
-  curl -s "https://prometheus.k8s.rommelporras.com/api/v1/targets" | \
-    jq '.data.activeTargets[] | select(.labels.job | contains("argocd")) | {job: .labels.job, health: .health}'
+  # Actual: 6 targets all up:
+  #   argocd (blackbox probe): up
+  #   argocd-application-controller-metrics: up
+  #   argocd-applicationset-controller-metrics: up
+  #   argocd-notifications-controller-metrics: up
+  #   argocd-repo-server-metrics: up
+  #   argocd-server-metrics: up
   ```
 
 ---
@@ -1172,41 +1176,42 @@
 ## Verification Checklist
 
 **Installation:**
-- [ ] ArgoCD installed via Helm (non-HA, v3.4.x)
-- [ ] All 6 ArgoCD pods Running and Ready
-- [ ] ArgoCD version confirmed (v3.4.x with K8s 1.35 support)
-- [ ] Helm values file committed to repo (`helm/argocd/values.yaml`)
+- [x] ArgoCD installed via Helm (non-HA, v3.3.5 - chart 9.4.16)
+- [x] All 6 ArgoCD pods Running and Ready
+- [x] ArgoCD version confirmed (v3.3.5 - v3.4.0 upgrade deferred, see deferred.md)
+- [x] Helm values file created (`helm/argocd/values.yaml`) - not yet pushed to GitHub
 
 **Secrets:**
-- [ ] ArgoCD secrets in 1Password (`op://Kubernetes/ArgoCD/`)
-- [ ] Vault KV path seeded (`secret/argocd`)
-- [ ] 3 ExternalSecrets synced (argocd-secret, argocd-repo-gitlab, argocd-notifications-secret)
+- [x] ArgoCD secrets in 1Password (`op://Kubernetes/ArgoCD/` + `op://Kubernetes/Discord Webhooks/gitops`)
+- [x] Vault KV path seeded (`secret/argocd`)
+- [x] 2 ExternalSecrets synced (argocd-vault-secrets, argocd-notifications-secret). No repo-creds needed (public GitHub repo).
 
 **Networking:**
-- [ ] HTTPRoute working (https://argocd.k8s.rommelporras.com accessible)
-- [ ] CiliumNetworkPolicy applied (default-deny + allow-list)
-- [ ] DNS resolving (argocd.k8s.rommelporras.com -> 10.10.30.20)
+- [x] HTTPRoute working (https://argocd.k8s.rommelporras.com accessible)
+- [x] CiliumNetworkPolicy applied (2 policies: argocd-ingress + argocd-egress)
+- [x] DNS resolving (argocd.k8s.rommelporras.com -> 10.10.30.20 via wildcard)
+- [x] GitHub + Helm chart egress working (toFQDNs with DNS inspection)
 
 **Configuration:**
-- [ ] 6 AppProjects created (infrastructure, homelab-apps, arr-stack, gitlab, cicd-apps, argocd-self)
-- [ ] GitLab repository connected (Successful status in UI)
-- [ ] Resource exclusions configured (Longhorn, Velero, Cilium dynamic)
-- [ ] Discord notifications configured and tested
-- [ ] Self-management Application created (manual sync mode)
+- [x] 6 AppProjects created (infrastructure, homelab-apps, arr-stack, gitlab, cicd-apps, argocd-self)
+- [x] GitHub repository connected (test Application read manifests successfully)
+- [x] Resource exclusions configured (Longhorn, Velero in Helm values)
+- [x] Discord notifications configured (webhook, 3 templates, 3 triggers in Helm values)
+- [x] Self-management Application created (manual sync mode, awaiting git push for values.yaml)
 
 **Monitoring:**
-- [ ] 5 ServiceMonitors created and scraped by Prometheus
-- [ ] 5 PrometheusRule alerts deployed
-- [ ] Grafana dashboard deployed (Homelab folder)
-- [ ] Blackbox probe for ArgoCD UI deployed
+- [x] 5 ServiceMonitors created and scraped by Prometheus (all up)
+- [x] 5 PrometheusRule alerts deployed (argocd-alerts.yaml)
+- [x] Grafana dashboard deployed (argocd-dashboard ConfigMap, Homelab folder)
+- [x] Blackbox probe for ArgoCD UI deployed (argocd-web, 60s interval)
 
 **Security:**
-- [ ] LimitRange and ResourceQuota applied
-- [ ] Dex disabled (no SSO - local admin only)
-- [ ] Redis not exposed outside namespace (verified by CiliumNP)
-- [ ] Redis stores plaintext rendered manifests in cache - CiliumNP enforces isolation
-- [ ] Server running in insecure mode (TLS at Gateway, not ArgoCD)
-- [ ] `resource.respectRBAC: strict` considered (auto-excludes resources ArgoCD can't read)
+- [x] LimitRange and ResourceQuota applied (550m/2 CPU, 1088Mi/3Gi mem, 6/20 pods)
+- [x] Dex disabled (no SSO - local admin only)
+- [x] Redis not exposed outside namespace (verified by CiliumNP)
+- [x] Redis stores plaintext rendered manifests in cache - CiliumNP enforces isolation
+- [x] Server running in insecure mode (TLS at Gateway, not ArgoCD)
+- [x] `resource.respectRBAC: strict` considered (not enabled - default behavior sufficient for now)
 
 ---
 

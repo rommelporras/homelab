@@ -1,0 +1,29 @@
+# HTTPRoute for ArgoCD UI (internal access via Gateway)
+# URL: https://argocd.k8s.rommelporras.com
+#
+# Gateway API Architecture:
+#   Client -> Gateway (10.10.30.20:443) -> HTTPRoute -> Service -> Pod
+#
+# server.insecure=true means ArgoCD serves plain HTTP on port 8080.
+# Service port 80 maps to container port 8080.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: homelab-gateway
+      namespace: default
+      sectionName: https
+  hostnames:
+    - argocd.k8s.rommelporras.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: argocd-server
+          port: 80

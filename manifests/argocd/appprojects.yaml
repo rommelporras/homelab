@@ -1,0 +1,177 @@
+# ArgoCD AppProjects - RBAC boundaries for Applications
+# Phase 5.7: ArgoCD Installation & Bootstrap
+#
+# Security model: each project restricts source repos and destination namespaces.
+# A compromised Application in arr-stack cannot deploy to monitoring or vault.
+# Only infrastructure project can create cluster-scoped resources.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: infrastructure
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Core platform services
+  sourceRepos:
+    - https://github.com/rommelporras/homelab.git
+    - https://charts.longhorn.io
+    - https://helm.cilium.io/
+    - https://charts.jetstack.io
+    - https://prometheus-community.github.io/helm-charts
+    - https://grafana.github.io/helm-charts
+    - https://kubernetes-sigs.github.io/metrics-server/
+    - https://helm.releases.hashicorp.com
+    - https://charts.external-secrets.io
+    - https://intel.github.io/helm-charts/
+    - https://vmware-tanzu.github.io/helm-charts
+    - https://argoproj.github.io/argo-helm
+  destinations:
+    - namespace: default
+      server: https://kubernetes.default.svc
+    - namespace: cert-manager
+      server: https://kubernetes.default.svc
+    - namespace: external-secrets
+      server: https://kubernetes.default.svc
+    - namespace: monitoring
+      server: https://kubernetes.default.svc
+    - namespace: vault
+      server: https://kubernetes.default.svc
+    - namespace: longhorn-system
+      server: https://kubernetes.default.svc
+    - namespace: kube-system
+      server: https://kubernetes.default.svc
+    - namespace: node-feature-discovery
+      server: https://kubernetes.default.svc
+    - namespace: intel-device-plugins
+      server: https://kubernetes.default.svc
+    - namespace: velero
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: admissionregistration.k8s.io
+      kind: '*'
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: storage.k8s.io
+      kind: StorageClass
+    - group: external-secrets.io
+      kind: ClusterSecretStore
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: homelab-apps
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: General homelab services
+  sourceRepos:
+    - https://github.com/rommelporras/homelab.git
+  destinations:
+    - namespace: home
+      server: https://kubernetes.default.svc
+    - namespace: ghost-prod
+      server: https://kubernetes.default.svc
+    - namespace: ghost-dev
+      server: https://kubernetes.default.svc
+    - namespace: browser
+      server: https://kubernetes.default.svc
+    - namespace: ai
+      server: https://kubernetes.default.svc
+    - namespace: karakeep
+      server: https://kubernetes.default.svc
+    - namespace: atuin
+      server: https://kubernetes.default.svc
+    - namespace: cloudflare
+      server: https://kubernetes.default.svc
+    - namespace: tailscale
+      server: https://kubernetes.default.svc
+    - namespace: uptime-kuma
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist: []
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: arr-stack
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Media stack (isolated)
+  sourceRepos:
+    - https://github.com/rommelporras/homelab.git
+  destinations:
+    - namespace: arr-stack
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist: []
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: gitlab
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: GitLab platform (isolated)
+  sourceRepos:
+    - https://github.com/rommelporras/homelab.git
+    - https://charts.gitlab.io
+  destinations:
+    - namespace: gitlab
+      server: https://kubernetes.default.svc
+    - namespace: gitlab-runner
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist: []
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: cicd-apps
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: CI/CD-deployed applications (per-environment)
+  sourceRepos:
+    - https://github.com/rommelporras/homelab.git
+  destinations:
+    - namespace: invoicetron-dev
+      server: https://kubernetes.default.svc
+    - namespace: invoicetron-prod
+      server: https://kubernetes.default.svc
+    - namespace: portfolio-dev
+      server: https://kubernetes.default.svc
+    - namespace: portfolio-staging
+      server: https://kubernetes.default.svc
+    - namespace: portfolio-prod
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist: []
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: argocd-self
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: ArgoCD self-management
+  sourceRepos:
+    - https://github.com/rommelporras/homelab.git
+    - https://argoproj.github.io/argo-helm
+  destinations:
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
