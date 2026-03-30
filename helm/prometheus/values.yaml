@@ -53,7 +53,8 @@ prometheus:
       cluster: homelab
 
     # How long to keep data (default: 10d)
-    retention: 90d
+    # 60d matches Loki retention. At ~0.5 GiB/day, steady-state ~30 GiB on 50Gi PVC.
+    retention: 60d
 
     # Storage - uses Longhorn PVC
     storageSpec:
