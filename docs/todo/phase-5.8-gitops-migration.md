@@ -604,11 +604,32 @@ kubectl-homelab get pods -n <namespace>
 
 - [ ] 5.8.4.1 Resolve Prometheus runtime secret dependency (Gap 4)
   ```
-  DEFERRED to separate task. The values.yaml has SET_VIA_HELM placeholders
-  for SMTP password, Discord webhook URLs, and healthchecks URL. ArgoCD
-  would render these placeholders and overwrite real alerting config.
-  Needs: convert Alertmanager config to alertmanagerConfigSecret backed
-  by ESO, then hand over Prometheus in a follow-up.
+  VERIFIED (session 2 audit): easier than originally claimed. ~30 min work.
+
+  Current state: 6 SET_VIA_HELM placeholders in helm/prometheus/values.yaml
+  (smtp_auth_username, smtp_auth_password, 3x discord webhook_url, 1x
+  healthchecks url). The upgrade-prometheus.sh script reads these from
+  ESO-managed K8s Secrets at upgrade time.
+
+  Key finding: ALL source secrets already exist in ESO and are synced:
+  - monitoring-smtp (username, password) - True
+  - monitoring-discord-webhooks (incidents, apps, infra) - True
+  - monitoring-healthchecks (ping-url) - True
+
+  Fix (one mechanical step):
+  1. Create new ExternalSecret "alertmanager-config" with ESO template
+     block that assembles full alertmanager.yaml config (interpolating
+     webhook/SMTP values from existing Vault secrets). Pattern already
+     exists in monitoring-grafana-admin ExternalSecret.
+  2. Add alertmanager.alertmanagerSpec.configSecret: alertmanager-config
+     to helm/prometheus/values.yaml
+  3. Remove the alertmanager.config block with SET_VIA_HELM placeholders
+  4. Create manifests/argocd/apps/prometheus.yaml Application
+  5. Hand over via Secret deletion method
+  6. Delete scripts/monitoring/upgrade-prometheus.sh
+
+  Reference: upgrade-prometheus.sh lines 78-129 has the exact template
+  structure the ESO ExternalSecret template should produce.
   ```
 
 - [x] 5.8.4.2 Create all Wave 4 Application manifests
@@ -952,12 +973,16 @@ kubectl-homelab get pods -n <namespace>
 - [x] Drift detection verified (replica scale -> self-healed in 20s)
 - [x] Git-driven change verified (validated on push)
 
-**Deferred Items (follow-up sessions):**
-- Gap 3: Invoicetron/Portfolio per-env directory split
-- Gap 4: Prometheus alertmanager secrets (SET_VIA_HELM -> alertmanagerConfigSecret)
-- Cilium: kept on Helm permanently (CNI cannot be GitOps-managed via uninstall)
-- ARR backup CronJob rework: per-PVC Jobs instead of node-grouped (see deferred.md)
-- GitLab: manual sync only until Helm hook RBAC conflict resolved upstream
+**Deferred Items (verified status from session 2 agent audit):**
+- Gap 4: Prometheus handover - EASY (~30 min). ESO secrets already exist. One new
+  ExternalSecret template + configSecret Helm value. See 5.8.4.1 for exact steps.
+- ARR backup CronJob rework - URGENT. Backups actively failing on cp1+cp3 (radarr/bazarr
+  moved nodes). Replace 3 node-grouped CronJobs with 9 per-PVC CronJobs. See deferred.md.
+- Gap 3: Invoicetron/Portfolio - DEFERRED beyond Phase 5.8. Needs BOTH directory
+  restructuring AND CI/CD pipeline change (kubectl set image -> Git-based image updates).
+  Separate phase scope.
+- Cilium: kept on Helm permanently (CNI chicken-and-egg, no fix possible)
+- GitLab: manual sync permanently (ArgoCD hook limitation, no workaround, all pods healthy)
 
 **Key Lessons Learned:**
 1. helm uninstall deletes resources - use Secret deletion method instead
