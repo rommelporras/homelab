@@ -50,9 +50,12 @@ configs:
                 "BackupBackingImage"]
         clusters: ["*"]
       - apiGroups: ["velero.io"]
-        kinds: ["Backup", "Restore", "PodVolumeBackup", "PodVolumeRestore",
-                "BackupStorageLocation", "VolumeSnapshotLocation"]
+        kinds: ["Backup", "Restore", "PodVolumeBackup", "PodVolumeRestore"]
         clusters: ["*"]
+      # Note: BackupStorageLocation and VolumeSnapshotLocation are NOT excluded.
+      # They are config resources managed by the Velero Helm chart, not runtime
+      # resources. Excluding them caused the BSL to be unmanaged - when it was
+      # deleted, ArgoCD couldn't recreate it and backups stopped working.
 
   rbac:
     policy.default: role:readonly
