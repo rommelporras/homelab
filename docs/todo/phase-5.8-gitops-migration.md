@@ -602,34 +602,27 @@ kubectl-homelab get pods -n <namespace>
 >
 > **Alloy:** Uses traditional HTTPS repo (`https://grafana.github.io/helm-charts`).
 
-- [ ] 5.8.4.1 Resolve Prometheus runtime secret dependency (Gap 4)
+- [x] 5.8.4.1 Resolve Prometheus runtime secret dependency (Gap 4)
   ```
-  VERIFIED (session 2 audit): easier than originally claimed. ~30 min work.
+  DONE (session 3). Created ESO ExternalSecret "alertmanager-config" with
+  template block that assembles complete alertmanager.yaml from Vault secrets.
 
-  Current state: 6 SET_VIA_HELM placeholders in helm/prometheus/values.yaml
-  (smtp_auth_username, smtp_auth_password, 3x discord webhook_url, 1x
-  healthchecks url). The upgrade-prometheus.sh script reads these from
-  ESO-managed K8s Secrets at upgrade time.
+  Implementation:
+  1. Added ExternalSecret to manifests/monitoring/externalsecret.yaml
+     - ESO template with engineVersion v2
+     - Pulls 6 values from Vault (smtp username/password, 3x discord webhooks,
+       healthchecks ping-url)
+     - Templates into complete alertmanager.yaml config
+     - Alertmanager Go template expressions escaped with {{ "{{" }} pattern
+  2. Added configSecret: alertmanager-config to Helm values
+  3. Removed entire alertmanager.config block (6 SET_VIA_HELM placeholders)
+  4. Created manifests/argocd/apps/prometheus.yaml (OCI Helm, v82.13.1)
+  5. Deleted scripts/monitoring/upgrade-prometheus.sh
+  6. Updated context docs (Monitoring.md, Conventions.md, Secrets.md)
 
-  Key finding: ALL source secrets already exist in ESO and are synced:
-  - monitoring-smtp (username, password) - True
-  - monitoring-discord-webhooks (incidents, apps, infra) - True
-  - monitoring-healthchecks (ping-url) - True
-
-  Fix (one mechanical step):
-  1. Create new ExternalSecret "alertmanager-config" with ESO template
-     block that assembles full alertmanager.yaml config (interpolating
-     webhook/SMTP values from existing Vault secrets). Pattern already
-     exists in monitoring-grafana-admin ExternalSecret.
-  2. Add alertmanager.alertmanagerSpec.configSecret: alertmanager-config
-     to helm/prometheus/values.yaml
-  3. Remove the alertmanager.config block with SET_VIA_HELM placeholders
-  4. Create manifests/argocd/apps/prometheus.yaml Application
-  5. Hand over via Secret deletion method
-  6. Delete scripts/monitoring/upgrade-prometheus.sh
-
-  Reference: upgrade-prometheus.sh lines 78-129 has the exact template
-  structure the ESO ExternalSecret template should produce.
+  Handover: push changes, ArgoCD syncs monitoring-manifests (creates ESO
+  ExternalSecret + alertmanager-config Secret). Then create prometheus
+  ArgoCD Application, sync, hand over via Secret deletion.
   ```
 
 - [x] 5.8.4.2 Create all Wave 4 Application manifests
@@ -671,9 +664,11 @@ kubectl-homelab get pods -n <namespace>
   Loki-0 Running. Alloy DaemonSet Running on all 3 nodes.
   ```
 
-- [ ] 5.8.4.6 Deprecate `scripts/monitoring/upgrade-prometheus.sh`
+- [x] 5.8.4.6 Deprecate `scripts/monitoring/upgrade-prometheus.sh`
   ```
-  DEFERRED until Prometheus is handed over (Gap 4 resolution required).
+  DONE (session 3). Script deleted. Empty scripts/monitoring/ dir removed.
+  Prometheus upgrades now via ArgoCD (update targetRevision in Application).
+  Alertmanager secrets fully managed by ESO ExternalSecret template.
   ```
 
 - [x] 5.8.4.7 Enable auto-sync on Wave 4 apps
@@ -1043,12 +1038,16 @@ helm-homelab uninstall argocd -n argocd
 - [x] `/audit-security` then `/commit` (infrastructure changes)
 - [x] Verify root app-of-apps activates after push
 - [x] Complete 5.8.7 post-migration cleanup
-- [ ] `/audit-docs` then `/commit` (documentation updates)
-- [ ] Resolve deferred items (Gap 3, Gap 4) in follow-up sessions
-- [ ] `/release v0.38.0 "GitOps Migration"` (after all deferred items resolved)
+- [x] `/audit-docs` then `/commit` (documentation updates)
+- [x] Resolve Gap 4 (Prometheus handover via ESO configSecret)
+- [x] ARR backup CronJob rework (per-app podAffinity, fixes broken backups)
+- [ ] Handover execution: push, sync, Secret deletion for prometheus
+- [ ] `/release v0.38.0 "GitOps Migration"` (after handover verified)
 - [ ] `mv docs/todo/phase-5.8-gitops-migration.md docs/todo/completed/`
 
 > **Note:** Phase 5.8 spans multiple sessions. Session 1 completed Waves 1-5 +
 > app-of-apps. Session 2 completed ArgoCD self-management, operational fixes,
-> alerts, dashboard, and documentation. Deferred: Prometheus Gap 4, Invoicetron
-> Gap 3, ARR backup rework.
+> alerts, dashboard, and documentation. Session 3 completed Gap 4 (Prometheus
+> ESO + ArgoCD handover) and ARR backup CronJob rework.
+> Remaining: push, handover execution, release.
+> Gap 3 (Invoicetron/Portfolio) deferred to separate phase.

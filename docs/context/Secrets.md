@@ -95,9 +95,9 @@ Local backup: `~/.vault-keys` (chmod 600). Delete after confirming 1Password bac
 | argocd | argocd-notifications-secret | argocd | manifests/argocd/externalsecret.yaml |
 | backups/restic-k8s-configs | (WSL2 only - not a K8s Secret) | - | scripts/backup/.password |
 
-**Note:** Grafana uses `existingSecret` (fully declarative). Alertmanager SMTP/webhooks/healthchecks
-are ESO-managed K8s Secrets read by `scripts/monitoring/upgrade-prometheus.sh` at Helm upgrade time
-(Alertmanager raw config format requires literal values — can't reference K8s secrets directly).
+**Note:** Grafana uses `existingSecret` (fully declarative). Alertmanager config is assembled by
+the ESO ExternalSecret `alertmanager-config` which templates Vault secrets (SMTP, Discord webhooks,
+healthchecks) into a complete alertmanager.yaml, referenced via `configSecret` in Helm values.
 
 ## 1Password Vault
 
@@ -327,8 +327,8 @@ op read "op://Kubernetes/Grafana/password" >/dev/null && echo "OK"
 helm-homelab upgrade prometheus ... \
   --set grafana.adminPassword="$(op read 'op://Kubernetes/Grafana/password')"
 
-# Use in script (see scripts/monitoring/upgrade-prometheus.sh)
-GRAFANA_PASSWORD=$(op read "op://Kubernetes/Grafana/password")
+# Grafana and alertmanager secrets are now fully managed by ESO ExternalSecrets
+# (no manual op read or Helm --set needed)
 ```
 
 ## iCloud SMTP Details

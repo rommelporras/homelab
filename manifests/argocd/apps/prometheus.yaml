@@ -1,0 +1,35 @@
+# ArgoCD Application: Prometheus (kube-prometheus-stack, Helm, OCI)
+# Wave 4 - Monitoring Helm handover (Gap 4 resolution)
+#
+# OCI chart: ghcr.io/prometheus-community/charts/kube-prometheus-stack
+# Alertmanager config is managed by ESO ExternalSecret (not in Helm values)
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: ghcr.io/prometheus-community/charts
+      chart: kube-prometheus-stack
+      targetRevision: "82.13.1"
+      helm:
+        valueFiles:
+          - $values/helm/prometheus/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true

@@ -44,7 +44,7 @@ All services are managed declaratively via ArgoCD. Changes flow through Git, not
 - **Never `helm upgrade` handed-over releases** - only `cilium` and `prometheus` are still Helm-managed. All others are ArgoCD-managed.
 - **Helm-to-ArgoCD handover:** use Secret deletion (`kubectl delete secrets -n <ns> -l name=<release>,owner=helm`), NEVER `helm uninstall` (deletes resources, causes outages).
 - **AppProjects:** `infrastructure` (platform), `homelab-apps` (general), `arr-stack` (media), `gitlab`, `cicd-apps`, `argocd-self`. Each restricts namespaces and cluster-scoped resources.
-- **Still on Helm (2):** `cilium` (CNI chicken-and-egg deadlock), `prometheus` (Gap 4: SET_VIA_HELM alertmanager secrets).
+- **Still on Helm (1):** `cilium` (CNI chicken-and-egg deadlock). Prometheus handed over via ESO configSecret + ArgoCD.
 - **ArgoCD Application patterns:** Git-type (directory source), Helm multi-source ($values ref), Kustomize (auto-detected from kustomization.yaml).
 
 ## Conventions

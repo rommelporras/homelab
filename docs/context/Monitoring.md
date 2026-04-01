@@ -84,7 +84,7 @@ Query logs:
 | healthchecks-heartbeat | healthchecks.io ping | Watchdog (1m) |
 | null | Nowhere | Silenced alerts |
 
-**Note:** All Discord receivers have `send_resolved: true`. RESOLVED notifications are delayed up to `group_interval: 5m` after the alert clears - this is normal Alertmanager behavior, not a bug. Config lives in both `helm/prometheus/values.yaml` and `scripts/monitoring/upgrade-prometheus.sh` (the script's temp file fully overrides receivers during Helm upgrade).
+**Note:** All Discord receivers have `send_resolved: true`. RESOLVED notifications are delayed up to `group_interval: 5m` after the alert clears - this is normal Alertmanager behavior, not a bug. Alertmanager config is assembled by the ESO ExternalSecret `alertmanager-config` in `manifests/monitoring/externalsecret.yaml` (Vault secrets templated into a complete alertmanager.yaml, referenced via `configSecret` in Helm values).
 
 ### Alert Routing
 
@@ -219,7 +219,7 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 | `helm/prometheus/values.yaml` | Alertmanager config, routes, Grafana folderAnnotation |
 | `helm/blackbox-exporter/values.yaml` | Blackbox exporter modules (dns_udp, http_2xx) |
 | `helm/smartctl-exporter/values.yaml` | smartctl-exporter DaemonSet (NVMe S.M.A.R.T., /dev/nvme0, 60s interval) |
-| `scripts/monitoring/upgrade-prometheus.sh` | Helm upgrade with 1Password secrets |
+| `manifests/monitoring/externalsecret.yaml` | ESO ExternalSecrets (Grafana admin, alertmanager config, SMTP, Discord, etc.) |
 | `renovate.json` | Renovate Bot configuration (image update PRs) |
 
 ### Exporters (`manifests/monitoring/exporters/`)
@@ -398,10 +398,10 @@ All dashboards are auto-provisioned via Grafana sidecar. All have `grafana_folde
 
 ## Upgrade Prometheus Stack
 
-```bash
-# Uses 1Password for secrets
-./scripts/monitoring/upgrade-prometheus.sh
-```
+Prometheus is managed by ArgoCD. To upgrade, update `targetRevision` in
+`manifests/argocd/apps/prometheus.yaml` and push. ArgoCD syncs the new chart version
+automatically. Alertmanager config (SMTP, Discord, healthchecks secrets) is handled by
+the ESO ExternalSecret `alertmanager-config` - no manual secret injection needed.
 
 ## Related
 

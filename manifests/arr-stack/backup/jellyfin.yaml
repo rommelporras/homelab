@@ -1,25 +1,15 @@
-# ARR Stack Backup CronJob - k8s-cp3 (bazarr, jellyfin)
-# Phase 5.4 D2: Daily config backup to NAS via NFS
-#
-# Schedule: Daily 02:25 Manila time (staggered, all 3 nodes run in parallel)
-# Retention: 3 days (deep history in restic off-site)
-# Node: k8s-cp3 - bazarr (SQLite), jellyfin (SQLite metadata DB + config)
-#
-# Manual test run:
-#   kubectl-homelab create job --from=cronjob/arr-backup-cp3 arr-backup-cp3-test -n arr-stack
-#   kubectl-homelab logs -n arr-stack job/arr-backup-cp3-test
-#
-# CKA topics: CronJob, NFS volume, SQLite backup, nodeSelector
+# ARR Backup CronJob: jellyfin
+# Per-app backup with podAffinity (follows app pod to any node)
+# Schedule: 02:25 Manila | Retention: 3 days | NFS: 10.10.30.4
 ---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: arr-backup-cp3
+  name: arr-backup-jellyfin
   namespace: arr-stack
   labels:
-    app: arr-backup
+    app: arr-backup-jellyfin
     app.kubernetes.io/part-of: arr-stack
-    backup-node: cp3
 spec:
   schedule: "25 2 * * *"
   timeZone: "Asia/Manila"
@@ -33,12 +23,17 @@ spec:
       template:
         metadata:
           labels:
-            app: arr-backup-cp3
+            app: arr-backup-jellyfin
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false
-          nodeSelector:
-            kubernetes.io/hostname: k8s-cp3
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: jellyfin
+                  topologyKey: kubernetes.io/hostname
           securityContext:
             runAsUser: 0
             runAsGroup: 0
@@ -53,30 +48,16 @@ spec:
                   set -e
                   export TZ=UTC-8
                   TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-
-                  # --- Bazarr (SQLite) ---
-                  echo "=== Bazarr ==="
-                  mkdir -p /backup/bazarr
-                  find /bazarr-config -name "*.db" -not -name "*-shm" -not -name "*-wal" -not -path "*/lost+found/*" -type f | while read db; do
-                    DBNAME=$(basename "$db")
-                    sqlite3 "file:${db}?immutable=1" ".backup /backup/bazarr/${DBNAME%.db}-${TIMESTAMP}.db"
-                    echo "  SQLite backup: $DBNAME"
-                  done
-
-                  # --- Jellyfin (SQLite metadata + config) ---
                   echo "=== Jellyfin ==="
                   mkdir -p /backup/jellyfin
-                  for db in /jellyfin-config/data/*.db; do
+                  for db in /config/data/*.db; do
                     [ -f "$db" ] || continue
                     DBNAME=$(basename "$db")
                     sqlite3 "file:${db}?immutable=1" ".backup /backup/jellyfin/${DBNAME%.db}-${TIMESTAMP}.db"
                     echo "  SQLite backup: $DBNAME"
                   done
-
-                  # --- Prune old backups ---
-                  find /backup/bazarr -name "*-*.db" -mtime +3 -delete 2>/dev/null || true
                   find /backup/jellyfin -name "*-*.db" -mtime +3 -delete 2>/dev/null || true
-                  echo "Backup complete (cp3)"
+                  echo "Backup complete (jellyfin)"
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
@@ -86,17 +67,12 @@ spec:
                 requests: { cpu: 50m, memory: 64Mi }
                 limits: { cpu: 200m, memory: 256Mi }
               volumeMounts:
-                - name: bazarr-config
-                  mountPath: /bazarr-config
-                - name: jellyfin-config
-                  mountPath: /jellyfin-config
+                - name: config
+                  mountPath: /config
                 - name: backup
                   mountPath: /backup
           volumes:
-            - name: bazarr-config
-              persistentVolumeClaim:
-                claimName: bazarr-config
-            - name: jellyfin-config
+            - name: config
               persistentVolumeClaim:
                 claimName: jellyfin-config
             - name: backup

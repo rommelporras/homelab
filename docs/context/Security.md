@@ -426,7 +426,7 @@ System namespaces (kube-system, monitoring, longhorn-system, gitlab) are exclude
 | 02:10 | uptime-kuma-backup | Uptime Kuma SQLite |
 | 02:15 | karakeep-backup | Karakeep SQLite |
 | 02:20 | grafana-backup | Grafana SQLite |
-| 02:25 | arr-backup-cp1/cp2/cp3 | ARR config SQLite (per-node) |
+| 02:25 | arr-backup-{prowlarr,sonarr,...} | ARR config SQLite (per-app) |
 | 02:30 | myspeed-backup | MySpeed SQLite |
 | 03:00 | Longhorn daily critical | Block-level volume snapshots |
 | 03:00 | configarr | TRaSH Guide sync (not a backup) |

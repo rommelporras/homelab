@@ -1,0 +1,80 @@
+# ARR Backup CronJob: seerr
+# Per-app backup with podAffinity (follows app pod to any node)
+# Schedule: 02:25 Manila | Retention: 3 days | NFS: 10.10.30.4
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: arr-backup-seerr
+  namespace: arr-stack
+  labels:
+    app: arr-backup-seerr
+    app.kubernetes.io/part-of: arr-stack
+spec:
+  schedule: "25 2 * * *"
+  timeZone: "Asia/Manila"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app: arr-backup-seerr
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: seerr
+                  topologyKey: kubernetes.io/hostname
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: keinos/sqlite3:3.46.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  export TZ=UTC-8
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  echo "=== Seerr ==="
+                  mkdir -p /backup/seerr
+                  find /config -name "*.db" -not -name "*-shm" -not -name "*-wal" -not -path "*/lost+found/*" -type f | while read db; do
+                    DBNAME=$(basename "$db")
+                    sqlite3 "file:${db}?immutable=1" ".backup /backup/seerr/${DBNAME%.db}-${TIMESTAMP}.db"
+                    echo "  SQLite backup: $DBNAME"
+                  done
+                  find /backup/seerr -name "*-*.db" -mtime +3 -delete 2>/dev/null || true
+                  echo "Backup complete (seerr)"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: 200m, memory: 256Mi }
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: config
+              persistentVolumeClaim:
+                claimName: seerr-config
+            - name: backup
+              nfs:
+                server: 10.10.30.4
+                path: /Kubernetes/Backups/arr-configs

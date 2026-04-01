@@ -46,9 +46,8 @@ kubectl-admin annotate application <name> -n argocd argocd.argoproj.io/refresh=h
 
 **Do NOT use `kubectl apply` or `helm upgrade` for ArgoCD-managed services.** ArgoCD's selfHeal will revert manual changes on the next reconciliation cycle (~3 minutes).
 
-**Exceptions (still use Helm directly):**
+**Exception (still uses Helm directly):**
 - `cilium` - `helm-homelab upgrade cilium cilium/cilium -n kube-system -f helm/cilium/values.yaml`
-- `prometheus` - `scripts/monitoring/upgrade-prometheus.sh`
 
 ## 1Password CLI
 
@@ -136,8 +135,6 @@ homelab/
 │   ├── ghost/
 │   │   ├── sync-ghost-prod-to-dev.sh
 │   │   └── sync-ghost-prod-to-local.sh
-│   ├── monitoring/
-│   │   └── upgrade-prometheus.sh
 │   └── test/
 │       ├── test-cloudflare-networkpolicy.sh
 │       └── verify-migration.sh    # Post-migration health check (ESO sync, Vault status)

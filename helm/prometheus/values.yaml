@@ -13,8 +13,8 @@
 #     --values helm/prometheus/values.yaml
 #
 # Secrets: Grafana admin password is via existingSecret (ESO-managed).
-#   Alertmanager SMTP/webhooks are injected via scripts/upgrade-prometheus.sh
-#   which reads from ESO-created K8s Secrets (no 1Password needed).
+#   Alertmanager config is via configSecret (ESO ExternalSecret "alertmanager-config"
+#   assembles full alertmanager.yaml from Vault secrets).
 
 # =============================================================================
 # kube-proxy
@@ -156,11 +156,16 @@ grafana:
 #   - Warning (infra) alerts → Discord #infra (Longhorn, NVMe, certs, nodes, UPS, logging)
 #   - Warning (apps) alerts → Discord #apps (catch-all for non-infra warnings)
 #
-# Alertmanager secrets (SMTP, webhooks, healthchecks) are injected at upgrade time
-# from ESO-created K8s Secrets. See: scripts/upgrade-prometheus.sh
+# Alertmanager config is assembled by ESO ExternalSecret "alertmanager-config"
+# (manifests/monitoring/externalsecret.yaml). Secrets are pulled from Vault and
+# templated into a complete alertmanager.yaml. No upgrade script needed.
 #
 alertmanager:
   alertmanagerSpec:
+    # Use ESO-managed Secret for alertmanager config (replaces alertmanager.config block)
+    # Secret contains full alertmanager.yaml with real credentials from Vault
+    configSecret: alertmanager-config
+
     # Storage for silences and notifications
     storage:
       volumeClaimTemplate:
@@ -178,158 +183,6 @@ alertmanager:
       limits:
         cpu: 200m
         memory: 128Mi
-
-  # Alertmanager configuration
-  # Docs: https://prometheus.io/docs/alerting/latest/configuration/
-  config:
-    global:
-      # SMTP settings for email notifications
-      smtp_smarthost: 'smtp.mail.me.com:587'
-      smtp_from: 'noreply@rommelporras.com'
-      smtp_auth_username: 'SET_VIA_HELM'  # Injected from 1Password
-      smtp_auth_password: 'SET_VIA_HELM'  # Injected from 1Password
-      smtp_require_tls: true
-
-      # Discord webhook URLs (set via --set flags)
-      # These are referenced in receivers below
-
-    # Default route - all alerts go here unless matched by sub-routes
-    route:
-      receiver: 'discord-apps'
-      group_by: ['alertname', 'namespace', 'job']
-      group_wait: 30s        # Wait before sending first notification
-      group_interval: 5m     # Wait between notifications for same group
-      repeat_interval: 4h    # Re-notify if alert still firing
-
-      # Sub-routes (order matters - first match wins)
-      routes:
-        # =================================================================
-        # SILENCED: KubeProxyDown — Cilium replaces kube-proxy (permanent)
-        - match:
-            alertname: KubeProxyDown
-          receiver: 'null'
-          continue: false
-        # Removed (Phase 5.1, 2026-03-15): etcdInsufficientMembers, etcdMembersDown,
-        # TargetDown for scheduler/controller-manager/etcd — all targets now UP
-
-        # =================================================================
-        # SILENCED: CPU throttling in monitoring namespace
-        # node-exporter and kube-state-metrics burst during scrapes - expected behavior
-        # We removed CPU limits from these, but silence the alert as backup
-        # App workloads (adguard, grafana, etc.) still get throttling alerts
-        - match:
-            alertname: CPUThrottlingHigh
-            namespace: monitoring
-          receiver: 'null'
-          continue: false
-
-        # =================================================================
-        # Watchdog → healthchecks.io (dead man's switch)
-        # =================================================================
-        # Watchdog always fires. If it stops, healthchecks.io alerts us.
-        - match:
-            alertname: Watchdog
-          receiver: 'healthchecks-heartbeat'
-          repeat_interval: 1m
-          continue: false
-
-        # =================================================================
-        # Active alert routing
-        # =================================================================
-        # Critical alerts → #incidents + Email
-        - match:
-            severity: critical
-          receiver: 'discord-incidents-email'
-          continue: false
-
-        # Infrastructure warning alerts → #infra
-        - match:
-            severity: warning
-          match_re:
-            alertname: '(Longhorn.*|NVMe.*|etcd.*|KubeVip.*|Certificate.*|CertManager.*|Node.*|UPS.*|NetworkInterface.*|KubePersistent.*|SmartCTL.*|KubeApiserver.*|CPUThrottling.*|Alloy.*|Loki.*|ClusterJanitor.*|Vault.*|ESO.*|Audit.*|Velero.*|Backup.*|ResourceQuota.*|CronJob.*|Garage.*)'
-          receiver: 'discord-infra'
-          continue: false
-
-        # Application warning alerts → #apps (catch-all for non-infra warnings)
-        - match:
-            severity: warning
-          receiver: 'discord-apps'
-          continue: false
-
-        # Info alerts → silenced (non-actionable, visible in Alertmanager UI only)
-        - match:
-            severity: info
-          receiver: 'null'
-          continue: false
-
-    # Notification receivers
-    receivers:
-      # Critical: Discord #incidents + Email
-      - name: 'discord-incidents-email'
-        discord_configs:
-          - webhook_url: 'SET_VIA_HELM'  # Injected from 1Password
-            send_resolved: true
-            title: '{{ if eq .Status "firing" }}🔴{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
-            message: |
-              {{ range .Alerts }}
-              **{{ .Labels.alertname }}** ({{ .Labels.severity }})
-              {{ .Annotations.summary }}
-              {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
-              {{ if .Annotations.runbook_url }}Runbook: {{ .Annotations.runbook_url }}{{ end }}
-              {{ end }}
-        email_configs:
-          # Multiple recipients for critical alerts (redundancy)
-          - to: 'critical@rommelporras.com, r3mmel023@gmail.com, rommelcporras@gmail.com'
-            send_resolved: true
-            headers:
-              Subject: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
-
-      # Infrastructure warnings: Discord #infra
-      - name: 'discord-infra'
-        discord_configs:
-          - webhook_url: 'SET_VIA_HELM'  # Injected from 1Password
-            send_resolved: true
-            title: '{{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
-            message: |
-              {{ range .Alerts }}
-              **{{ .Labels.alertname }}** ({{ .Labels.severity }})
-              {{ .Annotations.summary }}
-              {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
-              {{ if .Annotations.runbook_url }}Runbook: {{ .Annotations.runbook_url }}{{ end }}
-              {{ end }}
-
-      # Application warnings: Discord #apps (catch-all)
-      - name: 'discord-apps'
-        discord_configs:
-          - webhook_url: 'SET_VIA_HELM'  # Injected from 1Password
-            send_resolved: true
-            title: '{{ if eq .Status "firing" }}⚠️{{ else }}✅{{ end }} {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
-            message: |
-              {{ range .Alerts }}
-              **{{ .Labels.alertname }}** ({{ .Labels.severity }})
-              {{ .Annotations.summary }}
-              {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
-              {{ if .Annotations.runbook_url }}Runbook: {{ .Annotations.runbook_url }}{{ end }}
-              {{ end }}
-
-      # Fallback null receiver (for silencing)
-      - name: 'null'
-
-      # Healthchecks.io heartbeat (dead man's switch)
-      # Watchdog pings this URL every minute. If pings stop, healthchecks.io alerts.
-      - name: 'healthchecks-heartbeat'
-        webhook_configs:
-          - url: 'SET_VIA_HELM'  # Injected from 1Password at runtime
-            send_resolved: false
-
-    # Inhibition rules - suppress lower severity when higher severity fires
-    inhibit_rules:
-      # If critical is firing, suppress warning for same alertname
-      - source_match:
-          severity: 'critical'
-        target_match:
-          severity: 'warning'
-        equal: ['alertname', 'namespace']
 
 # =============================================================================
 # node-exporter

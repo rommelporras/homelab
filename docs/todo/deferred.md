@@ -309,9 +309,10 @@ via Nautilus/GNOME Files. No rclone needed but not automated.
 
 ## ARR Stack Backup CronJob Rework (Per-PVC Jobs)
 
-**Status:** Deferred - backups work but break when pods reschedule
-**Priority:** Medium
+**Status:** Resolved - replaced with per-app CronJobs using podAffinity
+**Priority:** Closed
 **Added:** 2026-04-01 (Phase 5.8 post-migration)
+**Resolved:** 2026-04-02 (Phase 5.8 session 3)
 
 ### The problem
 
@@ -346,13 +347,13 @@ Each CronJob mounts exactly one PVC and uses podAffinity to co-locate with that 
 
 Trade-off: more CronJob objects (9 instead of 3) and more NFS mounts during the backup window. But each Job is independent and self-healing.
 
-### Workaround (current)
+### Resolution
 
-The backup CronJobs self-heal overnight when the scheduled run succeeds (pods must be on the expected nodes). If pods rescheduled, either:
-1. Wait for them to naturally reschedule back (node anti-affinity may rebalance)
-2. Delete the app pod to trigger rescheduling
+Replaced 3 node-grouped CronJobs (`arr-backup-cp1/cp2/cp3`) with 9 per-app CronJobs in
+`manifests/arr-stack/backup/` (one file per app). Each CronJob uses `podAffinity` to co-locate with
+its app pod (instead of `nodeSelector`). If an app moves nodes, its backup follows automatically.
 
-**When:** Next time ARR stack backup architecture is revisited.
+**When:** Closed.
 
 ---
 

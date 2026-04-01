@@ -1,0 +1,77 @@
+# ARR Backup CronJob: qbittorrent
+# Per-app backup with podAffinity (follows app pod to any node)
+# Schedule: 02:25 Manila | Retention: 3 days | NFS: 10.10.30.4
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: arr-backup-qbittorrent
+  namespace: arr-stack
+  labels:
+    app: arr-backup-qbittorrent
+    app.kubernetes.io/part-of: arr-stack
+spec:
+  schedule: "25 2 * * *"
+  timeZone: "Asia/Manila"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app: arr-backup-qbittorrent
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: qbittorrent
+                  topologyKey: kubernetes.io/hostname
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: keinos/sqlite3:3.46.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  export TZ=UTC-8
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  echo "=== qBittorrent ==="
+                  mkdir -p "/backup/qbittorrent/config-${TIMESTAMP}"
+                  cp -r /config/qBittorrent/ "/backup/qbittorrent/config-${TIMESTAMP}/" 2>/dev/null || true
+                  echo "  Config backup: config-${TIMESTAMP}/"
+                  find /backup/qbittorrent -name "config-*" -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
+                  echo "Backup complete (qbittorrent)"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: 200m, memory: 256Mi }
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: config
+              persistentVolumeClaim:
+                claimName: qbittorrent-config
+            - name: backup
+              nfs:
+                server: 10.10.30.4
+                path: /Kubernetes/Backups/arr-configs
