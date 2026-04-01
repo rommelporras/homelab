@@ -62,6 +62,16 @@ Kubernetes homelab infrastructure repo (public). 3-node HA cluster (kubeadm, Cil
 - **ArgoCD `kubectl-homelab get secret -o jsonpath` will fail** — `kubectl-homelab` RBAC blocks secret `get`. Retrieve passwords from 1Password or Vault UI instead.
 - **ESO `creationPolicy: Merge` requires the target Secret to pre-exist** — ArgoCD `argocd-secret` must be created by Helm first before ESO can Merge into it. Ordering: Helm install → then apply ExternalSecrets.
 
+## ESO Template Patterns
+- **`engineVersion: v2` required** for Go template expression escaping in ESO target templates
+- **ESO variables vs Alertmanager Go templates** — `{{ .smtpUsername }}` is an ESO variable (no escaping needed); `{{ .Status }}` is Alertmanager Go syntax that must be escaped as `{{ "{{" }} .Status {{ "}}" }}`
+- **`configSecret` fully replaces Alertmanager config** — when set, the `alertmanager.config` block in Helm values is ignored entirely. Full config (global, route, receivers, inhibit_rules) must all live in the ESO template.
+- **`monitoring-manifests` auto-syncs before `prometheus` manual sync** — `alertmanager-config` Secret will be created by ESO before the Helm app picks it up. This ordering is safe.
+
+## Helm Values Header Maintenance
+- Header install command version comment must stay in sync with deployed version (not initial install version)
+- When upgrade script is deleted, update the values.yaml header comment that referenced it
+
 ## ArgoCD-Specific Review Checks (Phase 5.7-5.8)
 - AppProject `destinations` must include ALL namespaces used by its Applications (e.g., `default` for Gateway)
 - `spec.source` and `spec.sources` are mutually exclusive in ArgoCD Applications — remove `spec.source` when using multi-source
