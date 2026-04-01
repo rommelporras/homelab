@@ -77,6 +77,9 @@ spec:
                 readOnlyRootFilesystem: true
                 capabilities:
                   drop: ["ALL"]
+                  # DAC_OVERRIDE: grafana.db is mode 660 owned by uid 472.
+                  # drop ALL removes DAC_OVERRIDE so root can't read it.
+                  add: ["DAC_OVERRIDE"]
               resources:
                 requests: { cpu: 50m, memory: 64Mi }
                 limits: { cpu: 200m, memory: 128Mi }
