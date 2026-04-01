@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, architecture, decisions, backup]
-updated: 2026-03-21
+updated: 2026-04-01
 ---
 
 # Architecture
@@ -112,6 +112,18 @@ CiliumNetworkPolicy restricts ingress to only authorized namespaces (`monitoring
 | Already running OMV + Immich |
 | NAS should be independent of K8s state |
 | K8s mounts NFS shares from it |
+
+## Why ArgoCD (GitOps)
+
+| Approach | Problem |
+|----------|---------|
+| `kubectl apply` | Manual, error-prone, no drift detection |
+| Flux | Good option, but smaller community |
+| **ArgoCD** | **UI for visibility, strong Helm support, app-of-apps pattern** |
+
+Git is the single source of truth. ArgoCD watches the repo and syncs to the cluster automatically. 44 Applications managed via app-of-apps pattern (`manifests/argocd/apps/root.yaml` discovers all Application YAMLs in the directory). Six AppProjects enforce RBAC boundaries between service groups.
+
+**Exceptions kept on Helm:** Cilium (CNI chicken-and-egg - `helm uninstall` deletes networking before ArgoCD can recreate it) and Prometheus (alertmanager secrets still use `--set` overrides pending ESO migration).
 
 ## Why Vault + ESO (Not Direct K8s Secrets)
 

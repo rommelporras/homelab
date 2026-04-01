@@ -1,40 +1,37 @@
-# ArgoCD Application: GitLab (Helm)
-# Wave 5 - GitLab platform handover
+# ArgoCD Application: ArgoCD self-management (Helm)
+# Phase 5.8.7.1 - Self-management handover
 #
-# Large chart with many subcomponents (webservice, gitaly, sidekiq,
-# registry, redis, postgresql, etc.). ArgoCD reads from GitHub (public
-# repo), not self-hosted GitLab - no chicken-and-egg.
+# ArgoCD manages its own Helm chart. This is the last Helm release
+# to hand over. After this, all services are declaratively managed.
+# selfHeal ensures ArgoCD recovers from manual changes.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: gitlab
+  name: argocd
   namespace: argocd
   annotations:
     notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
     notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
 spec:
-  project: gitlab
+  project: argocd-self
   sources:
-    - repoURL: https://charts.gitlab.io
-      chart: gitlab
-      targetRevision: "9.8.2"
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      targetRevision: "9.4.16"
       helm:
         valueFiles:
-          - $values/helm/gitlab/values.yaml
+          - $values/helm/argocd/values.yaml
     - repoURL: https://github.com/rommelporras/homelab.git
       targetRevision: main
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: gitlab
+    namespace: argocd
   syncPolicy:
     syncOptions:
       - ServerSideApply=true
       - CreateNamespace=false
-      - ServerSideDiff=true
-      - RespectIgnoreDifferences=true
-      - Replace=true
     automated:
       prune: true
       selfHeal: true

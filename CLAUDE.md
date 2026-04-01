@@ -34,11 +34,24 @@ Kubernetes homelab for CKA prep. 3-node HA cluster (kubeadm, Cilium CNI, Longhor
 - **Cilium CNI** — NetworkPolicy for CKA
 - **kubeadm** — CKA exam alignment
 
+## GitOps (ArgoCD)
+
+All services are managed declaratively via ArgoCD. Changes flow through Git, not `kubectl apply` or `helm upgrade`.
+
+- **Adding a service:** create manifests in `manifests/<service>/`, create Application YAML in `manifests/argocd/apps/<service>.yaml`, push to main. Root app-of-apps auto-discovers it.
+- **Modifying a service:** edit manifests or Helm values in Git, push. ArgoCD auto-syncs within 3 minutes.
+- **Never `kubectl apply` managed resources** - ArgoCD selfHeal reverts manual changes. All changes go through Git.
+- **Never `helm upgrade` handed-over releases** - only `cilium` and `prometheus` are still Helm-managed. All others are ArgoCD-managed.
+- **Helm-to-ArgoCD handover:** use Secret deletion (`kubectl delete secrets -n <ns> -l name=<release>,owner=helm`), NEVER `helm uninstall` (deletes resources, causes outages).
+- **AppProjects:** `infrastructure` (platform), `homelab-apps` (general), `arr-stack` (media), `gitlab`, `cicd-apps`, `argocd-self`. Each restricts namespaces and cluster-scoped resources.
+- **Still on Helm (2):** `cilium` (CNI chicken-and-egg deadlock), `prometheus` (Gap 4: SET_VIA_HELM alertmanager secrets).
+- **ArgoCD Application patterns:** Git-type (directory source), Helm multi-source ($values ref), Kustomize (auto-detected from kustomization.yaml).
+
 ## Conventions
 
 - **Phase files:** 1 service = 1 phase in `docs/todo/`. Done phases move to `docs/todo/completed/`.
 - **Infra + docs = 2 commits:** Infrastructure first (`/audit-security` → `/commit`), then docs (`/audit-docs` → `/commit`).
-- **No direct git/gh commands** — never run `git add`, `git commit`, `git tag`, `git push`, `gh release create`, or `gh release delete` outside of `/commit` or `/release`. These slash commands exist to enforce format, confirmation gates, and secret scanning. Running git/gh directly bypasses all of that.
+- **No direct git/gh commands** - never run `git add`, `git commit`, `git tag`, `git push`, `gh release create`, or `gh release delete` outside of `/commit` or `/release`. These slash commands exist to enforce format, confirmation gates, and secret scanning. Running git/gh directly bypasses all of that.
 - **No em dashes** — use regular hyphens (`-`) in commit messages, release titles, and documentation. Em dashes (`—`) are an AI writing signal. Write: `infra: phase 5.2 - etcd encryption` not `infra: phase 5.2 — etcd encryption`.
 - **Observability for every service:** alerts in `manifests/monitoring/alerts/`, dashboards in `manifests/monitoring/dashboards/`, probes in `manifests/monitoring/probes/`.
 - **Timezone:** `Asia/Manila` everywhere — never UTC or America/Chicago.

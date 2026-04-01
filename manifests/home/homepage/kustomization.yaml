@@ -9,8 +9,7 @@ namespace: home
 
 resources:
   - rbac.yaml
-  # secret.yaml excluded - managed imperatively via 1Password CLI
-  # See: kubectl-homelab create secret generic homepage-secrets -n home ...
+  - externalsecret.yaml
   - deployment.yaml
   - service.yaml
   - httproute.yaml

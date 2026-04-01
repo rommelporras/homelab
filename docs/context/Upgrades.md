@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, upgrades, runbook]
-updated: 2026-03-28
+updated: 2026-04-01
 ---
 
 # Upgrade & Rollback Runbook
@@ -32,9 +32,34 @@ kubectl-homelab get pvc -A | grep -v Bound
 
 ## By Component Type
 
-### Helm Charts
+### ArgoCD-Managed Services (Most Services)
 
-**Applies to:** Prometheus stack, Grafana, Loki, Alloy, cert-manager, Longhorn, Cilium, metrics-server, blackbox-exporter, Tailscale operator, GitLab, GitLab Runner, Intel GPU plugin, ArgoCD
+**Applies to:** All services EXCEPT Cilium and Prometheus (which are still direct Helm).
+
+```bash
+# Upgrade: bump image tag or chart version in Git, then push
+# ArgoCD auto-syncs within 3 minutes
+
+# For Helm apps: update targetRevision in manifests/argocd/apps/<service>.yaml
+# For manifest apps: update image tag in manifests/<service>/deployment.yaml
+git add <files> && git commit && git push
+
+# Verify
+kubectl-admin get application <name> -n argocd  # check Synced/Healthy
+
+# Rollback: revert the commit in Git, push
+git revert HEAD && git push
+# ArgoCD auto-syncs the revert
+```
+
+**Risk:** Low - Git history is the rollback mechanism. PVC data persists.
+
+> **Do NOT use `kubectl apply` or `helm upgrade` for ArgoCD-managed services.**
+> ArgoCD selfHeal reverts manual changes within ~3 minutes.
+
+### Direct Helm Charts (Cilium and Prometheus Only)
+
+**Applies to:** Cilium (CNI), Prometheus stack (pending ESO migration)
 
 ```bash
 # Upgrade
@@ -48,25 +73,7 @@ helm-homelab history <release> -n <namespace>  # find revision number
 helm-homelab rollback <release> <revision> -n <namespace>
 ```
 
-**Risk:** Low — Helm tracks revisions. PVC data persists across rollback.
-
-### Raw Manifests
-
-**Applies to:** Karakeep, Ghost, AdGuard, Homepage, MySpeed, Uptime Kuma, Firefox, Ollama, ARR stack apps, Cloudflare tunnel, portfolio, invoicetron
-
-```bash
-# Upgrade (bump image tag in manifest, then apply)
-kubectl-homelab apply -f manifests/<service>/
-
-# Verify
-kubectl-homelab -n <namespace> rollout status deployment/<name>
-
-# Rollback
-kubectl-homelab -n <namespace> rollout undo deployment/<name>
-kubectl-homelab -n <namespace> rollout history deployment/<name>  # check history
-```
-
-**Risk:** Low — rollout undo restores previous ReplicaSet. PVC data persists.
+**Risk:** Low - Helm tracks revisions. PVC data persists across rollback.
 
 ### Kubernetes (kubeadm)
 
@@ -141,8 +148,8 @@ helm-homelab rollback cilium <revision> -n kube-system
 
 | Component | Upgrade Method | Rollback | Risk | Notes |
 |-----------|---------------|----------|------|-------|
-| Helm charts | `helm upgrade` | `helm rollback` | Low | PVC data persists |
-| Raw manifests | `kubectl apply` | `kubectl rollout undo` | Low | PVC data persists |
+| ArgoCD-managed | Git push | `git revert` + push | Low | Auto-synced, PVC persists |
+| Cilium/Prometheus | `helm upgrade` | `helm rollback` | Low | Only 2 direct Helm releases |
 | Kubernetes | `kubeadm upgrade` | etcd restore (manual) | **High** | 1 minor at a time |
 | kube-vip | Edit static pod | Edit manifest back | Medium | VIP brief drop |
 | Longhorn | `helm upgrade` | **Cannot downgrade** | **Highest** | Read release notes! |
@@ -162,7 +169,7 @@ helm-homelab rollback cilium <revision> -n kube-system
 
 ### ArgoCD
 - Minor version upgrades (e.g., 3.3 to 3.4) may include breaking changes - review the migration guide at `argo-cd.readthedocs.io/en/stable/operator-manual/upgrading/`
-- Self-management Application must be updated carefully: update the `targetRevision` in `manifests/argocd/self-management.yaml` before syncing
+- ArgoCD is self-managed via GitOps: update `targetRevision` in `manifests/argocd/apps/argocd.yaml`, push to Git
 - CRD size requires `--server-side --force-conflicts` for manual CRD upgrades (Helm handles this automatically)
 - Test with manual sync before enabling auto-sync after upgrades
 
@@ -215,11 +222,11 @@ helm-homelab rollback cilium <revision> -n kube-system
 If something goes catastrophically wrong:
 
 ```bash
-# 1. For Helm releases
-helm-homelab rollback <release> 0 -n <namespace>  # 0 = previous revision
+# 1. For ArgoCD-managed services (most services)
+git revert HEAD && git push  # ArgoCD auto-syncs the revert
 
-# 2. For manifest deployments
-kubectl-homelab -n <namespace> rollout undo deployment/<name>
+# 2. For Cilium/Prometheus (direct Helm)
+helm-homelab rollback <release> 0 -n <namespace>  # 0 = previous revision
 
 # 3. For Kubernetes itself (nuclear option)
 # Restore etcd from backup on cp1:

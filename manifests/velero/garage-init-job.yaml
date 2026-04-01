@@ -11,6 +11,10 @@ kind: Job
 metadata:
   name: garage-init
   namespace: velero
+  annotations:
+    # Skip: ArgoCD ignores this resource during sync.
+    # One-time initialization Job - already ran, Garage is initialized.
+    argocd.argoproj.io/hook: Skip
   labels:
     app: garage-init
     app.kubernetes.io/part-of: velero

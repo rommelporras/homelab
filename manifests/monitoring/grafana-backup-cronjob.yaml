@@ -41,13 +41,20 @@ spec:
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false
-          # Must run on same node as Grafana (RWO PVC)
-          nodeSelector:
-            kubernetes.io/hostname: k8s-cp2
+          # Schedule on same node as Grafana (RWO PVC).
+          # podAffinity is resilient to pod rescheduling unlike hardcoded nodeSelector.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: grafana
+                  topologyKey: kubernetes.io/hostname
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 65534
-            runAsGroup: 65534
+            # Root required: grafana.db is owned by grafana:472 with mode 660.
+            # PSS baseline (enforce) allows root. Restricted is warn-only.
+            runAsUser: 0
+            runAsGroup: 0
             seccompProfile:
               type: RuntimeDefault
           containers:
@@ -70,9 +77,6 @@ spec:
                 readOnlyRootFilesystem: true
                 capabilities:
                   drop: ["ALL"]
-                  # DAC_READ_SEARCH: grafana.db has mode 660 (uid 472),
-                  # root needs this to read files without world-read permission
-                  add: ["DAC_READ_SEARCH"]
               resources:
                 requests: { cpu: 50m, memory: 64Mi }
                 limits: { cpu: 200m, memory: 128Mi }

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-03-28
+updated: 2026-04-01
 ---
 
 # Conventions
@@ -28,6 +28,28 @@ kubectl get nodes
 helm list -A
 ```
 
+## Deploying Changes (GitOps)
+
+Almost all services are managed by ArgoCD. The deploy workflow is Git-driven:
+
+```bash
+# Normal deploy: edit manifest/values in Git, then push
+git push origin main
+# ArgoCD auto-syncs within 3 minutes (or manually sync in ArgoCD UI)
+
+# Check application status
+kubectl-admin get applications -n argocd
+
+# Force immediate sync
+kubectl-admin annotate application <name> -n argocd argocd.argoproj.io/refresh=hard --overwrite
+```
+
+**Do NOT use `kubectl apply` or `helm upgrade` for ArgoCD-managed services.** ArgoCD's selfHeal will revert manual changes on the next reconciliation cycle (~3 minutes).
+
+**Exceptions (still use Helm directly):**
+- `cilium` - `helm-homelab upgrade cilium cilium/cilium -n kube-system -f helm/cilium/values.yaml`
+- `prometheus` - `scripts/monitoring/upgrade-prometheus.sh`
+
 ## 1Password CLI
 
 All secrets stored in 1Password. Never hardcode.
@@ -39,9 +61,9 @@ eval $(op signin)
 # Read a secret
 op read "op://Kubernetes/Grafana/password"
 
-# Use in Helm
-helm-homelab upgrade prometheus ... \
-  --set grafana.adminPassword="$(op read 'op://Kubernetes/Grafana/password')"
+# Use in Helm (only for cilium/prometheus - everything else is ESO-backed)
+helm-homelab upgrade cilium ... \
+  --set upgradeCompatibility="1.18"
 ```
 
 See [[Secrets]] for all 1Password paths.
@@ -56,7 +78,7 @@ See [[Secrets]] for all 1Password paths.
 
 ```
 homelab/
-├── helm/                    # Helm values files
+├── helm/                    # Helm values files (ArgoCD-managed except cilium/ and prometheus/)
 │   ├── alloy/values.yaml
 │   ├── blackbox-exporter/values.yaml
 │   ├── cilium/values.yaml
@@ -76,7 +98,7 @@ homelab/
 │   └── external-secrets/values.yaml
 ├── manifests/               # Raw K8s manifests
 │   ├── ai/                  # Ollama LLM inference server
-│   ├── argocd/              # ArgoCD installation + networking + monitoring
+│   ├── argocd/              # ArgoCD config + apps/ (app-of-apps root)
 │   ├── arr-stack/           # ARR media stack (core + companions: 13 apps)
 │   ├── atuin/               # Atuin self-hosted shell history sync
 │   ├── browser/             # Firefox browser (KasmVNC)
