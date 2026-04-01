@@ -307,6 +307,55 @@ via Nautilus/GNOME Files. No rclone needed but not automated.
 
 ---
 
+## ARR Stack Backup CronJob Rework (Per-PVC Jobs)
+
+**Status:** Deferred - backups work but break when pods reschedule
+**Priority:** Medium
+**Added:** 2026-04-01 (Phase 5.8 post-migration)
+
+### The problem
+
+The ARR stack backup CronJobs (`arr-backup-cp1/cp2/cp3`) group multiple PVCs per node into a single Job. Each Job mounts 3-4 Longhorn RWO PVCs and backs them all up in one run. This assumes the apps stay on specific nodes:
+
+| CronJob | PVCs mounted | Assumed node |
+|---------|-------------|-------------|
+| arr-backup-cp1 | prowlarr, qbittorrent, radarr, seerr | k8s-cp1 |
+| arr-backup-cp2 | sonarr, tdarr, recommendarr | k8s-cp2 |
+| arr-backup-cp3 | bazarr, jellyfin | k8s-cp3 |
+
+The CronJobs use `podAffinity` to schedule on the same node as the first app in their list. But RWO PVCs can only attach to one node. If any app in the group reschedules to a different node (e.g., after a pod delete, node drain, or eviction), its PVC follows it - and the backup Job can't mount it anymore because the Job lands on the original node via affinity but the PVC is now on a different node.
+
+This happened during Phase 5.8: deleting crash-looping radarr caused it to reschedule from cp1 to cp2. The cp1 backup Job then hung indefinitely trying to mount radarr's PVC on cp1 while it was attached to cp2.
+
+### Why it causes ArgoCD Degraded
+
+ArgoCD v3 appTree health checks CronJob health by comparing `lastScheduleTime` vs `lastSuccessfulTime`. When the backup Job fails (can't mount PVC), the CronJob's `lastScheduleTime` advances but `lastSuccessfulTime` stays stale. ArgoCD sees this as Degraded.
+
+### Fix: one Job per PVC
+
+Replace the 3 node-grouped CronJobs with individual CronJobs per app:
+
+```
+arr-backup-prowlarr   (podAffinity: app=prowlarr,  mounts: prowlarr-config)
+arr-backup-sonarr     (podAffinity: app=sonarr,     mounts: sonarr-config)
+arr-backup-radarr     (podAffinity: app=radarr,     mounts: radarr-config)
+...
+```
+
+Each CronJob mounts exactly one PVC and uses podAffinity to co-locate with that specific app. No cross-PVC dependencies. If an app moves nodes, its backup Job follows it automatically.
+
+Trade-off: more CronJob objects (9 instead of 3) and more NFS mounts during the backup window. But each Job is independent and self-healing.
+
+### Workaround (current)
+
+The backup CronJobs self-heal overnight when the scheduled run succeeds (pods must be on the expected nodes). If pods rescheduled, either:
+1. Wait for them to naturally reschedule back (node anti-affinity may rebalance)
+2. Delete the app pod to trigger rescheduling
+
+**When:** Next time ARR stack backup architecture is revisited.
+
+---
+
 ## Restic k8s-media Repository (Immich Photos)
 
 **Status:** Deferred - no Immich data exists yet
