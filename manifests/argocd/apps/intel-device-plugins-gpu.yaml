@@ -1,0 +1,32 @@
+# ArgoCD Application: Intel Device Plugins GPU (Helm)
+# Wave 3 - Infrastructure Helm handover
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: intel-device-plugins-gpu
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://intel.github.io/helm-charts/
+      chart: intel-device-plugins-gpu
+      targetRevision: "0.35.0"
+      helm:
+        valueFiles:
+          - $values/helm/intel-device-plugins-gpu/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: intel-device-plugins
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true

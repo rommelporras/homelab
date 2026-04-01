@@ -1,0 +1,32 @@
+# ArgoCD Application: GitLab Runner custom manifests
+# Companion to gitlab-runner Helm Application
+#
+# Manages: ExternalSecret, namespace, CNP
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitlab-runner-manifests
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: gitlab
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/gitlab-runner
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitlab-runner
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: true
+      selfHeal: true

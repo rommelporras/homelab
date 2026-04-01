@@ -1,0 +1,36 @@
+# ArgoCD Application: Tailscale Operator (Helm)
+# Wave 3 - Infrastructure Helm handover
+#
+# Note: manifests/tailscale/ (connector, namespace, CNP) is managed by
+# the separate 'tailscale' Application in homelab-apps project (Wave 1).
+# This Application manages only the Helm chart (operator deployment).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tailscale-operator
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://pkgs.tailscale.com/helmcharts
+      chart: tailscale-operator
+      targetRevision: "1.94.1"
+      helm:
+        valueFiles:
+          - $values/helm/tailscale-operator/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tailscale
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true

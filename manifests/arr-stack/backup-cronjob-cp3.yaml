@@ -1,9 +1,9 @@
-# ARR Stack Backup CronJob - k8s-cp3 (jellyfin)
+# ARR Stack Backup CronJob - k8s-cp3 (bazarr, jellyfin)
 # Phase 5.4 D2: Daily config backup to NAS via NFS
 #
 # Schedule: Daily 02:25 Manila time (staggered, all 3 nodes run in parallel)
 # Retention: 3 days (deep history in restic off-site)
-# Node: k8s-cp3 - jellyfin (SQLite metadata DB + config)
+# Node: k8s-cp3 - bazarr (SQLite), jellyfin (SQLite metadata DB + config)
 #
 # Manual test run:
 #   kubectl-homelab create job --from=cronjob/arr-backup-cp3 arr-backup-cp3-test -n arr-stack
@@ -40,9 +40,8 @@ spec:
           nodeSelector:
             kubernetes.io/hostname: k8s-cp3
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 65534
-            runAsGroup: 65534
+            runAsUser: 0
+            runAsGroup: 0
             seccompProfile:
               type: RuntimeDefault
           containers:
@@ -55,10 +54,18 @@ spec:
                   export TZ=UTC-8
                   TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
+                  # --- Bazarr (SQLite) ---
+                  echo "=== Bazarr ==="
+                  mkdir -p /backup/bazarr
+                  find /bazarr-config -name "*.db" -not -name "*-shm" -not -name "*-wal" -not -path "*/lost+found/*" -type f | while read db; do
+                    DBNAME=$(basename "$db")
+                    sqlite3 "file:${db}?immutable=1" ".backup /backup/bazarr/${DBNAME%.db}-${TIMESTAMP}.db"
+                    echo "  SQLite backup: $DBNAME"
+                  done
+
                   # --- Jellyfin (SQLite metadata + config) ---
                   echo "=== Jellyfin ==="
                   mkdir -p /backup/jellyfin
-                  # Backup SQLite databases
                   for db in /jellyfin-config/data/*.db; do
                     [ -f "$db" ] || continue
                     DBNAME=$(basename "$db")
@@ -67,6 +74,7 @@ spec:
                   done
 
                   # --- Prune old backups ---
+                  find /backup/bazarr -name "*-*.db" -mtime +3 -delete 2>/dev/null || true
                   find /backup/jellyfin -name "*-*.db" -mtime +3 -delete 2>/dev/null || true
                   echo "Backup complete (cp3)"
               securityContext:
@@ -78,11 +86,16 @@ spec:
                 requests: { cpu: 50m, memory: 64Mi }
                 limits: { cpu: 200m, memory: 256Mi }
               volumeMounts:
+                - name: bazarr-config
+                  mountPath: /bazarr-config
                 - name: jellyfin-config
                   mountPath: /jellyfin-config
                 - name: backup
                   mountPath: /backup
           volumes:
+            - name: bazarr-config
+              persistentVolumeClaim:
+                claimName: bazarr-config
             - name: jellyfin-config
               persistentVolumeClaim:
                 claimName: jellyfin-config

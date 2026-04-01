@@ -1,0 +1,30 @@
+# ArgoCD Application: Ghost (Prod)
+# Wave 2 - Complex manifest service (per-environment deployment)
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ghost-prod
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: homelab-apps
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/ghost-prod
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ghost-prod
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: true
+      selfHeal: true

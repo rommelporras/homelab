@@ -1,0 +1,32 @@
+# ArgoCD Application: Cilium custom manifests
+# Companion to the cilium Helm Application
+#
+# Manages: CiliumL2AnnouncementPolicy, CiliumLoadBalancerIPPool
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium-manifests
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/cilium
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: true
+      selfHeal: true

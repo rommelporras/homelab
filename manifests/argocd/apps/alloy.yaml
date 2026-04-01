@@ -1,0 +1,35 @@
+# ArgoCD Application: Grafana Alloy (Helm)
+# Wave 4 - Monitoring Helm handover
+#
+# Alloy replaces Promtail for log collection (Promtail EOL March 2026).
+# Uses HTTPS Helm repo (OCI not supported by Alloy chart).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alloy
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: alloy
+      targetRevision: "1.6.2"
+      helm:
+        valueFiles:
+          - $values/helm/alloy/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true

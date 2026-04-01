@@ -1,0 +1,36 @@
+# ArgoCD Application: GitLab (Helm)
+# Wave 5 - GitLab platform handover
+#
+# Large chart with many subcomponents (webservice, gitaly, sidekiq,
+# registry, redis, postgresql, etc.). ArgoCD reads from GitHub (public
+# repo), not self-hosted GitLab - no chicken-and-egg.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitlab
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: gitlab
+  sources:
+    - repoURL: https://charts.gitlab.io
+      chart: gitlab
+      targetRevision: "9.8.2"
+      helm:
+        valueFiles:
+          - $values/helm/gitlab/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitlab
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true

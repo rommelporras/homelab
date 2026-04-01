@@ -27,6 +27,12 @@ spec:
     - https://intel.github.io/helm-charts/
     - https://vmware-tanzu.github.io/helm-charts
     - https://argoproj.github.io/argo-helm
+    - https://pkgs.tailscale.com/helmcharts
+    # OCI registries (cert-manager, prometheus, loki, NFD)
+    - quay.io/jetstack/charts
+    - ghcr.io/prometheus-community/charts
+    - ghcr.io/grafana/helm-charts
+    - registry.k8s.io/nfd/charts
   destinations:
     - namespace: default
       server: https://kubernetes.default.svc
@@ -48,6 +54,10 @@ spec:
       server: https://kubernetes.default.svc
     - namespace: velero
       server: https://kubernetes.default.svc
+    - namespace: tailscale
+      server: https://kubernetes.default.svc
+    - namespace: cilium-secrets
+      server: https://kubernetes.default.svc
   clusterResourceWhitelist:
     - group: ''
       kind: Namespace
@@ -63,6 +73,28 @@ spec:
       kind: StorageClass
     - group: external-secrets.io
       kind: ClusterSecretStore
+    - group: cilium.io
+      kind: CiliumClusterwideNetworkPolicy
+    - group: cilium.io
+      kind: CiliumLoadBalancerIPPool
+    - group: cilium.io
+      kind: CiliumL2AnnouncementPolicy
+    - group: apiregistration.k8s.io
+      kind: APIService
+    - group: cert-manager.io
+      kind: ClusterIssuer
+    - group: ''
+      kind: PersistentVolume
+    - group: deviceplugin.intel.com
+      kind: GpuDevicePlugin
+    - group: nfd.k8s-sigs.io
+      kind: NodeFeatureRule
+    - group: networking.k8s.io
+      kind: IngressClass
+    - group: scheduling.k8s.io
+      kind: PriorityClass
+    - group: gateway.networking.k8s.io
+      kind: GatewayClass
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
@@ -96,7 +128,15 @@ spec:
       server: https://kubernetes.default.svc
     - namespace: uptime-kuma
       server: https://kubernetes.default.svc
-  clusterResourceWhitelist: []
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: tailscale.com
+      kind: Connector
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
@@ -112,7 +152,13 @@ spec:
   destinations:
     - namespace: arr-stack
       server: https://kubernetes.default.svc
-  clusterResourceWhitelist: []
+    - namespace: monitoring
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: ''
+      kind: PersistentVolume
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
@@ -131,7 +177,9 @@ spec:
       server: https://kubernetes.default.svc
     - namespace: gitlab-runner
       server: https://kubernetes.default.svc
-  clusterResourceWhitelist: []
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
@@ -155,7 +203,9 @@ spec:
       server: https://kubernetes.default.svc
     - namespace: portfolio-prod
       server: https://kubernetes.default.svc
-  clusterResourceWhitelist: []
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject

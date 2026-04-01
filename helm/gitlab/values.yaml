@@ -65,13 +65,11 @@ global:
   time_zone: Asia/Manila
 
   # SMTP configuration (iCloud)
-  # Inject username at install/upgrade:
-  #   --set global.smtp.user_name="$(op read 'op://Kubernetes/iCloud SMTP/username')"
   smtp:
     enabled: true
     address: smtp.mail.me.com
     port: 587
-    user_name: SET_VIA_HELM
+    user_name: rommelcporras@icloud.com
     password:
       secret: gitlab-smtp-password
       key: password
@@ -287,8 +285,13 @@ gitlab:
 
 registry:
   enabled: true
+  # Storage: explicit S3 config via Secret (required for MinIO).
+  # The configure init container reads /config/storage/config and injects
+  # the S3 block into the registry config.yml at runtime.
+  # Secret created from gitlab-minio-secret credentials.
   storage:
-    secret: null  # Use filesystem storage
+    secret: gitlab-registry-storage
+    key: config
   resources:
     requests:
       cpu: 100m

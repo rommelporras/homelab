@@ -1,0 +1,41 @@
+# ArgoCD Application: Longhorn (Helm)
+# Wave 3 - Infrastructure Helm handover (HIGH RISK - manual sync only)
+#
+# Longhorn is the storage backend for the entire cluster. A bad sync
+# could break storage for all stateful workloads. Manual sync ONLY -
+# never enable auto-sync on this Application.
+#
+# Custom manifests (HTTPRoute, recurring backup jobs) are in
+# manifests/storage/longhorn/ and managed by a separate Git-type Application.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: longhorn
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://charts.longhorn.io
+      chart: longhorn
+      targetRevision: "1.11.1"
+      helm:
+        valueFiles:
+          - $values/helm/longhorn/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: longhorn-system
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    # MANUAL SYNC ONLY - Longhorn is too critical for auto-sync.
+    # Sync via ArgoCD UI after reviewing the diff.

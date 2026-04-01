@@ -1,0 +1,32 @@
+# ArgoCD Application: cert-manager custom manifests
+# Companion to the cert-manager Helm Application
+#
+# Manages: ClusterIssuer, ExternalSecret, namespace, CNP
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-manifests
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/cert-manager
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: true
+      selfHeal: true

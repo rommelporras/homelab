@@ -43,13 +43,20 @@ spec:
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false
-          # Must run on same node as adguard-home (RWO PVC)
-          nodeSelector:
-            kubernetes.io/hostname: k8s-cp2
+          # Schedule on same node as adguard-home pod (RWO PVC).
+          # podAffinity is resilient to pod rescheduling unlike hardcoded nodeSelector.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: adguard-home
+                  topologyKey: kubernetes.io/hostname
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 65534
-            runAsGroup: 65534
+            # Root required: AdGuard writes config as root:root 600.
+            # PSS baseline (enforce) allows root. Restricted is warn-only.
+            runAsUser: 0
+            runAsGroup: 0
             seccompProfile:
               type: RuntimeDefault
           containers:
@@ -63,22 +70,16 @@ spec:
                   TIMESTAMP=$(date +%Y%m%d-%H%M%S)
                   BACKUP_DIR="/backup/adguard-${TIMESTAMP}"
                   mkdir -p "$BACKUP_DIR"
-                  # Backup SQLite databases using safe .backup API
-                  # AdGuard stores stats.db and sessions.db in /data/work/data/
-                  # immutable=1: skip WAL locking (safe for backup of live DB)
+                  # AdGuard uses BoltDB (not SQLite) for stats.db and sessions.db.
+                  # BoltDB is append-only, so cp is safe for backup.
                   for db in /data/work/data/*.db; do
                     [ -f "$db" ] || continue
                     DBNAME=$(basename "$db")
-                    if sqlite3 "file:${db}?immutable=1" "SELECT 1;" > /dev/null 2>&1; then
-                      sqlite3 "file:${db}?immutable=1" ".backup ${BACKUP_DIR}/${DBNAME}"
-                      echo "  SQLite backup: $DBNAME"
-                    else
-                      cp "$db" "${BACKUP_DIR}/${DBNAME}"
-                      echo "  File copy (not SQLite): $DBNAME"
-                    fi
+                    cp "$db" "${BACKUP_DIR}/${DBNAME}"
+                    echo "  BoltDB backup: $DBNAME ($(du -h "${BACKUP_DIR}/${DBNAME}" | cut -f1))"
                   done
                   # Backup config
-                  cp -a /data/conf/AdGuardHome.yaml "${BACKUP_DIR}/"
+                  cp /data/conf/AdGuardHome.yaml "${BACKUP_DIR}/"
                   echo "  Config backup: AdGuardHome.yaml"
                   echo "Backup created: $BACKUP_DIR ($(du -sh "$BACKUP_DIR" | cut -f1))"
                   # Prune backups older than 3 days

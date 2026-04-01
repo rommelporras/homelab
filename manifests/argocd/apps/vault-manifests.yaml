@@ -1,0 +1,33 @@
+# ArgoCD Application: Vault custom manifests
+# Companion to the vault Helm Application
+#
+# Manages: unsealer, ClusterSecretStore, HTTPRoute, ServiceMonitor,
+# PDB, namespace, CNP, snapshot-cronjob
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault-manifests
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/vault
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vault
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: true
+      selfHeal: true

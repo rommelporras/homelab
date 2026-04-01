@@ -41,13 +41,16 @@ spec:
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false
-          # Must run on same node as uptime-kuma-0 (RWO PVC)
-          nodeSelector:
-            kubernetes.io/hostname: k8s-cp1
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: uptime-kuma
+                  topologyKey: kubernetes.io/hostname
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 65534
-            runAsGroup: 65534
+            runAsUser: 0
+            runAsGroup: 0
             seccompProfile:
               type: RuntimeDefault
           containers:

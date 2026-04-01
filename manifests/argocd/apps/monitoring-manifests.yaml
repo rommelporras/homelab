@@ -1,0 +1,36 @@
+# ArgoCD Application: Monitoring custom manifests
+# Companion to Prometheus/Loki/Alloy Helm Applications
+#
+# Manages: alerts/, dashboards/, exporters/, grafana/, otel/,
+# probes/, servicemonitors/, ExternalSecrets, CNP, PDBs,
+# grafana-backup-cronjob
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-manifests
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/monitoring
+    targetRevision: main
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: true
+      selfHeal: true

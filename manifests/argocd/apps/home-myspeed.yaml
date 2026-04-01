@@ -1,0 +1,32 @@
+# ArgoCD Application: MySpeed
+# Wave 2 - Complex manifest service (home namespace, plain manifests)
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: home-myspeed
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: homelab-apps
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/home/myspeed
+    targetRevision: main
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: home
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: true
+      selfHeal: true

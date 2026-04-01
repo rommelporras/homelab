@@ -1,0 +1,34 @@
+# ArgoCD Application: Gateway
+# Wave 2 - Cluster-wide Gateway resource (Cilium Gateway API)
+#
+# The Gateway resource lives in the default namespace. Cilium watches
+# it and provisions the LoadBalancer service + envoy proxy. HTTPRoutes
+# in other namespaces reference this Gateway by name.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/gateway
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,35 @@
+# ArgoCD Application: Velero (Helm)
+# Wave 3 - Infrastructure Helm handover (medium risk)
+#
+# Custom manifests (Garage S3, backup schedules, ExternalSecrets) are
+# in manifests/velero/ and managed by a separate Git-type Application.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: velero
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://vmware-tanzu.github.io/helm-charts
+      chart: velero
+      targetRevision: "12.0.0"
+      helm:
+        valueFiles:
+          - $values/helm/velero/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: velero
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true

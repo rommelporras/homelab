@@ -1,0 +1,42 @@
+# ArgoCD Application: Cilium (Helm)
+# Wave 3 - Infrastructure Helm handover (HIGH RISK - manual sync only)
+#
+# Cilium IS the CNI - a bad sync breaks ALL pod networking.
+# Manual sync ONLY - never enable auto-sync on this Application.
+#
+# Cilium replaces kube-proxy (kubeProxyReplacement: true).
+# CRDs are managed by the chart (skipCrds not set).
+# Custom manifests (ip-pool, l2-announcement) are in manifests/cilium/
+# and managed by a separate Git-type Application.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://helm.cilium.io/
+      chart: cilium
+      targetRevision: "1.19.1"
+      helm:
+        valueFiles:
+          - $values/helm/cilium/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    # MANUAL SYNC ONLY - Cilium IS the CNI. Auto-sync risks cluster networking.
+    # Sync via ArgoCD UI after reviewing the diff.

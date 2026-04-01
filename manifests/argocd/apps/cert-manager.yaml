@@ -1,0 +1,35 @@
+# ArgoCD Application: cert-manager (Helm, OCI)
+# Wave 3 - Infrastructure Helm handover (medium risk)
+#
+# OCI chart: quay.io/jetstack/charts/cert-manager
+# cert-manager CRDs are included in the chart (installCRDs defaults to true).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: quay.io/jetstack/charts
+      chart: cert-manager
+      targetRevision: "v1.19.2"
+      helm:
+        valueFiles:
+          - $values/helm/cert-manager/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true

@@ -11,6 +11,34 @@ configs:
   cm:
     # Increase status processing to handle 30+ apps
     timeout.reconciliation: 180s
+    # Ignore CRD-defaulted fields that the API server adds on creation.
+    # Without this, every Application with ExternalSecrets or HTTPRoutes
+    # shows perpetual OutOfSync from fields not in Git manifests.
+    resource.customizations.ignoreDifferences.external-secrets.io_ExternalSecret: |
+      jqPathExpressions:
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
+        - .spec.dataFrom[]?.extract.conversionStrategy
+        - .spec.dataFrom[]?.extract.decodingStrategy
+        - .spec.dataFrom[]?.extract.metadataPolicy
+        - .spec.target.creationPolicy
+        - .spec.target.deletionPolicy
+    resource.customizations.ignoreDifferences.gateway.networking.k8s.io_Gateway: |
+      jqPathExpressions:
+        - .spec.listeners[]?.tls.certificateRefs[]?.group
+    resource.customizations.ignoreDifferences.gateway.networking.k8s.io_HTTPRoute: |
+      jqPathExpressions:
+        - .spec.parentRefs[]?.group
+        - .spec.parentRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.group
+        - .spec.rules[]?.backendRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.weight
+    resource.customizations.ignoreDifferences.apps_StatefulSet: |
+      jqPathExpressions:
+        - .spec.volumeClaimTemplates[]?.apiVersion
+        - .spec.volumeClaimTemplates[]?.kind
+        - .spec.volumeClaimTemplates[]?.status
     # Resource exclusions for dynamic resources ArgoCD should ignore.
     # ArgoCD v3 defaults already exclude CiliumIdentity, CiliumEndpoint,
     # CertificateRequest, Endpoints, EndpointSlice, and Lease.
@@ -126,7 +154,7 @@ notifications:
         discord:
           method: POST
           body: |
-            {"embeds": [{"title": "{{.app.metadata.name}}", "description": "Sync succeeded - {{.app.spec.source.targetRevision}}", "color": 65280, "fields": [{"name": "Project", "value": "{{.app.spec.project}}", "inline": true}, {"name": "Namespace", "value": "{{.app.spec.destination.namespace}}", "inline": true}]}]}
+            {"embeds": [{"title": "{{.app.metadata.name}}", "description": "Sync succeeded", "color": 65280, "fields": [{"name": "Project", "value": "{{.app.spec.project}}", "inline": true}, {"name": "Namespace", "value": "{{.app.spec.destination.namespace}}", "inline": true}]}]}
     template.app-sync-failed: |
       webhook:
         discord:

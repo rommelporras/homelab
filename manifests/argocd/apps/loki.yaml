@@ -1,0 +1,34 @@
+# ArgoCD Application: Loki (Helm, OCI)
+# Wave 4 - Monitoring Helm handover
+#
+# OCI chart: ghcr.io/grafana/helm-charts/loki
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: ghcr.io/grafana/helm-charts
+      chart: loki
+      targetRevision: "6.55.0"
+      helm:
+        valueFiles:
+          - $values/helm/loki/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true

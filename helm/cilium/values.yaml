@@ -5,6 +5,10 @@
 cluster:
   name: homelab
 
+# Upgrade compatibility - set during 1.18->1.19 major upgrade.
+# Cilium uses this to maintain backward compatibility with the previous version.
+upgradeCompatibility: "1.18"
+
 # Operator settings
 operator:
   replicas: 1  # Single replica sufficient for 3-node cluster

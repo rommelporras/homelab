@@ -1,0 +1,35 @@
+# ArgoCD Application: Node Feature Discovery (Helm, OCI)
+# Wave 3 - Infrastructure Helm handover
+#
+# OCI chart: registry.k8s.io/nfd/charts/node-feature-discovery
+# ArgoCD OCI format: no oci:// prefix, just the registry path.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: node-feature-discovery
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: registry.k8s.io/nfd/charts
+      chart: node-feature-discovery
+      targetRevision: "0.18.3"
+      helm:
+        valueFiles:
+          - $values/helm/node-feature-discovery/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: node-feature-discovery
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true

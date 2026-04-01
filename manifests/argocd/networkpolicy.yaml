@@ -89,19 +89,14 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
-    # Helm chart repos + GitHub content delivery
-    - toFQDNs:
-        - matchName: argoproj.github.io
-        - matchPattern: "*.githubusercontent.com"
-        - matchPattern: "*.github.io"
-      toPorts:
-        - ports:
-            - port: "443"
-              protocol: TCP
-    # Discord webhooks (notifications-controller)
-    - toFQDNs:
-        - matchName: discord.com
-        - matchName: discordapp.com
+    # External HTTPS: chart repos, OCI registries, CDN backends, Discord.
+    # FQDN-based rules are unreliable for CDN services (S3, Google Cloud,
+    # Fastly) because DNS resolves to one IP but the connection goes to
+    # a different IP via anycast/geo-routing. Cilium's FQDN cache can't
+    # track these fast-rotating IPs, causing silent denies.
+    # toEntities world on port 443 is the pragmatic choice for ArgoCD.
+    - toEntities:
+        - world
       toPorts:
         - ports:
             - port: "443"

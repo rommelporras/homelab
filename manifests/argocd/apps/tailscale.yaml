@@ -1,0 +1,31 @@
+# ArgoCD Application: Tailscale (connector, namespace, CNP)
+# Wave 1 - Simple manifest service
+# Note: tailscale-operator Helm chart is separate (Wave 3, infrastructure project)
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tailscale
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: homelab-apps
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/tailscale
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tailscale
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,38 @@
+# ArgoCD Root Application (app-of-apps pattern)
+# Phase 5.8.6: Manages all individual Applications in this directory.
+#
+# After this is applied, adding a new service to the cluster is:
+# 1. Create manifests in manifests/<service>/
+# 2. Create Application YAML in manifests/argocd/apps/<service>.yaml
+# 3. Push to Git
+# 4. Root app detects new Application YAML, syncs it, which syncs the service
+#
+# The root app manages itself (self-referential) - ArgoCD handles this.
+# prune: true means deleting an app YAML from Git removes the ArgoCD Application.
+# NOTE: Individual Applications do NOT have resources-finalizer, so deleting
+# an Application does NOT delete the managed resources in the cluster.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: argocd-self
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/argocd/apps
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+    automated:
+      prune: true
+      selfHeal: true

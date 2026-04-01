@@ -1,0 +1,36 @@
+# ArgoCD Application: ARR Stack
+# Wave 2 - Complex manifest service (15+ subdirectories, NFS PVs)
+#
+# Single Application for entire arr-stack. Services are tightly coupled
+# (shared NFS, shared namespace, shared NetworkPolicy). Individual
+# service Applications would create sync ordering issues.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arr-stack
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: arr-stack
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/arr-stack
+    targetRevision: main
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arr-stack
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: true
+      selfHeal: true

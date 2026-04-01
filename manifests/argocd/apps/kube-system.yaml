@@ -1,0 +1,36 @@
+# ArgoCD Application: kube-system extras
+# Wave 2 - CronJobs and RBAC in kube-system namespace
+#
+# Manages: kube-bench (weekly CIS benchmark), cluster-janitor (cleanup),
+# etcd-backup (daily), cert-expiry-check, pki-backup, claude-code RBAC,
+# image registry ValidatingAdmissionPolicy.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-system
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/kube-system
+    targetRevision: main
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: true
+      selfHeal: true

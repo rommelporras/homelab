@@ -34,6 +34,7 @@ spec:
         mode: Terminate
         certificateRefs:
           - name: wildcard-k8s-tls
+            group: ""
             kind: Secret
 
     # HTTPS: Dev tier (development environments)
@@ -48,6 +49,7 @@ spec:
         mode: Terminate
         certificateRefs:
           - name: wildcard-dev-k8s-tls
+            group: ""
             kind: Secret
 
     # HTTPS: Stg tier (staging environments)
@@ -62,4 +64,5 @@ spec:
         mode: Terminate
         certificateRefs:
           - name: wildcard-stg-k8s-tls
+            group: ""
             kind: Secret

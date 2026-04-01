@@ -1,0 +1,36 @@
+# ArgoCD Application: metrics-server (Helm)
+# Wave 3 - Infrastructure Helm handover (lowest risk, test first)
+#
+# Multi-source pattern: chart from Helm repo + values from Git repo.
+# ArgoCD uses helm template (not helm install) - no Helm release created.
+# The $values ref lets ArgoCD read values.yaml from our Git repo.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/metrics-server/
+      chart: metrics-server
+      targetRevision: "3.13.0"
+      helm:
+        valueFiles:
+          - $values/helm/metrics-server/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true

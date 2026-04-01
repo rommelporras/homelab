@@ -1,0 +1,36 @@
+# ArgoCD Application: Home namespace infrastructure
+# Wave 2 - Complex manifest service
+#
+# Manages only top-level files in manifests/home/ (non-recursive):
+# namespace.yaml, limitrange.yaml, resourcequota.yaml, networkpolicy.yaml
+# Subdirectories (adguard/, homepage/, myspeed/) are separate Applications.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: home-infra
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: homelab-apps
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/home
+    targetRevision: main
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: home
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: true
+      selfHeal: true
