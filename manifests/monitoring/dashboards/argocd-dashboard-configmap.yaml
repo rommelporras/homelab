@@ -346,7 +346,7 @@ data:
           "type": "timeseries",
           "targets": [
             {
-              "expr": "sum by (app) (rate(argocd_app_reconciliation_sum[5m])) / sum by (app) (rate(argocd_app_reconciliation_count[5m]))",
+              "expr": "sum by (dest_server) (rate(argocd_app_reconcile_sum[5m])) / sum by (dest_server) (rate(argocd_app_reconcile_count[5m]))",
               "legendFormat": "{{app}}"
             }
           ]
@@ -564,17 +564,17 @@ data:
           "type": "timeseries",
           "targets": [
             {
-              "expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"argocd\", container=~\"argocd-.*\"}[5m]))",
+              "expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"argocd\", container=~\"application-controller|server|repo-server|applicationset-controller|notifications-controller|redis\"}[5m]))",
               "legendFormat": "{{container}}",
               "refId": "cpu_usage"
             },
             {
-              "expr": "sum by (container) (kube_pod_container_resource_requests{namespace=\"argocd\", container=~\"argocd-.*\", resource=\"cpu\"})",
+              "expr": "sum by (container) (kube_pod_container_resource_requests{namespace=\"argocd\", container=~\"application-controller|server|repo-server|applicationset-controller|notifications-controller|redis\", resource=\"cpu\"})",
               "legendFormat": "{{container}} request",
               "refId": "cpu_request"
             },
             {
-              "expr": "sum by (container) (kube_pod_container_resource_limits{namespace=\"argocd\", container=~\"argocd-.*\", resource=\"cpu\"})",
+              "expr": "sum by (container) (kube_pod_container_resource_limits{namespace=\"argocd\", container=~\"application-controller|server|repo-server|applicationset-controller|notifications-controller|redis\", resource=\"cpu\"})",
               "legendFormat": "{{container}} limit",
               "refId": "cpu_limit"
             }
@@ -617,17 +617,17 @@ data:
           "type": "timeseries",
           "targets": [
             {
-              "expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"argocd\", container=~\"argocd-.*\"})",
+              "expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"argocd\", container=~\"application-controller|server|repo-server|applicationset-controller|notifications-controller|redis\"})",
               "legendFormat": "{{container}}",
               "refId": "mem_usage"
             },
             {
-              "expr": "sum by (container) (kube_pod_container_resource_requests{namespace=\"argocd\", container=~\"argocd-.*\", resource=\"memory\"})",
+              "expr": "sum by (container) (kube_pod_container_resource_requests{namespace=\"argocd\", container=~\"application-controller|server|repo-server|applicationset-controller|notifications-controller|redis\", resource=\"memory\"})",
               "legendFormat": "{{container}} request",
               "refId": "mem_request"
             },
             {
-              "expr": "sum by (container) (kube_pod_container_resource_limits{namespace=\"argocd\", container=~\"argocd-.*\", resource=\"memory\"})",
+              "expr": "sum by (container) (kube_pod_container_resource_limits{namespace=\"argocd\", container=~\"application-controller|server|repo-server|applicationset-controller|notifications-controller|redis\", resource=\"memory\"})",
               "legendFormat": "{{container}} limit",
               "refId": "mem_limit"
             }

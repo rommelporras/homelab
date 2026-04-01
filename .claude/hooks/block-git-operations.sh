@@ -5,9 +5,9 @@
 #   /tmp/.claude-skill-commit  (created by /commit skill)
 #   /tmp/.claude-skill-release (created by /release skill)
 #
-# If a lock file exists, git/gh commands are allowed.
-# If no lock file exists, the command is blocked with a message
-# suggesting the user invoke /commit or /release instead.
+# If a lock file exists, git add/commit/tag commands are allowed.
+# git push is blocked at the GLOBAL level (bash-write-protect.sh)
+# and is not handled here.
 #
 # Exit 0 = allow, Exit 2 = block.
 
@@ -25,12 +25,12 @@ if echo "$COMMAND" | grep -qE '(touch|rm).*\.claude-skill-'; then
   exit 0
 fi
 
-# Check if a skill lock file exists
+# Check if a skill lock file exists (bypasses add/commit/tag)
 if [[ -f /tmp/.claude-skill-commit || -f /tmp/.claude-skill-release ]]; then
   exit 0
 fi
 
-# Block git add/commit/tag/push
+# Block git add/commit/tag/push (without lock file)
 if echo "$COMMAND" | grep -qE '\bgit\s+(add|commit|tag|push)\b'; then
   echo "BLOCKED: Direct git commands are not allowed." >&2
   echo "   Use /commit to stage and commit changes." >&2
