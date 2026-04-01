@@ -19,7 +19,7 @@ spec:
     path: manifests/argocd
     targetRevision: main
     directory:
-      exclude: '{apps/*,apps/**/*}'
+      exclude: '{apps/*,apps/**/*,namespace.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
