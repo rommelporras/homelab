@@ -4,6 +4,48 @@
 
 ---
 
+## April 1, 2026 - GitOps Migration (Phase 5.8)
+
+### Session 1 - Waves 1-5 + App-of-Apps
+
+Migrated 16 Helm releases and 27 manifest directories to ArgoCD declarative GitOps management. 43 ArgoCD Applications created via app-of-apps pattern.
+
+- **Wave 1:** 6 simple manifest apps (ai, browser, uptime-kuma, atuin, cloudflare, tailscale)
+- **Wave 2:** 11 complex manifest apps (home, arr-stack, ghost, karakeep, gateway, kube-system)
+- **Wave 3:** 9 infrastructure Helm handovers (metrics-server, intel, tailscale-operator, cert-manager, external-secrets, vault, velero, longhorn, NFD)
+- **Wave 4:** 4 monitoring Helm handovers (blackbox, smartctl, alloy, loki) via Secret deletion
+- **Wave 5:** GitLab + GitLab Runner Helm handover
+- CiliumNP simplified: FQDN rules replaced with toEntities:world for HTTPS (CDN anycast breaks per-domain rules)
+- Backup CronJobs fixed: root access (PSS baseline), podAffinity (RWO scheduling), BoltDB detection (AdGuard)
+- Tailscale ExternalSecret created (declarative replacement for lost --set Secret)
+- GitLab registry storage Secret + SMTP username fix
+
+### Session 2 - Self-Management + Operational Fixes
+
+- ArgoCD self-management Helm handover via Secret deletion (8 Secrets, zero downtime)
+- Only cilium and prometheus remain on direct Helm (17 releases handed over)
+- Velero BSL: removed BackupStorageLocation from ArgoCD resource exclusions (was unmanaged, caused backup failures)
+- Grafana backup CronJob: podAffinity + runAsUser:0 + DAC_OVERRIDE capability
+- Homepage: added externalsecret.yaml to kustomization.yaml (Secret was missing)
+- Tailscale: eso-enabled label + Vault seeding for operator-oauth ExternalSecret
+- GitLab: reverted to manual sync (Helm hook RBAC conflicts with ArgoCD)
+- ArgoCD dashboard: fixed 3 blank panels (wrong metric names, wrong container label filter)
+- ArgoCD dashboard: added Git & Repository row + Notifications row (6 new panels)
+- 4 new ArgoCD alerts: GitFetchFailed, ClusterConnectionLost, RepoServerPending, NotificationDeliveryFailed
+- Alert exclusions: cilium + gitlab excluded from ArgocdAppOutOfSync
+- ServiceMonitor nut-exporter: added explicit action:replace (CRD default drift)
+- ARR backup CronJob rework added to deferred.md (per-PVC Jobs needed)
+- Global hook: git push blocked in bash-write-protect.sh (no lock file bypass)
+
+### Decisions
+
+- **Secret deletion over helm uninstall** - helm uninstall deletes resources, causing outages. Secret deletion removes Helm tracking without touching resources. Zero downtime.
+- **Cilium stays on Helm permanently** - CNI chicken-and-egg: helm uninstall breaks networking before ArgoCD can recreate it
+- **Prometheus stays on Helm** - Gap 4: SET_VIA_HELM alertmanager secrets need ESO migration first
+- **GitLab manual sync** - Helm pre-install/pre-upgrade hooks create RBAC that conflicts with ArgoCD sync apply
+
+---
+
 ## March 28, 2026 - ArgoCD Installation & Bootstrap (v0.37.0)
 
 ### Summary

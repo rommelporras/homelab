@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, backup, restic, velero, longhorn]
-updated: 2026-03-28
+updated: 2026-04-01
 ---
 
 # Backups

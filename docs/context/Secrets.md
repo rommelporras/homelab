@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password, vault, external-secrets, backup]
-updated: 2026-03-28
+updated: 2026-04-01
 ---
 
 # Secrets
@@ -88,6 +88,7 @@ Local backup: `~/.vault-keys` (chmod 600). Delete after confirming 1Password bac
 | monitoring/smtp | monitoring-smtp | monitoring | manifests/monitoring/externalsecret.yaml |
 | monitoring/discord-webhooks | monitoring-discord-webhooks | monitoring | manifests/monitoring/externalsecret.yaml |
 | monitoring/healthchecks | monitoring-healthchecks | monitoring | manifests/monitoring/externalsecret.yaml |
+| tailscale/operator-oauth | operator-oauth | tailscale | manifests/tailscale/externalsecret.yaml |
 | velero/garage | garage-secrets | velero | manifests/velero/externalsecret.yaml |
 | velero/s3-credentials | velero-s3-credentials | velero | manifests/velero/externalsecret.yaml |
 | argocd | argocd-secret (Merge) | argocd | manifests/argocd/externalsecret.yaml |

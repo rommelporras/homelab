@@ -74,7 +74,7 @@ All services are managed declaratively via ArgoCD. Changes flow through Git, not
 - **`kubectl-homelab` is zsh-only** — scripts that need admin access must use `kubectl --kubeconfig ~/.kube/homelab.yaml`.
 - **Verify container images before deploying** — check the registry for the exact tag. Many images drop version tags without notice.
 - **PUBLIC repository** — security review before every commit. Once pushed, secrets cannot be revoked.
-- **GitLab is the primary remote** — use `glab` CLI with `--hostname gitlab.k8s.rommelporras.com` for API calls.
+- **GitHub is the primary remote for this repo** — ArgoCD syncs from GitHub. Self-hosted GitLab hosts invoicetron/portfolio CI/CD. Use `glab` CLI with `--hostname gitlab.k8s.rommelporras.com` for GitLab API calls.
 
 ## NAS Access
 

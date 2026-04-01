@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, security, pss, eso, vault, service-accounts, cis, hardening, network-policies, backup, resilience]
-updated: 2026-03-28
+updated: 2026-04-01
 ---
 
 # Security
@@ -45,7 +45,7 @@ Phase 5.6 results are identical across all 3 CP nodes (kube-bench v0.10.6, targe
 
 ### Regression Detection
 
-kube-bench runs weekly as a CronJob (`kube-bench-weekly` in kube-system). Alerts to Discord #infra if FAIL count exceeds threshold (7 baseline + 3 buffer = 10). Schedule: Sunday 04:00 Manila time.
+kube-bench runs weekly as a CronJob (`kube-bench-weekly` in kube-system). Alerts to Discord #infra if FAIL count exceeds threshold (7 baseline + 3 buffer = 10). Schedule: Sunday 20:00 Manila time.
 
 ### Audit Logging
 
@@ -140,6 +140,8 @@ These pods run as root due to upstream image constraints (baseline PSS allows th
 | Homepage | Upstream image runs as root, no non-root option |
 | cert-expiry-check CronJob | Reads hostPath `/etc/kubernetes/pki` (root-owned mode 600) |
 | pki-backup CronJob | Reads hostPath `/etc/kubernetes/pki` + `admin.conf` (root-owned) |
+| Grafana backup CronJob | grafana.db is mode 660 owned by uid 472; needs root + DAC_OVERRIDE to read |
+| Backup CronJobs (adguard, myspeed, uptime-kuma, arr-stack) | App config files owned by root or app-specific UIDs with no world-read |
 
 ## Network Policy Strategy (Phase 5.3)
 
@@ -199,9 +201,9 @@ Workaround: use L4-only policy (no `toPorts`) for critical pods that need reliab
 
 ### Coverage
 
-24 namespaces with CiliumNetworkPolicy + 1 CiliumClusterwideNetworkPolicy (Gateway `reserved:ingress` identity).
+25 namespaces with CiliumNetworkPolicy + 1 CiliumClusterwideNetworkPolicy (Gateway `reserved:ingress` identity).
 
-Covered: ai, arr-stack, atuin, browser, cert-manager, cloudflare, external-secrets, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, portfolio-dev, portfolio-prod, portfolio-staging, tailscale, uptime-kuma, vault, velero
+Covered: ai, argocd, arr-stack, atuin, browser, cert-manager, cloudflare, external-secrets, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, portfolio-dev, portfolio-prod, portfolio-staging, tailscale, uptime-kuma, vault, velero
 
 Deferred: longhorn-system, intel-device-plugins, node-feature-discovery (high breakage risk, low attack surface)
 
@@ -238,9 +240,9 @@ Helm-managed workloads (Cilium, cert-manager, Longhorn, Vault, NFD, Intel device
 | Webhook TLS ciphers | `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256` |
 | ClusterSecretStore namespaceSelector | Only namespaces with `eso-enabled: "true"` can sync secrets |
 
-### ESO-Enabled Namespaces (16)
+### ESO-Enabled Namespaces (18)
 
-arr-stack, atuin, browser, cert-manager, cloudflare, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, velero
+argocd, arr-stack, atuin, browser, cert-manager, cloudflare, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, tailscale, velero
 
 ### Known Trade-offs
 
@@ -444,11 +446,11 @@ System namespaces (kube-system, monitoring, longhorn-system, gitlab) are exclude
 
 **Accepted risk:** etcd snapshots on NAS contain the secretbox encryption key and encrypted secret data. A NAS-only compromise (without node access) could extract secrets. Mitigated by VLAN isolation and short retention.
 
-### Grafana Backup - CAP_DAC_READ_SEARCH
+### Grafana Backup - CAP_DAC_OVERRIDE
 
-The Grafana backup CronJob adds `CAP_DAC_READ_SEARCH` capability. `grafana.db` has mode 660 owned by uid 472 (grafana user). The backup container runs as root with `readOnlyRootFilesystem: true` and all capabilities dropped except `DAC_READ_SEARCH`, which allows reading files without matching UID/GID.
+The Grafana backup CronJob adds `CAP_DAC_OVERRIDE` capability. `grafana.db` has mode 660 owned by uid 472 (grafana user). The backup container runs as root (`runAsUser: 0`) with `readOnlyRootFilesystem: true` and all capabilities dropped except `DAC_OVERRIDE`. Note: `drop: [ALL]` removes `DAC_OVERRIDE` even from root, so it must be explicitly re-added for the sqlite3 `.backup` command to open the file.
 
-**Accepted risk:** `DAC_READ_SEARCH` allows the container to bypass file permission checks for reading. Scope is limited to the Grafana PVC mount. The container has no network access (CiliumNetworkPolicy restricts to NFS only), `readOnlyRootFilesystem`, and drops all other capabilities.
+**Accepted risk:** `DAC_OVERRIDE` allows the container to bypass file permission checks. Scope is limited to the Grafana PVC mount. The container has no network access (CiliumNetworkPolicy restricts to NFS only), `readOnlyRootFilesystem`, and drops all other capabilities.
 
 ### Off-Site Backup Workflow
 
@@ -521,25 +523,25 @@ Security controls for ArgoCD-managed cluster operations (Phase 5.7+).
 |-------|---------|---------|
 | Source | Self-hosted GitLab | Deploy token with `read_repository` scope |
 | Admission | ValidatingAdmissionPolicy | Trusted image registries only (CEL-based) |
-| Secrets | Vault + ESO | Never raw Secrets in Git. 33 ExternalSecrets from Vault. |
-| Network | CiliumNetworkPolicy | Default-deny on 24 namespaces (127 policies) |
-| Drift | Manual sync initially | ArgoCD auto-sync disabled until trust established |
+| Secrets | Vault + ESO | Never raw Secrets in Git. 28 ExternalSecrets from Vault (15 namespaces). |
+| Network | CiliumNetworkPolicy | Default-deny on 25 namespaces (129 policies) |
+| Drift | Auto-sync with selfHeal | ArgoCD auto-syncs from Git, reverts manual changes |
 | Imperative exceptions | vault-unseal-keys | Bootstrap secret - ArgoCD must never prune vault namespace Secrets |
 
 ## Security Posture Summary (Phase 5.6)
 
 | Control | Status | Coverage | Known Gaps |
 |---------|--------|----------|------------|
-| PSS | Enforced | 27/31 namespaces | 4 empty/system ns (cilium-secrets, default, kube-node-lease, kube-public) |
-| CiliumNP | Default-deny | 24/31 namespaces (127 policies) | longhorn-system, NFD, intel-dp (privileged, low attack surface) |
+| PSS | Enforced | 28/32 namespaces | 4 empty/system ns (cilium-secrets, default, kube-node-lease, kube-public) |
+| CiliumNP | Default-deny | 25/32 namespaces (129 policies) | longhorn-system, NFD, intel-dp (privileged, low attack surface) |
 | RBAC | Audited | 4 cluster-admin bindings | velero-server (accepted - cross-ns backup) |
 | etcd encryption | Active (secretbox) | All secrets | |
 | Audit logging | Active | All API calls | Audit alerts deferred (needs Loki Ruler) |
 | Backup | 3-layer | Longhorn+Velero+etcd (24 CronJobs) | |
 | CIS benchmark | 69 pass / 7 fail | All 3 CP nodes identical | 7 justified FAILs documented |
 | Image restriction | VAP Warn mode | All non-system namespaces | Deny mode target: 2026-04-02 |
-| ESO | Healthy | 33 ExternalSecrets (14 namespaces) | |
+| ESO | Healthy | 28 ExternalSecrets (15 namespaces) | 6 manifests in Git not deployed (invoicetron + argocd - no ArgoCD app) |
 | Supply chain | Tag pinning | All images except 1 | portfolio:latest (CI/CD pattern, Phase 5.8) |
-| ResourceQuotas | Active | 14 namespaces | System ns excluded (variable needs) |
+| ResourceQuotas | Active | 15 namespaces | System ns excluded (variable needs) |
 | PDBs | Active | 24 PDBs | |
 | Vault | Healthy | Auto-unseal, daily snapshots | |

@@ -80,22 +80,24 @@ See [[Secrets]] for all 1Password paths.
 homelab/
 ├── helm/                    # Helm values files (ArgoCD-managed except cilium/ and prometheus/)
 │   ├── alloy/values.yaml
+│   ├── argocd/values.yaml
 │   ├── blackbox-exporter/values.yaml
+│   ├── cert-manager/values.yaml
 │   ├── cilium/values.yaml
+│   ├── external-secrets/values.yaml
 │   ├── gitlab/values.yaml
 │   ├── gitlab-runner/values.yaml
+│   ├── intel-device-plugins-gpu/values.yaml
+│   ├── intel-device-plugins-operator/values.yaml
 │   ├── loki/values.yaml
 │   ├── longhorn/values.yaml
 │   ├── metrics-server/values.yaml
-│   ├── prometheus/values.yaml
-│   ├── intel-device-plugins-gpu/values.yaml
-│   ├── intel-device-plugins-operator/values.yaml
 │   ├── node-feature-discovery/values.yaml
+│   ├── prometheus/values.yaml
 │   ├── smartctl-exporter/values.yaml
 │   ├── tailscale-operator/values.yaml
 │   ├── vault/values.yaml
-│   ├── velero/values.yaml
-│   └── external-secrets/values.yaml
+│   └── velero/values.yaml
 ├── manifests/               # Raw K8s manifests
 │   ├── ai/                  # Ollama LLM inference server
 │   ├── argocd/              # ArgoCD config + apps/ (app-of-apps root)
@@ -115,7 +117,7 @@ homelab/
 │   ├── invoicetron/         # Invoicetron app + PostgreSQL + backup
 │   ├── karakeep/            # Karakeep bookmark manager (AIO, Chrome, Meilisearch)
 │   ├── kube-system/         # System CronJobs, RBAC (claude-code SA), cert utilities
-│   ├── monitoring/          # Observability (alerts/, dashboards/, probes/, exporters/, servicemonitors/)
+│   ├── monitoring/          # Observability (alerts/, dashboards/, probes/, exporters/, servicemonitors/, grafana/, otel/, version-checker/)
 │   ├── network-policies/    # CiliumClusterwideNetworkPolicy (gateway ingress)
 │   ├── portfolio/           # Portfolio deployment + RBAC
 │   ├── storage/             # Longhorn HTTPRoute, NFS PVs

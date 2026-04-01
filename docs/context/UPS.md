@@ -43,7 +43,7 @@ NUT (Network UPS Tools) monitoring and graceful shutdown.
 | Component | Version |
 |-----------|---------|
 | NUT | 2.8.1 |
-| nut-exporter | 3.1.1 |
+| nut-exporter | 3.2.5 |
 
 ## Node Roles
 

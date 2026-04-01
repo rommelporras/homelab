@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** March 28, 2026
+> **Last Updated:** April 1, 2026
 
 ---
 
@@ -46,7 +46,7 @@
 | metrics-server/metrics-server | 3.13.0 | v0.8.0 | Installed | kube-system |
 | gitlab/gitlab | 9.8.2 | v18.8.2 | Installed | gitlab |
 | gitlab/gitlab-runner | 0.85.0 | v18.8.0 | Installed | gitlab-runner |
-| prometheus-community/prometheus-blackbox-exporter | 11.7.0 | 0.27.0 | Installed | monitoring |
+| prometheus-community/prometheus-blackbox-exporter | 11.7.0 | 0.28.0 | Installed | monitoring |
 | tailscale/tailscale-operator | 1.94.1 | v1.94.1 | Installed | tailscale |
 | oci://registry.k8s.io/nfd/charts/node-feature-discovery | 0.18.3 | v0.18.3 | Installed | node-feature-discovery |
 | intel/intel-device-plugins-operator | 0.35.0 | v0.35.0 | Installed | intel-device-plugins |
@@ -287,7 +287,7 @@ helm-homelab repo update
 
 | Component | Value | Status |
 |-----------|-------|--------|
-| Alertmanager | v0.30.1 | Configured |
+| Alertmanager | v0.31.1 | Configured |
 | Discord #incidents | Webhook | Configured |
 | Discord #infra | Webhook | Configured |
 | Discord #apps | Webhook | Configured |

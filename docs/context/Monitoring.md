@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-03-28
+updated: 2026-04-01
 ---
 
 # Monitoring
@@ -12,16 +12,16 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 | Component | Version | Namespace |
 |-----------|---------|-----------|
 | kube-prometheus-stack | 82.13.1 | monitoring |
-| Prometheus | v0.88.0 | monitoring |
+| Prometheus | v0.89.0 | monitoring |
 | Grafana | - | monitoring |
-| Alertmanager | v0.30.1 | monitoring |
+| Alertmanager | v0.31.1 | monitoring |
 | Loki | v3.6.7 (chart 6.55.0) | monitoring |
 | Alloy | v1.14.0 (chart 1.6.2) | monitoring |
 | node-exporter | - | monitoring |
 | nut-exporter | 3.2.5 | monitoring |
 | blackbox-exporter | v0.28.0 | monitoring |
 | smartctl-exporter | v0.14.0 | monitoring |
-| OTel Collector | v0.144.0 | monitoring |
+| OTel Collector | v0.147.0 | monitoring |
 | version-checker | v0.10.0 | monitoring |
 | Nova CronJob | v3.11.13 | monitoring |
 | tdarr-exporter | 1.4.3 | arr-stack |
@@ -274,7 +274,7 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 | `garage-probe.yaml` | Garage S3 | HTTP /health (garage.velero.svc:3900) | 60s |
 | `homepage-probe.yaml` | Homepage | HTTP (homepage.home.svc:3000) | 60s |
 | `longhorn-ui-probe.yaml` | Longhorn UI | HTTP (longhorn-frontend.longhorn-system.svc:80) | 60s |
-| `myspeed-probe.yaml` | MySpeed | HTTP (myspeed.myspeed.svc:5216) | 60s |
+| `myspeed-probe.yaml` | MySpeed | HTTP (myspeed.home.svc.cluster.local:5216) | 60s |
 | `prowlarr-probe.yaml` | Prowlarr | HTTP (prowlarr.arr-stack.svc:9696) | 60s |
 | `radarr-probe.yaml` | Radarr | HTTP (radarr.arr-stack.svc:7878) | 60s |
 | `recommendarr-probe.yaml` | Recommendarr | HTTP (recommendarr.arr-stack.svc:3000) | 60s |
@@ -345,7 +345,7 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | `longhorn-alerts.yaml` | Longhorn volume all replicas stopped | v0.34.0 |
 | `gitlab-alerts.yaml` | GitLab pod health, runner connectivity | v0.35.0 |
 | `home-alerts.yaml` | Homepage pod health, HTTP probe failures | v0.35.0 |
-| `argocd-alerts.yaml` | ArgocdAppOutOfSync, ArgocdAppUnhealthy, ArgocdSyncFailed, ArgocdRepoServerDown, ArgocdControllerDown | v0.37.0 |
+| `argocd-alerts.yaml` | ArgocdAppOutOfSync, ArgocdAppUnhealthy, ArgocdSyncFailed, ArgocdRepoServerDown, ArgocdControllerDown, ArgocdGitFetchFailed, ArgocdClusterConnectionLost, ArgocdRepoServerPending, ArgocdNotificationDeliveryFailed | v0.37.0 |
 
 **Severity routing:**
 - `critical` → Discord #incidents + Email (3 recipients)
@@ -382,6 +382,7 @@ All dashboards are auto-provisioned via Grafana sidecar. All have `grafana_folde
 | `invoicetron-prod-dashboard-configmap.yaml` | Invoicetron (Prod) | Pod status, HTTP probe, response time, resource usage |
 | `loki-storage-dashboard-configmap.yaml` | Loki Storage | Ingestion rate, chunk sizes, storage usage, query latency |
 | `uptime-kuma-dashboard-configmap.yaml` | Uptime Kuma | Pod status, HTTP probe, response time, resource usage |
+| `argocd-dashboard-configmap.yaml` | ArgoCD GitOps Health | Pod status, network traffic, sync/health status, Git & repository, notifications, resource usage |
 
 ### Version Checker (`manifests/monitoring/version-checker/`)
 

@@ -796,7 +796,12 @@ kubectl-homelab get pods -n <namespace>
   Stale manifest generation cache required hard refresh to clear.
   ```
 
-- [ ] 5.8.6.4 Test: add a dummy Application YAML, push, verify ArgoCD creates it
+- [x] 5.8.6.4 Test: add a dummy Application YAML, push, verify ArgoCD creates it
+  ```
+  Proven working: manifests/argocd/apps/argocd.yaml was added in session 2,
+  pushed to Git, and root app-of-apps auto-discovered it within 3 minutes.
+  No dedicated dummy test needed - real application served as the test.
+  ```
 
 ---
 
@@ -938,7 +943,7 @@ kubectl-homelab get pods -n <namespace>
 **App-of-Apps:**
 - [x] Root Application created and verified
 - [x] Root app manages 42/43 Applications (external-secrets SSA edge case)
-- [ ] Test: add new Application YAML, push, verify auto-creation
+- [x] Test: add new Application YAML, push, verify auto-creation (argocd.yaml served as test)
 
 **Post-Migration:**
 - [x] ArgoCD self-management Helm handover (Secret deletion, 8 Secrets, zero downtime)
@@ -951,10 +956,8 @@ kubectl-homelab get pods -n <namespace>
 - Gap 3: Invoicetron/Portfolio per-env directory split
 - Gap 4: Prometheus alertmanager secrets (SET_VIA_HELM -> alertmanagerConfigSecret)
 - Cilium: kept on Helm permanently (CNI cannot be GitOps-managed via uninstall)
-- ArgoCD Vault Plugin: investigated, decided against (overkill for homelab)
-- Pre-existing app crashes: seerr, bazarr (I/O), radarr (Sentry init)
-- Tailscale: seed Vault with operator-oauth for ExternalSecret
-- Discord notification: fixed <no value> for multi-source apps
+- ARR backup CronJob rework: per-PVC Jobs instead of node-grouped (see deferred.md)
+- GitLab: manual sync only until Helm hook RBAC conflict resolved upstream
 
 **Key Lessons Learned:**
 1. helm uninstall deletes resources - use Secret deletion method instead
@@ -1012,15 +1015,15 @@ helm-homelab uninstall argocd -n argocd
 
 ## Final: Commit and Release
 
-- [ ] `/audit-security` then `/commit` (infrastructure changes)
-- [ ] Verify root app-of-apps activates after push
-- [ ] Complete 5.8.7 post-migration cleanup
+- [x] `/audit-security` then `/commit` (infrastructure changes)
+- [x] Verify root app-of-apps activates after push
+- [x] Complete 5.8.7 post-migration cleanup
 - [ ] `/audit-docs` then `/commit` (documentation updates)
 - [ ] Resolve deferred items (Gap 3, Gap 4) in follow-up sessions
 - [ ] `/release v0.38.0 "GitOps Migration"` (after all deferred items resolved)
 - [ ] `mv docs/todo/phase-5.8-gitops-migration.md docs/todo/completed/`
 
-> **Note:** Phase 5.8 spans multiple sessions. This commit covers Waves 1-5 +
-> app-of-apps. Deferred items (Prometheus Gap 4, Invoicetron Gap 3, ArgoCD
-> self-management handover) are completed in follow-up sessions before the
-> final release tag.
+> **Note:** Phase 5.8 spans multiple sessions. Session 1 completed Waves 1-5 +
+> app-of-apps. Session 2 completed ArgoCD self-management, operational fixes,
+> alerts, dashboard, and documentation. Deferred: Prometheus Gap 4, Invoicetron
+> Gap 3, ARR backup rework.
