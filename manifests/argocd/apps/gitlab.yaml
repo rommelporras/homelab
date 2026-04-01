@@ -35,6 +35,6 @@ spec:
       - ServerSideDiff=true
       - RespectIgnoreDifferences=true
       - Replace=true
-    automated:
-      prune: true
-      selfHeal: true
+    # Auto-sync disabled: GitLab Helm chart pre-install/pre-upgrade hooks
+    # create RBAC resources that conflict with ArgoCD's sync apply.
+    # Sync manually after values changes via ArgoCD UI.

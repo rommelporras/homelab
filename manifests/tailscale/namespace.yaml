@@ -9,6 +9,7 @@ metadata:
   name: tailscale
   labels:
     app.kubernetes.io/part-of: tailscale
+    eso-enabled: "true"
     pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/audit: privileged
     pod-security.kubernetes.io/warn: privileged
