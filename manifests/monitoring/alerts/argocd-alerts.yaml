@@ -68,3 +68,49 @@ spec:
             summary: "ArgoCD application controller is down"
             description: "ArgoCD application-controller has been unreachable for 5 minutes. Reconciliation is stopped."
             runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argocd.md#ArgocdControllerDown"
+
+        - alert: ArgocdGitFetchFailed
+          expr: |
+            increase(argocd_git_request_total{request_type="ls-remote", grpc_code!="OK"}[15m]) > 3
+          labels:
+            severity: critical
+            category: infra
+          annotations:
+            summary: "ArgoCD Git fetch failing for {{ $labels.repo }}"
+            description: "More than 3 failed Git ls-remote requests in 15 minutes for {{ $labels.repo }}. ArgoCD cannot detect new commits - all syncs are stalled."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argocd.md#ArgocdGitFetchFailed"
+
+        - alert: ArgocdClusterConnectionLost
+          expr: |
+            argocd_cluster_connection_status != 1
+          for: 5m
+          labels:
+            severity: critical
+            category: infra
+          annotations:
+            summary: "ArgoCD lost connection to cluster {{ $labels.server }}"
+            description: "ArgoCD cannot reach the Kubernetes API server. Health checks, sync operations, and drift detection are all offline."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argocd.md#ArgocdClusterConnectionLost"
+
+        - alert: ArgocdRepoServerPending
+          expr: |
+            argocd_repo_pending_request_total > 5
+          for: 10m
+          labels:
+            severity: warning
+            category: infra
+          annotations:
+            summary: "ArgoCD repo-server has {{ $value }} pending requests"
+            description: "High pending request queue on repo-server for 10 minutes. Manifest generation is bottlenecked - syncs will be delayed."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argocd.md#ArgocdRepoServerPending"
+
+        - alert: ArgocdNotificationDeliveryFailed
+          expr: |
+            increase(argocd_notifications_deliveries_total{succeeded="false"}[1h]) > 0
+          labels:
+            severity: warning
+            category: infra
+          annotations:
+            summary: "ArgoCD notification delivery failed"
+            description: "Failed to deliver notifications via {{ $labels.service }} in the last hour. Discord sync alerts may be silently broken."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argocd.md#ArgocdNotificationDeliveryFailed"

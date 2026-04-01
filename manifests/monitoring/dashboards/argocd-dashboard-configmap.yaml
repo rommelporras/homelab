@@ -354,6 +354,174 @@ data:
         {
           "collapsed": false,
           "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
+          "id": 40,
+          "title": "Git & Repository",
+          "description": "Git fetch operations, failure rates, request duration, and repo-server queue depth. These metrics are critical now that all changes flow through Git.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "ops"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "failed" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "success" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } } ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 28 },
+          "id": 41,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Rate of Git ls-remote requests (how ArgoCD checks for new commits). Red line indicates fetch failures - sustained failures mean ArgoCD cannot detect pushes.",
+          "title": "Git Fetch Rate (ls-remote)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(argocd_git_request_total{request_type=\"ls-remote\", grpc_code=\"OK\"}[5m]))",
+              "legendFormat": "success"
+            },
+            {
+              "expr": "sum(rate(argocd_git_request_total{request_type=\"ls-remote\", grpc_code!=\"OK\"}[5m]))",
+              "legendFormat": "failed"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 28 },
+          "id": 42,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "P95 Git request duration by operation type. High fetch/ls-remote times indicate slow GitHub API or network issues. High clone times are expected for large repos.",
+          "title": "Git Request Duration (p95)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, request_type) (rate(argocd_git_request_duration_seconds_bucket[5m])))",
+              "legendFormat": "{{request_type}}"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 3 }, { "color": "red", "value": 5 } ] },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 28 },
+          "id": 43,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Number of pending manifest generation requests in the repo-server queue. Values above 5 for extended periods indicate the repo-server is overwhelmed and syncs will be delayed.",
+          "title": "Repo Server Pending Requests",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "argocd_repo_pending_request_total",
+              "legendFormat": "pending"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 },
+          "id": 50,
+          "title": "Notifications",
+          "description": "Discord notification delivery status. Failed deliveries mean sync success/failure alerts are silently lost.",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "ops"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "delivered" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "failed" },
+                "properties": [ { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } } ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 37 },
+          "id": 51,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Rate of notification deliveries to configured services (Discord). Red line indicates failed deliveries where sync status changes are silently lost.",
+          "title": "Notification Delivery Rate",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(argocd_notifications_deliveries_total{succeeded=\"true\"}[5m]))",
+              "legendFormat": "delivered"
+            },
+            {
+              "expr": "sum(rate(argocd_notifications_deliveries_total{succeeded=\"false\"}[5m]))",
+              "legendFormat": "failed"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never", "spanNulls": true },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 37 },
+          "id": 52,
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "description": "Rate of notification trigger evaluations. Shows how often ArgoCD evaluates notification conditions across all applications.",
+          "title": "Trigger Evaluations",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (name) (rate(argocd_notifications_trigger_eval_total[5m]))",
+              "legendFormat": "{{name}}"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 45 },
           "id": 30,
           "title": "Resource Usage",
           "description": "CPU and memory consumption for ArgoCD components. The application controller is the most resource-intensive component, scaling with the number of managed applications and resources.",
@@ -385,7 +553,7 @@ data:
               }
             ]
           },
-          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 46 },
           "id": 31,
           "options": {
             "legend": { "displayMode": "list", "placement": "bottom" },
@@ -438,7 +606,7 @@ data:
               }
             ]
           },
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 46 },
           "id": 32,
           "options": {
             "legend": { "displayMode": "list", "placement": "bottom" },
