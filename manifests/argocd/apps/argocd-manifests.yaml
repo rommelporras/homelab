@@ -1,0 +1,34 @@
+# ArgoCD Application: ArgoCD custom manifests
+# Manages non-Helm ArgoCD resources: ExternalSecrets, AppProjects,
+# CiliumNetworkPolicy, HTTPRoute, LimitRange, ResourceQuota, namespace.
+#
+# Excludes apps/ subdirectory (managed by root app-of-apps).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-manifests
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: argocd-self
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/argocd
+    targetRevision: main
+    directory:
+      exclude: '{apps/*,apps/**/*}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: true
+      selfHeal: true

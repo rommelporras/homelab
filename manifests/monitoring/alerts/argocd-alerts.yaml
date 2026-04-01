@@ -71,7 +71,7 @@ spec:
 
         - alert: ArgocdGitFetchFailed
           expr: |
-            increase(argocd_git_request_total{request_type="ls-remote", grpc_code!="OK"}[15m]) > 3
+            increase(argocd_git_lsremote_fail_total[15m]) > 3
           labels:
             severity: critical
             category: infra
