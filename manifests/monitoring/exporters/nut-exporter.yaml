@@ -117,5 +117,6 @@ spec:
       path: /ups_metrics
       # Add 'ups' label to all metrics for dashboard compatibility
       relabelings:
-        - targetLabel: ups
+        - action: replace
+          targetLabel: ups
           replacement: cyberpower
