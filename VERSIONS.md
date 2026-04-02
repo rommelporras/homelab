@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** April 1, 2026
+> **Last Updated:** April 2, 2026
 
 ---
 
@@ -34,13 +34,17 @@
 
 > **Why version pin?** Helm charts update independently of the apps they install.
 > Running `helm install` without `--version` gives you "latest" which may break things.
+>
+> **Note:** As of Phase 5.8, all charts below are deployed via ArgoCD Applications (not direct
+> Helm installs), except `cilium/cilium` which remains a direct Helm release (CNI chicken-and-egg
+> deadlock prevents ArgoCD management). The versions here reflect what ArgoCD manages.
 
 | Chart | Version | App Version | Status | Namespace |
 |-------|---------|-------------|--------|-----------|
 | longhorn/longhorn | 1.11.1 | v1.11.1 | Installed | longhorn-system |
 | cilium/cilium | 1.19.1 | v1.19.1 | Installed | kube-system |
 | oci://quay.io/jetstack/charts/cert-manager | 1.19.2 | v1.19.2 | Installed | cert-manager |
-| oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 82.13.1 | v0.89.0 | Installed | monitoring |
+| oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 82.13.1 | v0.89.0 (Operator) / v3.10.0 (Prometheus) | Installed | monitoring |
 | oci://ghcr.io/grafana/helm-charts/loki | 6.55.0 | v3.6.7 | Installed | monitoring |
 | grafana/alloy | 1.6.2 | v1.14.0 | Installed | monitoring |
 | metrics-server/metrics-server | 3.13.0 | v0.8.0 | Installed | kube-system |

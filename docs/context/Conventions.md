@@ -60,7 +60,7 @@ eval $(op signin)
 # Read a secret
 op read "op://Kubernetes/Grafana/password"
 
-# Use in Helm (only for cilium/prometheus - everything else is ESO-backed)
+# Use in Helm (only for cilium - everything else is ArgoCD + ESO-backed)
 helm-homelab upgrade cilium ... \
   --set upgradeCompatibility="1.18"
 ```
@@ -77,7 +77,7 @@ See [[Secrets]] for all 1Password paths.
 
 ```
 homelab/
-├── helm/                    # Helm values files (ArgoCD-managed except cilium/ and prometheus/)
+├── helm/                    # Helm values files (ArgoCD-managed except cilium/)
 │   ├── alloy/values.yaml
 │   ├── argocd/values.yaml
 │   ├── blackbox-exporter/values.yaml
@@ -140,7 +140,7 @@ homelab/
 │       └── verify-migration.sh    # Post-migration health check (ESO sync, Vault status)
 ├── docs/
 │   ├── context/             # This knowledge base (RAG source)
-│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0-v0.29.0)
+│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0-v0.37.0)
 │   ├── todo/                # Active and completed phase plans
 │   └── reference/           # CHANGELOG, historical docs
 └── ansible/                 # Bootstrap automation

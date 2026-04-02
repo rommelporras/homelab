@@ -87,7 +87,7 @@ All K8s NFS storage uses a **single export** (`/export/Kubernetes`) with **one s
 
 | Subdirectory | NFSv4 Mount Path | K8s PV | Namespace | Status |
 |-------------|-----------------|--------|-----------|--------|
-| `Immich/` | `/Kubernetes/Immich` | `immich-nfs` | `immich` | Deployed |
+| `Immich/` | `/Kubernetes/Immich` | `immich-nfs` | `immich` | Template only (PV and namespace not deployed) |
 | `Media/` | `/Kubernetes/Media` | `arr-data-nfs` | `arr-stack` | Deployed |
 | `Backups/atuin/` | `/Kubernetes/Backups/atuin` | inline NFS volume | `atuin` | Deployed (v0.28.1) |
 | `Backups/vault/` | `/Kubernetes/Backups/vault` | `vault-snapshots-nfs` | `vault` | Deployed (v0.29.0) |
@@ -152,7 +152,7 @@ Garage is a lightweight self-hosted S3-compatible store running in the cluster. 
 
 | Tier | Volumes | Daily Retention | Weekly Retention |
 |------|---------|----------------|-----------------|
-| Critical | ghost-content, ghost-mysql, invoicetron-db, gitlab-gitaly, gitlab-postgresql, gitlab-minio, vault, atuin-postgres, karakeep-data, meilisearch-data | 14 | 4 |
+| Critical | ghost-content, ghost-mysql, invoicetron-db, gitlab-gitaly, gitlab-postgresql, gitlab-minio, vault, atuin-postgres, karakeep-data, meilisearch-data, velero/garage-data | 14 | 4 |
 | Important | adguard-data, uptime-kuma, prometheus-grafana, alertmanager, loki, arr-stack configs, myspeed-data, invoicetron-backups | 7 | 2 |
 | Excluded | prometheus-db (50Gi, rebuildable), ollama-models (re-pull), firefox-config (disposable), dev PVCs, redis | - | - |
 

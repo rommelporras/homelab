@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.36.0 (Pre-GitOps Validation)
+> **Latest Release:** v0.37.0 (ArgoCD Installation & Bootstrap)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---

@@ -35,7 +35,7 @@ S3 target: Garage (`velero` namespace).
 Schedule: `daily-k8s-backup` at 20:30 UTC (04:30 Manila).
 TTL: 720h (30 days).
 Backs up all K8s resources (deployments, services, configmaps, etc.) except Secrets.
-Covers 20 namespaces (all application + infrastructure except kube-system, longhorn-system, cilium, cert-manager, argocd).
+Covers 20 namespaces (all application + infrastructure except kube-system, longhorn-system, cert-manager, argocd).
 ArgoCD excluded intentionally - stateless (app definitions in git, redis ephemeral, secrets from Vault/ESO).
 
 ```bash
@@ -154,13 +154,11 @@ All backup systems have Prometheus alerts. If something fails, you get notified 
 | Alert | What it catches | Severity | Discord Channel |
 |-------|----------------|----------|-----------------|
 | VeleroBackupFailed | Velero failures > successes | critical | #incidents |
-| VeleroBackupStale | No Velero backup in 36h | warning | #apps (*) |
+| VeleroBackupStale | No Velero backup in 36h | warning | #infra |
 | LonghornBackupFailed | Longhorn backup error state | warning | #infra |
 | EtcdBackupStale | No etcd backup in 36h | critical | #incidents |
-| CronJobFailed | Any Job failure (covers all CronJobs) | warning | #apps (*) |
-| CronJobNotScheduled | CronJob missed 2+ runs | warning | #apps (*) |
-
-(*) VeleroBackupStale, CronJobFailed, and CronJobNotScheduled route to #apps until Phase 5.5 updates the Alertmanager routing regex to include them in #infra.
+| CronJobFailed | Any Job failure (covers all CronJobs) | warning | #infra |
+| CronJobNotScheduled | CronJob missed 2+ runs | warning | #infra |
 
 Check alert status: Grafana > Alerting, or `kubectl-homelab get prometheusrules -n monitoring`.
 

@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
-3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 61 releases with [29 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
+3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 63 releases with [30 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
 
 > **Owner:** Rommel Porras  |  **CKA Target:** September 2026
 
@@ -72,9 +72,9 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Ansible-automated bootstrap ([10 playbooks](ansible/playbooks/))
 
 **Observability**
-- Prometheus + Grafana + Loki + Alloy (full metrics, logs, 42 Grafana dashboards)
+- Prometheus + Grafana + Loki + Alloy (full metrics, logs, 24 Grafana dashboards)
 - Alertmanager (Discord + Email, severity routing) — 63 PrometheusRules across 31 alert files
-- Blackbox probes (24 services: Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr, Atuin, Vault, cert-manager-webhook, ESO webhook, Garage, Homepage, Longhorn UI, MySpeed, Prowlarr, Radarr, Recommendarr, Sonarr)
+- Blackbox probes (25 services: ArgoCD, Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr, Atuin, Vault, cert-manager-webhook, ESO webhook, Garage, Homepage, Longhorn UI, MySpeed, Prowlarr, Radarr, Recommendarr, Sonarr)
 - Dead Man's Switch (healthchecks.io), UPS monitoring (NUT + nut-exporter)
 - smartctl-exporter DaemonSet (NVMe S.M.A.R.T. health on all 3 nodes — temp, wear, spare, TBW)
 - Longhorn + cert-manager ServiceMonitors (volume robustness alerts + TLS certificate expiry alerts)
@@ -89,7 +89,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Cloudflare Tunnel (HA, 2 replicas) for public services
 - Tailscale Operator (WireGuard subnet router) for private remote access
 - AdGuard DNS as primary for all VLANs + Tailscale global nameserver
-- CiliumNetworkPolicy microsegmentation (127 policies across 24 namespaces, implicit default-deny)
+- CiliumNetworkPolicy microsegmentation (129 policies across 25 namespaces, implicit default-deny)
 
 **Applications**
 - GitLab CE (Runner, Container Registry, SSH) with CI/CD pipelines
@@ -136,7 +136,7 @@ Things that bit us and might save you time:
 
 - **Cloudflare free SSL wildcard depth** — Free plans only cover `*.rommelporras.com`, NOT `*.blog.rommelporras.com`. We use single-level subdomains like `blog-api.rommelporras.com` for analytics endpoints to stay on the free tier.
 
-- **Rebuild guides as a pattern** - Every release (v0.1.0 through v0.29.0) has a [complete rebuild guide](docs/rebuild/README.md), with v0.30.0+ hardening phases baked into existing guides. If the cluster dies, we can rebuild everything from scratch by following the guides in order. This also serves as living documentation that never goes stale.
+- **Rebuild guides as a pattern** - Every release (v0.1.0 through v0.29.0) has a [complete rebuild guide](docs/rebuild/README.md), with v0.30.0+ hardening phases baked into existing guides (except v0.37.0, which has a standalone guide). If the cluster dies, we can rebuild everything from scratch by following the guides in order. This also serves as living documentation that never goes stale.
 
 - **CiliumNetworkPolicy vs forwarded traffic** — CiliumNetworkPolicy filters forwarded/routed packets, not just local pod traffic. This means a network policy on a Tailscale Connector pod will break subnet routing entirely. Only apply policies to the operator, not the proxy.
 
@@ -146,9 +146,9 @@ Things that bit us and might save you time:
 
 | Document | Purpose |
 |----------|---------|
-| [docs/SETUP.md](docs/SETUP.md) | **New machine setup** - clone-and-go guide for any workstation |
+| [docs/rebuild/README.md](docs/rebuild/README.md) | **New machine setup** - clone-and-go guide for any workstation |
 | [docs/context/Cluster.md](docs/context/Cluster.md) | **Source of truth** - nodes, IPs, hardware |
-| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (v0.1.0 to v0.29.0, v0.30.0+ baked in) |
+| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (v0.1.0 to v0.29.0, v0.37.0 standalone; v0.30.0+ baked in) |
 | [docs/context/](docs/context/) | Knowledge base (13 topic files: Architecture, Gateway, Networking, Security, etc.) |
 | [docs/todo/](docs/todo/README.md) | Phase plans (active + [completed](docs/todo/completed/)) |
 | [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md) | Decision history and project timeline |
@@ -160,8 +160,9 @@ Things that bit us and might save you time:
 
 1. **Network Policies** — CiliumNetworkPolicy microsegmentation complete (Phase 5.3, v0.33.0)
 2. **Resilience & Backup** — Phase 5.4 complete (v0.34.0)
-3. **Image Updates & Monitoring** — Phase 5.6 in progress
-4. **CKA Certification** — September 2026 target
+3. **Image Updates & Monitoring** — Phase 5.6 complete; Phase 5.7 complete
+4. **GitOps Migration** — Phase 5.8 in progress (targeting v0.38.0)
+5. **CKA Certification** — September 2026 target
 
 ## Claude Code
 

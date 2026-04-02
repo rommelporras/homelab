@@ -121,9 +121,9 @@ CiliumNetworkPolicy restricts ingress to only authorized namespaces (`monitoring
 | Flux | Good option, but smaller community |
 | **ArgoCD** | **UI for visibility, strong Helm support, app-of-apps pattern** |
 
-Git is the single source of truth. ArgoCD watches the repo and syncs to the cluster automatically. 44 Applications managed via app-of-apps pattern (`manifests/argocd/apps/root.yaml` discovers all Application YAMLs in the directory). Six AppProjects enforce RBAC boundaries between service groups.
+Git is the single source of truth. ArgoCD watches the repo and syncs to the cluster automatically. 46 Applications managed via app-of-apps pattern (`manifests/argocd/apps/root.yaml` discovers all Application YAMLs in the directory). Six AppProjects enforce RBAC boundaries between service groups.
 
-**Exceptions kept on Helm:** Cilium (CNI chicken-and-egg - `helm uninstall` deletes networking before ArgoCD can recreate it) and Prometheus (alertmanager secrets still use `--set` overrides pending ESO migration).
+**Exception kept on Helm:** Cilium (CNI chicken-and-egg - `helm uninstall` deletes networking before ArgoCD can recreate it). Prometheus was handed over to ArgoCD in Phase 5.8 via ESO `configSecret` for alertmanager.
 
 ## Why Vault + ESO (Not Direct K8s Secrets)
 

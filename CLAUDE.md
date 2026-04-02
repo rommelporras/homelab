@@ -113,7 +113,7 @@ All services are managed declaratively via ArgoCD. Changes flow through Git, not
 - **etcd image is distroless** — `registry.k8s.io/etcd:3.6.6-0` has no shell, no cp, no coreutils. Use initContainer to copy etcdctl, run backup from alpine/k8s.
 - **SQLite live backup** — never raw `cp` a live SQLite DB (WAL corruption). Use `sqlite3 <db> ".backup <dest>"` or `keinos/sqlite3:3.46.1` image.
 - **MinIO is dead** — repo archived Feb 2026. Use Garage S3 (`dxflrs/garage`) as replacement.
-- **Scripts REPO_ROOT after reorg** — scripts in subdirectories (`scripts/vault/`, `scripts/monitoring/`). `REPO_ROOT` needs double dirname: `"$(dirname "$(dirname "$SCRIPT_DIR")")"`.
+- **Scripts REPO_ROOT after reorg** — scripts in subdirectories (`scripts/vault/`, `scripts/backup/`). `REPO_ROOT` needs double dirname: `"$(dirname "$(dirname "$SCRIPT_DIR")")"`.
 - **Longhorn v1.10 backup-target** — `backup-target` setting removed. Use Helm `defaultBackupStore.backupTarget` instead.
 - **version-checker `-alpine` suffix false positives** — images tagged `X.Y-alpine` get compared against `X.Y` (non-alpine), reporting outdated. Add `match-regex.version-checker.io/<container>` annotation to restrict matching (e.g. `^\d+\.\d+-alpine$` for postgres, `^\d+\.\d+\.\d+-alpine$` for python).
 - **Docker Hub rate limits during bulk upgrades** — unauthenticated limit is 100 pulls/6h per IP. All 3 nodes share one IP. Workaround: `sudo ctr -n k8s.io images tag <cached-tag> <new-tag>` to re-tag cached images. Pulls will succeed after rate limit resets.

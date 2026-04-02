@@ -396,11 +396,11 @@ All application namespaces have a LimitRange that sets default requests/limits f
 
 ### ResourceQuota
 
-14 namespaces have ResourceQuota enforcing CPU, memory, PVC, and pod count limits:
+15 namespaces have ResourceQuota enforcing CPU, memory, PVC, and pod count limits:
 
 | Namespace | Purpose |
 |-----------|---------|
-| ai, arr-stack, atuin, ghost-dev, ghost-prod, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, velero | Prevent resource exhaustion |
+| ai, argocd, arr-stack, atuin, ghost-dev, ghost-prod, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, velero | Prevent resource exhaustion |
 
 System namespaces (kube-system, monitoring, longhorn-system, gitlab) are excluded - their resource needs are variable and operator-managed.
 
@@ -422,6 +422,7 @@ System namespaces (kube-system, monitoring, longhorn-system, gitlab) are exclude
 |------|---------|--------|
 | 02:00 | vault-snapshot | Vault Raft snapshot |
 | 02:00 | ghost-mysql-backup | Ghost MySQL |
+| 02:00 (Sun) | atuin-backup | Atuin PostgreSQL (pg_dump) |
 | 02:05 | adguard-backup | AdGuard SQLite |
 | 02:10 | uptime-kuma-backup | Uptime Kuma SQLite |
 | 02:15 | karakeep-backup | Karakeep SQLite |
@@ -432,6 +433,7 @@ System namespaces (kube-system, monitoring, longhorn-system, gitlab) are exclude
 | 03:00 | configarr | TRaSH Guide sync (not a backup) |
 | 03:30 | etcd-backup | etcd snapshot |
 | 04:00 | Longhorn daily important | Block-level volume snapshots |
+| 09:00 | invoicetron-db-backup | Invoicetron PostgreSQL (pg_dump) |
 
 ### etcd Backup Security
 
@@ -492,13 +494,13 @@ Backups/<app>/  ──rsync──>  staging/YYYY-MM-DD/  ──restic──>  Ho
 
 ## PodDisruptionBudgets (Phase 5.4)
 
-21 PDBs across the cluster. Strategy:
+24 PDBs across the cluster. Strategy:
 
 | Category | PDB Setting | Rationale |
 |----------|-------------|-----------|
 | Multi-replica (Homepage, Portfolio, cloudflared) | `minAvailable: 1` | At least 1 pod stays up during drain |
 | Single-replica critical (Vault, Grafana, Prometheus, AdGuard) | `maxUnavailable: 1` | Allows drain to proceed (0 would block forever) |
-| Helm-managed (GitLab, Longhorn) | Chart defaults | 7 GitLab + 5 Longhorn PDBs from Helm |
+| Helm-managed (GitLab, Longhorn) | Chart defaults | 7 GitLab + 8 Longhorn PDBs from Helm (6 instance-manager + csi-attacher + csi-provisioner) |
 
 ## Automation Hardening (Phase 5.4)
 
@@ -523,7 +525,7 @@ Security controls for ArgoCD-managed cluster operations (Phase 5.7+).
 |-------|---------|---------|
 | Source | Self-hosted GitLab | Deploy token with `read_repository` scope |
 | Admission | ValidatingAdmissionPolicy | Trusted image registries only (CEL-based) |
-| Secrets | Vault + ESO | Never raw Secrets in Git. 28 ExternalSecrets from Vault (15 namespaces). |
+| Secrets | Vault + ESO | Never raw Secrets in Git. 31 ExternalSecrets from Vault (16 namespaces). |
 | Network | CiliumNetworkPolicy | Default-deny on 25 namespaces (129 policies) |
 | Drift | Auto-sync with selfHeal | ArgoCD auto-syncs from Git, reverts manual changes |
 | Imperative exceptions | vault-unseal-keys | Bootstrap secret - ArgoCD must never prune vault namespace Secrets |
@@ -540,7 +542,7 @@ Security controls for ArgoCD-managed cluster operations (Phase 5.7+).
 | Backup | 3-layer | Longhorn+Velero+etcd (24 CronJobs) | |
 | CIS benchmark | 69 pass / 7 fail | All 3 CP nodes identical | 7 justified FAILs documented |
 | Image restriction | VAP Warn mode | All non-system namespaces | Deny mode target: 2026-04-02 |
-| ESO | Healthy | 28 ExternalSecrets (15 namespaces) | 6 manifests in Git not deployed (invoicetron + argocd - no ArgoCD app) |
+| ESO | Healthy | 31 ExternalSecrets (16 namespaces) | 4 manifests in Git not deployed (invoicetron - no ArgoCD app) |
 | Supply chain | Tag pinning | All images except 1 | portfolio:latest (CI/CD pattern, Phase 5.8) |
 | ResourceQuotas | Active | 15 namespaces | System ns excluded (variable needs) |
 | PDBs | Active | 24 PDBs | |

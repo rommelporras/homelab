@@ -12,7 +12,7 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 | Component | Version | Namespace |
 |-----------|---------|-----------|
 | kube-prometheus-stack | 82.13.1 | monitoring |
-| Prometheus | v0.89.0 | monitoring |
+| Prometheus | v3.10.0 (operator: v0.89.0) | monitoring |
 | Grafana | - | monitoring |
 | Alertmanager | v0.31.1 | monitoring |
 | Loki | v3.6.7 (chart 6.55.0) | monitoring |
@@ -116,7 +116,7 @@ Permanently silenced (routed to `null`):
 
 | Setting | Value |
 |---------|-------|
-| Image | otel/opentelemetry-collector-contrib:0.144.0 |
+| Image | otel/opentelemetry-collector-contrib:0.147.0 |
 | VIP | 10.10.30.22 (Cilium L2 LoadBalancer) |
 | Ports | 4317 (gRPC), 4318 (HTTP), 8889 (Prometheus metrics) |
 | Replicas | 1 |
@@ -279,6 +279,7 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 | `radarr-probe.yaml` | Radarr | HTTP (radarr.arr-stack.svc:7878) | 60s |
 | `recommendarr-probe.yaml` | Recommendarr | HTTP (recommendarr.arr-stack.svc:3000) | 60s |
 | `sonarr-probe.yaml` | Sonarr | HTTP (sonarr.arr-stack.svc:8989) | 60s |
+| `argocd-web-probe.yaml` | ArgoCD | HTTP (argocd-server.argocd.svc:443) | 60s |
 
 **Vault probe note:** `/v1/sys/health` returns 200=active, 503=sealed. `http_2xx` treats sealed as probe failure - used by VaultSealed alert's `absent()` guard to prevent false positives when metrics are temporarily unavailable.
 
@@ -314,7 +315,7 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | File | Alerts | Phase |
 |------|--------|-------|
 | `test-alert.yaml` | AlwaysFiring (manual testing only) | v0.5.0 |
-| `logging-alerts.yaml` | LokiDown, LokiIngestionStopped, LokiHighErrorRate, AlloyNotOnAllNodes, AlloyNotSendingLogs, AlloyHighMemory | v0.5.0 |
+| `logging-alerts.yaml` | LokiDown, LokiIngestionStopped, LokiHighErrorRate, AlloyNotOnAllNodes, AlloyNotSendingLogs, AlloyHighMemory, LokiCompactionStalled, LokiRetentionNotRunning, LokiWALDiskFull | v0.5.0 |
 | `ups-alerts.yaml` | UPSOnBattery, UPSLowBattery, UPSBatteryCritical, UPSBatteryWarning, UPSHighLoad, UPSExporterDown, UPSOffline, UPSBackOnline | v0.4.0 |
 | `adguard-dns-alert.yaml` | AdGuardDNSUnreachable (DNS probe failure) | v0.9.0 |
 | `claude-alerts.yaml` | ClaudeCodeHighDailySpend, ClaudeCodeCriticalDailySpend, ClaudeCodeNoActivity, OTelCollectorDown | v0.15.0 |
@@ -322,7 +323,7 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | `ollama-alerts.yaml` | OllamaDown, OllamaMemoryHigh, OllamaHighRestarts | v0.20.0 |
 | `karakeep-alerts.yaml` | KarakeepDown, KarakeepHighRestarts | v0.21.0 |
 | `tailscale-alerts.yaml` | TailscaleConnectorDown, TailscaleOperatorDown | v0.22.0 |
-| `arr-alerts.yaml` | ArrAppDown, SonarrQueueStalled, RadarrQueueStalled, NetworkInterfaceSaturated, NetworkInterfaceCritical, JellyfinDown, SeerrDown, TdarrDown, ByparrDown, ArrQueueWarning, ArrQueueError, BazarrDown, JellyfinHighMemory, TdarrTranscodeErrors, TdarrTranscodeErrorsBurst, TdarrHealthCheckErrors, TdarrHealthCheckErrorsBurst, QBittorrentStalledDownloads | v0.25.0–v0.27.0 |
+| `arr-alerts.yaml` | ArrAppDown, SonarrQueueStalled, RadarrQueueStalled, NetworkInterfaceSaturated, NetworkInterfaceCritical, JellyfinDown, SeerrDown, TdarrDown, ByparrDown, ArrQueueWarning, ArrQueueError, BazarrDown, JellyfinHighMemory, TdarrTranscodeErrors, TdarrTranscodeErrorsBurst, TdarrHealthCheckErrors, TdarrHealthCheckErrorsBurst, QBittorrentStalledDownloads, ProwlarrDown, SonarrDown, RadarrDown, RecommendarrDown | v0.25.0–v0.27.0 |
 | `version-checker-alerts.yaml` | ContainerImageOutdated, KubernetesVersionOutdated, VersionCheckerDown | v0.26.0 |
 | `uptime-kuma-alerts.yaml` | UptimeKumaDown (3m, warning) | v0.27.0 |
 | `ghost-alerts.yaml` | GhostDown (5m, warning) | v0.27.0 |
@@ -337,7 +338,7 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | `node-alerts.yaml` | NodeMemoryMajorPagesFaults (>2000/s + <15% mem available, warning) | v0.27.0 |
 | `cluster-janitor-alerts.yaml` | ClusterJanitorFailing (CronJob last result failed, warning) | v0.28.2 |
 | `dotctl-alerts.yaml` | DotctlCollectionStale (>30min, warning), DotctlDriftDetected (>1hr, warning) | - |
-| `vault-alerts.yaml` | VaultSealed (critical, 2m), VaultMetricsMissing (warning, 15m), VaultAuditFailure (critical, 1m), VaultDown (warning, 5m), VaultHighLatency (warning, 10m), ESOSecretNotSynced (critical, 10m), ESOSyncErrors (warning, 5m), VaultSnapshotFailing (warning, 30m) | v0.29.0 |
+| `vault-alerts.yaml` | VaultSealed (critical, 2m), VaultMetricsMissing (warning, 15m), VaultAuditFailure (critical, 1m), VaultDown (warning, 5m), VaultHighLatency (warning, 10m), ESOSecretNotSynced (critical, 10m), ESOSyncErrors (warning, 5m), VaultSnapshotFailing (warning, 30m), ESOWebhookDown | v0.29.0 |
 | `atuin-alerts.yaml` | AtuinDown, AtuinPostgresDown, AtuinHighRestarts, AtuinHighMemory | v0.28.0 |
 | `disabled/audit-alerts.yaml.disabled` | AuditSecretAccessByNonSystem, AuditPodExec, AuditRBACChange, AuditHighAuthFailureRate (LogQL - requires Loki ruler, currently deferred) | v0.31.0 |
 | `backup-alerts.yaml` | Velero backup failures, etcd backup age, CronJob failures | v0.34.0 |
