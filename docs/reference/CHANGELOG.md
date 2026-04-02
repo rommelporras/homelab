@@ -37,11 +37,28 @@ Migrated 16 Helm releases and 27 manifest directories to ArgoCD declarative GitO
 - ARR backup CronJob rework added to deferred.md (per-PVC Jobs needed)
 - Global hook: git push blocked in bash-write-protect.sh (no lock file bypass)
 
+### Session 3 - Gap 4 Resolution + ARR Backup Rework (v0.38.0)
+
+- Prometheus handed over to ArgoCD via ESO configSecret pattern
+  - New ExternalSecret "alertmanager-config" assembles full alertmanager.yaml from Vault secrets
+  - ESO template with escaped Go template syntax for alertmanager notification templates
+  - configSecret replaces SET_VIA_HELM placeholders in Helm values
+  - upgrade-prometheus.sh deleted (no more imperative upgrade script)
+  - 10 Helm release Secrets deleted, 122 resources synced via ServerSideApply
+- ARR backup CronJobs reworked: 3 node-grouped (cp1/cp2/cp3) replaced with 9 per-app
+  - podAffinity instead of nodeSelector (follows app pod to any node)
+  - Fixes broken backups when pods reschedule (radarr/bazarr moved to cp2)
+  - Individual files in manifests/arr-stack/backup/ (one per app)
+- Deep documentation audit: 37 findings fixed across 11 context docs
+  - Counts, versions, stale references, broken links, missing alerts/probes
+- Only cilium remains on direct Helm (1 release). All others ArgoCD-managed (46 Applications)
+
 ### Decisions
 
 - **Secret deletion over helm uninstall** - helm uninstall deletes resources, causing outages. Secret deletion removes Helm tracking without touching resources. Zero downtime.
 - **Cilium stays on Helm permanently** - CNI chicken-and-egg: helm uninstall breaks networking before ArgoCD can recreate it
-- **Prometheus stays on Helm** - Gap 4: SET_VIA_HELM alertmanager secrets need ESO migration first
+- **ESO configSecret for alertmanager** - ESO template assembles full alertmanager.yaml from Vault secrets, eliminating the upgrade script. Go template escaping ({{ "{{" }}) handles alertmanager notification templates within ESO templates
+- **Per-app backup CronJobs** - podAffinity over nodeSelector for RWO PVC co-location. More CronJob objects (9 vs 3) but each is independent and self-healing when pods reschedule
 - **GitLab manual sync** - Helm pre-install/pre-upgrade hooks create RBAC that conflicts with ArgoCD sync apply
 
 ---
