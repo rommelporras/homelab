@@ -1,7 +1,7 @@
 # Phase 5.8: GitOps Migration
 
-> **Status:** In Progress
-> **Target:** v0.38.0
+> **Status:** Complete (v0.38.0 released 2026-04-02)
+> **Release:** v0.38.0
 > **Prerequisite:** Phase 5.7 (v0.37.0 - ArgoCD installed, bootstrapped, monitoring in place)
 > **DevOps Topics:** GitOps adoption, declarative infrastructure, Helm release adoption, drift detection
 > **CKA Topics:** Application lifecycle management, resource ownership, rollout strategies
@@ -853,12 +853,11 @@ kubectl-homelab get pods -n <namespace>
   All other 17 Helm releases successfully handed over to ArgoCD.
   ```
 
-- [ ] 5.8.7.3 Archive deprecated scripts
+- [x] 5.8.7.3 Archive deprecated scripts
   ```
-  Deprecated by GitOps:
-    scripts/monitoring/upgrade-prometheus.sh - DEFERRED (still needed until Gap 4 resolved)
-    Manual kubectl apply workflows - replaced by ArgoCD auto-sync
-  Keep (manual by design):
+  DONE (session 3). scripts/monitoring/upgrade-prometheus.sh deleted.
+  Manual kubectl apply workflows replaced by ArgoCD auto-sync.
+  Kept (manual by design):
     scripts/vault/seed-vault-from-1password.sh
     scripts/backup/homelab-backup.sh
     scripts/ghost/ (data sync scripts)
@@ -930,7 +929,7 @@ kubectl-homelab get pods -n <namespace>
 - [x] Homepage (Kustomize) managed by ArgoCD
 - [x] ARR stack (recursive directory) managed by ArgoCD
 - [x] Ghost dev/prod (per-env) managed by ArgoCD
-- [ ] ~~Invoicetron/Portfolio (per-env, after Gap 3 fix)~~ DEFERRED (Gap 3 unresolved)
+- [x] ~~Invoicetron/Portfolio (per-env, after Gap 3 fix)~~ DEFERRED to separate phase (Gap 3: CI/CD pipeline change needed)
 - [x] Gateway, NetworkPolicies, kube-system extras managed
 - [x] Auto-sync enabled
 
@@ -945,7 +944,7 @@ kubectl-homelab get pods -n <namespace>
 
 **Wave 4 - Monitoring Helm:**
 - [x] 4 of 5 monitoring Helm releases handed over (Secret deletion method)
-- [ ] Prometheus DEFERRED (Gap 4: SET_VIA_HELM alertmanager secrets)
+- [x] Prometheus handed over (session 3: ESO configSecret + ArgoCD Application + Secret deletion)
 - [x] Prometheus targets still scraped (95/95 UP), dashboards working
 - [x] Auto-sync enabled on blackbox-exporter, smartctl-exporter, alloy, loki
 
@@ -1041,9 +1040,9 @@ helm-homelab uninstall argocd -n argocd
 - [x] `/audit-docs` then `/commit` (documentation updates)
 - [x] Resolve Gap 4 (Prometheus handover via ESO configSecret)
 - [x] ARR backup CronJob rework (per-app podAffinity, fixes broken backups)
-- [ ] Handover execution: push, sync, Secret deletion for prometheus
-- [ ] `/release v0.38.0 "GitOps Migration"` (after handover verified)
-- [ ] `mv docs/todo/phase-5.8-gitops-migration.md docs/todo/completed/`
+- [x] Handover execution: push, sync, Secret deletion for prometheus
+- [x] `/release v0.38.0 "GitOps Migration"`
+- [x] `mv docs/todo/phase-5.8-gitops-migration.md docs/todo/completed/`
 
 > **Note:** Phase 5.8 spans multiple sessions. Session 1 completed Waves 1-5 +
 > app-of-apps. Session 2 completed ArgoCD self-management, operational fixes,
