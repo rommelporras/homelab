@@ -78,7 +78,19 @@
   kubectl-admin create namespace argo-rollouts
   kubectl-admin label namespace argo-rollouts \
     pod-security.kubernetes.io/enforce=baseline \
-    pod-security.kubernetes.io/warn=restricted
+    pod-security.kubernetes.io/warn=restricted \
+    eso-enabled="true"
+  ```
+
+- [ ] 5.10.1.1a Update infrastructure AppProject destinations and clusterResourceWhitelist
+  ```yaml
+  # manifests/argocd/appprojects.yaml - add to infrastructure project:
+  # destinations:
+  - namespace: argo-rollouts
+    server: https://kubernetes.default.svc
+  # clusterResourceWhitelist (for ClusterAnalysisTemplates):
+  - group: argoproj.io
+    kind: ClusterAnalysisTemplate
   ```
 
 - [ ] 5.10.1.2 Create LimitRange and ResourceQuota
@@ -209,7 +221,7 @@
 | portfolio-prod | 2 | Blue-Green | CI/CD app, preview URL validates before cutover | **Wave 1** |
 | ghost-prod | 1 | Blue-Green | Zero-downtime critical, MySQL settle time matters | **Wave 2** |
 | homepage | 2 | Canary | Low risk, replica-based 50% split, good learning | **Wave 3** |
-| invoicetron-prod | 2 | Blue-Green | CI/CD app, after portfolio proves the pattern | **Future** |
+| invoicetron-prod | 1 | Blue-Green | CI/CD app, single replica - doubles resource during rollout | **Future** |
 | cloudflared | 2 | SKIP | Infrastructure tunnel - disruption affects all ingress |
 | ARR stack (all) | 1 | SKIP | Single-replica, downtime acceptable, no metrics |
 | GitLab | varies | SKIP | Helm-managed complex chart, not a simple Deployment |
@@ -312,7 +324,7 @@ See section 5.10.9 for future evaluation criteria.
       app: portfolio
     ports:
       - port: 80
-        targetPort: 3000
+        targetPort: 80
   # This service is updated by Rollouts to point at the preview (new) ReplicaSet.
   # The existing portfolio service continues pointing at active (old) ReplicaSet.
   ```
@@ -807,6 +819,8 @@ controller:
 - [ ] All 5 Rollout CRDs present (rollouts, analysisruns, analysistemplates, clusteranalysistemplates, experiments)
 - [ ] ClusterAnalysisTemplates http-success-rate and pod-restart-rate created
 - [ ] ArgoCD Application argo-rollouts is Synced/Healthy
+- [ ] infrastructure AppProject includes argo-rollouts destination and ClusterAnalysisTemplate whitelist
+- [ ] argo-rollouts namespace has eso-enabled="true" label
 
 **Wave 1 - portfolio-prod:**
 - [ ] Rollout created, status Healthy
@@ -869,11 +883,16 @@ kubectl-admin delete namespace argo-rollouts
 **Convert Rollouts back to Deployments:**
 ```bash
 # For each converted service (portfolio, ghost, homepage):
-# 1. kubectl-admin delete rollout <name> -n <namespace>
-# 2. kubectl-admin apply -f manifests/<service>/deployment.yaml
-# 3. kubectl-admin delete service <name>-preview -n <namespace>  # remove preview Services
+# 1. Restore deployment.yaml from git history (removed during migration):
+#    git checkout HEAD~N -- manifests/<service>/deployment.yaml
+# 2. Remove rollout.yaml from Git, commit
+# 3. kubectl-admin delete rollout <name> -n <namespace>
+# 4. kubectl-admin apply -f manifests/<service>/deployment.yaml
+# 5. kubectl-admin delete service <name>-preview -n <namespace>
+# 6. Commit the restored deployment.yaml and removed rollout.yaml
 
 # Example for portfolio
+git checkout HEAD~N -- manifests/portfolio/deployment.yaml
 kubectl-admin delete rollout portfolio -n portfolio-prod
 kubectl-admin apply -f manifests/portfolio/deployment.yaml
 kubectl-admin delete service portfolio-preview -n portfolio-prod

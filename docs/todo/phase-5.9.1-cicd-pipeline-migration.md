@@ -132,16 +132,16 @@ clone --------+ +--- type-check --+---> build ---> migrate ---> deploy ---> veri
 
 | Step | Image | What it does | Shared? |
 |------|-------|-------------|---------|
-| clone | alpine/git | Clones repo from GitLab into shared volume | Yes |
-| lint | oven/bun:1-alpine | `bun run lint` | Yes (template) |
-| type-check | oven/bun:1-alpine | `bun run type-check` (+ prisma generate for Invoicetron) | Parameterized |
-| test:unit | oven/bun:1-alpine | `bun run test:unit` (Invoicetron uses node:22-slim) | Per-project |
-| test:e2e | mcr.microsoft.com/playwright | Smoke tests (Portfolio only) | Portfolio only |
-| build | moby/buildkit:rootless | `buildctl build` + push to GitLab registry | Yes (template) |
+| clone | alpine/git:2.47.2 | Clones repo from GitLab into shared volume | Yes |
+| lint | oven/bun:1.2-alpine | `bun run lint` | Yes (template) |
+| type-check | oven/bun:1.2-alpine | `bun run type-check` (+ prisma generate for Invoicetron) | Parameterized |
+| test:unit | oven/bun:1.2-alpine | `bun run test:unit` (Invoicetron uses node:22-slim) | Per-project |
+| test:e2e | mcr.microsoft.com/playwright:v1.52.0 | Smoke tests (Portfolio only, requires VAP exception) | Portfolio only |
+| build | moby/buildkit:v0.21.1-rootless | `buildctl build` + push to GitLab registry | Yes (template) |
 | migrate | App image (just built) | `bunx prisma migrate deploy` | Invoicetron only |
-| deploy | alpine/git | Updates image tag in homelab repo, ArgoCD syncs | Yes (template) |
-| verify | curlimages/curl | Health check HTTP probe | Yes (template) |
-| discord-notify | curlimages/curl | Exit handler - posts to Discord on failure | Yes (template) |
+| deploy | alpine/git:2.47.2 | Updates image tag in homelab repo, ArgoCD syncs | Yes (template) |
+| verify | curlimages/curl:8.12.1 | Health check HTTP probe | Yes (template) |
+| discord-notify | curlimages/curl:8.12.1 | Exit handler, reuses notify-on-failure from Phase 5.9 | Yes (template) |
 
 ### Shared Volume
 
@@ -246,6 +246,7 @@ No cluster-admin. No cross-namespace access except Sensor -> Workflow creation.
 - BuildKit rootless: UID 1000, baseline compatible
 - All workflow pods: seccompProfile RuntimeDefault, allowPrivilegeEscalation false, drop ALL
 - No privileged containers, no hostNetwork, no hostPID
+- VAP image-registry-policy: mcr.microsoft.com/ added for Playwright E2E tests
 
 ---
 
@@ -267,12 +268,26 @@ No cluster-admin. No cross-namespace access except Sensor -> Workflow creation.
 - [ ] 5.9.1.0.1 Verify Argo Workflows controller is healthy
 - [ ] 5.9.1.0.2 Verify ArgoCD Applications all Synced/Healthy
 - [ ] 5.9.1.0.3 Check cluster resource headroom for Argo Events controller (~100m CPU, ~128Mi)
+- [ ] 5.9.1.0.4 Verify VAP allows Playwright image (Portfolio E2E tests)
+  ```bash
+  kubectl-admin run test-playwright \
+    --image=mcr.microsoft.com/playwright:v1.52.0 \
+    --dry-run=server -n default
+  # If VAP denies: add mcr.microsoft.com/ to manifests/kube-system/image-registry-policy.yaml
+  ```
 
 ---
 
 ## 5.9.1.1 Wave 0: Argo Events Installation
 
-- [ ] 5.9.1.1.1 Create namespace `argo-events` with PSS baseline label
+- [ ] 5.9.1.1.1 Create namespace `argo-events` with PSS baseline + ESO label
+  ```bash
+  kubectl-admin create namespace argo-events
+  kubectl-admin label namespace argo-events \
+    pod-security.kubernetes.io/enforce=baseline \
+    pod-security.kubernetes.io/warn=restricted \
+    eso-enabled="true"
+  ```
 - [ ] 5.9.1.1.2 Create LimitRange and ResourceQuota
 - [ ] 5.9.1.1.3 Create Helm values file (`helm/argo-events/values.yaml`)
   - event-bus-controller, eventsource-controller, sensor-controller
@@ -283,9 +298,66 @@ No cluster-admin. No cross-namespace access except Sensor -> Workflow creation.
   - AppProject: `infrastructure`
 - [ ] 5.9.1.1.5 Deploy and verify controllers are running
 - [ ] 5.9.1.1.6 Create CiliumNetworkPolicy for argo-events namespace
+- [ ] 5.9.1.1.6a Update infrastructure AppProject destinations
+  ```yaml
+  # manifests/argocd/appprojects.yaml - add to infrastructure project destinations:
+  - namespace: argo-events
+    server: https://kubernetes.default.svc
+  # Note: argo-workflows destination should already be added in Phase 5.9
+  ```
+
+- [ ] 5.9.1.1.6b Create cross-namespace RBAC for Sensor -> Workflow creation
+  ```yaml
+  # manifests/argo-workflows/rbac/argo-events-workflow-creator.yaml
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: Role
+  metadata:
+    name: workflow-creator
+    namespace: argo-workflows
+  rules:
+    - apiGroups: ["argoproj.io"]
+      resources: ["workflows"]
+      verbs: ["create", "get", "list", "watch"]
+  ---
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: argo-events-workflow-creator
+    namespace: argo-workflows
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: workflow-creator
+  subjects:
+    - kind: ServiceAccount
+      name: argo-events-sa
+      namespace: argo-events
+  ```
+
 - [ ] 5.9.1.1.7 Create ESO ExternalSecret for GitLab webhook token
   - Vault path: `argo-events/gitlab-webhook-secret`
   - Seed Vault with a generated webhook secret
+- [ ] 5.9.1.1.7a Create 1Password items for Argo CI/CD secrets
+  ```
+  # User must create these in 1Password Kubernetes vault:
+  # 1. "Argo Events" item:
+  #    - gitlab-webhook-secret: generated random token
+  # 2. "Argo Workflows CI/CD" item:
+  #    - gitlab-registry-username: deploy token username
+  #    - gitlab-registry-password: deploy token password
+  #    - github-deploy-key: SSH private key (generate with ssh-keygen)
+  #
+  # Add public key to GitHub homelab repo as deploy key (read/write)
+  ```
+
+- [ ] 5.9.1.1.7b Update Vault seed script
+  ```bash
+  # scripts/vault/seed-vault-from-1password.sh - add new paths:
+  # argo-events/gitlab-webhook-secret -> from "Argo Events" 1P item
+  # argo-workflows/gitlab-registry -> from "Argo Workflows CI/CD" 1P item
+  # argo-workflows/github-deploy-key -> from "Argo Workflows CI/CD" 1P item
+  ```
+
 - [ ] 5.9.1.1.8 Create EventSource (`manifests/argo-events/eventsource-gitlab.yaml`)
   - Webhook type, port 12000, endpoint `/gitlab`
   - Secret ref for webhook token validation
@@ -312,15 +384,19 @@ No cluster-admin. No cross-namespace access except Sensor -> Workflow creation.
   - `buildctl build` with registry cache, push to GitLab registry
   - Parameters: image_name, tag, build_args, dockerfile_path
 - [ ] 5.9.1.2.5 Create shared WorkflowTemplate: `deploy-image`
-  - alpine/git, updates image tag in homelab repo via git commit + push
-  - Parameters: project, image_tag, target_file
+  - alpine/git:2.47.2, updates image tag in homelab repo via git commit + push
+  - Parameters: project, image_tag, target_file, target_field (supports both
+    deployment.yaml image field and kustomization.yaml newTag field)
   - Uses GitHub deploy key from Secret mount
+  - target_file must be parameterized to support future Deployment-to-Rollout
+    conversions (Phase 5.10) without pipeline changes
 - [ ] 5.9.1.2.6 Create shared WorkflowTemplate: `verify-health`
   - curlimages/curl, HTTP health check with retry
   - Parameters: url, expected_status
-- [ ] 5.9.1.2.7 Create shared WorkflowTemplate: `notify-discord`
-  - curlimages/curl, exit handler for failure notification
-  - Uses existing Discord webhook Secret
+- [ ] 5.9.1.2.7 Reuse `notify-on-failure` WorkflowTemplate from Phase 5.9
+  - Already created in Phase 5.9 (manifests/argo-workflows/templates/notify-on-failure.yaml)
+  - CI/CD workflows reference the same template via onExit handler
+  - No new template needed - just verify it exists and is deployed
 - [ ] 5.9.1.2.8 Test each template individually with manual Workflow submissions
   - `kubectl-admin create -f` test workflows for clone, build, deploy
   - Verify each step completes successfully in isolation
@@ -392,7 +468,9 @@ No cluster-admin. No cross-namespace access except Sensor -> Workflow creation.
   - Row 2: Pipeline Execution (success/failure rates, duration)
   - Row 3: Build Metrics (BuildKit build duration, image sizes)
   - Row 4: Webhook Events (received, filtered, triggered)
+  - Row 5: Resource Usage (CPU/Memory with dashed request/limit lines)
   - Descriptions on every panel and row
+  - ConfigMap with grafana_dashboard: "1" label, grafana_folder: "Homelab" annotation
 - [ ] 5.9.1.5.2 Create PrometheusRules for CI/CD
   - CIPipelineFailed (workflow status Failed, 5m)
   - CIBuildStuck (workflow running > 15m)
@@ -439,8 +517,11 @@ No cluster-admin. No cross-namespace access except Sensor -> Workflow creation.
 - [ ] CiliumNetworkPolicy applied
 
 **Shared Templates:**
-- [ ] All 7 WorkflowTemplates deployed and tested individually
+- [ ] All 6 WorkflowTemplates deployed and tested individually (notify-on-failure reused from Phase 5.9)
 - [ ] ESO ExternalSecrets synced (GitLab registry, GitHub deploy key)
+- [ ] Cross-namespace RBAC: argo-events-sa can create Workflows in argo-workflows
+- [ ] 1Password items created and Vault seed script updated
+- [ ] VAP updated to allow mcr.microsoft.com/ images (if Playwright approach kept)
 
 **Portfolio:**
 - [ ] Push to develop -> full pipeline -> ArgoCD sync -> dev pod updated

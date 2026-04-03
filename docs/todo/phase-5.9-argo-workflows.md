@@ -69,7 +69,15 @@
   kubectl-admin create namespace argo-workflows
   kubectl-admin label namespace argo-workflows \
     pod-security.kubernetes.io/enforce=baseline \
-    pod-security.kubernetes.io/warn=restricted
+    pod-security.kubernetes.io/warn=restricted \
+    eso-enabled="true"
+  ```
+
+- [ ] 5.9.1.1a Update infrastructure AppProject destinations
+  ```yaml
+  # manifests/argocd/appprojects.yaml - add to infrastructure project destinations:
+  - namespace: argo-workflows
+    server: https://kubernetes.default.svc
   ```
 
 - [ ] 5.9.1.2 Create LimitRange and ResourceQuota
@@ -78,6 +86,15 @@
   # manifests/argo-workflows/resourcequota.yaml
   # controller: 200m CPU request, 500m limit, 256Mi request, 512Mi limit
   # workflow pods: 100m CPU request, 500m limit, 128Mi request, 512Mi limit
+  ```
+
+- [ ] 5.9.1.2a Create ESO ExternalSecret for Discord webhook
+  ```yaml
+  # manifests/argo-workflows/externalsecret-discord.yaml
+  # Pulls monitoring/discord-webhooks from Vault
+  # Target Secret: discord-webhooks in argo-workflows namespace
+  # Keys: incidents (used by vault-snapshot exit handler)
+  # Requires: eso-enabled label on namespace (step 5.9.1.1)
   ```
 
 - [ ] 5.9.1.3 Create Helm values file
@@ -186,8 +203,9 @@
 
 ## 5.9.2 CronJob Analysis
 
-> **Evaluation complete (March 2026):** All 23 current cluster CronJobs analyzed
-> against Argo Workflows capabilities.
+> **Evaluation complete (March 2026):** All current cluster CronJobs analyzed
+> against Argo Workflows capabilities. Updated April 2026 after verification
+> against live cluster state.
 
 Architecture overview: workflow-controller (reconciles CRDs) + argoexec sidecar
 (runs in each workflow pod for progress reporting). argo-server (UI/API) is optional
@@ -195,32 +213,41 @@ and disabled in this deployment to save resources.
 
 ### Full CronJob Evaluation
 
-| CronJob | Schedule | Complexity | AW Benefit | Verdict |
-|---------|----------|------------|------------|---------|
-| cluster-janitor | 10 min | Single step | None | Keep CronJob |
-| arr-stall-resolver | 30 min | Single step | None | Keep CronJob |
-| arr-backup-cp1 | Daily | Single step | Parallel DAG | Marginal |
-| arr-backup-cp2 | Daily | Single step | Parallel DAG | Marginal |
-| arr-backup-cp3 | Daily | Single step | Parallel DAG | Marginal |
-| adguard-backup | Daily | Single step | None | Keep CronJob |
-| myspeed-backup | Daily | Single step | None | Keep CronJob |
-| karakeep-backup | Daily | Single step | None | Keep CronJob |
-| grafana-backup | Daily | Single step | None | Keep CronJob |
-| uptime-kuma-backup | Daily | Single step | None | Keep CronJob |
-| ghost-mysql-backup | Daily | Single step | None | Keep CronJob |
-| invoicetron-db-backup | Daily | Single step | None | Keep CronJob |
-| atuin-backup | Weekly | Single step | None | Keep CronJob |
-| etcd-backup | Daily | Single step | None | Keep CronJob |
-| vault-snapshot | Daily | Multi-step | DAG + exit handler | MIGRATE |
-| configarr | Daily | Single step | None | Keep CronJob |
-| version-check/Nova | Weekly | Single step | None | Keep CronJob |
-| cert-expiry-check | Weekly | Single step | None | Keep CronJob |
-| pki-backup | Weekly | Single step | None | Keep CronJob |
-| Longhorn recurring (4) | Longhorn-native | N/A | N/A | Keep Longhorn |
+| CronJob | Namespace | Schedule | Complexity | AW Benefit | Verdict |
+|---------|-----------|----------|------------|------------|---------|
+| cluster-janitor | kube-system | 10 min | Single step | None | Keep CronJob |
+| arr-stall-resolver | arr-stack | 30 min | Single step | None | Keep CronJob |
+| arr-backup-bazarr | arr-stack | Daily | Single step | None | Keep CronJob |
+| arr-backup-jellyfin | arr-stack | Daily | Single step | None | Keep CronJob |
+| arr-backup-prowlarr | arr-stack | Daily | Single step | None | Keep CronJob |
+| arr-backup-qbittorrent | arr-stack | Daily | Single step | None | Keep CronJob |
+| arr-backup-radarr | arr-stack | Daily | Single step | None | Keep CronJob |
+| arr-backup-recommendarr | arr-stack | Daily | Single step | None | Keep CronJob |
+| arr-backup-seerr | arr-stack | Daily | Single step | None | Keep CronJob |
+| arr-backup-sonarr | arr-stack | Daily | Single step | None | Keep CronJob |
+| arr-backup-tdarr | arr-stack | Daily | Single step | None | Keep CronJob |
+| adguard-backup | home | Daily | Single step | None | Keep CronJob |
+| myspeed-backup | home | Daily | Single step | None | Keep CronJob |
+| karakeep-backup | karakeep | Daily | Single step | None | Keep CronJob |
+| grafana-backup | monitoring | Daily | Single step | None | Keep CronJob |
+| uptime-kuma-backup | uptime-kuma | Daily | Single step | None | Keep CronJob |
+| ghost-mysql-backup | ghost-prod | Daily | Single step | None | Keep CronJob |
+| invoicetron-db-backup | invoicetron-prod | Daily | Single step | None | Keep CronJob |
+| atuin-backup | atuin | Weekly | Single step | None | Keep CronJob |
+| etcd-backup | kube-system | Daily | Single step | None | Keep CronJob |
+| vault-snapshot | vault | Daily | Multi-step | DAG + exit handler | MIGRATE |
+| configarr | arr-stack | Daily | Single step | None | Keep CronJob |
+| version-check/Nova | kube-system | Weekly | Single step | None | Keep CronJob |
+| cert-expiry-check | cert-manager | Weekly | Single step | None | Keep CronJob |
+| pki-backup | kube-system | Weekly | Single step | None | Keep CronJob |
+| kube-bench-weekly | kube-system | Weekly | Single step | None | Keep CronJob |
+| Longhorn recurring (4) | longhorn-system | Longhorn-native | N/A | N/A | Keep Longhorn |
 
-**Result:** 1 of 23 current CronJobs (vault-snapshot) materially benefits from
-migration. The arr-backup trio benefits marginally from parallelism. All others
-are single-step tasks with no inter-dependencies.
+**Result:** 1 CronJob (vault-snapshot) materially benefits from migration to
+Argo Workflows. All others are single-step tasks with no inter-dependencies.
+The ARR backups were previously 3 per-node CronJobs (cp1/cp2/cp3) but were
+already restructured into 9 per-app CronJobs with podAffinity, eliminating the
+parallelism benefit that would have justified migration.
 
 ### Strongest Candidates
 
@@ -229,16 +256,17 @@ Multi-step dependency `login -> snapshot -> prune` maps cleanly to a DAG.
 Current shell script uses `set -e` so login failure silently skips snapshot.
 DAG makes ordering explicit with exit handler for Discord notification on failure.
 
-**2. arr-backup-cp1/2/3 consolidation (MEDIUM) - Wave 2:**
-3 CronJobs become 1 CronWorkflow with parallel DAG tasks, one per node
-(nodeSelector per step). Reduces CronJob count by 2 and adds failure notification
-via shared WorkflowTemplate exit handler pattern.
+**2. Backup failure notification gap (MEDIUM) - Wave 2:**
+The 9 ARR backup CronJobs and other single-step backup CronJobs have no failure
+alerting. Rather than migrating them to CronWorkflows (which adds per-step pod
+overhead with no orchestration benefit), add Prometheus `kube_job_status_failed`
+alerts. See section 5.9.4 for details.
 
-**3. Backup failure notification gap (MEDIUM) - Wave 2:**
-None of the 8 single-step backup CronJobs (ghost-mysql, atuin, adguard, myspeed,
-karakeep, grafana, uptime-kuma, invoicetron-db) currently send Discord alerts on
-failure. Argo exit handler pattern with `{{workflow.status}}` closes this for all
-at once via a shared WorkflowTemplate.
+**3. Prometheus backup failure alerts (MEDIUM) - Wave 2:**
+None of the single-step backup CronJobs (9 ARR backups + ghost-mysql, atuin,
+adguard, myspeed, karakeep, grafana, uptime-kuma, invoicetron-db) currently send
+alerts on failure. Prometheus `kube_job_status_failed` alerts are the right
+approach - lower overhead than CronWorkflow migration for atomic scripts.
 
 ### Keep as CronJob (no benefit)
 
@@ -262,7 +290,8 @@ at once via a shared WorkflowTemplate.
 
 > **Rationale:** vault-snapshot is the highest-value migration. The current CronJob
 > runs a single container with a shell script using `set -e`. If `vault login` fails,
-> the snapshot step is silently skipped with no notification. A DAG makes the
+> `set -e` aborts the entire script (exit non-zero). The job fails but there is no
+> Discord notification, so failures go undetected. A DAG makes the
 > dependency explicit and adds failure alerting via exit handler.
 
 ### DAG Design
@@ -310,22 +339,27 @@ discord-notify (on failure only)
           image: hashicorp/vault:<version>
           command: [sh, -c]
           args:
-            - vault login -method=token token=$VAULT_TOKEN
+            - |
+              SA_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+              VAULT_TOKEN=$(vault write -field=token auth/kubernetes/login \
+                role=vault-snapshot jwt=$SA_TOKEN)
+              echo "$VAULT_TOKEN" > /tmp/vault-token
+              vault token lookup
           env:
             - name: VAULT_ADDR
               value: "http://vault.vault.svc.cluster.local:8200"
-            - name: VAULT_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: vault-snapshot-token
-                  key: token
 
       - name: vault-snapshot-step
         container:
           image: hashicorp/vault:<version>
           command: [sh, -c]
           args:
-            - vault operator raft snapshot save /snapshots/vault-$(date +%Y%m%d-%H%M%S).snap
+            - |
+              export VAULT_TOKEN=$(cat /tmp/vault-token)
+              vault operator raft snapshot save /snapshots/vault-$(date +%Y%m%d-%H%M%S).snap
+          env:
+            - name: VAULT_ADDR
+              value: "http://vault.vault.svc.cluster.local:8200"
           volumeMounts:
             - name: snapshots
               mountPath: /snapshots
@@ -387,8 +421,9 @@ discord-notify (on failure only)
   ```yaml
   # manifests/argo-workflows/rbac/vault-snapshot-rbac.yaml
   # ServiceAccount: vault-snapshot-workflow in argo-workflows namespace
-  # Role: get/list secrets in argo-workflows namespace (vault-snapshot-token)
-  # No cluster-level permissions needed (NFS volume, no PVC)
+  # Role: get/list secrets in argo-workflows namespace (discord-webhooks)
+  # ClusterRoleBinding: system:auth-delegator (for Vault Kubernetes auth)
+  # No cluster-level permissions needed for NFS (volume, no PVC)
   ```
 
 - [ ] 5.9.3.4 Remove the old vault-snapshot CronJob
@@ -425,62 +460,45 @@ discord-notify (on failure only)
 
 ---
 
-## 5.9.4 Migration Wave 2 - Backup CronJobs
+## 5.9.4 Wave 2 - Backup Failure Alerts
 
-> **Rationale:** Three separate arr-backup CronJobs (cp1, cp2, cp3) run identical
-> logic on different nodes. Consolidating into one CronWorkflow reduces resource
-> overhead and enables parallel execution. The shared exit handler pattern also
-> closes the Discord notification gap for all 8 single-step backup CronJobs.
+> **Rationale:** None of the single-step backup CronJobs have failure alerting today.
+> Prometheus `kube_job_status_failed` alerts are the right approach - lower overhead
+> than migrating atomic scripts to CronWorkflows.
 
-### Shared Notify WorkflowTemplate
-
-- [ ] 5.9.4.1 Create shared notify-on-failure WorkflowTemplate
+- [ ] 5.9.4.1 Create PrometheusRule for backup CronJob failures
   ```yaml
-  # manifests/argo-workflows/templates/notify-on-failure.yaml
-  # Reusable exit handler: posts to Discord incidents webhook if
-  # {{workflow.status}} != "Succeeded"
-  # Used by: arr-backup-cron, any future workflow needing failure alerts
+  # manifests/monitoring/alerts/backup-alerts.yaml
+  apiVersion: monitoring.coreos.com/v1
+  kind: PrometheusRule
+  metadata:
+    name: backup-job-alerts
+    namespace: monitoring
+    labels:
+      release: prometheus
+  spec:
+    groups:
+      - name: backup-jobs
+        rules:
+          - alert: BackupJobFailed
+            expr: |
+              kube_job_status_failed{
+                job_name=~"(arr-backup|adguard-backup|myspeed-backup|karakeep-backup|grafana-backup|uptime-kuma-backup|ghost-mysql-backup|invoicetron-db-backup|atuin-backup|etcd-backup|pki-backup).*"
+              } > 0
+            for: 5m
+            labels:
+              severity: warning
+              category: backup
+            annotations:
+              summary: "Backup job {{ $labels.job_name }} failed"
+              description: "Backup job {{ $labels.job_name }} in {{ $labels.namespace }} has failed."
   ```
 
-### ARR Backup Consolidation
-
-- [ ] 5.9.4.2 Create arr-backup WorkflowTemplate with parallel DAG
-  ```yaml
-  # manifests/argo-workflows/templates/arr-backup-template.yaml
-  # DAG tasks: backup-cp1, backup-cp2, backup-cp3 (all parallel, no dependencies)
-  # Each task uses nodeSelector to target its specific node
-  # onExit: notify-on-failure (shared template ref)
-  #
-  # Task node affinity example:
-  #   nodeSelector:
-  #     kubernetes.io/hostname: cp1
-  ```
-
-- [ ] 5.9.4.3 Create arr-backup CronWorkflow
-  ```yaml
-  # manifests/argo-workflows/cronworkflows/arr-backup-cron.yaml
-  # Schedule: same as existing arr-backup-cp1 (daily 03:00 Asia/Manila)
-  # concurrencyPolicy: Forbid
-  # workflowTemplateRef: arr-backup
-  ```
-
-- [ ] 5.9.4.4 Remove old arr-backup-cp{1,2,3} CronJobs after successful test run
+- [ ] 5.9.4.2 Verify alerts load in Prometheus
   ```bash
-  kubectl-admin delete cronjob arr-backup-cp1 arr-backup-cp2 arr-backup-cp3 -n arr-stack
-  ```
-
-### Single-Step Backup Failure Notifications
-
-> These 8 CronJobs have no multi-step benefit from Argo Workflows, but they have
-> zero failure notification today. Options: (a) migrate to CronWorkflow with exit
-> handler, or (b) add a Prometheus alert on `kube_job_status_failed`. Option (b)
-> is lower overhead and avoids unnecessary migration.
-
-- [ ] 5.9.4.5 Decide: Prometheus alert vs CronWorkflow migration for single-step backups
-  ```
-  Recommended: add kube_job_status_failed alerts in manifests/monitoring/alerts/backup-alerts.yaml
-  for ghost-mysql, atuin, adguard, myspeed, karakeep, grafana, uptime-kuma, invoicetron-db.
-  Argo migration adds per-step pod overhead with no benefit for atomic scripts.
+  # After applying, check Prometheus targets
+  kubectl-homelab port-forward svc/prometheus-operated -n monitoring 9090:9090
+  # Open http://localhost:9090/alerts and search for BackupJobFailed
   ```
 
 ---
@@ -633,12 +651,10 @@ Single Discord notification with aggregate pass/fail instead of per-job alerts.
 - [ ] Old vault-snapshot CronJob removed from `vault` namespace
 - [ ] NFS snapshot file present at `/export/Kubernetes/Backups/vault/`
 
-**Wave 2 - arr-backup:**
-- [ ] arr-backup WorkflowTemplate deployed with parallel DAG
-- [ ] arr-backup CronWorkflow deployed and scheduled
-- [ ] Manual test run completed - all 3 parallel tasks Succeeded
-- [ ] Old arr-backup-cp1/2/3 CronJobs removed from `arr-stack` namespace
-- [ ] Shared notify-on-failure WorkflowTemplate deployed
+**Wave 2 - Backup Alerts:**
+- [ ] PrometheusRule backup-job-alerts loaded in Prometheus
+- [ ] Test: trigger a backup job failure, verify alert fires
+- [ ] Discord notification received via Alertmanager route
 
 **Networking:**
 - [ ] CiliumNetworkPolicy applied for argo-workflows namespace
@@ -691,10 +707,8 @@ kubectl-admin delete namespace argo-workflows
 # vault-snapshot: re-apply original CronJob manifest
 kubectl-admin apply -f manifests/vault/snapshot-cronjob.yaml
 
-# arr-backup: re-apply original 3 CronJob manifests
-kubectl-admin apply -f manifests/arr-stack/backup-cronjob-cp1.yaml
-kubectl-admin apply -f manifests/arr-stack/backup-cronjob-cp2.yaml
-kubectl-admin apply -f manifests/arr-stack/backup-cronjob-cp3.yaml
+# arr-backup CronJobs are per-app in manifests/arr-stack/backup/ (not migrated)
+# No rollback needed for backup CronJobs - they remain as native CronJobs
 ```
 
 **CiliumNP too restrictive:**
