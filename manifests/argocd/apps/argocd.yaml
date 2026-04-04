@@ -28,6 +28,14 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
+  # argocd-secret is patched by ESO (manifests/argocd/externalsecret.yaml) via
+  # creationPolicy:Merge which adds admin.password + server.secretkey from Vault.
+  # ArgoCD would otherwise flag the merged fields as OutOfSync vs Helm's template.
+  ignoreDifferences:
+    - kind: Secret
+      name: argocd-secret
+      jqPathExpressions:
+        - .data
   syncPolicy:
     syncOptions:
       - ServerSideApply=true

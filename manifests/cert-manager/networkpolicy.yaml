@@ -53,6 +53,16 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
+    # DNS-01 propagation verification: cert-manager queries authoritative nameservers
+    # directly by IP (Cloudflare anycast: 108.162.x.x, 162.159.x.x, 172.64.x.x)
+    # to confirm TXT record propagation. Internal CoreDNS rule does not cover
+    # external IPs on port 53.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
 ---
 # cert-manager ingress: monitoring (9402 metrics) + kubelet (9403 healthz)
 apiVersion: cilium.io/v2

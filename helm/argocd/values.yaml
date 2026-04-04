@@ -133,6 +133,12 @@ applicationSet:
         release: prometheus
 
 notifications:
+  secret:
+    # Disable Helm-created empty secret. argocd-notifications-secret is owned
+    # by ESO ExternalSecret (manifests/argocd/externalsecret.yaml) which pulls
+    # the Discord webhook URL from Vault. Helm creating it causes SharedResourceWarning
+    # and races with ESO, leaving the webhook URL empty.
+    create: false
   resources:
     requests:
       cpu: 50m
