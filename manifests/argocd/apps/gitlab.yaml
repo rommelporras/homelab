@@ -28,13 +28,19 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: gitlab
+  # divisor: '0' is defaulted by the API server on resourceFieldRef entries
+  # that don't specify it. Gitaly StatefulSet env vars trigger this.
+  ignoreDifferences:
+    - kind: StatefulSet
+      jqPathExpressions:
+        - .spec.template.spec.containers[]?.env[]?.valueFrom?.resourceFieldRef?.divisor
+        - .spec.template.spec.initContainers[]?.env[]?.valueFrom?.resourceFieldRef?.divisor
   syncPolicy:
     syncOptions:
       - ServerSideApply=true
       - CreateNamespace=false
       - ServerSideDiff=true
       - RespectIgnoreDifferences=true
-      - Replace=true
     # Auto-sync disabled: GitLab Helm chart pre-install/pre-upgrade hooks
     # create RBAC resources that conflict with ArgoCD's sync apply.
     # Sync manually after values changes via ArgoCD UI.
