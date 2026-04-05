@@ -31,7 +31,8 @@ spec:
   # divisor: '0' is defaulted by the API server on resourceFieldRef entries
   # that don't specify it. Gitaly StatefulSet env vars trigger this.
   ignoreDifferences:
-    - kind: StatefulSet
+    - group: apps
+      kind: StatefulSet
       jqPathExpressions:
         - .spec.template.spec.containers[]?.env[]?.valueFrom?.resourceFieldRef?.divisor
         - .spec.template.spec.initContainers[]?.env[]?.valueFrom?.resourceFieldRef?.divisor
