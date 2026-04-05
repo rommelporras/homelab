@@ -266,15 +266,18 @@ gitlab:
         memory: 128Mi
 
   # Migrations (database migrations on install/upgrade)
+  # GitLab 18.x migrations need ~1-1.5 GB for Rails + bootsnap + ActiveRecord.
+  # 512Mi was OOMKilling the container in a loop, leaving the Job never-Complete
+  # which caused ArgoCD to report gitlab as Missing/OutOfSync on every re-sync.
   migrations:
     enabled: true
     resources:
       requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 500m
+        cpu: 100m
         memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1536Mi
 
 # ─────────────────────────────────────────────────────────────────
 # CONTAINER REGISTRY
