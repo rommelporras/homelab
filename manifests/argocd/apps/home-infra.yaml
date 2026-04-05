@@ -19,8 +19,6 @@ spec:
     repoURL: https://github.com/rommelporras/homelab.git
     path: manifests/home
     targetRevision: main
-    directory:
-      recurse: false
   destination:
     server: https://kubernetes.default.svc
     namespace: home
