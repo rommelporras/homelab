@@ -1,0 +1,52 @@
+# PrometheusRule for OOMKilled container detection
+#
+# Catches silent OOM-loops that leave workloads "running" from a controller's
+# perspective but never actually complete their work. This is the class of
+# failure where the gitlab migrations Job sat in an OOMKill loop for hours,
+# leaving ArgoCD reporting Missing on the gitlab app without any alert firing.
+#
+# Metric used:
+#   kube_pod_container_status_last_terminated_reason — from kube-state-metrics
+#
+# Rules:
+#   ContainerOOMKilled       — warning, any OOM in the last 10 min
+#   ContainerOOMKilledRepeat — critical, 3+ OOMs in the last 1 hour (loop)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: oomkilled-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: oomkilled
+      rules:
+        # Single OOM event — raise limits or investigate memory usage.
+        - alert: ContainerOOMKilled
+          expr: |
+            increase(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[10m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+            category: infra
+          annotations:
+            summary: "Container OOMKilled: {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }}"
+            description: "Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) was OOMKilled. Check memory limits vs actual usage - may indicate a leak, undersized limits, or a chart upgrade that raised memory requirements."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/oomkilled.md#ContainerOOMKilled"
+
+        # OOM loop — container is being killed repeatedly and making no progress.
+        # This is the exact signature of the gitlab migrations incident.
+        - alert: ContainerOOMKilledRepeat
+          expr: |
+            increase(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[1h]) >= 3
+          for: 0m
+          labels:
+            severity: critical
+            category: infra
+          annotations:
+            summary: "Container OOMKilled 3+ times in 1h: {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }}"
+            description: "Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) has been OOMKilled 3 or more times in the last hour - stuck in an OOM loop. Raise memory limits or investigate leak immediately. Any Job or init container in this state blocks its parent workload indefinitely."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/oomkilled.md#ContainerOOMKilledRepeat"
