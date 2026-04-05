@@ -73,8 +73,8 @@ spec:
                 - name: DISCORD_WEBHOOK_URL
                   valueFrom:
                     secretKeyRef:
-                      name: discord-version-webhook
-                      key: webhook-url
+                      name: monitoring-discord-webhooks
+                      key: apps
               resources:
                 requests:
                   cpu: "50m"
