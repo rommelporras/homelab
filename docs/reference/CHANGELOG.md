@@ -4,6 +4,55 @@
 
 ---
 
+## April 6, 2026 - ArgoCD Drift Recovery & OOM Detection (v0.38.1)
+
+### Summary
+
+Hotfix release between Phase 5.8 and Phase 5.9. Fixes three ArgoCD applications that silently drifted into Missing/Degraded/OutOfSync states and went unnoticed for 1 to 3 days, plus cert renewal, GitLab sync stability, and ArgoCD self-management cleanup. Adds cluster-wide OOMKilled detection and the /verify-sync slash command to prevent this class of bug in the future.
+
+### Bug Fixes
+
+**ArgoCD drift recovery (the three silently-degraded apps)**
+
+- **gitlab app stuck Missing/OutOfSync for 36+ hours** - migrations container OOMKilled at 512Mi memory limit (Rails + bootsnap + ActiveRecord on GitLab 18.x needs ≥1.5Gi). Job's `restartPolicy: OnFailure` looped forever without ever reaching `.status.succeeded`, so ArgoCD reported Missing even though every other gitlab pod was Running. Raised `gitlab.migrations.resources.limits.memory` from 512Mi to 1536Mi, CPU limit from 500m to 1000m.
+- **monitoring-manifests stuck Degraded for 17+ hours** - `version-check` CronJob referenced the `discord-version-webhook` Secret that was deleted by cd0beef without updating the consumer. Sunday schedule's Job failed with CreateContainerConfigError, was cleaned up by cluster-janitor, left the CronJob's `lastSuccessfulTime` stale and triggered ArgoCD's built-in CronJob health check. Pointed CronJob at `monitoring-discord-webhooks/apps` instead.
+- **root app stuck in permanent OutOfSync drift loop** - `home-infra` Application manifest declared `directory.recurse: false` which is ArgoCD's default. API server stripped the field from the stored spec; git kept declaring it; root re-applied home-infra every reconcile with "spec.source differs". Removed the explicit default from the manifest.
+
+**ArgoCD self-management and sync stability**
+
+- **Cert renewal stuck for 26 hours** - cert-manager CiliumNetworkPolicy didn't allow egress to port 53 world, blocking DNS-01 propagation checks to Cloudflare authoritative nameservers (108.162.x.x, 162.159.x.x, 172.64.x.x). Three wildcard certs stuck pending past their May 3 expiry reminder.
+- **ArgoCD notifications silently broken** - Helm was creating an empty `argocd-notifications-secret` via `notifications.secret.create=true`, racing with ESO and causing SharedResourceWarning plus empty webhook URL.
+- **argocd-secret drift** - ESO Merge patches `admin.password` / `server.secretkey` but ArgoCD flagged them OutOfSync. Added `ignoreDifferences` on the targeted data paths.
+- **Duplicated self-management Application** - `manifests/argocd/self-management.yaml` duplicated `apps/argocd.yaml`, causing root app SyncError and SharedResourceWarning. Removed the duplicate.
+- **GitLab StatefulSet divisor drift** - `resourceFieldRef.divisor: '0'` is API-server-defaulted on fields not specified by the chart. Added `ignoreDifferences` with `group: apps` (without the group, the rule silently didn't match). Also removed `Replace=true` from syncOptions which was prompting delete-and-recreate of all 61 resources on every manual sync.
+
+**Alert routing and noise**
+
+- **VersionChecker alert batching truncated at Discord** - 161 `VersionCheckerImageOutdated` alerts batched every 4h were hitting Discord's 4096-char limit. Added dedicated `discord-versions` receiver with `group_by: [alertname]` and `repeat_interval: 24h` (one digest per day).
+- **gitlab excluded from ArgocdAppOutOfSync alert** - the exclusion silenced gitlab health drift for 36+ hours during this incident. Removed `|gitlab` from the `name!~` regex. cilium stays excluded (genuine steady-state TLS cert rotation drift). 30m `for:` grace handles helm-hook cleanup transients.
+- **Alertmanager routing by category label** - added `severity: warning, category: infra` match route alongside the existing alertname regex. Cleaner than hand-maintaining the regex for every new infra alert. Legacy regex stays as fallback during migration.
+- **Stale test-alert PrometheusRule** - left from notification testing, removed.
+
+### New Features (defensive)
+
+- **Cluster-wide OOMKilled PrometheusRule** - `ContainerOOMKilled` (warning, any OOM in 10m, routed to #infra via the new category route) + `ContainerOOMKilledRepeat` (critical, 3+ OOMs in 1h, routed to discord-incidents-email). Closes the detection gap that left the GitLab migrations OOM loop invisible. Applies to every container cluster-wide, not just gitlab.
+- **/verify-sync slash command** - auto-detects ArgoCD apps affected by the HEAD commit (via path mapping), triggers manual sync for manual-sync apps (gitlab), polls each target until Synced/Healthy or Failed with 10-minute timeout. Read-only except the one explicit sync trigger. Parallel polling with a summary table and next-step hints for Failed/Timeout rows.
+- **oomkilled.md runbook** - triage steps for single OOMs and OOM loops, "stop the loop before fixing" procedure, homelab-specific common culprits (gitlab-migrations, karakeep, ollama, prometheus), cross-references to CLAUDE.md gotchas.
+
+### Documentation
+
+- **CLAUDE.md debugging gotchas (+8 entries)** - GitLab migrations memory limit, ArgoCD built-in CronJob health check, `directory.recurse: false` drift, stuck sync recovery via `terminate-op --core`, argocd CLI `--core` mode, Cilium HTTPRoute stale `status.parents`, gitlab manual-sync + alert exclusion blind spot, Secret rename grep-first workflow.
+- **Phase 5.9/5.9.1/5.10 plans verified against live state** - CronJob count corrected (23 to 30 actual), ARR backup references updated (cp1/cp2/cp3 to 9 per-app), Wave 2 rewritten as Prometheus alerts, vault-snapshot auth switched from static token to K8s SA auth, 6 unpinned images added to 5.9.1 scope, portfolio preview targetPort fixed (80 not 3000), invoicetron-prod replica count fixed (1 not 2), missing eso-enabled label and AppProject whitelist tasks added to all three plans. Phase 5.8 closed.
+
+### Decisions
+
+- **v0.38.1 as patch release, not v0.39.0 minor** - primary content is reactive bug fixes; the new OOM alerts, category routing, and /verify-sync are defensive additions closing the gap that caused the drift. Phase 5.9 is still the next phase milestone and will get v0.39.0. First patch release in the project history.
+- **Unexclude gitlab from ArgocdAppOutOfSync** - exclusion was over-corrective. The 30m `for:` grace is enough to ride through helm-hook cleanup transients without alerting on normal sync cycles. Keeping the exclusion created a 36-hour blind spot during this incident.
+- **cd0beef regression fixed in the same release** - commit cd0beef removed the `discord-version-webhook` ExternalSecret but missed a consumer reference in the version-check CronJob. Net-zero across v0.38.1, but the bug existed on main for ~34 hours between cd0beef (Apr 5 01:27 UTC) and 807d9bf.
+- **Category-label routing alongside legacy regex** - alertmanager migration path: add `category: infra` label to each PrometheusRule incrementally, drop the matching entry from the legacy alertname regex over time. Avoids a big-bang refactor while enabling correct routing for new alerts.
+
+---
+
 ## April 1, 2026 - GitOps Migration (Phase 5.8)
 
 ### Session 1 - Waves 1-5 + App-of-Apps

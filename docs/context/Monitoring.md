@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-04-01
+updated: 2026-04-06
 ---
 
 # Monitoring
@@ -347,10 +347,12 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | `gitlab-alerts.yaml` | GitLab pod health, runner connectivity | v0.35.0 |
 | `home-alerts.yaml` | Homepage pod health, HTTP probe failures | v0.35.0 |
 | `argocd-alerts.yaml` | ArgocdAppOutOfSync, ArgocdAppUnhealthy, ArgocdSyncFailed, ArgocdRepoServerDown, ArgocdControllerDown, ArgocdGitFetchFailed, ArgocdClusterConnectionLost, ArgocdRepoServerPending, ArgocdNotificationDeliveryFailed | v0.37.0 |
+| `oomkilled-alerts.yaml` | ContainerOOMKilled (warning, any OOM in 10m), ContainerOOMKilledRepeat (critical, 3+ OOMs in 1h = OOM loop) | v0.38.1 |
 
 **Severity routing:**
 - `critical` → Discord #incidents + Email (3 recipients)
-- `warning` (infra regex match) → Discord #infra
+- `warning` + `category: infra` label → Discord #infra (preferred, v0.38.1+)
+- `warning` (infra alertname regex match) → Discord #infra (legacy fallback; migrate rules to `category` label over time)
 - `warning` (catch-all) → Discord #apps
 - `info` → null (silenced - visible in Alertmanager UI only)
 
@@ -391,7 +393,7 @@ All dashboards are auto-provisioned via Grafana sidecar. All have `grafana_folde
 |------|---------|
 | `version-checker-deployment.yaml` | version-checker Deployment + Service |
 | `version-checker-rbac.yaml` | RBAC (ClusterRole, ClusterRoleBinding - pods + apps read) |
-| `version-check-cronjob.yaml` | Nova CronJob (weekly Helm drift → Discord #versions) |
+| `version-check-cronjob.yaml` | Nova CronJob (weekly Helm drift → Discord #apps via `monitoring-discord-webhooks/apps`) |
 | `version-check-script.yaml` | Nova CronJob script ConfigMap |
 | `version-check-rbac.yaml` | Nova CronJob RBAC (secrets read for Helm) |
 

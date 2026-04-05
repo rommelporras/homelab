@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password, vault, external-secrets, backup]
-updated: 2026-04-01
+updated: 2026-04-06
 ---
 
 # Secrets
@@ -80,7 +80,6 @@ Local backup: `~/.vault-keys` (chmod 600). Delete after confirming 1Password bac
 | invoicetron-prod/app | invoicetron-app | invoicetron-prod | manifests/invoicetron/externalsecret-prod.yaml |
 | karakeep/secrets | karakeep-secrets | karakeep | manifests/karakeep/externalsecret.yaml |
 | kube-system/discord-janitor-webhook | discord-janitor-webhook | kube-system | manifests/kube-system/cluster-janitor/externalsecret.yaml |
-| monitoring/discord-version-webhook | discord-version-webhook | monitoring | manifests/monitoring/externalsecret.yaml |
 | monitoring/nut-credentials | nut-credentials | monitoring | manifests/monitoring/externalsecret.yaml |
 | invoicetron/deploy-token | gitlab-registry | invoicetron-dev | manifests/invoicetron/externalsecret-dev.yaml |
 | invoicetron/deploy-token | gitlab-registry | invoicetron-prod | manifests/invoicetron/externalsecret-prod.yaml |

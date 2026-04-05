@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, upgrades, runbook]
-updated: 2026-04-01
+updated: 2026-04-06
 ---
 
 # Upgrade & Rollback Runbook
@@ -166,6 +166,7 @@ helm-homelab rollback cilium <revision> -n kube-system
 - GitLab has strict upgrade path requirements — use the [upgrade path tool](https://gitlab-com.gitlab.io/support/toolbox/upgrade-path/)
 - Never skip required stop versions (e.g., 16.x → 17.x has mandatory stops)
 - Database migrations run on startup and can take several minutes
+- **Migrations container memory:** GitLab 18.x requires `gitlab.migrations.resources.limits.memory: 1536Mi` minimum (Rails + bootsnap + ActiveRecord). 512Mi OOMKills silently in a loop — `restartPolicy: OnFailure` never reaches `.status.succeeded`, so ArgoCD reports gitlab as Missing while every other pod is Running. Exit code 137 on the migrations container is the tell. See v0.38.1 CHANGELOG entry for full incident details.
 
 ### ArgoCD
 - Minor version upgrades (e.g., 3.3 to 3.4) may include breaking changes - review the migration guide at `argo-cd.readthedocs.io/en/stable/operator-manual/upgrading/`

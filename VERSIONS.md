@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** April 2, 2026
+> **Last Updated:** April 6, 2026
 
 ---
 
@@ -294,8 +294,7 @@ helm-homelab repo update
 | Alertmanager | v0.31.1 | Configured |
 | Discord #incidents | Webhook | Configured |
 | Discord #infra | Webhook | Configured |
-| Discord #apps | Webhook | Configured |
-| Discord #versions | Webhook | Configured |
+| Discord #apps | Webhook | Configured (also receives version-drift digest) |
 | Discord #janitor | Webhook | Configured |
 | Discord #speedtest | Webhook | Configured |
 | SMTP Server | smtp.mail.me.com:587 | Configured |

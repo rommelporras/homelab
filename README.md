@@ -73,7 +73,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 
 **Observability**
 - Prometheus + Grafana + Loki + Alloy (full metrics, logs, 24 Grafana dashboards)
-- Alertmanager (Discord + Email, severity routing) — 63 PrometheusRules across 31 alert files
+- Alertmanager (Discord + Email, severity routing) — 131 alert rules across 32 PrometheusRule files, including cluster-wide OOMKilled detection
 - Blackbox probes (25 services: ArgoCD, Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr, Atuin, Vault, cert-manager-webhook, ESO webhook, Garage, Homepage, Longhorn UI, MySpeed, Prowlarr, Radarr, Recommendarr, Sonarr)
 - Dead Man's Switch (healthchecks.io), UPS monitoring (NUT + nut-exporter)
 - smartctl-exporter DaemonSet (NVMe S.M.A.R.T. health on all 3 nodes — temp, wear, spare, TBW)
@@ -161,8 +161,9 @@ Things that bit us and might save you time:
 1. **Network Policies** — CiliumNetworkPolicy microsegmentation complete (Phase 5.3, v0.33.0)
 2. **Resilience & Backup** — Phase 5.4 complete (v0.34.0)
 3. **Image Updates & Monitoring** — Phase 5.6 complete; Phase 5.7 complete
-4. **GitOps Migration** — Phase 5.8 in progress (targeting v0.38.0)
-5. **CKA Certification** — September 2026 target
+4. **GitOps Migration** — Phase 5.8 complete (v0.38.0); v0.38.1 hotfix released (ArgoCD drift recovery + OOM detection)
+5. **CI/CD Pipeline Migration** — Phase 5.9 / v0.39.0 next
+6. **CKA Certification** — September 2026 target
 
 ## Claude Code
 
