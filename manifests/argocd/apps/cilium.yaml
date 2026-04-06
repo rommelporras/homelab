@@ -32,6 +32,22 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
+  ignoreDifferences:
+    # Cilium auto-generates its own CA and Hubble TLS certs at install time.
+    # Helm templates new certs on each render - syncing would replace the live
+    # certs and break Hubble mTLS until all agents restart.
+    - group: ""
+      kind: Secret
+      name: cilium-ca
+      namespace: kube-system
+      jsonPointers:
+        - /data
+    - group: ""
+      kind: Secret
+      name: hubble-server-certs
+      namespace: kube-system
+      jsonPointers:
+        - /data
   syncPolicy:
     syncOptions:
       - ServerSideApply=true
