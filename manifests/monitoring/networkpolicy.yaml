@@ -395,6 +395,13 @@ spec:
     matchLabels:
       app: version-checker
   egress:
+    # kube-apiserver (list/watch pods for image version scanning)
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
     # Container registry access (ghcr.io, registry.k8s.io, docker.io, quay.io, etc.)
     # Using broad internet CIDR - registry list is too large for toFQDNs enumeration
     - toCIDRSet:
