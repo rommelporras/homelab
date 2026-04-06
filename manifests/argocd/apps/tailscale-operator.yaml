@@ -18,7 +18,7 @@ spec:
   sources:
     - repoURL: https://pkgs.tailscale.com/helmcharts
       chart: tailscale-operator
-      targetRevision: "1.94.1"
+      targetRevision: "1.94.2"
       helm:
         valueFiles:
           - $values/helm/tailscale-operator/values.yaml

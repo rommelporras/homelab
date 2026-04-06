@@ -47,13 +47,34 @@ data:
         }] | unique_by(.image + .current) | sort_by(.image)' 2>/dev/null \
       || echo '[]')
 
-    IMAGE_COUNT=$(echo "$IMAGE_DRIFT" | jq 'length')
+    # Split into minor updates vs major version jumps
+    # Extract first numeric segment as major version for comparison
+    MINOR_DRIFT=$(echo "$IMAGE_DRIFT" | jq '[.[] | select(
+      (.current | ltrimstr("v") | split(".")[0]) ==
+      (.latest  | ltrimstr("v") | split(".")[0])
+    )]')
+    MAJOR_DRIFT=$(echo "$IMAGE_DRIFT" | jq '[.[] | select(
+      (.current | ltrimstr("v") | split(".")[0]) !=
+      (.latest  | ltrimstr("v") | split(".")[0])
+    )]')
 
-    # Build image drift fields (max 25 for Discord embed limit)
-    IMAGE_FIELDS=$(echo "$IMAGE_DRIFT" | jq '[.[:25] | .[] |
+    MINOR_COUNT=$(echo "$MINOR_DRIFT" | jq 'length')
+    MAJOR_COUNT=$(echo "$MAJOR_DRIFT" | jq 'length')
+    IMAGE_COUNT=$((MINOR_COUNT + MAJOR_COUNT))
+
+    # Build minor update fields (max 25 for Discord embed limit)
+    IMAGE_FIELDS=$(echo "$MINOR_DRIFT" | jq '[.[:25] | .[] |
       {
         "name": (.image | split("/") | last),
         "value": (.current + " -> " + .latest),
+        "inline": true
+      }]')
+
+    # Build major update fields (shown separately)
+    MAJOR_FIELDS=$(echo "$MAJOR_DRIFT" | jq '[.[:10] | .[] |
+      {
+        "name": (.image | split("/") | last),
+        "value": (.current + " -> " + .latest + " (major)"),
         "inline": true
       }]')
 
@@ -84,13 +105,13 @@ data:
       EMBEDS=$(echo "$EMBEDS" | jq --argjson embed "$DEPRECATED_EMBED" '. + [$embed]')
     fi
 
-    if [ "$IMAGE_COUNT" -gt 0 ]; then
-      IMAGE_DESC="$IMAGE_COUNT image(s) behind latest upstream version."
-      if [ "$IMAGE_COUNT" -gt 25 ]; then
-        IMAGE_DESC="$IMAGE_DESC (showing 25 of $IMAGE_COUNT)"
+    if [ "$MINOR_COUNT" -gt 0 ]; then
+      MINOR_DESC="$MINOR_COUNT image(s) behind latest upstream version."
+      if [ "$MINOR_COUNT" -gt 25 ]; then
+        MINOR_DESC="$MINOR_DESC (showing 25 of $MINOR_COUNT)"
       fi
       IMAGE_EMBED=$(jq -n \
-        --arg desc "$IMAGE_DESC" \
+        --arg desc "$MINOR_DESC" \
         --argjson fields "$IMAGE_FIELDS" \
         '{
           "title": "Outdated Container Images",
@@ -101,8 +122,22 @@ data:
       EMBEDS=$(echo "$EMBEDS" | jq --argjson embed "$IMAGE_EMBED" '. + [$embed]')
     fi
 
+    if [ "$MAJOR_COUNT" -gt 0 ]; then
+      MAJOR_DESC="$MAJOR_COUNT image(s) have a new major version available. These require migration planning."
+      MAJOR_EMBED=$(jq -n \
+        --arg desc "$MAJOR_DESC" \
+        --argjson fields "$MAJOR_FIELDS" \
+        '{
+          "title": "Major Version Available",
+          "description": $desc,
+          "color": 15105570,
+          "fields": $fields
+        }')
+      EMBEDS=$(echo "$EMBEDS" | jq --argjson embed "$MAJOR_EMBED" '. + [$embed]')
+    fi
+
     # Summary color: green if all current, yellow if any drift
-    TOTAL_DRIFT=$((OUTDATED_COUNT + DEPRECATED_COUNT + IMAGE_COUNT))
+    TOTAL_DRIFT=$((OUTDATED_COUNT + DEPRECATED_COUNT + MINOR_COUNT + MAJOR_COUNT))
     if [ "$TOTAL_DRIFT" -eq 0 ]; then
       SUMMARY_COLOR=5763719
     else
@@ -114,11 +149,12 @@ data:
       --argjson helm_outdated "$OUTDATED_COUNT" \
       --argjson helm_deprecated "$DEPRECATED_COUNT" \
       --argjson helm_current "$CURRENT_COUNT" \
-      --argjson images "$IMAGE_COUNT" \
+      --argjson images "$MINOR_COUNT" \
+      --argjson majors "$MAJOR_COUNT" \
       --argjson color "$SUMMARY_COLOR" \
       '{
         "title": "Homelab Version Digest",
-        "description": ($date + "\nHelm: " + ($helm_outdated|tostring) + " outdated, " + ($helm_deprecated|tostring) + " deprecated, " + ($helm_current|tostring) + " current\nImages: " + ($images|tostring) + " outdated\nUpgrade runbook: docs/context/Upgrades.md"),
+        "description": ($date + "\nHelm: " + ($helm_outdated|tostring) + " outdated, " + ($helm_deprecated|tostring) + " deprecated, " + ($helm_current|tostring) + " current\nImages: " + ($images|tostring) + " outdated, " + ($majors|tostring) + " major version available\nUpgrade runbook: docs/context/Upgrades.md"),
         "color": $color
       }')
     EMBEDS=$(echo "$EMBEDS" | jq --argjson embed "$SUMMARY_EMBED" '. + [$embed]')

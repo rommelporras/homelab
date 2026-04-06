@@ -61,7 +61,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: backup
-              image: keinos/sqlite3:3.46.1
+              image: keinos/sqlite3:3.52.0
               command: ["/bin/sh", "-c"]
               args:
                 - |
