@@ -80,7 +80,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: jellyfin
-          image: jellyfin/jellyfin:10.11.6
+          image: jellyfin/jellyfin:10.11.8
           ports:
             - name: http
               containerPort: 8096

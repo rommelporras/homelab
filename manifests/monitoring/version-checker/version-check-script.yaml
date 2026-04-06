@@ -47,11 +47,13 @@ data:
         }] | unique_by(.image + .current) | sort_by(.image)' 2>/dev/null \
       || echo '[]')
 
-    # Split into minor updates vs major version jumps
-    # Only classify as "major" when BOTH versions are semver-like (contain dots).
-    # Non-semver "latest" (build IDs like 608111629, commit SHAs like 4408836)
-    # are filtered out as noise — version-checker can't compare these meaningfully.
-    CLEAN_DRIFT=$(echo "$IMAGE_DRIFT" | jq '[.[] | select(.latest | contains("."))]')
+    # Filter noise before categorizing:
+    # 1. Non-semver "latest" (build IDs, commit SHAs) — no dots means not a version
+    # 2. Digest-only changes (same tag, different SHA) — OS rebuild, not actionable
+    CLEAN_DRIFT=$(echo "$IMAGE_DRIFT" | jq '[.[] |
+      select(.latest | contains(".")) |
+      select((.current | split("@")[0]) != (.latest | split("@")[0]))
+    ]')
     NOISE_COUNT=$(echo "$IMAGE_DRIFT" | jq '[.[] | select(.latest | contains(".") | not)] | length')
     MINOR_DRIFT=$(echo "$CLEAN_DRIFT" | jq '[.[] | select(
       (.current | ltrimstr("v") | split(".")[0] | split("-")[0]) ==

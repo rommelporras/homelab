@@ -21,6 +21,8 @@ spec:
     metadata:
       labels:
         app: uptime-kuma
+      annotations:
+        match-regex.version-checker.io/uptime-kuma: '^\d+\.\d+\.\d+-rootless$'
     spec:
       automountServiceAccountToken: false
       # Security: Run as non-root (matches rootless image UID 1000)
