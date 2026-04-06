@@ -1,7 +1,9 @@
 # ArgoCD Application: Loki (Helm, OCI)
 # Wave 4 - Monitoring Helm handover
 #
-# OCI chart: ghcr.io/grafana/helm-charts/loki
+# OCI chart: ghcr.io/grafana-community/helm-charts/loki
+# Note: Grafana forked OSS Loki chart to grafana-community (March 2026).
+# The old ghcr.io/grafana/helm-charts is frozen at 6.55.0.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -14,9 +16,9 @@ metadata:
 spec:
   project: infrastructure
   sources:
-    - repoURL: ghcr.io/grafana/helm-charts
+    - repoURL: ghcr.io/grafana-community/helm-charts
       chart: loki
-      targetRevision: "6.55.0"
+      targetRevision: "6.56.1"
       helm:
         valueFiles:
           - $values/helm/loki/values.yaml

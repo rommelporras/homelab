@@ -9,6 +9,12 @@
 #     --version 3.13.0 \
 #     -f helm/metrics-server/values.yaml
 
+# Image override: chart 3.13.0 ships v0.8.0, upstream released v0.8.1
+# (Go/k8s dependency bump only - no breaking changes)
+# Remove this override when a chart version ships v0.8.1 as default
+image:
+  tag: v0.8.1
+
 # Default args (from upstream)
 # --kubelet-insecure-tls is added for kubeadm clusters where kubelet
 # certificates are not signed by the cluster CA.

@@ -44,10 +44,10 @@
 | longhorn/longhorn | 1.11.1 | v1.11.1 | Installed | longhorn-system |
 | cilium/cilium | 1.19.2 | v1.19.2 | Installed | kube-system |
 | oci://quay.io/jetstack/charts/cert-manager | 1.19.2 | v1.19.2 | Installed | cert-manager |
-| oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 82.18.0 | v0.90.1 (Operator) / v3.11.0 (Prometheus) | Installed | monitoring |
-| oci://ghcr.io/grafana/helm-charts/loki | 6.55.0 | v3.6.7 | Installed | monitoring |
+| oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 82.18.0 | v0.89.0 (Operator) / v3.11.0 (Prometheus) | Installed | monitoring |
+| oci://ghcr.io/grafana-community/helm-charts/loki | 6.56.1 | v3.7.1 | Installed | monitoring |
 | grafana/alloy | 1.7.0 | v1.15.0 | Installed | monitoring |
-| metrics-server/metrics-server | 3.13.0 | v0.8.0 | Installed | kube-system |
+| metrics-server/metrics-server | 3.13.0 | v0.8.1 | Installed | kube-system |
 | gitlab/gitlab | 9.8.2 | v18.8.2 | Installed | gitlab |
 | gitlab/gitlab-runner | 0.85.0 | v18.8.0 | Installed | gitlab-runner |
 | prometheus-community/prometheus-blackbox-exporter | 11.7.0 | 0.28.0 | Installed | monitoring |
@@ -66,6 +66,7 @@
 >
 > **Note:** cert-manager, kube-prometheus-stack, Loki, and NFD use OCI registry (recommended by upstream).
 > No `helm repo add` needed - install directly from OCI URLs.
+> Loki OSS chart moved from `ghcr.io/grafana/helm-charts` to `ghcr.io/grafana-community/helm-charts` (March 2026).
 >
 > **Note:** Grafana Alloy doesn't support OCI yet. Uses traditional Helm repo (`grafana`).
 
