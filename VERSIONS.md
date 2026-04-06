@@ -51,7 +51,7 @@
 | gitlab/gitlab | 9.8.2 | v18.8.2 | Installed | gitlab |
 | gitlab/gitlab-runner | 0.85.0 | v18.8.0 | Installed | gitlab-runner |
 | prometheus-community/prometheus-blackbox-exporter | 11.7.0 | 0.28.0 | Installed | monitoring |
-| tailscale/tailscale-operator | 1.94.1 | v1.94.1 | Installed | tailscale |
+| tailscale/tailscale-operator | 1.94.2 | v1.94.2 | Installed | tailscale |
 | oci://registry.k8s.io/nfd/charts/node-feature-discovery | 0.18.3 | v0.18.3 | Installed | node-feature-discovery |
 | intel/intel-device-plugins-operator | 0.35.0 | v0.35.0 | Installed | intel-device-plugins |
 | intel/intel-device-plugins-gpu | 0.35.0 | v0.35.0 | Installed | intel-device-plugins |
@@ -113,8 +113,8 @@ helm-homelab repo update
 | Homepage | v1.11.0 | Running | 2 replicas, multi-tab layout |
 | Glances | v3.3.1 | Running | On OMV (apt), password auth |
 | cloudflared | 2026.3.0 | Running | 2 replicas, HA tunnel to Cloudflare Edge |
-| Ghost (Dev) | 6.22.1 | Running | Theme development, internal access |
-| Ghost (Prod) | 6.22.1 | Running | Public blog via Cloudflare Tunnel |
+| Ghost (Dev) | 6.26.0 | Running | Theme development, internal access |
+| Ghost (Prod) | 6.26.0 | Running | Public blog via Cloudflare Tunnel |
 | MySQL (Ghost) | 8.4.8 | Running | LTS, per-environment StatefulSets |
 | Invoicetron | Next.js 16.1.0 | Running | Invoice management (Bun + Prisma) |
 | PostgreSQL (Invoicetron) | 18.3-alpine | Running | Invoicetron database (StatefulSet) |
@@ -125,13 +125,13 @@ helm-homelab repo update
 | Karakeep | 0.31.0 | Running | Bookmark manager with AI tagging (SQLite + s6-overlay) |
 | Chrome (Karakeep) | alpine-chrome:124 | Running | Headless browser for page crawling |
 | Meilisearch | v1.41.0 | Running | Full-text search engine for Karakeep |
-| Ollama | 0.18.2 | Running | CPU-only LLM inference server |
+| Ollama | 0.20.2 | Running | CPU-only LLM inference server |
 | qwen2.5:3b | Q4_K_M | Running | Text model for Karakeep tagging (1.9 GB) |
 | qwen3:1.7b | Q4_K_M | Running | General text model (1.4 GB) |
 | moondream:latest | Q4_0 | Running | Vision model for image tagging (1.7 GB) |
 | gemma3:1b | Q4_K_M | Running | Fallback text model (0.8 GB) |
-| Tailscale Operator | v1.94.1 | Running | Watches CRDs, manages proxy pods |
-| Tailscale Proxy (Connector) | v1.94.1 | Running | WireGuard subnet router (homelab-subnet) |
+| Tailscale Operator | v1.94.2 | Running | Watches CRDs, manages proxy pods |
+| Tailscale Proxy (Connector) | v1.94.2 | Running | WireGuard subnet router (homelab-subnet) |
 | Prowlarr | 2.3.0 (LSIO) | Running | Indexer manager (arr-stack namespace) |
 | Sonarr | 4.0.16.2944-ls303 (LSIO) | Running | TV show management |
 | Radarr | 6.0.4.10291-ls293 (LSIO) | Running | Movie management |
@@ -162,7 +162,7 @@ helm-homelab repo update
 | Velero | v1.18.0 | Running | Cluster backup + restore (Helm chart, velero namespace) |
 | velero-plugin-for-aws | v1.14.0 | Running | S3-compatible storage plugin for Velero |
 | Garage S3 | v2.2.0 (dxflrs/garage) | Running | Self-hosted S3-compatible object store for Velero backend (velero namespace) |
-| keinos/sqlite3 | 3.46.1 | Running | SQLite backup image for CronJobs (AdGuard, UptimeKuma, Karakeep, Grafana, ARR, MySpeed) |
+| keinos/sqlite3 | 3.52.0 | Running | SQLite backup image for CronJobs (AdGuard, UptimeKuma, Karakeep, Grafana, ARR, MySpeed) |
 
 **DNS Configuration:**
 - Primary: 10.10.30.53 (K8s AdGuard via Cilium LoadBalancer)
@@ -294,7 +294,8 @@ helm-homelab repo update
 | Alertmanager | v0.31.1 | Configured |
 | Discord #incidents | Webhook | Configured |
 | Discord #infra | Webhook | Configured |
-| Discord #apps | Webhook | Configured (also receives version-drift digest) |
+| Discord #apps | Webhook | Configured |
+| Discord #versions | Webhook | Configured (version-drift digest from CronJob) |
 | Discord #janitor | Webhook | Configured |
 | Discord #speedtest | Webhook | Configured |
 | SMTP Server | smtp.mail.me.com:587 | Configured |
