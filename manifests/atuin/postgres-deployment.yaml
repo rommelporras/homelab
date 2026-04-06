@@ -41,6 +41,8 @@ spec:
     metadata:
       labels:
         app: postgres
+      annotations:
+        match-regex.version-checker.io/postgres: '^\d+\.\d+$'
     spec:
       securityContext:
         runAsUser: 999

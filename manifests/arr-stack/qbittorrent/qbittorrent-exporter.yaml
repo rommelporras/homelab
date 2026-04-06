@@ -20,6 +20,8 @@ spec:
     metadata:
       labels:
         app: qbittorrent-exporter
+      annotations:
+        match-regex.version-checker.io/qbittorrent-exporter: "^v\\d+\\.\\d+\\.\\d+$"
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -39,7 +41,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: qbittorrent-exporter
-          image: esanchezm/prometheus-qbittorrent-exporter:sha-2fcca94
+          image: esanchezm/prometheus-qbittorrent-exporter:v1.6.0
           env:
             - name: QBITTORRENT_HOST
               value: "qbittorrent.arr-stack.svc.cluster.local"

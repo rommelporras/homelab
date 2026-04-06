@@ -81,6 +81,7 @@ Query logs:
 | discord-incidents-email | Discord #incidents + Email | Critical |
 | discord-infra | Discord #infra | Warning (infrastructure: Longhorn, NVMe, etcd, certs, nodes, UPS) |
 | discord-apps | Discord #apps | Warning (application: catch-all for non-infra warnings) |
+| discord-versions | Discord #versions | VersionCheckerImageOutdated (grouped by alertname, repeat 24h) |
 | healthchecks-heartbeat | healthchecks.io ping | Watchdog (1m) |
 | null | Nowhere | Silenced alerts |
 
@@ -92,6 +93,7 @@ Query logs:
 |----------|---------|-------|
 | Critical | #incidents | 3 recipients |
 | Warning (infra) | #infra | None |
+| VersionCheckerImageOutdated | #versions | None |
 | Warning (apps) | #apps | None |
 | Info | (silenced) | None |
 
@@ -198,13 +200,13 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 
 | Tool | Scope | Output | Schedule |
 |------|-------|--------|----------|
-| version-checker | Container images + K8s version | Prometheus metrics → Grafana dashboard + alerts | Continuous (1h scrape) |
-| Nova CronJob | Helm chart drift | Discord #versions embed | Weekly (Sunday 08:00 PHT) |
+| version-checker | Container images + K8s version | Prometheus metrics → Grafana dashboard + Alertmanager alerts | Continuous (1h scrape) |
+| version-check CronJob | Helm chart drift + image digest | Discord #versions weekly digest (Nova + Prometheus query) | Weekly (Sunday 08:00 PHT) |
 | Renovate Bot | Container image tags in manifests | GitHub PRs (dependency dashboard approval) | Suspended (deferred to Phase 6/ArgoCD) |
 
-**version-checker** runs as a Deployment in `monitoring` with `--test-all-containers` (scans all pods). LinuxServer.io images use `match-regex` annotations for non-standard tag formats. Alerts fire after 7d outdated (containers) or 14d (K8s version).
+**version-checker** runs as a Deployment in `monitoring` with `--test-all-containers` (scans all pods). Images with non-standard tag formats (LinuxServer.io `-ls`, nightly date tags, etc.) use `match-regex` annotations to filter false positives. Alerts fire after 7d outdated (containers) or 14d (K8s version). `VersionCheckerImageOutdated` routes to Discord `#versions` via the `discord-versions` Alertmanager receiver (grouped by alertname, 24h repeat to avoid spam).
 
-**Nova CronJob** uses an init container to copy the Nova binary from the official image to a shared emptyDir. The main container (Alpine) installs curl+jq, runs Nova, parses JSON, builds Discord embeds, and sends via webhook. Runs as root (apk needs it).
+**version-check CronJob** (`manifests/monitoring/version-checker/`) uses an init container to copy the Nova binary to a shared emptyDir, then the main container (alpine/k8s) runs Nova for Helm drift, queries the Prometheus API for image drift, formats both into a Discord embed, and posts to `#versions` via the `versions` key in `monitoring-discord-webhooks`. Both the CronJob digest and the Alertmanager `discord-versions` receiver now use the `#versions` webhook - keeping version noise out of `#apps`.
 
 **Renovate Bot** is a GitHub App with `dependencyDashboardApproval: true` - PRs require manual approval via the Dependency Dashboard issue. Major bumps get separate PRs; minor/patch are grouped weekly.
 
@@ -353,6 +355,7 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 - `critical` → Discord #incidents + Email (3 recipients)
 - `warning` + `category: infra` label → Discord #infra (preferred, v0.38.1+)
 - `warning` (infra alertname regex match) → Discord #infra (legacy fallback; migrate rules to `category` label over time)
+- `VersionCheckerImageOutdated` → Discord #versions (grouped by alertname, repeat 24h — v0.38.2+)
 - `warning` (catch-all) → Discord #apps
 - `info` → null (silenced - visible in Alertmanager UI only)
 
@@ -393,7 +396,7 @@ All dashboards are auto-provisioned via Grafana sidecar. All have `grafana_folde
 |------|---------|
 | `version-checker-deployment.yaml` | version-checker Deployment + Service |
 | `version-checker-rbac.yaml` | RBAC (ClusterRole, ClusterRoleBinding - pods + apps read) |
-| `version-check-cronjob.yaml` | Nova CronJob (weekly Helm drift → Discord #apps via `monitoring-discord-webhooks/apps`) |
+| `version-check-cronjob.yaml` | Weekly digest CronJob (Nova Helm drift + Prometheus image drift → Discord #versions via `monitoring-discord-webhooks/versions`) |
 | `version-check-script.yaml` | Nova CronJob script ConfigMap |
 | `version-check-rbac.yaml` | Nova CronJob RBAC (secrets read for Helm) |
 

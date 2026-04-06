@@ -64,7 +64,7 @@ spec:
               - ALL
       containers:
       - name: ghost
-        image: ghost:6.22.1
+        image: ghost:6.26.0
         ports:
         - containerPort: 2368
         env:

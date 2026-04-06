@@ -41,7 +41,7 @@ spec:
               type: RuntimeDefault
           initContainers:
             - name: nova
-              image: quay.io/fairwinds/nova:v3.11.13
+              image: quay.io/fairwinds/nova:v3.11.14
               imagePullPolicy: IfNotPresent
               command: ["cp", "/nova", "/shared/nova"]
               resources:
