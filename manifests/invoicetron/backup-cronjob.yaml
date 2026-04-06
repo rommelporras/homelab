@@ -32,6 +32,8 @@ spec:
         metadata:
           labels:
             app: invoicetron-db-backup
+          annotations:
+            match-regex.version-checker.io/backup: '^\d+\.\d+-alpine$'
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false

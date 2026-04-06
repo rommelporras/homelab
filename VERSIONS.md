@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** April 6, 2026
+> **Last Updated:** April 7, 2026
 
 ---
 
@@ -23,7 +23,7 @@
 | Kernel | 6.8.0-101-generic | Installed |
 | Kubernetes | v1.35.0 | Running (3 nodes) |
 | containerd | 1.7.28 | Installed |
-| Cilium | 1.19.1 | Installed |
+| Cilium | 1.19.2 | Installed |
 | Cilium CLI | v0.19.0 | Installed |
 | Longhorn | 1.11.1 | Installed |
 | kube-vip | v1.0.4 | Installed |
@@ -42,11 +42,11 @@
 | Chart | Version | App Version | Status | Namespace |
 |-------|---------|-------------|--------|-----------|
 | longhorn/longhorn | 1.11.1 | v1.11.1 | Installed | longhorn-system |
-| cilium/cilium | 1.19.1 | v1.19.1 | Installed | kube-system |
+| cilium/cilium | 1.19.2 | v1.19.2 | Installed | kube-system |
 | oci://quay.io/jetstack/charts/cert-manager | 1.19.2 | v1.19.2 | Installed | cert-manager |
-| oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 82.13.1 | v0.89.0 (Operator) / v3.10.0 (Prometheus) | Installed | monitoring |
+| oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 82.18.0 | v0.90.1 (Operator) / v3.11.0 (Prometheus) | Installed | monitoring |
 | oci://ghcr.io/grafana/helm-charts/loki | 6.55.0 | v3.6.7 | Installed | monitoring |
-| grafana/alloy | 1.6.2 | v1.14.0 | Installed | monitoring |
+| grafana/alloy | 1.7.0 | v1.15.0 | Installed | monitoring |
 | metrics-server/metrics-server | 3.13.0 | v0.8.0 | Installed | kube-system |
 | gitlab/gitlab | 9.8.2 | v18.8.2 | Installed | gitlab |
 | gitlab/gitlab-runner | 0.85.0 | v18.8.0 | Installed | gitlab-runner |
@@ -59,7 +59,7 @@
 | hashicorp/vault | 0.32.0 | v1.21.4 | Installed | vault |
 | external-secrets/external-secrets | 2.1.0 | v2.1.0 | Installed | external-secrets |
 | vmware-tanzu/velero | 12.0.0 | v1.18.0 | Installed | velero |
-| argo/argo-cd | 9.4.16 | v3.3.5 | Installed | argocd |
+| argo/argo-cd | 9.4.17 | v3.3.6 | Installed | argocd |
 
 > **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
 > Use `grafana/loki` + `grafana/alloy` instead.
@@ -120,11 +120,11 @@ helm-homelab repo update
 | PostgreSQL (Invoicetron) | 18.3-alpine | Running | Invoicetron database (StatefulSet) |
 | Uptime Kuma | v2.2.1 (rootless) | Running | Self-hosted uptime monitoring |
 | MySpeed | 1.0.9 | Running | Internet speed test tracker (migrated from LXC) |
-| TrafficAnalytics | 1.0.153 | Running | Ghost analytics proxy (browser → Tinybird) |
+| TrafficAnalytics | 1.0.174 | Running | Ghost analytics proxy (browser → Tinybird) |
 | Firefox Browser | 1147.0.3build1-1xtradeb1.2404.1-ls69 (LSIO) | Running | Persistent browser via KasmVNC (LAN-only) |
 | Karakeep | 0.31.0 | Running | Bookmark manager with AI tagging (SQLite + s6-overlay) |
 | Chrome (Karakeep) | alpine-chrome:124 | Running | Headless browser for page crawling |
-| Meilisearch | v1.39.0 | Running | Full-text search engine for Karakeep |
+| Meilisearch | v1.41.0 | Running | Full-text search engine for Karakeep |
 | Ollama | 0.18.2 | Running | CPU-only LLM inference server |
 | qwen2.5:3b | Q4_K_M | Running | Text model for Karakeep tagging (1.9 GB) |
 | qwen3:1.7b | Q4_K_M | Running | General text model (1.4 GB) |
@@ -136,7 +136,7 @@ helm-homelab repo update
 | Sonarr | 4.0.16.2944-ls303 (LSIO) | Running | TV show management |
 | Radarr | 6.0.4.10291-ls293 (LSIO) | Running | Movie management |
 | qBittorrent | 5.1.4 (LSIO) | Running | Download client (arr-stack namespace) |
-| Jellyfin | 10.11.6 (official) | Running | Media server (Intel QSV hardware transcoding) |
+| Jellyfin | 10.11.8 (official) | Running | Media server (Intel QSV hardware transcoding) |
 | Node Feature Discovery | v0.18.3 | Running | Auto-labels GPU nodes (OCI Helm chart) |
 | Intel Device Plugins Operator | v0.35.0 | Running | Manages GPU plugin lifecycle |
 | Intel GPU Plugin | v0.35.0 | Running | Advertises gpu.intel.com/i915 (sharedDevNum=3) |
@@ -149,7 +149,7 @@ helm-homelab repo update
 | Recommendarr | v1.4.4 | Running | AI media recommendations (Ollama qwen2.5:3b) |
 | Byparr | 2.1.0 | Running | Cloudflare bypass proxy for Prowlarr indexers |
 | tdarr-exporter | 1.4.3 (homeylab) | Running | Prometheus metrics for Tdarr library stats (arr-stack ns) |
-| qbittorrent-exporter | sha-2fcca94 (esanchezm) | Running | Prometheus metrics for qBittorrent downloads (arr-stack ns) |
+| qbittorrent-exporter | v1.6.0 (esanchezm) | Running | Prometheus metrics for qBittorrent downloads (arr-stack ns) |
 | smartctl-exporter | v0.14.0 | Running | NVMe S.M.A.R.T. DaemonSet on all 3 nodes (monitoring ns) |
 | Atuin Server | 18.12.0 | Running | Self-hosted shell history sync (E2E encrypted) |
 | PostgreSQL (Atuin) | 18.3 | Running | Atuin dedicated database (atuin namespace) |

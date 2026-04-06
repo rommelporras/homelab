@@ -50,9 +50,11 @@ data:
     # Filter noise before categorizing:
     # 1. Non-semver "latest" (build IDs, commit SHAs) — no dots means not a version
     # 2. Digest-only changes (same tag, different SHA) — OS rebuild, not actionable
+    # 3. Longhorn CSI images (build-date suffixed, Longhorn-managed internally)
     CLEAN_DRIFT=$(echo "$IMAGE_DRIFT" | jq '[.[] |
       select(.latest | contains(".")) |
-      select((.current | split("@")[0]) != (.latest | split("@")[0]))
+      select((.current | split("@")[0]) != (.latest | split("@")[0])) |
+      select(.image | test("longhornio/csi-") | not)
     ]')
     NOISE_COUNT=$(echo "$IMAGE_DRIFT" | jq '[.[] | select(.latest | contains(".") | not)] | length')
     MINOR_DRIFT=$(echo "$CLEAN_DRIFT" | jq '[.[] | select(

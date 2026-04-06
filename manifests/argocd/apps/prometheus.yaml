@@ -17,7 +17,7 @@ spec:
   sources:
     - repoURL: ghcr.io/prometheus-community/charts
       chart: kube-prometheus-stack
-      targetRevision: "82.13.1"
+      targetRevision: "82.18.0"
       helm:
         valueFiles:
           - $values/helm/prometheus/values.yaml

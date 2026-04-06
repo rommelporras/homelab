@@ -26,7 +26,7 @@ spec:
           expr: |
             version_checker_is_latest_version{
               container_type="container",
-              image!~"quay.io/jetstack/cert-manager.*|longhornio/longhorn-engine.*"
+              image!~"quay.io/jetstack/cert-manager.*|longhornio/longhorn-engine.*|longhornio/csi-provisioner.*"
             } == 0
           for: 7d
           labels:
