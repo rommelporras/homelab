@@ -23,6 +23,9 @@ Two firing PVC alerts (Loki 91.6%, Prometheus 92.6%) and persistent GitLab CI pi
 - **Root cause** - CiliumNetworkPolicy `allow-gitlab-egress` in `gitlab-runner` namespace missing port 9000 (MinIO S3 cache). Also `allow-internet-egress` excluded `10.0.0.0/8` which includes the Gateway VIP `10.10.30.20` (registry push) and kube-vip API VIP `10.10.30.10` (deploy jobs). All missing since Phase 5.3 network policy creation.
 - **Fix** - added port 9000 to `allow-gitlab-egress`, added VIPs `10.10.30.10/32` (API) + `10.10.30.20/32` (Gateway) with ports 443+6443 to internet egress, added `minio-runner-ingress` in gitlab namespace. All projects/pipelines affected.
 - **`toEntities: kube-apiserver` doesn't cover kube-vip VIP** - Cilium's kube-apiserver entity matches the in-cluster service (10.96.0.1) and node IPs, but not the kube-vip VIP (10.10.30.10). Deploy jobs using `$KUBE_API_URL` (external VIP) need explicit CIDR egress.
+- **Invoicetron RBAC** - `gitlab-deploy` Role missing `pods/log` get verb. CI deploy script's `kubectl logs` on failed migration pods got Forbidden. Added to both invoicetron-dev and invoicetron-prod.
+- **Registry S3 redirect breaks image pulls** - GitLab registry redirects blob downloads to MinIO's in-cluster URL (`http://gitlab-minio-svc.gitlab.svc:9000/...`). Kubelet/containerd on nodes can't resolve `.svc` hostnames (nodes use systemd-resolved, not CoreDNS). Fix: `registry.storage.redirect.disable: true` in GitLab Helm values - makes registry proxy blobs instead of redirecting.
+- **Deploy token credential mismatch** - Vault had username `gitlab+deploy-token-2` but GitLab UI showed `gitlab+deploy-token-1`. Corrected in Vault, ESO synced to both namespaces.
 
 ### Documentation
 

@@ -49,9 +49,9 @@ kube-bench runs weekly as a CronJob (`kube-bench-weekly` in kube-system). Alerts
 
 ### Audit Logging
 
-API server audit logs write to `/var/log/kubernetes/audit/audit.log` on all 3 CP nodes. Policy excludes health probes, watch requests, and controller-manager/scheduler leader election. Secrets logged at Metadata level (who, not what). RBAC changes logged at RequestResponse level.
+API server audit logs write to `/var/log/kubernetes/audit/audit.log` on all 3 CP nodes. Policy excludes health probes, watch requests, read-only operations (get/list), and controller-manager/scheduler leader election. Only mutations (create/update/patch/delete) are logged. Secrets logged at Metadata level (who, not what). RBAC changes logged at RequestResponse level.
 
-Logs shipped to Loki via Alloy DaemonSet hostPath mount. Query with `{source="audit_log"}` in Grafana.
+Logs shipped to Loki via Alloy DaemonSet hostPath mount (with belt-and-suspenders drop filter for get/list). Query with `{source="audit_log"}` in Grafana.
 
 ### Certificate Lifecycle
 
@@ -526,7 +526,7 @@ Security controls for ArgoCD-managed cluster operations (Phase 5.7+).
 | Source | Self-hosted GitLab | Deploy token with `read_repository` scope |
 | Admission | ValidatingAdmissionPolicy | Trusted image registries only (CEL-based) |
 | Secrets | Vault + ESO | Never raw Secrets in Git. 36 ExternalSecrets from Vault (18 namespaces). |
-| Network | CiliumNetworkPolicy | Default-deny on 25 namespaces (129 policies) |
+| Network | CiliumNetworkPolicy | Default-deny on 25 namespaces (130 policies) |
 | Drift | Auto-sync with selfHeal | ArgoCD auto-syncs from Git, reverts manual changes |
 | Imperative exceptions | vault-unseal-keys | Bootstrap secret - ArgoCD must never prune vault namespace Secrets |
 
@@ -535,10 +535,10 @@ Security controls for ArgoCD-managed cluster operations (Phase 5.7+).
 | Control | Status | Coverage | Known Gaps |
 |---------|--------|----------|------------|
 | PSS | Enforced | 28/32 namespaces | 4 empty/system ns (cilium-secrets, default, kube-node-lease, kube-public) |
-| CiliumNP | Default-deny | 25/32 namespaces (129 policies) | longhorn-system, NFD, intel-dp (privileged, low attack surface) |
+| CiliumNP | Default-deny | 25/32 namespaces (130 policies) | longhorn-system, NFD, intel-dp (privileged, low attack surface) |
 | RBAC | Audited | 4 cluster-admin bindings | velero-server (accepted - cross-ns backup) |
 | etcd encryption | Active (secretbox) | All secrets | |
-| Audit logging | Active | All API calls | Audit alerts deferred (needs Loki Ruler) |
+| Audit logging | Active | Mutations only (get/list dropped) | Audit alerts deferred (needs Loki Ruler) |
 | Backup | 3-layer | Longhorn+Velero+etcd (24 CronJobs) | |
 | CIS benchmark | 69 pass / 7 fail | All 3 CP nodes identical | 7 justified FAILs documented |
 | Image restriction | VAP Warn mode | All non-system namespaces | Deny mode target: 2026-04-02 |

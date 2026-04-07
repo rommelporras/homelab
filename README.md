@@ -88,7 +88,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Cloudflare Tunnel (HA, 2 replicas) for public services
 - Tailscale Operator (WireGuard subnet router) for private remote access
 - AdGuard DNS as primary for all VLANs + Tailscale global nameserver
-- CiliumNetworkPolicy microsegmentation (129 policies across 25 namespaces, implicit default-deny)
+- CiliumNetworkPolicy microsegmentation (130 policies across 25 namespaces, implicit default-deny)
 
 **Applications**
 - GitLab CE (Runner, Container Registry, SSH) with CI/CD pipelines

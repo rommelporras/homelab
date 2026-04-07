@@ -295,6 +295,12 @@ registry:
   storage:
     secret: gitlab-registry-storage
     key: config
+    # Disable S3 redirect - kubelet pulls images from nodes, which can't resolve
+    # the in-cluster MinIO URL (gitlab-minio-svc.gitlab.svc). Without this, the
+    # registry redirects blob downloads to MinIO's internal URL, and containerd
+    # on the node fails with "no such host" on systemd-resolved (127.0.0.53).
+    redirect:
+      disable: true
   resources:
     requests:
       cpu: 100m
