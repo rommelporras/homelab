@@ -25,6 +25,18 @@ kubeProxy:
   enabled: false
 
 # =============================================================================
+# API Server Metrics Filtering
+# =============================================================================
+# Drop high-cardinality histogram bucket metrics that aren't used for alerts
+# or dashboards. These 5 metrics account for ~50k series (~18% of total).
+kubeApiServer:
+  serviceMonitor:
+    metricRelabelings:
+      - sourceLabels: [__name__]
+        regex: 'apiserver_request_body_size_bytes_bucket|apiserver_response_sizes_bucket|apiserver_watch_cache_read_wait_seconds_bucket|apiserver_watch_list_duration_seconds_bucket|apiserver_watch_events_sizes_bucket'
+        action: drop
+
+# =============================================================================
 # Default Rules
 # =============================================================================
 # Disable alerts that aren't useful for this homelab setup
@@ -53,7 +65,8 @@ prometheus:
       cluster: homelab
 
     # How long to keep data (default: 10d)
-    # 60d matches Loki retention. At ~0.5 GiB/day, steady-state ~30 GiB on 50Gi PVC.
+    # 60d retention. At ~0.2 GiB/day (post metric filtering), steady-state ~12 GiB.
+    # PVC sized at 60Gi for headroom while old high-cardinality data expires.
     retention: 60d
 
     # Storage - uses Longhorn PVC
@@ -64,7 +77,7 @@ prometheus:
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
-              storage: 50Gi
+              storage: 60Gi
 
     # Resource limits for 16GB nodes
     # Prometheus can be memory-hungry, especially with many metrics

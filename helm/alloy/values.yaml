@@ -107,13 +107,27 @@ alloy:
       // =======================================================================
       // Log Processing
       // =======================================================================
-      // Add cluster label and forward to Loki
+      // Add cluster label, filter noisy apps, and forward to Loki
       loki.process "pod_logs" {
         // Add static cluster label
         stage.static_labels {
           values = {
             cluster = "homelab",
           }
+        }
+
+        // Drop GitLab Sidekiq INFO/DEBUG logs (17.7% of total log volume)
+        // Sidekiq logs are JSON with "severity":"INFO"|"DEBUG"
+        stage.match {
+          selector = "{namespace=\"gitlab\", container=\"sidekiq\"} |~ \"\\\"severity\\\":\\\"(INFO|DEBUG)\\\"\""
+          action   = "drop"
+        }
+
+        // Drop version-checker info/debug logs (1.1% of total log volume)
+        // version-checker uses logfmt: level=info|level=debug
+        stage.match {
+          selector = "{app=\"version-checker\"} |~ \"level=(info|debug)\""
+          action   = "drop"
         }
 
         forward_to = [loki.write.loki.receiver]
@@ -123,10 +137,7 @@ alloy:
       // Kubernetes Events Collection (only on k8s-cp1)
       // =======================================================================
       // Collect K8s events (useful for debugging cluster issues)
-      // Note: All 3 DaemonSet pods will collect events, resulting in triplicates.
-      // This is acceptable for a homelab - event volume is low.
-      // For production, use a separate Deployment with 1 replica.
-      //
+      // Deduplicated: only k8s-cp1 forwards events (drop stage below).
       // Events can be queried with: {source="kubernetes_events"}
       loki.source.kubernetes_events "cluster_events" {
         log_format = "logfmt"
@@ -176,6 +187,13 @@ alloy:
             cluster = "homelab",
             source  = "audit_log",
           }
+        }
+
+        // Belt and suspenders: drop get/list verbs even if audit policy misses them
+        // Audit logs are JSON with "verb":"get"|"list"
+        stage.match {
+          selector = "{source=\"audit_log\"} |~ \"\\\"verb\\\":\\\"(get|list)\\\"\""
+          action   = "drop"
         }
 
         forward_to = [loki.write.loki.receiver]

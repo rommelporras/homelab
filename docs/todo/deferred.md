@@ -46,8 +46,12 @@ immich/
   (more services logging). Expanded 12->20Gi. Expected steady-state: ~8.6 GiB on 20Gi (~43%).
   Procedure: `kubectl-admin patch pvc`, delete pod for filesystem resize, `--cascade=orphan`
   StatefulSet + helm upgrade to sync volumeClaimTemplates.
+- 2026-04-07: Alert fired at 91.6% on 20Gi. Root cause: audit logs (72.5%, 2.5 GiB/day) +
+  GitLab Sidekiq info logs (17.7%, 630 MiB/day). Fix: tightened API server audit policy
+  (dropped get/list verbs), added Alloy drop rules for audit reads + Sidekiq/version-checker
+  info/debug, reduced retention 60->30 days. Post-filter ingestion ~300 MiB/day.
 
-**When:** Closed. If alert fires again, consider Alloy drop rules to reduce log volume.
+**When:** Closed. Audit policy + Alloy filtering addressed root cause.
 
 ---
 

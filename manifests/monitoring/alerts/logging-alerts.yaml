@@ -76,7 +76,7 @@ spec:
             runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/logging.md#LokiCompactionStalled"
 
         # WARNING: Loki retention enforcement has not run in 3+ hours
-        # Without retention, old log data beyond the 60-day window is never deleted.
+        # Without retention, old log data beyond the 30-day window is never deleted.
         # This was the root cause of the v0.33.2 PVC filling incident.
         - alert: LokiRetentionNotRunning
           expr: |
@@ -86,7 +86,7 @@ spec:
             severity: warning
           annotations:
             summary: "Loki retention enforcement has not run in 3+ hours"
-            description: "Old log data beyond the 60-day retention period is not being deleted. PVC will eventually fill up. Last successful retention run was {{ $value | humanizeDuration }} ago."
+            description: "Old log data beyond the 30-day retention period is not being deleted. PVC will eventually fill up. Last successful retention run was {{ $value | humanizeDuration }} ago."
             runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/logging.md#LokiRetentionNotRunning"
 
         # CRITICAL: Loki WAL write failures due to full disk

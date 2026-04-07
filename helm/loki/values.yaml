@@ -17,8 +17,8 @@
 # SimpleScalable: Separate read/write/backend, suitable for <1TB/day
 # Distributed: Full microservices, suitable for >1TB/day
 #
-# Our homelab generates ~18MB/day raw logs (~4MB compressed), so SingleBinary
-# is appropriate and simpler to manage.
+# Pre-filter: ~3.5GB/day raw logs. Post-filter (audit get/list dropped,
+# GitLab Sidekiq info/debug dropped): ~300MB/day. SingleBinary is appropriate.
 deploymentMode: SingleBinary
 
 # =============================================================================
@@ -54,11 +54,10 @@ loki:
       rules_directory: /var/loki/rules
 
   # Retention configuration
-  # 60 days = 1440 hours (actual usage: ~147 MiB/day, steady-state ~8.6 GiB on 20Gi PVC)
-  # Original 90-day estimate of 4MB/day was wrong - TSDB indexes, WAL, and compactor
-  # overhead bring real consumption to ~147 MiB/day. 90 days needs ~12.9 GiB.
+  # 30 days = 720 hours. Post-filter ingestion ~300 MiB/day, steady-state ~9 GiB on 20Gi PVC.
+  # Reduced from 60 days after adding audit/app log filtering in Alloy (April 2026).
   limits_config:
-    retention_period: 1440h
+    retention_period: 720h
     # Reject logs older than 7 days (prevent backfill attacks)
     reject_old_samples: true
     reject_old_samples_max_age: 168h
