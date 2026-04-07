@@ -4,6 +4,50 @@
 
 ---
 
+## April 7, 2026 - Version Maintenance & Digest Improvements (v0.38.2)
+
+### Summary
+
+Routine version maintenance release. Bumps metrics-server and Loki chart, migrates Loki Helm source to the grafana-community fork, improves the weekly version-check digest to filter false positives, and resolves three firing alerts (Grafana RWO deadlock, Vault stale revision, invoicetron-dev quota exceeded).
+
+### Version Bumps
+
+- **metrics-server** v0.8.0 -> v0.8.1 (image tag override, chart 3.13.0 hasn't released a new version yet)
+- **Loki Helm chart** migrated from `ghcr.io/grafana/helm-charts` (frozen at 6.55.0) to `ghcr.io/grafana-community/helm-charts` 6.57.0 (March 2026 community fork). App version remains v3.6.7 - no chart ships 3.7.1 yet.
+- **ArgoCD** 9.4.16 -> 9.4.17 (v3.3.5 -> v3.3.6, auto-synced)
+- **traffic-analytics** 1.0.174 -> 1.0.175
+
+### Version-Checker Digest Improvements
+
+Weekly digest was reporting 13 images as outdated - 8 were false positives. Added filters:
+- **longhornio/*** - stale post-upgrade engine/instance-manager pods (expanded from CSI-only filter)
+- **postgres -alpine suffix** - `18-alpine` vs `18.3` is an intentional variant, not version drift
+- **bitnamilegacy/*** - GitLab sub-chart managed images, not independently upgradeable
+- **prometheus-config-reloader** - operator-injected sidecar, version locked to operator binary
+
+Digest now reports 5 actionable items (down from 13). prometheus-operator stays visible so chart releases are not missed.
+
+### Bug Fixes
+
+- **Grafana RWO PVC multi-attach deadlock** - Helm upgrade created new pod on different node, old pod held RWO volume. Scaled deployment to 0, then back to 1.
+- **Vault StatefulSet revision mismatch** - OnDelete strategy with stale `restartedAt` annotation from a previous `rollout restart`. Deleted pod to pick up new revision.
+- **invoicetron-dev rollout stuck** - ResourceQuota exceeded (2 CPU limit requested, only 1.5 CPU remaining). Rolled back since new and old ReplicaSets had identical image.
+- **Loki app Unknown/Unknown** - new `grafana-community` OCI URL missing from AppProject `infrastructure` sourceRepos. Added and force-synced.
+
+### Documentation
+
+- **VERSIONS.md** - fixed premature prometheus-operator version (v0.90.1 -> v0.89.0 actual), added Loki OCI migration note
+- **README.md** - updated Cilium badge (1.19.2), ArgoCD version (v3.3.6), alert count (127), ExternalSecrets count (36), release count (64), rebuild guide count (31)
+
+### Decisions
+
+- **Longhorn 1.11.1 is latest stable** - version-checker flagged stale instance-manager v1.10.1 pods (normal post-upgrade artifact). No upgrade available until v1.11.2 or v1.12.0 (~May 2026).
+- **Prometheus-operator v0.90.1 deferred** - no kube-prometheus-stack chart release bundles it yet. Chart 82.18.0 still ships v0.89.0.
+- **bitnamilegacy images deferred** - redis, redis-exporter, postgres-exporter are GitLab sub-chart managed. Only upgradeable via GitLab chart bump.
+- **MySQL 8.4 LTS stays** - MySQL 9.x major available but 8.4 is LTS, no reason to migrate.
+
+---
+
 ## April 6, 2026 - ArgoCD Drift Recovery & OOM Detection (v0.38.1)
 
 ### Summary
