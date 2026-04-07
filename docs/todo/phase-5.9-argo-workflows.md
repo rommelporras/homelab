@@ -724,5 +724,5 @@ kubectl-admin delete ciliumnetworkpolicy argo-workflows-default-deny -n argo-wor
 
 - [ ] `/audit-security` then `/commit`
 - [ ] `/audit-docs` then `/commit`
-- [ ] `/release v0.39.0 "Argo Workflows"`
+- [ ] `/ship v0.39.0 "Argo Workflows"`
 - [ ] `mv docs/todo/phase-5.9-argo-workflows.md docs/todo/completed/`

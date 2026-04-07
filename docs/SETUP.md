@@ -196,8 +196,8 @@ DNS resolves through AdGuard at `10.10.30.53`.
 
 If using Claude Code with this repo, the `.claude/` directory is already committed with:
 
-- **Hooks** that block accidental secret exposure and enforce `/commit`/`/release` workflows
-- **Skills** for `/commit`, `/release`, `/audit-docs`, `/audit-security`, `/audit-cluster`
+- **Hooks** that block accidental secret exposure and enforce `/commit`/`/ship` workflows
+- **Skills** for `/commit`, `/ship`, `/audit-docs`, `/audit-security`, `/audit-cluster`
 - **Agent memory** for code review context
 
 No additional setup needed - hooks and settings activate automatically when Claude Code

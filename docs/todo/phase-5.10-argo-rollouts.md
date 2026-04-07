@@ -920,5 +920,5 @@ kubectl-admin delete ciliumnetworkpolicy argo-rollouts-default-deny -n argo-roll
 
 - [ ] `/audit-security` then `/commit`
 - [ ] `/audit-docs` then `/commit`
-- [ ] `/release v0.40.0 "Argo Rollouts & Progressive Delivery"`
+- [ ] `/ship v0.40.0 "Argo Rollouts & Progressive Delivery"`
 - [ ] `mv docs/todo/phase-5.10-argo-rollouts.md docs/todo/completed/`

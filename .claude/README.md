@@ -6,14 +6,14 @@ Custom slash commands, hooks, plugins, and agent memory for infrastructure manag
 
 ### Project Commands (`.claude/commands/`)
 
-#### `/release` - Automated Versioning
+#### `/ship` - Automated Versioning
 Creates version tags with changelog and pushes to GitHub.
 
 **Usage:**
 ```
-/release         # Auto-determine version from commits
-/release v1.0.0  # Explicit version
-/release v1.0.0 "Title Here"  # Explicit version AND title
+/ship         # Auto-determine version from commits
+/ship v1.0.0  # Explicit version
+/ship v1.0.0 "Title Here"  # Explicit version AND title
 ```
 
 **What it does:**
@@ -129,7 +129,7 @@ PATCH: Bug fixes, documentation updates
 # 1. /audit-docs        — Compare docs against live cluster
 # 2. "fix it"           — Apply doc fixes if needed
 # 3. /commit            — Commit doc fixes
-# 4. /release v0.x.0    — Tag, push, GitHub release
+# 4. /ship v0.x.0       — Tag, push, GitHub release
 ```
 
 ### Security Review
@@ -154,11 +154,11 @@ Project hook (`.claude/hooks/protect-sensitive.sh`):
 - `kubectl describe secret` - exposes base64-decoded values in Data section
 
 **block-git-operations.sh blocks (exit 2):**
-- `git add`, `git commit`, `git tag`, `git push` - must use `/commit` or `/release`
-- `gh release create`, `gh release delete` - must use `/release`
+- `git add`, `git commit`, `git tag`, `git push` - must use `/commit` or `/ship`
+- `gh release create`, `gh release delete` - must use `/ship`
 - `rm -rf` / `rm -r` (recursive delete) - must run manually
 
-Skills bypass via lock files: `/commit` creates `/tmp/.claude-skill-commit`, `/release` creates `/tmp/.claude-skill-release`. Hook allows git/gh commands when lock file exists.
+Skills bypass via lock files: `/commit` creates `/tmp/.claude-skill-commit`, `/ship` creates `/tmp/.claude-skill-ship`. Hook allows git/gh commands when lock file exists.
 
 **Warns (non-blocking):**
 - Editing YAML files containing `kind: Secret`

@@ -583,5 +583,5 @@ kubectl-admin delete namespace argo-events
 
 - [ ] `/audit-security` then `/commit`
 - [ ] `/audit-docs` then `/commit`
-- [ ] `/release v0.39.1 "CI/CD Pipeline Migration"`
+- [ ] `/ship v0.39.1 "CI/CD Pipeline Migration"`
 - [ ] `mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/`

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# PreToolUse hook - blocks direct git/gh commands outside /commit and /release.
+# PreToolUse hook - blocks direct git/gh commands outside /commit and /ship.
 #
 # Skills create a lock file before running git/gh commands:
 #   /tmp/.claude-skill-commit  (created by /commit skill)
-#   /tmp/.claude-skill-release (created by /release skill)
+#   /tmp/.claude-skill-ship    (created by /ship skill)
 #
 # If a lock file exists, git add/commit/tag commands are allowed.
 # git push is blocked at the GLOBAL level (bash-write-protect.sh)
@@ -26,7 +26,7 @@ if echo "$COMMAND" | grep -qE '(touch|rm).*\.claude-skill-'; then
 fi
 
 # Check if a skill lock file exists (bypasses add/commit/tag)
-if [[ -f /tmp/.claude-skill-commit || -f /tmp/.claude-skill-release ]]; then
+if [[ -f /tmp/.claude-skill-commit || -f /tmp/.claude-skill-ship ]]; then
   exit 0
 fi
 

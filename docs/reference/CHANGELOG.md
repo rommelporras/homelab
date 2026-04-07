@@ -26,12 +26,15 @@ Two firing PVC alerts (Loki 91.6%, Prometheus 92.6%) and persistent GitLab CI pi
 - **Invoicetron RBAC** - `gitlab-deploy` Role missing `pods/log` get verb. CI deploy script's `kubectl logs` on failed migration pods got Forbidden. Added to both invoicetron-dev and invoicetron-prod.
 - **Registry S3 redirect breaks image pulls** - GitLab registry redirects blob downloads to MinIO's in-cluster URL (`http://gitlab-minio-svc.gitlab.svc:9000/...`). Kubelet/containerd on nodes can't resolve `.svc` hostnames (nodes use systemd-resolved, not CoreDNS). Fix: `registry.storage.redirect.disable: true` in GitLab Helm values - makes registry proxy blobs instead of redirecting.
 - **Deploy token credential mismatch** - Vault had username `gitlab+deploy-token-2` but GitLab UI showed `gitlab+deploy-token-1`. Corrected in Vault, ESO synced to both namespaces.
+- **Migration job CiliumNP** - `invoicetron-migrate` job pods have no `app` label (only `job-name`), so existing policies blocked DNS and DB access. Added `invoicetron-migrate-egress` (DNS + DB) and updated `invoicetron-db-ingress` to allow from `job-name: invoicetron-migrate` in both dev and prod.
+- **Deployment strategy** - changed invoicetron from RollingUpdate (`maxUnavailable: 0`) to Recreate. Single replica + ResourceQuota (4 CPU) can't fit old + new pod simultaneously, causing every rollout to fail with quota exceeded.
 
 ### Documentation
 
 - **Deep audit** - 5-agent parallel verification of all docs against live cluster state. Fixed 29 stale/wrong claims across 13 files.
 - Key fixes: CLAUDE.md gitlab gotcha (described old broken behavior), Upgrades.md (5 locations claiming prometheus still on Helm), Security.md ESO count (31->36), Monitoring.md (7 stale versions), README.md alert rules (127->277), _Index.md phase status.
 - Phase 5.8.2 marked complete, moved to `completed/`.
+- **`/release` renamed to `/ship`** - superpowers plugin registers a generic `/release` skill that shadowed the project's custom release workflow. Renamed command, updated lock file, hook, CLAUDE.md, README, SETUP, and all planned phase files. Completed phases left as historical.
 
 ### Decisions
 
