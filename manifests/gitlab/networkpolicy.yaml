@@ -196,6 +196,26 @@ spec:
             - port: "5000"
               protocol: TCP
 
+# gitlab-runner accesses MinIO for CI cache (S3)
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: minio-runner-ingress
+  namespace: gitlab
+spec:
+  endpointSelector:
+    matchLabels:
+      app: minio
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: gitlab-runner
+      toPorts:
+        - ports:
+            - port: "9000"
+              protocol: TCP
+
 # ============================================================
 # gitlab-shell (app=gitlab-shell)
 # SSH LoadBalancer - LAN clients SSH on port 22 (container port 2222)

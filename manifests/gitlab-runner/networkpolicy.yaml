@@ -82,10 +82,19 @@ spec:
               protocol: TCP
             - port: "80"
               protocol: TCP
+    # Gateway VIP for internal HTTPS services (registry.k8s.rommelporras.com = 10.10.30.20)
+    # Needed because the VIP is in 10.0.0.0/8, excluded from the CIDR above
+    - toCIDR:
+        - 10.10.30.20/32
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
 ---
 # GitLab namespace egress for all pods
 # Runner: registers with GitLab API (8181), reports job status
-# CI job pods: push artifacts to GitLab (8181), push/pull registry images (5000)
+# CI job pods: push artifacts to GitLab (8181), push/pull registry images (5000),
+#   upload/download CI cache from MinIO S3 (9000)
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -104,6 +113,8 @@ spec:
             - port: "8080"
               protocol: TCP
             - port: "5000"
+              protocol: TCP
+            - port: "9000"
               protocol: TCP
 
 # ============================================================
