@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, storage, longhorn, nfs]
-updated: 2026-03-23
+updated: 2026-04-07
 ---
 
 # Storage

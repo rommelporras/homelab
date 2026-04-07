@@ -1,6 +1,6 @@
 # Phase 5.8.2: Version Maintenance - Image Upgrades
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Target:** v0.38.2
 > **Fits:** Between v0.38.1 (current) and v0.39.0 (Phase 5.9 - Argo Workflows)
 > **DevOps Topics:** Image patching, version-checker tuning, false positive suppression

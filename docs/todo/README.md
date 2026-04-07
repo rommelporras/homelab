@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.37.0 (ArgoCD Installation & Bootstrap)
+> **Latest Release:** v0.38.2 (Version Maintenance & Digest Improvements)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -54,7 +54,9 @@
 | v0.35.0 | Observability & Version Hardening | Phase 5.5 | ✅ Released |
 | v0.36.0 | Pre-GitOps Validation | Phase 5.6 | ✅ Released |
 | v0.37.0 | ArgoCD Installation & Bootstrap | Phase 5.7 | ✅ Released |
-| v0.38.0 | GitOps Migration | Phase 5.8 | ⬜ In Progress |
+| v0.38.0 | GitOps Migration | Phase 5.8 | ✅ Released |
+| v0.38.1 | GitOps Fixes + Prometheus Handover | - | ✅ Released |
+| v0.38.2 | Version Maintenance & Digest Improvements | Phase 5.8.2 | ✅ Released |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 
 ---
@@ -106,12 +108,7 @@
 | 5.4-prompts | Implementation Prompts | [phase-5.4-implementation-prompts.md](completed/phase-5.4-implementation-prompts.md) |
 | 5.6 | Pre-GitOps Validation | [phase-5.6-pre-gitops-validation.md](completed/phase-5.6-pre-gitops-validation.md) |
 | 5.7 | ArgoCD Installation & Bootstrap | [phase-5.7-argocd-installation.md](completed/phase-5.7-argocd-installation.md) |
-
-### In Progress
-
-| Phase | Description | File |
-|-------|-------------|------|
-| 5.8 | GitOps Migration | [phase-5.8-gitops-migration.md](phase-5.8-gitops-migration.md) |
+| 5.8 | GitOps Migration | [phase-5.8-gitops-migration.md](completed/phase-5.8-gitops-migration.md) |
 
 ### Planned
 

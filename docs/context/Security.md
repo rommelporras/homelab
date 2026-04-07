@@ -525,7 +525,7 @@ Security controls for ArgoCD-managed cluster operations (Phase 5.7+).
 |-------|---------|---------|
 | Source | Self-hosted GitLab | Deploy token with `read_repository` scope |
 | Admission | ValidatingAdmissionPolicy | Trusted image registries only (CEL-based) |
-| Secrets | Vault + ESO | Never raw Secrets in Git. 31 ExternalSecrets from Vault (16 namespaces). |
+| Secrets | Vault + ESO | Never raw Secrets in Git. 36 ExternalSecrets from Vault (18 namespaces). |
 | Network | CiliumNetworkPolicy | Default-deny on 25 namespaces (129 policies) |
 | Drift | Auto-sync with selfHeal | ArgoCD auto-syncs from Git, reverts manual changes |
 | Imperative exceptions | vault-unseal-keys | Bootstrap secret - ArgoCD must never prune vault namespace Secrets |
@@ -542,7 +542,7 @@ Security controls for ArgoCD-managed cluster operations (Phase 5.7+).
 | Backup | 3-layer | Longhorn+Velero+etcd (24 CronJobs) | |
 | CIS benchmark | 69 pass / 7 fail | All 3 CP nodes identical | 7 justified FAILs documented |
 | Image restriction | VAP Warn mode | All non-system namespaces | Deny mode target: 2026-04-02 |
-| ESO | Healthy | 31 ExternalSecrets (16 namespaces) | 4 manifests in Git not deployed (invoicetron - no ArgoCD app) |
+| ESO | Healthy | 36 ExternalSecrets (18 namespaces) | All deployed and synced |
 | Supply chain | Tag pinning | All images except 1 | portfolio:latest (CI/CD pattern, Phase 5.8) |
 | ResourceQuotas | Active | 15 namespaces | System ns excluded (variable needs) |
 | PDBs | Active | 24 PDBs | |

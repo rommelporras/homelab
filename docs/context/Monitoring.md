@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-04-06
+updated: 2026-04-07
 ---
 
 # Monitoring
@@ -11,19 +11,19 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 
 | Component | Version | Namespace |
 |-----------|---------|-----------|
-| kube-prometheus-stack | 82.13.1 | monitoring |
-| Prometheus | v3.10.0 (operator: v0.89.0) | monitoring |
+| kube-prometheus-stack | 82.18.0 | monitoring |
+| Prometheus | v3.11.0 (operator: v0.89.0) | monitoring |
 | Grafana | - | monitoring |
 | Alertmanager | v0.31.1 | monitoring |
-| Loki | v3.6.7 (chart 6.55.0) | monitoring |
-| Alloy | v1.14.0 (chart 1.6.2) | monitoring |
+| Loki | v3.6.7 (chart 6.57.0) | monitoring |
+| Alloy | v1.15.0 (chart 1.7.0) | monitoring |
 | node-exporter | - | monitoring |
 | nut-exporter | 3.2.5 | monitoring |
 | blackbox-exporter | v0.28.0 | monitoring |
 | smartctl-exporter | v0.14.0 | monitoring |
-| OTel Collector | v0.147.0 | monitoring |
+| OTel Collector | 0.149.0 | monitoring |
 | version-checker | v0.10.0 | monitoring |
-| Nova CronJob | v3.11.13 | monitoring |
+| Nova CronJob | v3.11.14 | monitoring |
 | tdarr-exporter | 1.4.3 | arr-stack |
 | qbittorrent-exporter | sha-2fcca94 | arr-stack |
 | Uptime Kuma | v2.2.1 | uptime-kuma |
@@ -118,7 +118,7 @@ Permanently silenced (routed to `null`):
 
 | Setting | Value |
 |---------|-------|
-| Image | otel/opentelemetry-collector-contrib:0.147.0 |
+| Image | otel/opentelemetry-collector-contrib:0.149.0 |
 | VIP | 10.10.30.22 (Cilium L2 LoadBalancer) |
 | Ports | 4317 (gRPC), 4318 (HTTP), 8889 (Prometheus metrics) |
 | Replicas | 1 |

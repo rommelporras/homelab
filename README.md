@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
-3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 64 releases with [31 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
+3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 66 releases with [30 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
 
 > **Owner:** Rommel Porras  |  **CKA Target:** September 2026
 
@@ -73,7 +73,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 
 **Observability**
 - Prometheus + Grafana + Loki + Alloy (full metrics, logs, 24 Grafana dashboards)
-- Alertmanager (Discord + Email, severity routing) — 127 alert rules across 32 PrometheusRule files, including cluster-wide OOMKilled detection
+- Alertmanager (Discord + Email, severity routing) — 277 alert rules across 67 PrometheusRule files, including cluster-wide OOMKilled detection
 - Blackbox probes (25 services: ArgoCD, Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr, Atuin, Vault, cert-manager-webhook, ESO webhook, Garage, Homepage, Longhorn UI, MySpeed, Prowlarr, Radarr, Recommendarr, Sonarr)
 - Dead Man's Switch (healthchecks.io), UPS monitoring (NUT + nut-exporter)
 - smartctl-exporter DaemonSet (NVMe S.M.A.R.T. health on all 3 nodes — temp, wear, spare, TBW)
@@ -82,8 +82,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Service Health dashboard (12-service UP/DOWN grid), Grafana Homelab folder organization
 - Uptime Kuma (public [status page](https://status.rommelporras.com))
 - version-checker (container + K8s version drift, Prometheus metrics)
-- Renovate Bot (automated image update PRs with dependency dashboard) (suspended - pending Phase 6/ArgoCD activation)
-- Nova CronJob (weekly Helm chart drift digest to Discord)
+- Renovate Bot (automated image update PRs with dependency dashboard) (suspended)
 
 **Networking & Access**
 - Cloudflare Tunnel (HA, 2 replicas) for public services

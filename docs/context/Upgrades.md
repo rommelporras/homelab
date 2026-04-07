@@ -34,7 +34,7 @@ kubectl-homelab get pvc -A | grep -v Bound
 
 ### ArgoCD-Managed Services (Most Services)
 
-**Applies to:** All services EXCEPT Cilium and Prometheus (which are still direct Helm).
+**Applies to:** All services EXCEPT Cilium (manual-sync via ArgoCD, upgraded with `helm-homelab`).
 
 ```bash
 # Upgrade: bump image tag or chart version in Git, then push
@@ -57,9 +57,9 @@ git revert HEAD && git push
 > **Do NOT use `kubectl apply` or `helm upgrade` for ArgoCD-managed services.**
 > ArgoCD selfHeal reverts manual changes within ~3 minutes.
 
-### Direct Helm Charts (Cilium and Prometheus Only)
+### Direct Helm Charts (Cilium Only)
 
-**Applies to:** Cilium (CNI), Prometheus stack (pending ESO migration)
+**Applies to:** Cilium (CNI) - managed by ArgoCD but upgraded via Helm CLI due to CNI chicken-and-egg
 
 ```bash
 # Upgrade
@@ -149,7 +149,7 @@ helm-homelab rollback cilium <revision> -n kube-system
 | Component | Upgrade Method | Rollback | Risk | Notes |
 |-----------|---------------|----------|------|-------|
 | ArgoCD-managed | Git push | `git revert` + push | Low | Auto-synced, PVC persists |
-| Cilium/Prometheus | `helm upgrade` | `helm rollback` | Low | Only 2 direct Helm releases |
+| Cilium | `helm upgrade` | `helm rollback` | Low | Only direct Helm release |
 | Kubernetes | `kubeadm upgrade` | etcd restore (manual) | **High** | 1 minor at a time |
 | kube-vip | Edit static pod | Edit manifest back | Medium | VIP brief drop |
 | Longhorn | `helm upgrade` | **Cannot downgrade** | **Highest** | Read release notes! |
@@ -226,7 +226,7 @@ If something goes catastrophically wrong:
 # 1. For ArgoCD-managed services (most services)
 git revert HEAD && git push  # ArgoCD auto-syncs the revert
 
-# 2. For Cilium/Prometheus (direct Helm)
+# 2. For Cilium (direct Helm)
 helm-homelab rollback <release> 0 -n <namespace>  # 0 = previous revision
 
 # 3. For Kubernetes itself (nuclear option)

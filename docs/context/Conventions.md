@@ -100,7 +100,7 @@ homelab/
 ├── manifests/               # Raw K8s manifests
 │   ├── ai/                  # Ollama LLM inference server
 │   ├── argocd/              # ArgoCD config + apps/ (app-of-apps root)
-│   ├── arr-stack/           # ARR media stack (core + companions: 13 apps)
+│   ├── arr-stack/           # ARR media stack (core + companions: 15 subdirs)
 │   ├── atuin/               # Atuin self-hosted shell history sync
 │   ├── browser/             # Firefox browser (KasmVNC)
 │   ├── cert-manager/        # ClusterIssuer

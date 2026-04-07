@@ -173,7 +173,7 @@ Cookie-free, privacy-preserving web analytics for the Ghost blog. Ghost's native
 
 **Architecture:**
 - `ghost-stats.min.js` (injected by Ghost) POSTs page hits from browser to `blog-api.rommelporras.com`
-- TrafficAnalytics proxy (`ghost/traffic-analytics:1.0.72`) enriches data (user agent, referrer, privacy signatures)
+- TrafficAnalytics proxy (`ghost/traffic-analytics:1.0.175`) enriches data (user agent, referrer, privacy signatures)
 - Proxy forwards to Tinybird Events API (`https://api.us-east.aws.tinybird.co/v0/events`)
 - Ghost admin dashboard reads stats from Tinybird's stats endpoint
 
