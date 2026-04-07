@@ -41,7 +41,7 @@ spec:
           tolerationSeconds: 60
       containers:
       - name: analytics
-        image: ghost/traffic-analytics:1.0.174
+        image: ghost/traffic-analytics:1.0.175
         ports:
         - name: http
           containerPort: 3000

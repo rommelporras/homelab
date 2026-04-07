@@ -121,7 +121,7 @@ helm-homelab repo update
 | PostgreSQL (Invoicetron) | 18.3-alpine | Running | Invoicetron database (StatefulSet) |
 | Uptime Kuma | v2.2.1 (rootless) | Running | Self-hosted uptime monitoring |
 | MySpeed | 1.0.9 | Running | Internet speed test tracker (migrated from LXC) |
-| TrafficAnalytics | 1.0.174 | Running | Ghost analytics proxy (browser → Tinybird) |
+| TrafficAnalytics | 1.0.175 | Running | Ghost analytics proxy (browser → Tinybird) |
 | Firefox Browser | 1147.0.3build1-1xtradeb1.2404.1-ls69 (LSIO) | Running | Persistent browser via KasmVNC (LAN-only) |
 | Karakeep | 0.31.0 | Running | Bookmark manager with AI tagging (SQLite + s6-overlay) |
 | Chrome (Karakeep) | alpine-chrome:124 | Running | Headless browser for page crawling |

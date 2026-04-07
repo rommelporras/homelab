@@ -32,6 +32,7 @@ spec:
     - quay.io/jetstack/charts
     - ghcr.io/prometheus-community/charts
     - ghcr.io/grafana/helm-charts
+    - ghcr.io/grafana-community/helm-charts
     - registry.k8s.io/nfd/charts
   destinations:
     - namespace: default
