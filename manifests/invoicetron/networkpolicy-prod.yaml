@@ -91,6 +91,8 @@ spec:
             app: invoicetron
         - matchLabels:
             app: invoicetron-db-backup
+        - matchLabels:
+            job-name: invoicetron-migrate
       toPorts:
         - ports:
             - port: "5432"
@@ -116,6 +118,35 @@ spec:
             - port: "53"
               protocol: UDP
             - port: "53"
+              protocol: TCP
+---
+# Migration job egress: DNS + PostgreSQL (CI/CD runs Prisma migrate deploy)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: invoicetron-migrate-egress
+  namespace: invoicetron-prod
+spec:
+  endpointSelector:
+    matchLabels:
+      job-name: invoicetron-migrate
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app: invoicetron-db
+      toPorts:
+        - ports:
+            - port: "5432"
               protocol: TCP
 ---
 # Backup CronJob egress: DNS + PostgreSQL only

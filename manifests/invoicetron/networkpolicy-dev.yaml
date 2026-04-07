@@ -56,7 +56,7 @@ spec:
             - port: "5432"
               protocol: TCP
 ---
-# DB ingress: only invoicetron app can reach the database
+# DB ingress: invoicetron app + migration job can reach the database
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -70,6 +70,38 @@ spec:
     - fromEndpoints:
         - matchLabels:
             app: invoicetron
+        - matchLabels:
+            job-name: invoicetron-migrate
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+---
+---
+# Migration job egress: DNS + PostgreSQL (CI/CD runs Prisma migrate deploy)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: invoicetron-migrate-egress
+  namespace: invoicetron-dev
+spec:
+  endpointSelector:
+    matchLabels:
+      job-name: invoicetron-migrate
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app: invoicetron-db
       toPorts:
         - ports:
             - port: "5432"
