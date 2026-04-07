@@ -82,13 +82,17 @@ spec:
               protocol: TCP
             - port: "80"
               protocol: TCP
-    # Gateway VIP for internal HTTPS services (registry.k8s.rommelporras.com = 10.10.30.20)
-    # Needed because the VIP is in 10.0.0.0/8, excluded from the CIDR above
+    # Internal VIPs in 10.10.30.0/24 (excluded from 0.0.0.0/0 by 10.0.0.0/8 exception)
+    # - 10.10.30.10: kube-vip API server VIP (deploy jobs use api.k8s.rommelporras.com)
+    # - 10.10.30.20: Gateway VIP (registry.k8s.rommelporras.com for image push)
     - toCIDR:
+        - 10.10.30.10/32
         - 10.10.30.20/32
       toPorts:
         - ports:
             - port: "443"
+              protocol: TCP
+            - port: "6443"
               protocol: TCP
 ---
 # GitLab namespace egress for all pods
