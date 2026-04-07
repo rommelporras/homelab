@@ -4,6 +4,40 @@
 
 ---
 
+## April 7, 2026 - Monitoring Storage Fix & CI Pipeline Fix (v0.38.3)
+
+### Summary
+
+Two firing PVC alerts (Loki 91.6%, Prometheus 92.6%) and persistent GitLab CI pipeline failures (MinIO/registry timeout). Root causes: unfiltered audit logs consuming 72.5% of Loki volume, and missing CiliumNetworkPolicy rules blocking runner-to-MinIO connectivity since Phase 5.3.
+
+### Monitoring Storage Fixes
+
+- **API server audit policy tightened** - dropped `get`/`list` verbs from audit log on all 3 CP nodes (`level: None`). Only mutations (`create`/`update`/`patch`/`delete`) logged now. Saves ~90% of audit log disk writes, reduces NVMe wear.
+- **Alloy log filtering** - added drop rules for GitLab Sidekiq INFO/DEBUG (17.7% of volume), version-checker info/debug (1.1%), and audit log get/list verbs (belt and suspenders).
+- **Loki retention reduced** - 60 days -> 30 days. Post-filter ingestion ~300 MiB/day (down from 3.5 GiB/day). Steady-state ~9 GiB on 20Gi PVC.
+- **Prometheus metricRelabelings** - dropped 5 high-cardinality apiserver histogram bucket metrics (~50k series, 18% of total). Kept `apiserver_request_duration_seconds_bucket` (SLI alerts) and `etcd_request_duration_seconds_bucket`.
+- **Prometheus PVC expanded** - 50Gi -> 60Gi. Headroom while old high-cardinality data expires over 60-day retention.
+
+### GitLab CI Pipeline Fix
+
+- **Root cause** - CiliumNetworkPolicy `allow-gitlab-egress` in `gitlab-runner` namespace missing port 9000 (MinIO S3 cache). Also `allow-internet-egress` excluded `10.0.0.0/8` which includes the Gateway VIP `10.10.30.20` (registry push) and kube-vip API VIP `10.10.30.10` (deploy jobs). All missing since Phase 5.3 network policy creation.
+- **Fix** - added port 9000 to `allow-gitlab-egress`, added VIPs `10.10.30.10/32` (API) + `10.10.30.20/32` (Gateway) with ports 443+6443 to internet egress, added `minio-runner-ingress` in gitlab namespace. All projects/pipelines affected.
+- **`toEntities: kube-apiserver` doesn't cover kube-vip VIP** - Cilium's kube-apiserver entity matches the in-cluster service (10.96.0.1) and node IPs, but not the kube-vip VIP (10.10.30.10). Deploy jobs using `$KUBE_API_URL` (external VIP) need explicit CIDR egress.
+
+### Documentation
+
+- **Deep audit** - 5-agent parallel verification of all docs against live cluster state. Fixed 29 stale/wrong claims across 13 files.
+- Key fixes: CLAUDE.md gitlab gotcha (described old broken behavior), Upgrades.md (5 locations claiming prometheus still on Helm), Security.md ESO count (31->36), Monitoring.md (7 stale versions), README.md alert rules (127->277), _Index.md phase status.
+- Phase 5.8.2 marked complete, moved to `completed/`.
+
+### Decisions
+
+- **Audit logs: drop get/list permanently** - never referenced for debugging in project history. Mutations are the 99% use case. Saves NVMe write wear at the source.
+- **Loki 30-day retention sufficient** - with filtered logs, 30 days of mutations/errors is enough. Info-level context preserved for non-noisy apps.
+- **Keep `apiserver_request_duration_seconds_bucket`** - needed for latency SLI alerts. Other apiserver histograms (`body_size`, `response_sizes`, `watch_*`) unused.
+
+---
+
 ## April 7, 2026 - Version Maintenance & Digest Improvements (v0.38.2)
 
 ### Summary
