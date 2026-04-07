@@ -50,11 +50,17 @@ data:
     # Filter noise before categorizing:
     # 1. Non-semver "latest" (build IDs, commit SHAs) — no dots means not a version
     # 2. Digest-only changes (same tag, different SHA) — OS rebuild, not actionable
-    # 3. Longhorn CSI images (build-date suffixed, Longhorn-managed internally)
+    # 3. Longhorn images (CSI build-date suffixed; engine/instance-manager stale post-upgrade pods)
+    # 4. Alpine suffix false positives (postgres:18-alpine vs 18.3 is intentional, not drift)
+    # 5. bitnamilegacy images (GitLab sub-chart managed, not independently upgradeable)
+    # 6. prometheus-config-reloader (sidecar injected by operator binary, version locked to operator)
     CLEAN_DRIFT=$(echo "$IMAGE_DRIFT" | jq '[.[] |
       select(.latest | contains(".")) |
       select((.current | split("@")[0]) != (.latest | split("@")[0])) |
-      select(.image | test("longhornio/csi-") | not)
+      select(.image | test("longhornio/") | not) |
+      select((.current | test("-alpine")) and (.latest | test("-alpine") | not) | not) |
+      select(.image | test("bitnamilegacy/") | not) |
+      select(.image | test("prometheus-config-reloader") | not)
     ]')
     NOISE_COUNT=$(echo "$IMAGE_DRIFT" | jq '[.[] | select(.latest | contains(".") | not)] | length')
     MINOR_DRIFT=$(echo "$CLEAN_DRIFT" | jq '[.[] | select(

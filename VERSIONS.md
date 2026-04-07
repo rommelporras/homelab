@@ -45,7 +45,7 @@
 | cilium/cilium | 1.19.2 | v1.19.2 | Installed | kube-system |
 | oci://quay.io/jetstack/charts/cert-manager | 1.19.2 | v1.19.2 | Installed | cert-manager |
 | oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 82.18.0 | v0.89.0 (Operator) / v3.11.0 (Prometheus) | Installed | monitoring |
-| oci://ghcr.io/grafana-community/helm-charts/loki | 6.56.1 | v3.7.1 | Installed | monitoring |
+| oci://ghcr.io/grafana-community/helm-charts/loki | 6.57.0 | v3.6.7 | Installed | monitoring |
 | grafana/alloy | 1.7.0 | v1.15.0 | Installed | monitoring |
 | metrics-server/metrics-server | 3.13.0 | v0.8.1 | Installed | kube-system |
 | gitlab/gitlab | 9.8.2 | v18.8.2 | Installed | gitlab |
