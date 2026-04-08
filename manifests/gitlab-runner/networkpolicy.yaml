@@ -121,6 +121,31 @@ spec:
             - port: "9000"
               protocol: TCP
 
+---
+# CI verify jobs: health check invoicetron through the Cilium gateway
+# Cilium L7 policy on the gateway enforces the source's egress policy against the
+# actual backend, not just the gateway VIP. Without this rule, the gateway returns
+# 403 "Access denied" even though toCIDR allows the gateway IP.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-invoicetron-verify-egress
+  namespace: gitlab-runner
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app: invoicetron
+            k8s:io.kubernetes.pod.namespace: invoicetron-dev
+        - matchLabels:
+            app: invoicetron
+            k8s:io.kubernetes.pod.namespace: invoicetron-prod
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+
 # ============================================================
 # Runner pod (app=gitlab-runner)
 # ============================================================
