@@ -46,7 +46,7 @@ spec:
             - port: "3000"
               protocol: TCP
 ---
-# App egress: DNS + PostgreSQL
+# App egress: DNS + PostgreSQL + UCSD directory lookup
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -64,15 +64,22 @@ spec:
       toPorts:
         - ports:
             - port: "53"
-              protocol: UDP
-            - port: "53"
-              protocol: TCP
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*"
     - toEndpoints:
         - matchLabels:
             app: invoicetron-db
       toPorts:
         - ports:
             - port: "5432"
+              protocol: TCP
+    - toFQDNs:
+        - matchName: itsweb.ucsd.edu
+      toPorts:
+        - ports:
+            - port: "443"
               protocol: TCP
 ---
 # DB ingress: invoicetron app + backup CronJob can reach the database
