@@ -43,6 +43,20 @@ spec:
               protocol: UDP
             - port: "53"
               protocol: TCP
+    # Tailscale connector: forwarded DNS queries from remote devices via WireGuard tunnel.
+    # Connector pod does IP forwarding, so Cilium marks packets with the pod's identity
+    # (not world). Without this, Tailscale DNS override to 10.10.30.53 fails and remote
+    # devices get "DNS unavailable" errors.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tailscale
+            tailscale.com/parent-resource-type: connector
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
     # Monitoring: blackbox exporter DNS probes
     - fromEndpoints:
         - matchLabels:
