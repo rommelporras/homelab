@@ -22,6 +22,7 @@ Post-release network policy fixes: Tailscale DNS access broken since Phase 5.3 (
 - **Git blocker hook** - original pattern `git\s+(add|commit|tag|push)` blocked read-only commands (`git tag -l`, `git log`, `git describe`). Split into separate per-command blocks; `tag` now only blocks annotated/signed creation (`-a`, `-s`) not listing.
 - **`/ship` skill push step** - skill tried to run `git push` via Bash tool, which `bash-write-protect.sh` unconditionally blocks (no lock file bypass). Updated to tell user to run `! git push origin main` and `! git push origin v<VERSION>` manually, then waits for confirmation before creating GitHub release.
 - **Stale `/release` references** - `block-git-operations.sh` error message for `gh release create` still said "Use /release". Updated to `/ship`.
+- **Hook false positive on commit messages** - `bash-write-protect.sh` and `block-git-operations.sh` both matched `git push` anywhere in the command string, including inside heredoc commit message bodies. Changed pattern from `\bgit\s+push\b` to `(^|[;|&])\s*git\s+push\b` so only actual shell commands are blocked.
 
 ---
 
