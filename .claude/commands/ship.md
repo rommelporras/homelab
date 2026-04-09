@@ -189,17 +189,24 @@ Create version tag, push commits and tag, and create GitHub release.
 
 8. **Execute Release**
 
+   **Step A — Create the annotated tag** (Claude runs this):
    ```bash
-   # Create annotated tag
    git tag -a v<VERSION> -m "<tag message>"
+   ```
 
-   # Push commits
-   git push origin main
+   **Step B — Push commits and tag** (user runs these — `git push` is blocked by hook, no bypass):
 
-   # Push tag
-   git push origin v<VERSION>
+   Tell the user to run these two commands in their terminal:
+   ```
+   ! git push origin main
+   ! git push origin v<VERSION>
+   ```
 
-   # Create GitHub release (title MUST match tag format: "v0.X.0 - Short Title")
+   Wait for the user to confirm both pushes succeeded before continuing.
+
+   **Step C — Create GitHub release** (Claude runs this after push confirmed):
+   ```bash
+   # Title MUST match tag format: "v0.X.0 - Short Title"
    gh release create v<VERSION> --title "v<VERSION> - <Short Title>" --notes "<notes>"
    ```
 
