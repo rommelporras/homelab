@@ -43,7 +43,7 @@ if echo "$COMMAND" | grep -qE '\bgit\s+commit\b'; then
   echo "   Use /commit to stage and commit changes." >&2
   exit 2
 fi
-if echo "$COMMAND" | grep -qE '\bgit\s+push\b'; then
+if echo "$COMMAND" | grep -qE '(^|[;|&])\s*git\s+push\b'; then
   echo "BLOCKED: Direct git commands are not allowed." >&2
   echo "   Use /ship to push and create a GitHub release." >&2
   exit 2
