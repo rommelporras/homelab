@@ -4,6 +4,27 @@
 
 ---
 
+## April 10, 2026 - Network Policy Fixes & Tooling (v0.38.4)
+
+### Summary
+
+Post-release network policy fixes: Tailscale DNS access broken since Phase 5.3 (connector pod identity not in AdGuard allow list), invoicetron dept lookup blocked (missing HTTPS egress to itsweb.ucsd.edu), and GitLab runner CI verify jobs failing (missing egress to invoicetron backends). Also fixes the `/ship` skill's git push step (always failed against bash-write-protect.sh) and allows read-only git commands through the block hook.
+
+### Network Policy Fixes
+
+- **Tailscale DNS broken since Phase 5.3** - connector pod forwards DNS via IP forwarding, so Cilium marks packets with the pod's identity (not `world`). AdGuard's DNS ingress only allowed `host/remote-node/world` + `10.10.0.0/16`. Added connector pod as allowed source (`tailscale.com/parent-resource-type: connector`). Root cause: remote devices got "DNS unavailable" from Tailscale; nothing resolved.
+- **Invoicetron HTTPS egress to itsweb.ucsd.edu** - dept lookup feature POSTs to `itsweb.ucsd.edu`. Missing HTTPS egress in `invoicetron-prod` CiliumNetworkPolicy since service first deployed.
+- **GitLab runner egress to invoicetron backends** - CI verify jobs call invoicetron API at both the Gateway VIP and direct pod IP. Missing egress rule in `gitlab-runner` namespace caused verify step failures.
+- **Portfolio gitlab-deploy RBAC** - `pods/log` get verb missing from `gitlab-deploy` Role. CI deploy script's `kubectl logs` on rollout pods returned Forbidden in both dev and prod.
+
+### Tooling
+
+- **Git blocker hook** - original pattern `git\s+(add|commit|tag|push)` blocked read-only commands (`git tag -l`, `git log`, `git describe`). Split into separate per-command blocks; `tag` now only blocks annotated/signed creation (`-a`, `-s`) not listing.
+- **`/ship` skill push step** - skill tried to run `git push` via Bash tool, which `bash-write-protect.sh` unconditionally blocks (no lock file bypass). Updated to tell user to run `! git push origin main` and `! git push origin v<VERSION>` manually, then waits for confirmation before creating GitHub release.
+- **Stale `/release` references** - `block-git-operations.sh` error message for `gh release create` still said "Use /release". Updated to `/ship`.
+
+---
+
 ## April 7, 2026 - Monitoring Storage Fix & CI Pipeline Fix (v0.38.3)
 
 ### Summary
