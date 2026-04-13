@@ -167,19 +167,24 @@ spec:
         args:
           - |
             set -e
+            # Only `workflow.status`, `workflow.duration`, `workflow.failures`,
+            # `workflow.name`, `workflow.namespace` are available in onExit
+            # handlers per the Argo Workflows variable docs. `workflow.finishedAt`
+            # is not a valid variable - avoid.
             STATUS="{{workflow.status}}"
             NAME="{{workflow.name}}"
-            FINISHED="{{workflow.finishedAt}}"
-            FAILURES="{{workflow.failures}}"
+            NAMESPACE="{{workflow.namespace}}"
+            DURATION="{{workflow.duration}}"
+            FAILURES='{{workflow.failures}}'
             PAYLOAD=$(cat <<EOF
             {
               "content": ":rotating_light: Vault snapshot workflow ${STATUS}",
               "embeds": [{
-                "title": "${NAME}",
-                "description": "Finished at ${FINISHED}",
+                "title": "${NAMESPACE}/${NAME}",
+                "description": "Duration: ${DURATION}s",
                 "color": 15158332,
                 "fields": [
-                  {"name": "Failures", "value": "${FAILURES:-unknown}"}
+                  {"name": "Failures", "value": "\`\`\`${FAILURES}\`\`\`"}
                 ]
               }]
             }
