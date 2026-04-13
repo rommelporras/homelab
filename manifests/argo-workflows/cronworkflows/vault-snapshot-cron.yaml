@@ -8,7 +8,10 @@ metadata:
   name: vault-snapshot
   namespace: argo-workflows
 spec:
-  schedule: "0 2 * * *"
+  # v3.6+ uses `schedules` (array). The older string field `schedule`
+  # is rejected by the CRD schema in v4.0.4.
+  schedules:
+    - "0 2 * * *"
   timezone: "Asia/Manila"
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 3600
