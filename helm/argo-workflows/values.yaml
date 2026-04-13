@@ -43,11 +43,13 @@ controller:
     enabled: true
     port: 9090
 
-  # Workflow archive disabled - we do not run a Postgres backing store
-  # for this homelab install. Workflow status stays in etcd (CRDs),
-  # pruned by ttlStrategy on each WorkflowTemplate.
-  persistence:
-    archive: false
+  # Workflow archive intentionally NOT configured - we do not run a
+  # Postgres backing store for this homelab install. Workflow status
+  # stays in etcd (CRDs), pruned by ttlStrategy on each WorkflowTemplate.
+  # Leaving `persistence` at the chart default (empty / unset) is what
+  # disables archive; setting `persistence.archive: false` explicitly
+  # enables the persistence config parser and fails with
+  # "TableName is empty" because no postgresql block is provided.
 
 # -------------- argo-server (disabled) --------------
 server:
