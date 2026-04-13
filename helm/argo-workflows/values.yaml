@@ -1,0 +1,108 @@
+# helm/argo-workflows/values.yaml
+# Argo Workflows chart values - v4.0.4 (chart 1.0.7).
+#
+# Mode: headless (no argo-server UI). The argo CLI and ArgoCD UI cover
+# all operational needs. Skipping argo-server saves ~100m CPU / ~128Mi mem.
+#
+# RBAC and ServiceAccounts for workflows are managed by manifests under
+# manifests/argo-workflows/rbac/, not by the chart. This keeps the
+# Vault-auth SA naming explicit and avoids the chart's default
+# `argo-workflow` SA which we don't use.
+
+# -------------- Controller --------------
+controller:
+  replicas: 1
+
+  image:
+    registry: quay.io
+    repository: argoproj/workflow-controller
+    tag: v4.0.4
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+
+  # Controller exposes metrics on :9090 by default; ServiceMonitor
+  # lives in manifests/monitoring/servicemonitors/.
+  metricsConfig:
+    enabled: true
+    port: 9090
+
+  # Workflow archive disabled - we do not run a Postgres backing store
+  # for this homelab install. Workflow status stays in etcd (CRDs),
+  # pruned by ttlStrategy on each WorkflowTemplate.
+  persistence:
+    archive: false
+
+# -------------- argo-server (disabled) --------------
+server:
+  enabled: false
+
+# -------------- Executor (argoexec sidecar) --------------
+executor:
+  image:
+    registry: quay.io
+    repository: argoproj/argoexec
+    tag: v4.0.4-nonroot
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+
+# -------------- Workflow RBAC / SA --------------
+# Disabled here - we create our own SAs per-WorkflowTemplate under
+# manifests/argo-workflows/rbac/ so the naming is explicit
+# (e.g. vault-snapshot-workflow) and only carries the minimal
+# permissions each workflow actually needs.
+workflow:
+  serviceAccount:
+    create: false
+  rbac:
+    create: false
+
+# -------------- Artifact repository --------------
+# Disabled. No step in our current or planned WorkflowTemplates uses
+# artifacts (S3/GCS/Azure). If we later add CI workflows that need
+# artifact passing, configure a Garage S3 bucket and re-enable.
+useDefaultArtifactRepo: false
+artifactRepository: {}
+
+# -------------- CRDs --------------
+# Chart installs CRDs by default. Let it - keeps chart + CRDs in sync.
+crds:
+  install: true
+  keep: true
+
+# -------------- Telemetry opt-out --------------
+# No telemetry exfiltration from the homelab.
+singleNamespace: false

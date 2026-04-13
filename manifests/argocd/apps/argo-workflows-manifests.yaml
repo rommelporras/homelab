@@ -1,0 +1,35 @@
+# ArgoCD Application: Argo Workflows custom manifests
+# Companion to the argo-workflows Helm Application.
+#
+# Manages: namespace, limitrange, resourcequota, externalsecret,
+# pv/pvc, ciliumnetworkpolicy, rbac/, templates/, cronworkflows/
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-workflows-manifests
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    path: manifests/argo-workflows
+    targetRevision: main
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-workflows
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true

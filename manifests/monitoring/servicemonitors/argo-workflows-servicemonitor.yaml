@@ -1,0 +1,30 @@
+# ServiceMonitor for Argo Workflows
+# Phase 5.9: Scrape workflow-controller metrics on port 9090
+#
+# The chart exposes a metrics service named
+# argo-workflows-workflow-controller-metrics with label
+# app.kubernetes.io/name=argo-workflows-workflow-controller.
+#
+# ServiceMonitor lives in the monitoring namespace (Prometheus Operator
+# selects rules/monitors cluster-wide via the release label). Cross-
+# namespace selection is allowed via namespaceSelector.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argo-workflows-controller
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - argo-workflows
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argo-workflows-workflow-controller
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics

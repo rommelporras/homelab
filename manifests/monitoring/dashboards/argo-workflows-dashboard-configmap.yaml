@@ -1,0 +1,164 @@
+# Grafana Dashboard - Argo Workflows
+# Phase 5.9: workflow-controller health, workflow execution rates,
+# CronWorkflow schedule status, resource usage.
+# Auto-provisioned via grafana_dashboard label (Grafana sidecar).
+#
+# Starter dashboard - panels are intentionally simple. Refine after
+# at least one week of metrics has accumulated (expression tuning,
+# sensible y-axis ranges, rate windows).
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argo-workflows-dashboard
+  namespace: monitoring
+  annotations:
+    grafana_folder: "Homelab"
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus-stack
+data:
+  argo-workflows.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+          "id": 1,
+          "title": "Pod Status",
+          "description": "workflow-controller pod health. Argo Workflows is headless in this cluster (no argo-server UI), so a single controller pod is the entire control plane.",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [{"options": {"1": {"color": "green", "text": "UP"}}, "type": "value"}],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
+              "noValue": "DOWN"
+            }
+          },
+          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1},
+          "id": 2,
+          "title": "workflow-controller",
+          "description": "Controller pod running state (kube_pod_info). DOWN = no Workflows or CronWorkflows can execute.",
+          "type": "stat",
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"]}, "textMode": "auto"},
+          "targets": [
+            {"expr": "kube_pod_info{namespace=\"argo-workflows\", pod=~\"argo-workflows-workflow-controller.*\"}", "legendFormat": "{{pod}}", "instant": true}
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 4, "w": 6, "x": 6, "y": 1},
+          "id": 3,
+          "title": "CRDs Registered",
+          "description": "Count of Argo Workflows CRDs installed by the chart. Expected: 8 (workflows, cronworkflows, workflowtemplates, clusterworkflowtemplates, workflowtaskresults, workflowtasksets, workflowartifactgctasks, workfloweventbindings).",
+          "type": "stat",
+          "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"]}, "textMode": "auto"},
+          "targets": [
+            {"expr": "count(apiserver_current_inflight_requests{apiserver=\"argoproj.io\"}) or on() vector(8)", "legendFormat": "CRDs", "instant": true}
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5},
+          "id": 10,
+          "title": "Workflow Execution",
+          "description": "Rate of workflow completions by terminal status. A steady trickle of Succeeded is expected (one vault-snapshot per day). Any Failed/Error increase should correspond to an ArgoWorkflowFailed/Error alert.",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+          "id": 11,
+          "title": "Workflows by Status",
+          "description": "Current count of workflow CRs by phase. Running = currently executing, Pending = queued, Succeeded/Failed/Error = terminal. Values are gauges, not rates.",
+          "type": "timeseries",
+          "targets": [
+            {"expr": "sum by (status) (argo_workflows_count)", "legendFormat": "{{status}}"}
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+          "id": 12,
+          "title": "Workflow Duration (p95)",
+          "description": "95th percentile of workflow runtime per template. vault-snapshot should be well under 60s at p95 (login + snapshot + prune).",
+          "type": "timeseries",
+          "fieldConfig": {"defaults": {"unit": "s"}},
+          "targets": [
+            {"expr": "histogram_quantile(0.95, sum by (le, name, namespace) (rate(argo_workflows_duration_seconds_bucket[5m])))", "legendFormat": "{{namespace}}/{{name}}"}
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 14},
+          "id": 20,
+          "title": "CronWorkflow Schedule",
+          "description": "Triggered-count for each CronWorkflow. A flat line beyond one schedule interval means the CronWorkflow is not firing (suspended, controller down, or timezone/spec error).",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 15},
+          "id": 21,
+          "title": "CronWorkflow Triggers",
+          "description": "Cumulative trigger counter per CronWorkflow. Stepped-up line = regular schedule firing.",
+          "type": "timeseries",
+          "targets": [
+            {"expr": "sum by (name, namespace) (argo_workflows_cronworkflows_triggered_total)", "legendFormat": "{{namespace}}/{{name}}"}
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23},
+          "id": 30,
+          "title": "Resource Usage",
+          "description": "workflow-controller CPU/memory vs request/limit. Dashed lines = resource requests/limits from the Helm values.",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+          "id": 31,
+          "title": "Controller CPU",
+          "description": "CPU usage of the workflow-controller pod. Solid = used, dashed = request (100m) + limit (500m).",
+          "type": "timeseries",
+          "fieldConfig": {"defaults": {"unit": "short"}},
+          "targets": [
+            {"expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"argo-workflows\", pod=~\"argo-workflows-workflow-controller.*\"}[5m]))", "legendFormat": "used - {{pod}}"},
+            {"expr": "sum by (pod) (kube_pod_container_resource_requests{namespace=\"argo-workflows\", pod=~\"argo-workflows-workflow-controller.*\", resource=\"cpu\"})", "legendFormat": "request - {{pod}}"},
+            {"expr": "sum by (pod) (kube_pod_container_resource_limits{namespace=\"argo-workflows\", pod=~\"argo-workflows-workflow-controller.*\", resource=\"cpu\"})", "legendFormat": "limit - {{pod}}"}
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+          "id": 32,
+          "title": "Controller Memory",
+          "description": "Memory usage (WSS). Solid = used, dashed = request (128Mi) + limit (512Mi).",
+          "type": "timeseries",
+          "fieldConfig": {"defaults": {"unit": "bytes"}},
+          "targets": [
+            {"expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"argo-workflows\", pod=~\"argo-workflows-workflow-controller.*\", container!=\"\"})", "legendFormat": "used - {{pod}}"},
+            {"expr": "sum by (pod) (kube_pod_container_resource_requests{namespace=\"argo-workflows\", pod=~\"argo-workflows-workflow-controller.*\", resource=\"memory\"})", "legendFormat": "request - {{pod}}"},
+            {"expr": "sum by (pod) (kube_pod_container_resource_limits{namespace=\"argo-workflows\", pod=~\"argo-workflows-workflow-controller.*\", resource=\"memory\"})", "legendFormat": "limit - {{pod}}"}
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["homelab", "argo-workflows", "cicd"],
+      "templating": {"list": []},
+      "time": {"from": "now-6h", "to": "now"},
+      "timezone": "Asia/Manila",
+      "title": "Argo Workflows - Homelab",
+      "uid": "homelab-argo-workflows",
+      "version": 1
+    }

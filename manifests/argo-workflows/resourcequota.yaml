@@ -1,0 +1,18 @@
+# manifests/argo-workflows/resourcequota.yaml
+# Hard ceiling for the argo-workflows namespace. Workflow pods are
+# transient - a runaway workflow creating many parallel pods cannot
+# starve the rest of the cluster beyond these limits.
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: argo-workflows-quota
+  namespace: argo-workflows
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 2Gi
+    limits.cpu: "4"
+    limits.memory: 4Gi
+    pods: "20"
+    persistentvolumeclaims: "5"

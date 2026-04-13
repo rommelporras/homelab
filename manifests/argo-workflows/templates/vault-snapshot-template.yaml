@@ -1,0 +1,212 @@
+# manifests/argo-workflows/templates/vault-snapshot-template.yaml
+# WorkflowTemplate: vault-snapshot
+#
+# Migrates the vault namespace CronJob to a 2-step DAG with an exit handler:
+#
+#   snapshot  (login to Vault via K8s auth + raft snapshot -> NFS)
+#      |
+#      v
+#   prune     (delete snapshots older than 3 days on NFS)
+#
+#   onExit: notify-on-failure (fires only when workflow.status != Succeeded)
+#
+# Behaviour parity with the original CronJob is intentional:
+#   - 3-day retention (find -mtime +3 -delete), restic handles off-site copy
+#   - Filename vault-YYYYMMDD.snap (date only) - restic deduplication depends
+#     on filename stability
+#   - activeDeadlineSeconds: 120 at Workflow level
+#   - runAsUser/Group 65534 (nobody) matches NFS directory owner
+#   - readOnlyRootFilesystem: true + emptyDir for /tmp
+#
+# Pod labels (app.kubernetes.io/component=vault-snapshot-workflow) let
+# CiliumNetworkPolicy argo-workflows-vault-snapshot target these pods
+# specifically for Vault + Discord egress.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: vault-snapshot
+  namespace: argo-workflows
+spec:
+  entrypoint: vault-snapshot-dag
+  onExit: notify-on-failure
+  serviceAccountName: vault-snapshot-workflow
+  activeDeadlineSeconds: 120
+  ttlStrategy:
+    secondsAfterCompletion: 86400   # cleanup 1 day after any finish
+    secondsAfterSuccess: 86400      # cleanup 1 day after success
+    secondsAfterFailure: 259200     # keep failed workflows 3 days for debugging
+  podGC:
+    strategy: OnPodSuccess
+  podMetadata:
+    labels:
+      app.kubernetes.io/component: vault-snapshot-workflow
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  volumes:
+    - name: snapshots
+      persistentVolumeClaim:
+        claimName: vault-snapshots
+    - name: tmp
+      emptyDir:
+        sizeLimit: 1Mi
+  templates:
+    # --- DAG ---
+    - name: vault-snapshot-dag
+      dag:
+        tasks:
+          - name: snapshot
+            template: snapshot-step
+          - name: prune
+            template: prune-step
+            dependencies: [snapshot]
+
+    # --- Step 1: login + raft snapshot ---
+    - name: snapshot-step
+      container:
+        image: hashicorp/vault:1.21.4
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            echo "=== Vault Raft Snapshot $(date +%Y-%m-%dT%H:%M:%S) ==="
+
+            # Kubernetes auth login via projected SA token.
+            # role=vault-snapshot-argo is a parallel role to the legacy
+            # `vault-snapshot` role - same policy, but bound only to the
+            # argo-workflows:vault-snapshot-workflow SA. The legacy role
+            # stays bound to vault:vault-snapshot until that CronJob is
+            # removed post-migration.
+            KUBE_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+            VAULT_TOKEN=$(vault write -field=token auth/kubernetes/login \
+              role=vault-snapshot-argo \
+              jwt="$KUBE_TOKEN")
+            export VAULT_TOKEN
+
+            # Take Raft snapshot (date-only filename, matches original CronJob)
+            SNAPSHOT_FILE="/snapshots/vault-$(date +%Y%m%d).snap"
+            vault operator raft snapshot save "$SNAPSHOT_FILE"
+            echo "  Saved: $SNAPSHOT_FILE ($(du -h "$SNAPSHOT_FILE" | cut -f1))"
+
+            # Clear token from env (not strictly required, pod is ephemeral)
+            unset VAULT_TOKEN
+            echo "=== Snapshot step complete ==="
+        env:
+          - name: VAULT_ADDR
+            value: "http://vault.vault.svc.cluster.local:8200"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+          - name: snapshots
+            mountPath: /snapshots
+          - name: tmp
+            mountPath: /tmp
+
+    # --- Step 2: prune old snapshots ---
+    - name: prune-step
+      container:
+        image: alpine/k8s:1.35.3
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            echo "=== Pruning snapshots older than 3 days ==="
+            find /snapshots -name "vault-*.snap" -mtime +3 -print -delete || true
+            echo "=== Current snapshots ==="
+            ls -lh /snapshots/vault-*.snap 2>/dev/null || echo "  (none)"
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+          - name: snapshots
+            mountPath: /snapshots
+          - name: tmp
+            mountPath: /tmp
+
+    # --- Exit handler wrapper ---
+    # Uses steps+when so the discord step fires only on non-success.
+    # The bash `if` approach would always create a pod that usually
+    # exits silently, wasting scheduling cycles on successful runs.
+    - name: notify-on-failure
+      steps:
+        - - name: send-discord
+            template: send-discord
+            when: "{{workflow.status}} != Succeeded"
+
+    # --- Discord notification step (only invoked from exit handler) ---
+    - name: send-discord
+      container:
+        image: alpine/k8s:1.35.3
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            STATUS="{{workflow.status}}"
+            NAME="{{workflow.name}}"
+            FINISHED="{{workflow.finishedAt}}"
+            FAILURES="{{workflow.failures}}"
+            PAYLOAD=$(cat <<EOF
+            {
+              "content": ":rotating_light: Vault snapshot workflow ${STATUS}",
+              "embeds": [{
+                "title": "${NAME}",
+                "description": "Finished at ${FINISHED}",
+                "color": 15158332,
+                "fields": [
+                  {"name": "Failures", "value": "${FAILURES:-unknown}"}
+                ]
+              }]
+            }
+            EOF
+            )
+            curl -sS -X POST "$DISCORD_WEBHOOK" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD"
+            echo
+        env:
+          - name: DISCORD_WEBHOOK
+            valueFrom:
+              secretKeyRef:
+                name: discord-webhooks
+                key: incidents
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+          - name: tmp
+            mountPath: /tmp

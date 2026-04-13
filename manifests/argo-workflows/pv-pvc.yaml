@@ -1,0 +1,60 @@
+# manifests/argo-workflows/pv-pvc.yaml
+# NFS-backed PV/PVC for Vault raft snapshots written by the
+# vault-snapshot Workflow. Mirrors the existing pattern in
+# manifests/vault/snapshot-cronjob.yaml and targets the exact same
+# NAS export path (10.10.30.4:/Kubernetes/Backups/vault), so both
+# the old CronJob and the new Workflow write to the same directory
+# during migration. The restic off-site job also reads from this path.
+#
+# The PV name is distinct (vault-snapshots-argo-nfs) from the vault
+# namespace PV (vault-snapshots-nfs) because PVs are cluster-scoped
+# and names must be unique. The PVC name matches (vault-snapshots)
+# because PVCs are namespaced and the name is what the WorkflowTemplate
+# references via claimName.
+#
+# ReclaimPolicy: Retain ensures the NFS data is never deleted by K8s
+# when the PVC is removed - only the K8s object references go away.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: vault-snapshots-argo-nfs
+  labels:
+    type: nfs
+    app: vault-snapshot
+    owner: argo-workflows
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+    - rsize=65536
+    - wsize=65536
+    - timeo=600
+  nfs:
+    server: 10.10.30.4
+    path: /Kubernetes/Backups/vault
+  claimRef:
+    namespace: argo-workflows
+    name: vault-snapshots
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vault-snapshots
+  namespace: argo-workflows
+  labels:
+    app: vault-snapshot
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: nfs
+  resources:
+    requests:
+      storage: 1Gi
+  volumeName: vault-snapshots-argo-nfs

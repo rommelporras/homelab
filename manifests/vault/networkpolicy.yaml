@@ -67,6 +67,16 @@ spec:
               protocol: TCP
             - port: "8201"
               protocol: TCP
+    # argo-workflows: vault-snapshot WorkflowTemplate pods (Phase 5.9).
+    # Targets the workflow pod label set via WorkflowTemplate.podMetadata.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: argo-workflows
+            app.kubernetes.io/component: vault-snapshot-workflow
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
 ---
 # Vault server egress: DNS + kube-apiserver (Kubernetes auth backend)
 apiVersion: cilium.io/v2

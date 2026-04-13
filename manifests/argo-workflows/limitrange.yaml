@@ -1,0 +1,25 @@
+# manifests/argo-workflows/limitrange.yaml
+# Default resource requests/limits for pods that do not set them explicitly.
+# Every workflow step pod (argoexec sidecar + user container) will inherit
+# these if the WorkflowTemplate leaves resources unset.
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: argo-workflows-defaults
+  namespace: argo-workflows
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 50m
+        memory: 64Mi
+      max:
+        cpu: "2"
+        memory: 1Gi
+      min:
+        cpu: 10m
+        memory: 32Mi

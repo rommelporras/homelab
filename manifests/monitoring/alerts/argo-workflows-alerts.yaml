@@ -1,0 +1,79 @@
+# PrometheusRule for Argo Workflows
+# Phase 5.9: Workflow failure detection and controller health
+#
+# Metric sources (emitted by workflow-controller on :9090):
+#   argo_workflows_count{status, name, namespace}
+#     gauge - number of workflows by phase (Running/Succeeded/Failed/Error)
+#   argo_workflows_duration_seconds (histogram) - workflow duration
+#   argo_workflows_cronworkflows_triggered_total{name, namespace}
+#     counter - CronWorkflow triggers
+#   up{job=~".*argo-workflows.*"} - ServiceMonitor scrape liveness
+#
+# Note: CronWorkflow-created workflows do NOT produce kube_job_status_failed
+# (different CRD, different pod ownership chain). These rules are the
+# complement to the generic CronJobFailed/CronJobNotScheduled alerts in
+# backup-alerts.yaml, which only catch native batch/CronJob + batch/Job.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: argo-workflows-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: argo-workflows
+      rules:
+        # CRITICAL: Controller is down - nothing executes, nothing reconciles
+        - alert: ArgoWorkflowsControllerDown
+          expr: up{job=~".*argo-workflows.*workflow-controller.*"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Argo Workflows controller is down"
+            description: "The argo-workflows workflow-controller has been unreachable for 5+ minutes. No Workflows or CronWorkflows can execute."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argo-workflows.md#ArgoWorkflowsControllerDown"
+
+        # WARNING: A Workflow has reached Failed state
+        - alert: ArgoWorkflowFailed
+          expr: |
+            sum by (name, namespace) (argo_workflows_count{status="Failed"}) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Argo Workflow {{ $labels.namespace }}/{{ $labels.name }} Failed"
+            description: "Workflow {{ $labels.name }} in {{ $labels.namespace }} has at least one failed instance. Check: kubectl-homelab logs -n {{ $labels.namespace }} -l workflows.argoproj.io/workflow={{ $labels.name }}"
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argo-workflows.md#ArgoWorkflowFailed"
+
+        # WARNING: A Workflow has reached Error state (infra failure, not step failure)
+        - alert: ArgoWorkflowError
+          expr: |
+            sum by (name, namespace) (argo_workflows_count{status="Error"}) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Argo Workflow {{ $labels.namespace }}/{{ $labels.name }} Errored"
+            description: "Workflow {{ $labels.name }} in {{ $labels.namespace }} is in Error state (infrastructure problem, not step exit)."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argo-workflows.md#ArgoWorkflowError"
+
+        # WARNING: vault-snapshot CronWorkflow has not succeeded in > 26h
+        # (daily CronWorkflow; alert if it hasn't completed a successful
+        # workflow in over one day - catches both "never scheduled" and
+        # "scheduled but always failing")
+        - alert: VaultSnapshotStale
+          expr: |
+            (time() - max(argo_workflows_duration_seconds_sum{name=~"vault-snapshot.*",namespace="argo-workflows",status="Succeeded"} > 0)) > 93600
+            or
+            absent(argo_workflows_count{name=~"vault-snapshot.*",namespace="argo-workflows",status="Succeeded"})
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "No successful vault-snapshot workflow in 26+ hours"
+            description: "The vault-snapshot CronWorkflow has not completed a Succeeded run in 26+ hours. Check: kubectl-homelab get workflows -n argo-workflows --sort-by=.metadata.creationTimestamp | tail"
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argo-workflows.md#VaultSnapshotStale"

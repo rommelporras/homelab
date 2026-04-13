@@ -1,0 +1,20 @@
+# manifests/argo-workflows/cronworkflows/vault-snapshot-cron.yaml
+# CronWorkflow scheduling the vault-snapshot WorkflowTemplate.
+# Schedule matches the original CronJob (02:00 Asia/Manila daily).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: vault-snapshot
+  namespace: argo-workflows
+spec:
+  schedule: "0 2 * * *"
+  timezone: "Asia/Manila"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  suspend: false
+  workflowSpec:
+    workflowTemplateRef:
+      name: vault-snapshot

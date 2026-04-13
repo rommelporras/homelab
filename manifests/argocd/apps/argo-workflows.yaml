@@ -1,0 +1,43 @@
+# ArgoCD Application: Argo Workflows (Helm multi-source)
+# Phase 5.9 - controller + CRDs + executor config.
+#
+# Follows the Longhorn/Prometheus multi-source pattern: the chart is
+# pulled from the upstream repo and values live in this Git repo under
+# helm/argo-workflows/values.yaml, referenced via $values.
+#
+# Companion Git-type Application `argo-workflows-manifests` deploys
+# RBAC, WorkflowTemplate, CronWorkflow, CNP, ExternalSecret, LimitRange,
+# ResourceQuota, PV/PVC, and the namespace object.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-workflows
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-workflows
+      targetRevision: "1.0.7"
+      helm:
+        valueFiles:
+          - $values/helm/argo-workflows/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-workflows
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true

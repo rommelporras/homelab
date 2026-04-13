@@ -1,0 +1,148 @@
+# manifests/argo-workflows/ciliumnetworkpolicy.yaml
+# CiliumNetworkPolicies for the argo-workflows namespace.
+#
+# Design:
+# - argo-workflows-default-deny: empty ingress + egress on all endpoints.
+#   Additional allow-list policies below override per-pod.
+# - argo-workflows-controller: workflow-controller scraping by Prometheus,
+#   ingress from argoexec sidecars (progress), egress to kube-apiserver + DNS.
+# - argo-workflows-vault-snapshot: vault-snapshot workflow pods - egress to
+#   kube-dns, kube-apiserver (argoexec -> workflowtaskresults), the Vault
+#   server (K8s auth + raft snapshot), and Discord FQDN (notify step).
+#   NFS traffic (10.10.30.4:2049) is NOT in the policy because NFS mounts
+#   are performed by kubelet on the node, not by the pod - pod-level CNP
+#   does not apply.
+#
+# NOTE: the Vault server's own ingress policy must allow traffic from this
+# namespace. See manifests/vault/networkpolicy.yaml - a new ingress rule
+# for `io.kubernetes.pod.namespace: argo-workflows` is added as part of
+# Phase 5.9.
+
+# ============================================================
+# Default deny (empty ingress + egress)
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argo-workflows-default-deny
+  namespace: argo-workflows
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress: []
+
+# ============================================================
+# workflow-controller
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argo-workflows-controller
+  namespace: argo-workflows
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: workflow-controller
+  ingress:
+    # Prometheus scrapes controller metrics
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+    # argoexec sidecars post progress to controller (same namespace)
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: argo-workflows
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+  egress:
+    # DNS
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "*"
+    # kube-apiserver (reconcile Workflow/CronWorkflow CRDs + pod creation)
+    - toEntities:
+        - kube-apiserver
+
+# ============================================================
+# vault-snapshot workflow pods
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argo-workflows-vault-snapshot
+  namespace: argo-workflows
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: vault-snapshot-workflow
+  egress:
+    # DNS (plus wildcard match pattern so Cilium populates FQDN IPs below)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "*"
+    # argoexec sidecar: write WorkflowTaskResults to kube-apiserver
+    - toEntities:
+        - kube-apiserver
+    # argoexec sidecar: post progress to workflow-controller
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: workflow-controller
+            k8s:io.kubernetes.pod.namespace: argo-workflows
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+    # Vault K8s auth login + raft snapshot (snapshot step)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: vault
+            app.kubernetes.io/name: vault
+            component: server
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+    # NFS to NAS for snapshot storage.
+    # Pod-level NFS egress matches the existing vault-snapshot-egress
+    # CNP in the vault namespace - kept as defense in depth in case
+    # Cilium intercepts NFS RPC at pod level (tunnel mode specifics).
+    - toCIDR:
+        - 10.10.30.4/32
+      toPorts:
+        - ports:
+            - port: "2049"
+              protocol: TCP
+    # Discord webhook (notify-on-failure step)
+    - toFQDNs:
+        - matchPattern: "discord.com"
+        - matchPattern: "*.discord.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

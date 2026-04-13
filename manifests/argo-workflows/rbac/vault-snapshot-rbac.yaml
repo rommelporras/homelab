@@ -1,0 +1,53 @@
+# manifests/argo-workflows/rbac/vault-snapshot-rbac.yaml
+# ServiceAccount + RBAC for the vault-snapshot WorkflowTemplate.
+#
+# The notify-on-failure exit handler references the `discord-webhooks`
+# Secret via env.valueFrom.secretKeyRef. Kubernetes evaluates that
+# reference using the Pod's ServiceAccount, so the SA needs `get`
+# permission on that specific Secret.
+#
+# Vault Kubernetes auth (used by the snapshot step's `vault write
+# auth/kubernetes/login`) is configured on the Vault side, not through
+# K8s RBAC. The user updates the `vault-snapshot` role's bound SAs
+# per step 5.9.3.0 of the phase plan.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-snapshot-workflow
+  namespace: argo-workflows
+automountServiceAccountToken: true  # needed for Vault K8s auth login
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vault-snapshot-workflow
+  namespace: argo-workflows
+rules:
+  # argoexec sidecar writes WorkflowTaskResult per step
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflowtaskresults"]
+    verbs: ["create", "patch"]
+  # argoexec streams logs from the main container
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "watch"]
+  # notify step references the discord-webhooks Secret via secretKeyRef
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["discord-webhooks"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vault-snapshot-workflow
+  namespace: argo-workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vault-snapshot-workflow
+subjects:
+  - kind: ServiceAccount
+    name: vault-snapshot-workflow
+    namespace: argo-workflows
