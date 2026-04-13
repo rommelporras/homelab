@@ -272,7 +272,8 @@ notify-on-failure  (fires only when workflow.status != Succeeded)
 ### Vault Kubernetes auth role creation (MANUAL)
 
 > **Chosen approach:** a parallel role `vault-snapshot-argo` that reuses the
-> existing `vault-snapshot` policy but is bound only to the new SA. The
+> existing `snapshot-policy` Vault policy (same policy the legacy
+> `vault-snapshot` role uses) but is bound only to the new SA. The
 > legacy `vault-snapshot` role stays in place until the old CronJob is
 > removed in 5.9.3.10. Both can run side-by-side during cutover. The
 > WorkflowTemplate's snapshot step already hard-codes `role=vault-snapshot-argo`.
@@ -284,7 +285,7 @@ notify-on-failure  (fires only when workflow.status != Succeeded)
   vault write auth/kubernetes/role/vault-snapshot-argo \
     bound_service_account_names=vault-snapshot-workflow \
     bound_service_account_namespaces=argo-workflows \
-    policies=vault-snapshot \
+    policies=snapshot-policy \
     ttl=5m
 
   # Verify:
