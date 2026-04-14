@@ -1,0 +1,70 @@
+# manifests/argo-workflows/rbac/argo-server-sso-rbac.yaml
+# SSO-to-ServiceAccount mapping for argo-server UI users (Phase 5.9.1.7).
+#
+# Pattern: argo-server evaluates the `workflows.argoproj.io/rbac-rule`
+# annotation on every ServiceAccount in its namespace against the
+# logged-in user's OIDC token claims, ranked by
+# `workflows.argoproj.io/rbac-rule-precedence` (higher = wins). The
+# first matching SA's Role determines the user's UI permissions.
+#
+# Single-admin homelab: one SA `argo-server-admin` matched by
+# multi-claim rule. No default SA - unmatched users (anyone other than
+# the owner) get "login denied" rather than a read-only fallthrough.
+#
+# Multi-claim match: GitLab's default OIDC config puts the numeric
+# user ID in `sub` (0xwsh is user 1 on this instance), but some GitLab
+# setups put the username in `sub` instead. `preferred_username` is
+# the OIDC-standard username claim (granted by the `profile` scope).
+# Matching either covers both GitLab configurations - whichever one
+# this instance returns, login succeeds on first try. After first
+# successful login, the argo-server logs reveal the actual claim
+# shape; narrow to a single exact match if preferred.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argo-server-admin
+  namespace: argo-workflows
+  annotations:
+    workflows.argoproj.io/rbac-rule: "sub == '1' || preferred_username == '0xwsh'"
+    workflows.argoproj.io/rbac-rule-precedence: "10"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-server-admin
+  namespace: argo-workflows
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources:
+      - workflows
+      - workflowtemplates
+      - cronworkflows
+      - clusterworkflowtemplates
+      - workflowtaskresults
+      - workflowtasksets
+      - workfloweventbindings
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-server-admin
+  namespace: argo-workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-server-admin
+subjects:
+  - kind: ServiceAccount
+    name: argo-server-admin
+    namespace: argo-workflows

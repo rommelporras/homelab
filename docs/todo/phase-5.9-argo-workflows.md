@@ -1,6 +1,6 @@
 # Phase 5.9: Argo Workflows
 
-> **Status:** Planned
+> **Status:** In Progress - Code complete, awaiting first scheduled CronWorkflow run (2026-04-15 02:00 Manila) before final cutover + ship.
 > **Target:** v0.39.0
 > **Prerequisite:** Phase 5.8 (v0.38.0 - GitOps migration complete, ArgoCD stable)
 > **DevOps Topics:** Workflow orchestration, DAG-based automation, CronWorkflow
@@ -20,6 +20,39 @@
 > - argoexec image: `quay.io/argoproj/argoexec:v4.0.4-nonroot`
 > - Re-verify before install - the chart/app cadence is weekly and a newer patch
 >   may be out by the time this phase is executed.
+
+## Current status snapshot (2026-04-15)
+
+| Area | State |
+|------|-------|
+| Install (5.9.0, 5.9.1.1-5.9.1.6) | ✅ Complete (headless) |
+| **5.9.1.7 Enable Argo Workflows UI (SSO via GitLab)** | 📝 New wave added 2026-04-15 — reverses initial headless decision. helm values, HTTPRoute, ExternalSecret, RBAC, CNP all pre-drafted; user must create GitLab OAuth app + seed Vault before commit |
+| CronJob analysis (5.9.2) | ✅ Complete |
+| vault-snapshot Wave 1 (5.9.3.0-5.9.3.7) | ✅ Complete (manual run succeeded, file on NAS) |
+| 5.9.3.8 Suspend legacy CronJob | ⏳ Pending first scheduled 02:00 Manila run |
+| 5.9.3.9 Remove legacy CronJob stanzas from Git | 📝 Pre-drafted in `manifests/vault/snapshot-cronjob.yaml`, not yet committed |
+| 5.9.3.10 + 5.9.3.11 Post-cutover cleanup | 🕐 Deferred 5-7 days (tracked in `docs/todo/deferred.md`) |
+| Wave 2 Backup Alerts (5.9.4) | ✅ Already covered (CronJobFailed + CronJobNotScheduled verified loaded) |
+| Monitoring (5.9.6) | ✅ ServiceMonitor, 4 alerts, dashboard deployed |
+| 5.9.7 Storage Observability Follow-up | ✅ Complete (Alloy kernel pipeline, 2 alerts, runbook, commits 0982eb0 + 4237275 pushed) |
+| Docs audit | ✅ Complete (commits 41259fc + e8f894e pushed) |
+| Ship (v0.39.0) | ⏳ Blocked on 5.9.1.7 + 5.9.3.8 + 5.9.3.9 |
+
+**What's left in order of execution:**
+
+1. Wait for 2026-04-15 02:00 Manila scheduled CronWorkflow run to succeed
+2. `5.9.3.8` — suspend legacy `vault-snapshot` CronJob in `vault` ns
+3. `5.9.1.7.1` — create GitLab OAuth application (manual, user-run in GitLab admin UI)
+4. `5.9.1.7.2` + `5.9.1.7.3` — create 1Password item, seed Vault (manual, user-run)
+5. `5.9.1.7.6` — edit the pre-drafted RBAC file to replace `<gitlab-username>` with the actual value
+6. `/audit-security` → `/commit` everything together (helm values, new manifests, CNP addition, snapshot-cronjob.yaml CronJob+SA removal, phase doc updates, deferred.md, CHANGELOG edit)
+7. Push → ArgoCD syncs both apps → verify argo-workflows-server pod is Running, ExternalSecret synced, HTTPRoute accepted
+8. `5.9.1.7.11` — browse UI, log in via GitLab OIDC, verify vault-snapshot workflow history visible
+9. `/ship v0.39.0 "Argo Workflows"`
+10. `git mv docs/todo/phase-5.9-argo-workflows.md docs/todo/completed/`
+
+> **Note:** steps 3-5 (manual user actions) can be done in parallel with step 1
+> (waiting for 02:00 Manila run) since they don't affect the CronWorkflow.
 
 ---
 
@@ -146,6 +179,178 @@
   # Expected: argo-workflows-default-deny, argo-workflows-controller,
   #   argo-workflows-vault-snapshot
   ```
+
+### 5.9.1.7 Enable Argo Workflows UI (SSO via GitLab)
+
+> **Revised 2026-04-15**: the initial install (5.9.1.3) landed with
+> `server.enabled: false` to save ~100m CPU / ~128Mi memory. That trade was
+> wrong: the CronWorkflow DAG + step-log UI is the main value-add of Argo
+> Workflows over CronJob, and the next phase (5.9.1 CI/CD Migration) needs
+> the UI as its GitLab-CI-Pipelines replacement. Enabling the UI inside
+> v0.39.0 ship (rather than deferring to v0.39.1) keeps the 5.9 narrative
+> cohesive ("install Argo Workflows [with UI]") and gives the vault-snapshot
+> CronWorkflow immediate human visibility from day one.
+
+**Design decisions**
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| argo-server | `server.enabled: true`, 1 replica | Single-admin homelab, no HA requirement |
+| Auth mode | `authModes: [sso]` | Browser login only; `argo` CLI uses `--core` from inside the controller pod so server-side API auth isn't needed |
+| OIDC provider | Self-hosted GitLab (`gitlab.k8s.rommelporras.com`) | Already the homelab's identity source; GitLab auto-discovers at `/.well-known/openid-configuration` |
+| TLS | Off at argo-server (`server.secure: false`, chart default), Gateway terminates | Matches every other HTTPRoute-exposed service in this cluster |
+| Hostname | `argo-workflows.k8s.rommelporras.com` | Matches the `*.k8s.rommelporras.com` internal pattern (grafana, prometheus, longhorn, vault, etc.) |
+| RBAC | SSO-to-SA mapping via `workflows.argoproj.io/rbac-rule` annotation | Single-admin: match by `sub == '<gitlab-username>'` with precedence 10; no default SA (unmatched = login denied) |
+
+**Tasks**
+
+- [ ] 5.9.1.7.1 Create GitLab OAuth application (MANUAL — user runs)
+  In GitLab UI: Admin Area → Applications → New application.
+  ```
+  Name:          Argo Workflows UI
+  Redirect URI:  https://argo-workflows.k8s.rommelporras.com/oauth2/callback
+  Confidential:  yes
+  Trusted:       yes  (skips consent screen for first-party app)
+  Scopes:        openid, profile, email
+  ```
+  Record Application ID + Secret immediately (shown once).
+
+- [ ] 5.9.1.7.2 Create 1Password item "Argo Workflows UI" in Kubernetes vault
+  Fields:
+  - `sso-client-id` — GitLab Application ID from 5.9.1.7.1
+  - `sso-client-secret` — GitLab Application Secret from 5.9.1.7.1
+
+- [ ] 5.9.1.7.3 Seed Vault (MANUAL — user runs in safe terminal)
+  ```bash
+  vault kv put secret/argo-workflows/sso-credentials \
+    client-id="$(op read 'op://Kubernetes/Argo Workflows UI/sso-client-id')" \
+    client-secret="$(op read 'op://Kubernetes/Argo Workflows UI/sso-client-secret')"
+
+  # Verify:
+  vault kv get secret/argo-workflows/sso-credentials
+  # Expect: client-id and client-secret keys present.
+  ```
+  Add the same `vault kv put` line to
+  `scripts/vault/seed-vault-from-1password.sh` so a future full reseed
+  picks it up automatically.
+
+- [ ] 5.9.1.7.4 Add ExternalSecret for SSO client credentials
+  File: `manifests/argo-workflows/externalsecret-sso.yaml` (pre-drafted).
+  Creates a Kubernetes Secret named `argo-server-sso` (matches chart
+  default for `server.sso.clientId.name` / `server.sso.clientSecret.name`)
+  with keys `client-id` and `client-secret`.
+
+- [ ] 5.9.1.7.5 Enable argo-server in helm values
+  File: `helm/argo-workflows/values.yaml` (pre-drafted).
+  Changes:
+  - `server.enabled: true`, `replicas: 1`
+  - `server.authModes: [sso]`
+  - `server.sso.enabled: true`, `issuer: https://gitlab.k8s.rommelporras.com`
+  - `server.sso.clientId.name: argo-server-sso`, `key: client-id`
+  - `server.sso.clientSecret.name: argo-server-sso`, `key: client-secret`
+  - `server.sso.redirectUrl: https://argo-workflows.k8s.rommelporras.com/oauth2/callback`
+  - `server.sso.scopes: [openid, profile, email]`
+  - `server.sso.sessionExpiry: 12h`
+  - Resources: 50m/128Mi requests, 200m/256Mi limits
+  - Standard hardening (runAsNonRoot, drop ALL, seccomp RuntimeDefault)
+  - `ingress.enabled: false` (Gateway API used instead)
+
+- [ ] 5.9.1.7.6 Add SSO-to-SA RBAC mapping
+  File: `manifests/argo-workflows/rbac/argo-server-sso-rbac.yaml` (pre-drafted).
+  Creates ServiceAccount `argo-server-admin` in `argo-workflows` namespace
+  with annotation `workflows.argoproj.io/rbac-rule: "sub == 'rommelporras'"`
+  (single-admin pattern — replace with the correct GitLab username before
+  commit). Role grants workflow CRUD + logs + secret read. RoleBinding
+  attaches the Role to the SA.
+
+- [ ] 5.9.1.7.7 Add HTTPRoute for the UI
+  File: `manifests/argo-workflows/httproute.yaml` (pre-drafted).
+  Routes `argo-workflows.k8s.rommelporras.com` → `argo-workflows-server:2746`
+  via `homelab-gateway` (`sectionName: https`).
+
+- [ ] 5.9.1.7.8 Extend CiliumNetworkPolicy for argo-server
+  File: `manifests/argo-workflows/ciliumnetworkpolicy.yaml` (pre-drafted —
+  adds a fourth policy `argo-workflows-server`).
+  - Ingress from Gateway (host/remote-node/world entities on TCP/2746) +
+    Prometheus for metrics on TCP/9090 (verify port during deploy)
+  - Egress: DNS, kube-apiserver, and GitLab OIDC. GitLab egress uses
+    `toEndpoints` matching the gitlab namespace webservice pods — requires
+    either CoreDNS rewrite of `gitlab.k8s.rommelporras.com` to the
+    internal service OR an issuer-URL override. **Test during deploy**;
+    fall back to `toFQDNs + toEntities: [host, remote-node, world]`
+    pattern if the direct-cluster path doesn't resolve (see the Cilium
+    Gateway VIP gotcha in CLAUDE.md).
+
+- [ ] 5.9.1.7.9 Verify ResourceQuota headroom
+  Current `argo-workflows-quota` caps: `limits.cpu: 4`, `limits.memory: 4Gi`.
+  argo-server adds 200m CPU / 256Mi memory limits — well within the existing
+  quota. No change expected but verify before ship:
+  ```bash
+  kubectl-homelab describe resourcequota argo-workflows-quota -n argo-workflows
+  ```
+  If used/hard is tight, bump limits accordingly.
+
+- [ ] 5.9.1.7.10 Commit, push, verify ArgoCD sync
+  `/audit-security` → `/commit` all UI-enablement files together with the
+  5.9.3.9 legacy-CronJob-removal and the 5.9.7 phase-doc updates
+  (one ship-readiness commit).
+  ```bash
+  # Force refresh since alloy-style multi-source $values lag applies here too:
+  kubectl-admin exec -n argocd statefulset/argocd-application-controller \
+    -- argocd app get argo-workflows --core --refresh
+  kubectl-admin exec -n argocd statefulset/argocd-application-controller \
+    -- argocd app sync argo-workflows --core
+
+  # Expect a new argo-workflows-server pod alongside workflow-controller:
+  kubectl-homelab get pods -n argo-workflows
+  # Expected: argo-workflows-server-<hash> Running 1/1
+
+  # ExternalSecret synced:
+  kubectl-homelab get externalsecret argo-server-sso -n argo-workflows
+  # Expected: STATUS SecretSynced, READY True
+
+  # HTTPRoute accepted:
+  kubectl-homelab get httproute -n argo-workflows
+  # Expected: ACCEPTED True on the parentRef
+  ```
+
+- [ ] 5.9.1.7.11 End-to-end browser verification
+  1. Open `https://argo-workflows.k8s.rommelporras.com`
+  2. Click login → redirects to GitLab OIDC → `Trusted: yes` skips the
+     consent screen on subsequent visits
+  3. Redirect lands on `/oauth2/callback` → Argo UI home
+  4. Navigate Workflows → argo-workflows ns → confirm vault-snapshot
+     CronWorkflow runs are visible with DAG graphs + step logs
+  5. Verify a non-matching GitLab user (if you can test) gets login denied
+     per the rbac-rule's single-sub match
+
+- [ ] 5.9.1.7.12 Update docs
+  - `docs/context/Gateway.md` — add `argo-workflows.k8s.rommelporras.com` to
+    the Exposed Services table
+  - `docs/context/Secrets.md` — add `argo-workflows/sso-credentials` Vault
+    KV path and 1Password item
+  - `docs/context/ExternalServices.md` — add a GitLab OIDC subsection
+    documenting the OAuth app + scopes + redirect URI
+  - `docs/context/Security.md` — add argo-server-admin to the
+    automountServiceAccountToken true table if the chart's SA annotation
+    requires it, and note the SSO → SA rbac-rule pattern in RBAC section
+  - `CLAUDE.md` — gotcha: deleting the GitLab OAuth app locks users out of
+    the argo-workflows UI; rotate via Vault seed + ExternalSecret re-sync
+
+**Rollback (this wave only)**
+
+If SSO misconfiguration breaks the UI before ship:
+```bash
+# Revert helm values to server.enabled: false
+git checkout -- helm/argo-workflows/values.yaml
+# Delete the new manifest files (pre-drafted but not yet committed):
+rm manifests/argo-workflows/externalsecret-sso.yaml
+rm manifests/argo-workflows/httproute.yaml
+rm manifests/argo-workflows/rbac/argo-server-sso-rbac.yaml
+# Revert the CNP addition: git diff the file and drop the argo-workflows-server stanza
+```
+Post-commit rollback: same but as a revert commit plus waiting for ArgoCD
+prune to remove the argo-server Deployment.
 
 ---
 
@@ -299,6 +504,10 @@ notify-on-failure  (fires only when workflow.status != Succeeded)
   vault delete auth/kubernetes/role/vault-snapshot
   ```
 
+  **Tracked in [`docs/todo/deferred.md`](deferred.md) → "Phase 5.9 Vault
+  Snapshot Cutover Cleanup"** — bundled with 5.9.3.10 for the 5-7-day
+  post-cutover cleanup. Does not block v0.39.0 ship.
+
 ### Vault CNP ingress rule (already in the diff)
 
 `manifests/vault/networkpolicy.yaml` was patched under `vault-server-ingress`
@@ -402,11 +611,21 @@ recurse: true).
   - Remove the CronJob and ServiceAccount stanzas.
   - Commit, let ArgoCD sync, verify the CronJob resource disappeared.
 
+  **Status:** File changes pre-drafted on 2026-04-14 while waiting for the
+  first scheduled run. Current uncommitted state of the file keeps only the
+  updated header comment, PV, and PVC (147 → 55 lines). Commit after 5.9.3.8
+  and a post-cutover `/audit-security`.
+
 - [ ] 5.9.3.10 Remove the now-unused NFS PV/PVC in the `vault` namespace
   After 5-7 days of successful CronWorkflow runs, delete the vault-namespace
   PV/PVC stanzas from `manifests/vault/snapshot-cronjob.yaml`. The NFS export
   on the NAS is not affected - only the PV/PVC K8s objects are removed. The
   argo-workflows PV continues to mount the same NAS path.
+
+  **Tracked in [`docs/todo/deferred.md`](deferred.md) → "Phase 5.9 Vault
+  Snapshot Cutover Cleanup"** — includes readiness check commands (workflow
+  success count + NAS snapshot presence), target date 2026-04-21, and the
+  full checklist. Does not block v0.39.0 ship.
 
 ---
 
@@ -534,10 +753,18 @@ Single Discord notification with aggregate pass/fail instead of per-job alerts.
 - [ ] Old-path PV/PVC cleanup (`manifests/vault/snapshot-cronjob.yaml`) committed
 
 **Wave 2 - Backup Alerts (mooted - existing coverage confirmed):**
-- [ ] Verify `backup-alerts.yaml:CronJobFailed` is loaded in Prometheus
+- [x] Verify `backup-alerts.yaml:CronJobFailed` is loaded in Prometheus
   and has fired at least once historically (i.e. regex works).
-- [ ] Confirm the Alertmanager route used by `severity=warning,category=`
+  Verified 2026-04-14 — rule is loaded with expression
+  `kube_job_status_failed{namespace!=""} > 0` (matches the design).
+  `CronJobNotScheduled` also loaded with
+  `time() - kube_cronjob_status_last_successful_time > 2 * (...)`.
+- [x] Confirm the Alertmanager route used by `severity=warning,category=`
   (no category set) still delivers to `#apps`.
+  Accepted: Alertmanager fallthrough routes uncategorized warnings to
+  the `discord-apps` receiver (documented in `docs/context/Monitoring.md`,
+  unchanged since Phase 5.5). No failure events from new Argo Workflows
+  objects have fired yet to trigger an end-to-end delivery test.
 
 **Networking:**
 - [x] CiliumNetworkPolicies applied for argo-workflows namespace
@@ -833,51 +1060,25 @@ for the full write-up:
   # Direct pod metric check (svc load-balances, may miss your target pod):
   kubectl-homelab port-forward -n monitoring pod/<alloy-pod-on-node> 12345:12345 &
   curl -s localhost:12345/metrics | grep loki_process_custom_kernel_pcie
+  kill %1
 
-  # Synthetic kernel event on a specific node:
+  # Synthetic kernel event on a specific node (logger produces _TRANSPORT=syslog,
+  # NOT _TRANSPORT=kernel - must write directly to the kernel ring buffer):
   ssh wawashi@<node> \
     "echo 'PCIe Bus Error: severity=Correctable, type=Physical Layer [TEST]' | sudo tee /dev/kmsg"
+  # Wait 30-60s for Alloy to tail the journal, then re-check the metric.
+
+  # Confirm the same line also landed in Loki (optional):
+  # In Grafana: {source="journal", node="<node>"} |= "[TEST]"
   ```
-  Run after ArgoCD has synced the `alloy` and `monitoring-manifests`
-  Applications.
-  ```bash
-  # (1) Alloy loaded the new journal pipeline without errors:
-  kubectl-homelab logs -n monitoring ds/alloy --tail=100 | grep -iE 'journal|kernel_logs|error'
-  # Expected: "loki.source.journal" component init lines, no permission errors
-
-  # (2) Alloy is exposing the two new counters at 0 (baseline):
-  kubectl-homelab -n monitoring port-forward svc/alloy 12345:http-metrics &
-  PF_PID=$!
-  sleep 2
-  curl -s localhost:12345/metrics | grep -E '^(kernel_pcie_bus_errors_total|longhorn_volume_auto_salvaged_total)'
-  kill $PF_PID
-  # Expected: both metric families exposed; values may be 0 until matching events occur
-
-  # (3) Inject a synthetic PCIe event to confirm the pipeline matches:
-  ssh wawashi@10.10.30.11 \
-    "sudo logger -t kernel -p kern.warn \
-     'PCIe Bus Error: severity=Correctable, type=Physical Layer, (Receiver ID) [ALLOY-TEST]'"
-  # Wait 30-60s for Alloy to read the journal entry.
-
-  # Re-check the metric; expect kernel_pcie_bus_errors_total{node="k8s-cp1",severity="Correctable"} == 1:
-  kubectl-homelab -n monitoring port-forward svc/alloy 12345:http-metrics &
-  PF_PID=$!
-  sleep 2
-  curl -s localhost:12345/metrics | grep kernel_pcie_bus_errors_total
-  kill $PF_PID
-
-  # (4) Confirm the same line also landed in Loki:
-  # In Grafana, query: {source="journal", node="k8s-cp1"} |= "ALLOY-TEST"
-  # Expected: one entry matching the injected log.
-  ```
-  If metric name at Alloy's `/metrics` has a different prefix than expected
-  (e.g. `loki_process_custom_kernel_pcie_bus_errors_total`), adjust the two
-  PrometheusRules (5.9.7.2 and 5.9.7.3) to match and re-commit.
 
 ### Deferred / intentionally out of scope
 
 - **NVMe reseat on k8s-cp3** - physical maintenance, runbook-tracked not
-  phase-tracked. Schedule during the next planned node reboot window
+  phase-tracked. Tracked in [`docs/todo/deferred.md`](deferred.md) →
+  "k8s-cp3 NVMe Reseat" with full procedure reference
+  ([`docs/runbooks/longhorn-hardware.md`](../runbooks/longhorn-hardware.md)).
+  Schedule during the next planned node reboot window
 - **`concurrent-replica-rebuild-per-node-limit` tuning** - revisit only if
   `LonghornVolumeAutoSalvaged` fires repeatedly on the same node within a
   rolling 30-day window
@@ -888,7 +1089,14 @@ for the full write-up:
 
 ## Final: Commit and Release
 
-- [ ] `/audit-security` then `/commit` (done during install - multiple fix commits pushed)
-- [ ] `/audit-docs` then `/commit`
+- [x] `/audit-security` then `/commit` — run multiple times during the
+  phase. Commits on main: `cd3d409`, `5b3c24e`, `cda2d72`, `a09faf1`,
+  `691f35a` (pre-observability install fixes); `0982eb0`, `4237275`
+  (observability follow-up). One more `/audit-security` + `/commit`
+  still to run after 5.9.3.9 lands the legacy CronJob removal.
+- [x] `/audit-docs` then `/commit` — deep documentation audit completed
+  2026-04-14. Commits on main: `41259fc` (docs audit pass covering
+  context/, rebuild/, todo/, README, VERSIONS) + `e8f894e` (CLAUDE.md
+  gotchas from Phase 5.9 install).
 - [ ] `/ship v0.39.0 "Argo Workflows"` (after 5.9.3.8/5.9.3.9 cutover and 5.9.7 observability landed)
 - [ ] `mv docs/todo/phase-5.9-argo-workflows.md docs/todo/completed/`

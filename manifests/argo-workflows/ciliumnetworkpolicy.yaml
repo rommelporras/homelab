@@ -81,6 +81,84 @@ spec:
         - kube-apiserver
 
 # ============================================================
+# argo-server (UI, Phase 5.9.1.7)
+# ============================================================
+#
+# Ingress: Gateway API terminates TLS and forwards to argo-server:2746.
+# Cilium LB rewrites source identity to `host`/`remote-node`/`world`
+# depending on the client path (see CLAUDE.md Cilium CNP gotcha for
+# fromCIDRSet on LoadBalancer ingress). Adding fromEntities covers
+# all three cases.
+#
+# Egress: GitLab OIDC discovery/authorize/token/userinfo calls. The
+# first draft targets the gitlab namespace webservice directly via
+# toEndpoints because `toCIDR` with the Gateway LB VIP silently fails
+# per the documented gotcha. This requires one of:
+#   a) CoreDNS rewrite of gitlab.k8s.rommelporras.com to the internal
+#      service (gitlab-webservice-default.gitlab.svc), OR
+#   b) an issuer-URL override in argo-server (not all versions support)
+# Test during deploy; fall back to toFQDNs + toEntities: [host,
+# remote-node, world] if direct cluster path doesn't resolve.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argo-workflows-server
+  namespace: argo-workflows
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: server
+  ingress:
+    # Gateway -> argo-server UI (HTTP, TLS terminates at Gateway)
+    - fromEntities:
+        - host
+        - remote-node
+        - world
+      toPorts:
+        - ports:
+            - port: "2746"
+              protocol: TCP
+    # Prometheus scrapes argo-server metrics. Chart exposes metrics on
+    # the same 2746 port at /metrics path by default; verify during
+    # deploy and adjust if the chart adds a separate metrics service.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "2746"
+              protocol: TCP
+  egress:
+    # DNS (required for any name resolution, including GitLab OIDC)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "*"
+    # kube-apiserver (list/watch workflows + stream pod logs for UI)
+    - toEntities:
+        - kube-apiserver
+    # GitLab OIDC (discovery, authorize, token, userinfo).
+    # Draft uses direct toEndpoints - switch to toFQDNs fallback if
+    # the cluster-direct path does not work with OIDC discovery.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: gitlab
+            app: webservice
+      toPorts:
+        - ports:
+            - port: "8181"
+              protocol: TCP
+
+# ============================================================
 # vault-snapshot workflow pods
 # ============================================================
 ---

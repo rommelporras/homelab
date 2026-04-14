@@ -1,8 +1,12 @@
 # helm/argo-workflows/values.yaml
 # Argo Workflows chart values - v4.0.4 (chart 1.0.7).
 #
-# Mode: headless (no argo-server UI). The argo CLI and ArgoCD UI cover
-# all operational needs. Skipping argo-server saves ~100m CPU / ~128Mi mem.
+# Mode: argo-server UI enabled with SSO via self-hosted GitLab as the OIDC
+# provider (Phase 5.9.1.7). Initial install landed headless (5.9.1.3) to
+# save ~100m CPU / ~128Mi memory; reversed before v0.39.0 ship because
+# the DAG + step-log UI is the main operator value of Argo Workflows,
+# and Phase 5.9.1 (CI/CD Migration) requires it as the GitLab-CI Pipelines
+# replacement.
 #
 # RBAC and ServiceAccounts for workflows are managed by manifests under
 # manifests/argo-workflows/rbac/, not by the chart. This keeps the
@@ -51,9 +55,70 @@ controller:
   # enables the persistence config parser and fails with
   # "TableName is empty" because no postgresql block is provided.
 
-# -------------- argo-server (disabled) --------------
+# -------------- argo-server (UI + SSO via GitLab OIDC) --------------
+# Exposed at https://argo-workflows.k8s.rommelporras.com via HTTPRoute
+# (manifests/argo-workflows/httproute.yaml). Gateway terminates TLS,
+# argo-server serves plain HTTP on :2746 inside the cluster.
+#
+# authModes: [sso] means browser-only login; the argo CLI runs via
+# `--core` mode inside the controller pod (no server-side API auth
+# needed). See Phase 5.9.1.7 for the full design.
+#
+# OIDC client ID + secret come from Vault KV secret/argo-workflows/
+# sso-credentials via the ExternalSecret in
+# manifests/argo-workflows/externalsecret-sso.yaml. The chart's default
+# secret/key names (`argo-server-sso` / `client-id` / `client-secret`)
+# are matched exactly so no extra overrides are needed below.
 server:
-  enabled: false
+  enabled: true
+  replicas: 1
+
+  authModes:
+    - sso
+
+  # secure: false is the chart default - Gateway handles TLS. Leaving
+  # it unset is intentional; do not add `secure: true` unless the
+  # HTTPRoute is changed to TLS-passthrough.
+
+  sso:
+    enabled: true
+    issuer: https://gitlab.k8s.rommelporras.com
+    clientId:
+      name: argo-server-sso
+      key: client-id
+    clientSecret:
+      name: argo-server-sso
+      key: client-secret
+    redirectUrl: https://argo-workflows.k8s.rommelporras.com/oauth2/callback
+    scopes:
+      - openid
+      - profile
+      - email
+    sessionExpiry: 12h
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+
+  # Gateway API HTTPRoute is used instead of the chart's Ingress
+  # (manifests/argo-workflows/httproute.yaml).
+  ingress:
+    enabled: false
 
 # -------------- Executor (argoexec sidecar) --------------
 executor:

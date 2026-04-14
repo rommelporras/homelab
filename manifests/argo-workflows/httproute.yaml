@@ -1,0 +1,28 @@
+# manifests/argo-workflows/httproute.yaml
+# HTTPRoute exposing the argo-server UI at
+# argo-workflows.k8s.rommelporras.com (Phase 5.9.1.7).
+#
+# Attached to the shared homelab-gateway (https listener, wildcard TLS
+# via cert-manager). argo-server listens on :2746 HTTP inside the
+# cluster; Gateway terminates TLS.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argo-workflows-ui
+  namespace: argo-workflows
+spec:
+  parentRefs:
+    - name: homelab-gateway
+      namespace: default
+      sectionName: https
+  hostnames:
+    - "argo-workflows.k8s.rommelporras.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: argo-workflows-server
+          port: 2746

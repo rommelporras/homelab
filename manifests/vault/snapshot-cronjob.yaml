@@ -1,20 +1,15 @@
 # manifests/vault/snapshot-cronjob.yaml
-# Daily Raft snapshot to NFS NAS — 3-day retention (off-site in restic)
+# Legacy NFS PV + PVC from the vault-namespace snapshot CronJob.
 #
-# Schedule: 02:00 Asia/Manila daily
-# Auth: Kubernetes auth via vault-snapshot ServiceAccount + snapshot-policy
-# Storage: NFS PV/PVC pointing to OMV NAS Backups/vault directory
+# The CronJob and ServiceAccount were removed in Phase 5.9 (v0.39.0) after the
+# Argo Workflows CronWorkflow took over daily Vault Raft snapshots. The PV and
+# PVC are kept here temporarily so ArgoCD does not prune them while the
+# argo-workflows PV (`vault-snapshots-argo-nfs`) rolls out. Both write to the
+# same NAS directory during the transition window.
 #
-# Prerequisite: NFS directory must exist on NAS
-#   ssh wawashi@omv.home.rommelporras.com "sudo mkdir -p /export/Kubernetes/Backups/vault && sudo chown -R 65534:65534 /export/Kubernetes/Backups/vault"
-#
-# CKA topics: CronJob, ServiceAccount, PV/PVC (NFS), securityContext
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: vault-snapshot
-  namespace: vault
+# NFS path: 10.10.30.4:/Kubernetes/Backups/vault (UID 65534, RWX, 1Gi)
+# Removal: step 5.9.3.10 of the phase plan (5-7 days after cutover) —
+# see docs/todo/deferred.md for the checklist.
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -57,90 +52,3 @@ spec:
   selector:
     matchLabels:
       app: vault-snapshot
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: vault-snapshot
-  namespace: vault
-spec:
-  schedule: "0 2 * * *"
-  timeZone: "Asia/Manila"
-  concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 3
-  jobTemplate:
-    spec:
-      backoffLimit: 0
-      activeDeadlineSeconds: 120
-      template:
-        metadata:
-          labels:
-            app: vault-snapshot
-        spec:
-          automountServiceAccountToken: true  # Needed: script reads SA token for Vault Kubernetes auth
-          serviceAccountName: vault-snapshot
-          restartPolicy: Never
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 65534
-            runAsGroup: 65534
-            seccompProfile:
-              type: RuntimeDefault
-          containers:
-            - name: snapshot
-              image: hashicorp/vault:1.21.4
-              securityContext:
-                allowPrivilegeEscalation: false
-                readOnlyRootFilesystem: true
-                capabilities:
-                  drop: ["ALL"]
-              command: ["/bin/sh", "-c"]
-              args:
-                - |
-                  set -e
-                  export VAULT_ADDR=http://vault.vault.svc.cluster.local:8200
-
-                  echo "=== Vault Raft Snapshot $(date +%Y-%m-%dT%H:%M:%S) ==="
-
-                  # Login via Kubernetes auth (uses ServiceAccount token)
-                  KUBE_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-                  vault write -field=token auth/kubernetes/login \
-                    role=vault-snapshot \
-                    jwt="$KUBE_TOKEN" > /tmp/vault-token
-                  export VAULT_TOKEN=$(cat /tmp/vault-token)
-
-                  # Take Raft snapshot
-                  SNAPSHOT_FILE="/snapshots/vault-$(date +%Y%m%d).snap"
-                  vault operator raft snapshot save "$SNAPSHOT_FILE"
-                  echo "  Saved: $SNAPSHOT_FILE ($(du -h "$SNAPSHOT_FILE" | cut -f1))"
-
-                  # Prune snapshots older than 3 days (off-site copy in restic)
-                  echo "  Pruning snapshots older than 3 days..."
-                  find /snapshots -name "vault-*.snap" -mtime +3 -delete -print | \
-                    while read f; do echo "  Deleted: $f"; done
-
-                  # Cleanup token
-                  rm -f /tmp/vault-token
-
-                  echo "=== Snapshot complete ==="
-                  ls -lh /snapshots/vault-*.snap 2>/dev/null || echo "  No snapshots found"
-              volumeMounts:
-                - name: snapshots
-                  mountPath: /snapshots
-                - name: tmp
-                  mountPath: /tmp
-              resources:
-                requests:
-                  cpu: 10m
-                  memory: 32Mi
-                limits:
-                  cpu: 100m
-                  memory: 64Mi
-          volumes:
-            - name: snapshots
-              persistentVolumeClaim:
-                claimName: vault-snapshots
-            - name: tmp
-              emptyDir:
-                sizeLimit: 1Mi

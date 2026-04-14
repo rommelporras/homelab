@@ -239,6 +239,12 @@ vault kv put secret/argocd \
   discord-webhook-url="$(op read 'op://Kubernetes/Discord Webhooks/gitops')" \
   server-secret-key="$(op read 'op://Kubernetes/ArgoCD/server-secret-key')"
 
+# argo-workflows UI SSO (GitLab as OIDC provider) - Phase 5.9.1.7
+echo "  argo-workflows/sso-credentials"
+vault kv put secret/argo-workflows/sso-credentials \
+  client-id="$(op read 'op://Kubernetes/Argo Workflows UI/sso-client-id')" \
+  client-secret="$(op read 'op://Kubernetes/Argo Workflows UI/sso-client-secret')"
+
 echo ""
 echo "=== Verification ==="
 vault kv list secret/

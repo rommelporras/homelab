@@ -361,6 +361,134 @@ its app pod (instead of `nodeSelector`). If an app moves nodes, its backup follo
 
 ---
 
+## Phase 5.9 Vault Snapshot Cutover Cleanup
+
+**Status:** Deferred - wait 5-7 days after first successful CronWorkflow run
+**Priority:** Low
+**Added:** 2026-04-14 (Phase 5.9)
+
+### Context
+
+Phase 5.9 migrated the daily Vault Raft snapshot from a CronJob in the `vault`
+namespace to a CronWorkflow in the `argo-workflows` namespace (v0.39.0). During
+cutover, the legacy NFS PV/PVC (`vault-snapshots-nfs` / `vault-snapshots` in
+`vault` ns) were intentionally kept alongside the new argo-workflows PV/PVC so
+both could write to the same NAS directory without a gap. The legacy CronJob +
+ServiceAccount were already removed in step 5.9.3.9.
+
+Two cleanup items remain after 5-7 days of clean CronWorkflow operation.
+
+### Readiness check before running
+
+```bash
+# At least 5 successful Argo Workflows runs of vault-snapshot-*
+kubectl-homelab get workflows -n argo-workflows --sort-by=.metadata.creationTimestamp | tail -7
+# Expect 5+ rows with STATUS=Succeeded.
+
+# Fresh snapshot files on NAS for each day of the past week
+ssh wawashi@10.10.30.11 \
+  'sudo mount -t nfs4 10.10.30.4:/Kubernetes /tmp/nfs && \
+   ls -lh /tmp/nfs/Backups/vault/vault-*.snap | tail; \
+   sudo umount /tmp/nfs'
+```
+
+### 5.9.3.10 — Remove legacy NFS PV/PVC in the vault namespace
+
+Delete the remaining stanzas in `manifests/vault/snapshot-cronjob.yaml`:
+- `PersistentVolume vault-snapshots-nfs`
+- `PersistentVolumeClaim vault-snapshots` in the `vault` namespace
+
+After deletion, the file can be removed entirely (header-only at that point).
+Commit, push, ArgoCD prunes the PV + PVC. The NAS directory is unaffected —
+reclaim policy is `Retain` and only the Kubernetes objects go away. The
+argo-workflows PV continues mounting the same NAS path.
+
+### 5.9.3.11 — Delete the legacy Vault Kubernetes auth role
+
+Run manually in a terminal with `vault` CLI + admin token (Claude has no Vault
+access):
+
+```bash
+vault delete auth/kubernetes/role/vault-snapshot
+```
+
+The new `vault-snapshot-argo` role remains bound to the `argo-workflows`
+ServiceAccount and takes over daily snapshots. Verify the legacy role is gone:
+
+```bash
+vault list auth/kubernetes/role
+# Expect: vault-snapshot-argo is listed; vault-snapshot is no longer listed.
+```
+
+**When:** No earlier than 2026-04-21 (first scheduled CronWorkflow run is
+2026-04-15 02:00 Manila; 6 days gives a full weekday cycle).
+
+---
+
+## k8s-cp3 NVMe Reseat
+
+**Status:** Deferred - schedule during next planned maintenance window
+**Priority:** Low (currently correctable AER only; cluster is healthy)
+**Added:** 2026-04-14 (Phase 5.9.7 storage observability)
+
+### Context
+
+k8s-cp3's NVMe (SKHynix HFS512GDE9X081N) threw **4 PCIe correctable bus
+errors** over an 8-day window ending 2026-04-11 (Apr 6, 9, 10, 11). Kernel AER
+reports `severity=Correctable, type=Physical Layer, (Receiver ID)` — the PCIe
+layer retried successfully, no data loss. SMART is clean:
+`media_errors=0`, `critical_warning=0`, `available_spare=100%`,
+`percentage_used=0%`.
+
+Correctable events signal intermittent link instability (loose seating,
+oxidation on M.2 contacts, thermal warping, dust). Reseat is the first-line
+remediation before considering drive or mainboard replacement.
+
+Today's karakeep outage (2026-04-14) was triggered by a Longhorn AutoSalvage
+of a replica on cp3. Direct causation between the PCIe AER pattern and the
+replica stall is unconfirmed (no AER events on 2026-04-14 itself), but cp3 is
+the only node with a recurring AER pattern, so reseat is the low-risk next
+step.
+
+### What "reseat" means
+
+Physically remove the M.2 NVMe module from its slot and reinsert it.
+On the Lenovo M80q tiny form factor: unscrew the retaining screw at the tip
+of the M.2 slot, the board pops up at ~30°, pull it straight out of the slot
+connector, inspect the gold-finger contacts for visible oxidation/dust, clean
+with >90% isopropyl alcohol on a lint-free cloth if needed (allow to dry
+fully), push back in at ~30°, press flat, rescrew.
+
+### Procedure
+
+Full procedure is in [`docs/runbooks/longhorn-hardware.md`](../runbooks/longhorn-hardware.md)
+under "Reseating an NVMe":
+1. Pre-flight: confirm every Longhorn volume has 3 healthy replicas on OTHER
+   nodes, take fresh Longhorn backups of critical volumes
+2. `kubectl-admin cordon k8s-cp3 && kubectl-admin drain k8s-cp3 --ignore-daemonsets --delete-emptydir-data --force`
+3. `ssh wawashi@k8s-cp3 "sudo shutdown -h now"`
+4. Physical work: bottom cover, M.2 screw, reseat, clean if dirty
+5. Power on, wait 5-7 min for M80q BIOS POST
+6. `kubectl-admin uncordon k8s-cp3`
+7. Watch Longhorn replica rebuilds complete (5-20 min)
+8. Confirm AER counters reset: `ssh wawashi@k8s-cp3 "sudo cat /sys/bus/pci/devices/0000:01:00.0/aer_dev_correctable"` → 0
+9. Monitor for 7 days; if correctable errors return, escalate to drive or
+   mainboard replacement per the runbook's "When to Replace vs Reseat" table
+
+### Signals that should bump priority
+
+- Any `NodePCIeBusError` alert with `severity=Non-Fatal` or `severity=Fatal`
+  → reseat immediately, plan drive replacement
+- `smartctl_device_media_errors > 0` or `smartctl_device_critical_warning > 0`
+  → skip reseat, replace drive
+- Another Longhorn `AutoSalvaged` event on a cp3 replica within 7 days
+  → reseat during next available window
+
+**When:** Next planned node reboot (kernel upgrade, Ubuntu patch, etc.), or
+immediately on any non-correctable AER event.
+
+---
+
 ## Restic k8s-media Repository (Immich Photos)
 
 **Status:** Deferred - no Immich data exists yet
