@@ -49,3 +49,27 @@ spec:
             summary: "Longhorn UI is unreachable"
             description: "Blackbox HTTP probe to longhorn-frontend.longhorn-system.svc:80 has failed for 10+ minutes. Storage dashboard is unavailable."
             runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/storage.md#LonghornUIDown"
+
+        # Phase 5.9.7: Longhorn auto-salvaged a volume after replica error(s).
+        # Counter is emitted by Alloy's cluster_events pipeline matching
+        # k8s Event "reason=AutoSalvaged" (cp1 collector only, no deduping
+        # needed). One salvage is usually benign; repeated salvages on the
+        # same node indicate hardware or networking issues.
+        #
+        # The counter has no per-volume labels (extracting them from logfmt
+        # output is brittle). On fire, triage via Loki:
+        #   {source="kubernetes_events"} |= "AutoSalvaged"
+        - alert: LonghornVolumeAutoSalvaged
+          expr: increase(longhorn_volume_auto_salvaged_total[15m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Longhorn auto-salvaged a volume."
+            description: >-
+              Longhorn detected replica errors and triggered AutoSalvaged
+              ({{ $value | humanize }} event(s) in the last 15m). Query Loki
+              `{source=\"kubernetes_events\"} |= \"AutoSalvaged\"` for the
+              specific volume. Investigate kernel logs on the replica's host
+              for PCIe/iSCSI errors.
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/longhorn-hardware.md#LonghornVolumeAutoSalvaged"

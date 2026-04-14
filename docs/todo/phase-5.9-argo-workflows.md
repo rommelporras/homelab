@@ -28,7 +28,7 @@
 > **Gate:** ArgoCD must be stable and all Phase 5.8 migrations confirmed healthy
 > before adding another CRD-heavy workload.
 
-- [ ] 5.9.0.1 Verify ArgoCD is stable and all Applications are Synced/Healthy
+- [x] 5.9.0.1 Verify ArgoCD is stable and all Applications are Synced/Healthy
   ```bash
   kubectl-homelab get applications -n argocd
   # Expected: all SYNCED and Healthy (except cilium which is manual-sync)
@@ -37,7 +37,7 @@
   # Expected: all Running, no CrashLoopBackOff
   ```
 
-- [ ] 5.9.0.2 Check cluster resource headroom
+- [x] 5.9.0.2 Check cluster resource headroom
   ```bash
   kubectl-homelab top nodes
   # Argo Workflows controller (headless): ~100m CPU, ~128Mi memory
@@ -45,7 +45,7 @@
   # Verify at least 200m CPU and 256Mi memory available across cluster
   ```
 
-- [ ] 5.9.0.3 Re-verify latest chart/app versions
+- [x] 5.9.0.3 Re-verify latest chart/app versions
   ```bash
   helm-homelab repo add argo https://argoproj.github.io/argo-helm
   helm-homelab repo update
@@ -56,7 +56,7 @@
   # tag in helm/argo-workflows/values.yaml.
   ```
 
-- [ ] 5.9.0.4 Verify VAP allows Argo Workflows images
+- [x] 5.9.0.4 Verify VAP allows Argo Workflows images
   ```bash
   # The cluster VAP `restrict-image-registries` already allows quay.io/*.
   # Confirm with a dry-run against the exact argoexec tag:
@@ -66,7 +66,7 @@
   # Expected: pod/test-argoexec created (server dry-run), no VAP denial.
   ```
 
-- [ ] 5.9.0.5 Ensure NFS export directory exists on the NAS
+- [x] 5.9.0.5 Ensure NFS export directory exists on the NAS
   ```bash
   # argo-workflows reuses the same NFS path as the current vault CronJob.
   # The directory already exists (32 days of snapshots), so only verify:
@@ -88,7 +88,7 @@
 > + CRDs), one Git-type for companion manifests (RBAC, WorkflowTemplate,
 > CronWorkflow, CNP, ExternalSecret, LimitRange, ResourceQuota, PV/PVC).
 
-- [ ] 5.9.1.1 Bootstrap namespace (one-time imperative apply, then declarative)
+- [x] 5.9.1.1 Bootstrap namespace (one-time imperative apply, then declarative)
   ```bash
   # The Helm Application has CreateNamespace=false and the argo-workflows-manifests
   # Git Application deploys into the same namespace, so the namespace must exist
@@ -112,7 +112,7 @@
   other AppProject changes are needed.
   **Done in this diff.**
 
-- [ ] 5.9.1.3 Review helm values
+- [x] 5.9.1.3 Review helm values
   File: `helm/argo-workflows/values.yaml` (scaffolded). Confirm:
   - `controller.image.tag: v4.0.4` pinned (no `latest`)
   - `server.enabled: false` (headless)
@@ -122,13 +122,13 @@
   - `workflow.rbac.create: false` (same reason)
   - Resource requests/limits match LimitRange values
 
-- [ ] 5.9.1.4 Commit manifests and let ArgoCD install via root app-of-apps
+- [x] 5.9.1.4 Commit manifests and let ArgoCD install via root app-of-apps
   After committing `manifests/argocd/apps/argo-workflows.yaml` and
   `manifests/argocd/apps/argo-workflows-manifests.yaml`, the root app-of-apps
   auto-discovers both. Helm app deploys the chart, Git app deploys the companion
   manifests. Both run with `automated.prune: true, selfHeal: true`.
 
-- [ ] 5.9.1.5 Verify controller is running and CRDs are registered
+- [x] 5.9.1.5 Verify controller is running and CRDs are registered
   ```bash
   kubectl-homelab get pods -n argo-workflows
   # Expected: argo-workflows-workflow-controller-... Running 1/1
@@ -140,7 +140,7 @@
   #   clusterworkflowtemplates.argoproj.io, workfloweventbindings.argoproj.io
   ```
 
-- [ ] 5.9.1.6 Confirm CiliumNetworkPolicies are enforced
+- [x] 5.9.1.6 Confirm CiliumNetworkPolicies are enforced
   ```bash
   kubectl-homelab get ciliumnetworkpolicy -n argo-workflows
   # Expected: argo-workflows-default-deny, argo-workflows-controller,
@@ -278,7 +278,7 @@ notify-on-failure  (fires only when workflow.status != Succeeded)
 > removed in 5.9.3.10. Both can run side-by-side during cutover. The
 > WorkflowTemplate's snapshot step already hard-codes `role=vault-snapshot-argo`.
 
-- [ ] 5.9.3.0 Create the parallel Vault Kubernetes auth role
+- [x] 5.9.3.0 Create the parallel Vault Kubernetes auth role
   ```bash
   # MUST be run by the user in a terminal with `vault` CLI + admin token.
   # Claude does not have (and must never see) Vault credentials.
@@ -357,7 +357,7 @@ recurse: true).
 
 ### Cutover procedure
 
-- [ ] 5.9.3.6 Trigger a manual Workflow run (BEFORE disabling the old CronJob)
+- [x] 5.9.3.6 Trigger a manual Workflow run (BEFORE disabling the old CronJob)
   ```bash
   kubectl-admin create -f - <<EOF
   apiVersion: argoproj.io/v1alpha1
@@ -378,7 +378,7 @@ recurse: true).
   # STATUS: Succeeded
   ```
 
-- [ ] 5.9.3.7 Verify a new snapshot file appeared on the NAS
+- [x] 5.9.3.7 Verify a new snapshot file appeared on the NAS
   ```bash
   sudo mount -t nfs4 10.10.30.4:/Kubernetes /tmp/nfs
   ls -lh /tmp/nfs/Backups/vault/vault-$(date +%Y%m%d).snap
@@ -518,19 +518,19 @@ Single Discord notification with aggregate pass/fail instead of per-job alerts.
 ## Verification Checklist
 
 **Deployment:**
-- [ ] `argo-workflows` namespace exists with PSS baseline + eso-enabled labels
-- [ ] workflow-controller pod Running 1/1
-- [ ] argo-server NOT deployed (headless mode confirmed)
-- [ ] CRDs registered: workflows, cronworkflows, workflowtemplates, workflowtaskresults, workflowtasksets, workflowartifactgctasks, clusterworkflowtemplates, workfloweventbindings
+- [x] `argo-workflows` namespace exists with PSS baseline + eso-enabled labels
+- [x] workflow-controller pod Running 1/1
+- [x] argo-server NOT deployed (headless mode confirmed)
+- [x] CRDs registered: workflows, cronworkflows, workflowtemplates, workflowtaskresults, workflowtasksets, workflowartifactgctasks, clusterworkflowtemplates, workfloweventbindings
 
 **Wave 1 - vault-snapshot:**
-- [ ] Vault K8s auth role updated to trust `argo-workflows:vault-snapshot-workflow`
-- [ ] vault-snapshot WorkflowTemplate deployed
-- [ ] vault-snapshot CronWorkflow deployed and scheduled
-- [ ] Manual test run completed with status Succeeded
-- [ ] All 3 DAG steps (login, snapshot, prune) completed in order
-- [ ] Old vault-snapshot CronJob suspended (then removed after 5-7 days)
-- [ ] NFS snapshot file `vault-YYYYMMDD.snap` present on NAS (owner uid 65534)
+- [x] Parallel Vault K8s auth role `vault-snapshot-argo` created, bound to `argo-workflows:vault-snapshot-workflow`, `policies=snapshot-policy`
+- [x] vault-snapshot WorkflowTemplate deployed
+- [x] vault-snapshot CronWorkflow deployed and scheduled
+- [x] Manual test run completed with status Succeeded (25s total)
+- [x] Both DAG steps (snapshot, prune) completed in order; onExit handler fired with `when:` guard suppressing notify on success
+- [ ] Old vault-snapshot CronJob suspended (pending - awaiting the first scheduled 02:00 Manila CronWorkflow run)
+- [x] NFS snapshot file `vault-YYYYMMDD.snap` present on NAS (owner uid 65534, ~81K)
 - [ ] Old-path PV/PVC cleanup (`manifests/vault/snapshot-cronjob.yaml`) committed
 
 **Wave 2 - Backup Alerts (mooted - existing coverage confirmed):**
@@ -540,29 +540,29 @@ Single Discord notification with aggregate pass/fail instead of per-job alerts.
   (no category set) still delivers to `#apps`.
 
 **Networking:**
-- [ ] CiliumNetworkPolicies applied for argo-workflows namespace
-- [ ] controller can reach kube-apiserver:6443 (via `kube-apiserver` entity)
-- [ ] argoexec can reach workflow-controller:9090 (progress reports)
-- [ ] Prometheus scrapes controller:9090 metrics
-- [ ] vault-snapshot workflow pods can reach vault.vault.svc:8200
-- [ ] notify-on-failure pods can reach discord.com:443 (FQDN egress + DNS rule)
+- [x] CiliumNetworkPolicies applied for argo-workflows namespace
+- [x] controller can reach kube-apiserver:6443 (via `kube-apiserver` entity)
+- [x] argoexec can reach workflow-controller:9090 (progress reports)
+- [x] Prometheus scrapes controller:9090 metrics (target `up`)
+- [x] vault-snapshot workflow pods can reach vault.vault.svc:8200 (proven by manual test's successful login + snapshot)
+- [ ] notify-on-failure pods can reach discord.com:443 (FQDN egress + DNS rule) - untested without a real failure; Cilium FQDN cache populated on first DNS lookup
 
 **Monitoring:**
-- [ ] ServiceMonitor for workflow-controller scraping successfully
-- [ ] Alert: CronWorkflow missed schedule (absent for >2 scheduled intervals)
-- [ ] Alert: Workflow failed (workflow_status=Failed count > 0)
-- [ ] Grafana dashboard deployed with workflow success/failure rates
+- [x] ServiceMonitor for workflow-controller scraping successfully
+- [x] Alert: VaultSnapshotStale (absent Succeeded gauge > 0 for 30m) - verified firing/cleared cycle after 2 alert-expression fixes
+- [x] Alert: ArgoWorkflowFailed (gauge{phase="Failed"} > 0) - expression validated against live metrics
+- [x] Grafana dashboard deployed (4-row starter; panel queries to refine after a week of scrape history)
 
 **Security:**
-- [ ] controller runs as non-root (runAsUser: 1000)
-- [ ] argoexec uses `-nonroot` image tag
-- [ ] workflow ServiceAccounts have minimal RBAC (no cluster-admin)
-- [ ] No secrets in WorkflowTemplate specs (all via secretKeyRef)
+- [x] controller runs as non-root (runAsUser: 1000)
+- [x] argoexec uses `-nonroot` image tag (v4.0.4-nonroot)
+- [x] workflow ServiceAccounts have minimal RBAC (scoped Role on workflowtaskresults, pods/log, secret[discord-webhooks] get)
+- [x] No secrets in WorkflowTemplate specs (Discord webhook via secretKeyRef to ESO-synced Secret)
 
 **GitOps:**
-- [ ] ArgoCD Application `argo-workflows` (Helm) Synced/Healthy
-- [ ] ArgoCD Application `argo-workflows-manifests` (Git) Synced/Healthy
-- [ ] CronWorkflows managed via ArgoCD (no kubectl apply outside Git)
+- [x] ArgoCD Application `argo-workflows` (Helm) Synced/Healthy
+- [x] ArgoCD Application `argo-workflows-manifests` (Git) Synced/Healthy
+- [x] CronWorkflows managed via ArgoCD (no kubectl apply outside Git)
 
 ---
 
@@ -613,9 +613,247 @@ kubectl-admin delete ciliumnetworkpolicy argo-workflows-vault-snapshot -n argo-w
 
 ---
 
+## Deployment Notes
+
+Six design errors caught during post-deploy validation, all shipped as
+follow-up commits. See the April 14, 2026 entry in
+`docs/reference/CHANGELOG.md` ("Deployment Fixes Caught During Install")
+for the full write-up:
+
+1. `helm/argo-workflows/values.yaml` - removed `persistence.archive: false`
+   (triggers persistence config parser; fails with "TableName is empty").
+2. `manifests/argo-workflows/cronworkflows/vault-snapshot-cron.yaml` -
+   v3.6+ CronWorkflow uses `schedules` (array), not `schedule` (string).
+3. `manifests/argo-workflows/templates/vault-snapshot-template.yaml` -
+   `workflow.finishedAt` is not a valid Argo variable; use `workflow.duration`.
+4. `docs/todo/phase-5.9-argo-workflows.md` - Vault policy name is
+   `snapshot-policy`, not `vault-snapshot`.
+5. `manifests/monitoring/alerts/argo-workflows-alerts.yaml` - v4 metrics
+   are `argo_workflows_gauge{phase}` / `argo_workflows_total_count{phase}`,
+   not `argo_workflows_count{status,name}`; no per-workflow `name` label.
+6. `manifests/monitoring/alerts/argo-workflows-alerts.yaml` -
+   `VaultSnapshotStale` uses `absent(gauge > 0)` pattern, not
+   `increase(counter[26h]) < 1` (Prometheus never observed a 0->1
+   transition so increase returned 0 and the alert fired constantly).
+
+---
+
+## 5.9.7 Storage Observability Follow-up (carried on v0.39.0)
+
+> **Context:** On 2026-04-14 at 16:38 local time, karakeep became unresponsive
+> for ~3 minutes after a bookmark creation. Root cause investigation traced
+> through the following chain:
+>
+> 1. The `bazarr-config` Longhorn volume's replica on k8s-cp3
+>    (`pvc-a1c35c01-c0e7-40a1-a310-71759c6d8352-r-ecb92f9a` at `10.0.2.18:11002`)
+>    stopped responding to the engine on k8s-cp2
+> 2. The engine on k8s-cp2 saw SCSI medium errors on its iSCSI view of the
+>    volume (`/dev/sdo`, sector 426928), marked the replica `ERR`, and
+>    triggered Longhorn's `AutoSalvaged` flow
+> 3. During the stall, many processes on k8s-cp2 blocked on I/O to `sdo`
+>    (Sonarr, Bazarr, backup scripts) - load average spiked from ~1 to **32**
+> 4. kubelet on k8s-cp2 couldn't renew its node lease in time - node-controller
+>    flagged k8s-cp2 `NotReady` for ~95s
+> 5. Taint manager started evicting pods after 60s. Karakeep + chrome happened
+>    to be on k8s-cp2 - collateral damage. The `karakeep` namespace ResourceQuota
+>    (`limits.cpu: 4`) was saturated because both the terminating old chrome
+>    pod and the new one counted, so chrome's replacement failed 8 times before
+>    the old pod's reservation released
+> 6. Longhorn finished salvage, rebuilt the replica, volume `healthy` again
+>
+> **SMART + AER audit results:**
+>
+> - All 3 NVMe drives healthy: `media_errors=0`, `available_spare=100%`,
+>   `percentage_used=0-1%`, `smart_status=PASS`
+> - **k8s-cp3 shows 4 PCIe correctable errors in the 8 days prior** (Apr 6, 9,
+>   10, 11). No PCIe events on Apr 12-14. "Correctable" means the PCIe layer
+>   retry succeeded (no data loss), but indicates intermittent link instability
+>   on cp3's NVMe - not drive wear. Zero Prometheus visibility on this today
+> - The failure was **not preceded by any kernel-level NVMe/PCIe error on
+>   k8s-cp3** on Apr 14, so today's specific failure cannot be directly
+>   attributed to PCIe instability. Likely proximate causes: Longhorn replica
+>   process stall, iSCSI timeout, or a transient Cilium/network hiccup between
+>   the engine on cp2 and the replica on cp3. Root cause undetermined
+>
+> **Why bundled into v0.39.0 instead of a new release:** these additions are
+> observability-only (two PrometheusRules, one Alloy config change, one
+> runbook). They don't touch the Argo Workflows install or the vault-snapshot
+> migration. Bundling avoids a separate patch release for three small changes
+> and keeps the narrative that v0.39.0 is a broader "platform hardening"
+> increment rather than a single-feature ship.
+
+### Design decisions
+
+**Use Alloy journal source + `loki.process stage.metrics` + PrometheusRule (not a textfile collector or Loki ruler):**
+
+- The Alloy DaemonSet is already on every node. Adding a `loki.source.journal`
+  block and a host `/var/log/journal` mount is ~15 lines across `helm/alloy/values.yaml`
+- `loki.process stage.metrics` creates a Prometheus counter from matched log lines.
+  Alloy's self-metrics are already scraped by Prometheus via `alloy-servicemonitor.yaml`
+- This keeps alert rules in `PrometheusRule` CRDs (the established pattern -
+  38 rule files in `manifests/monitoring/alerts/`) rather than splitting
+  between Prometheus rules and a separate Loki ruler configuration
+- Captures correctable, non-fatal, AND fatal PCIe events with severity as a
+  label - a single rule covers all future AER severities, not just the one
+  we've observed
+
+**Rejected alternatives:**
+
+- **Textfile collector DaemonSet reading `/sys/bus/pci/devices/*/aer_dev_*`** -
+  sysfs gives persistent counters (richer long-term data), but requires a new
+  DaemonSet that duplicates node_exporter's purpose. Worth revisiting only if
+  the journal-based approach shows gaps
+- **Loki ruler with LogQL alert** - would split alert authoring between two
+  systems (PrometheusRule + LokiRule) and break the pattern every existing
+  alert in this repo follows. Reject on consistency grounds
+- **Lower `concurrent-replica-rebuild-per-node-limit` from 5 to 1** -
+  earlier draft suggested this. On re-reading the event chain, the Apr 14
+  replica failure on cp3 was NOT caused by concurrent rebuilds - it was a
+  single-replica stall that Longhorn correctly salvaged. The
+  "snapshot blocked because rebuild in progress" log that motivated the
+  tuning proposal turned out to be for a different volume's housekeeping,
+  not a contention signal. Tuning this setting would slow legitimate
+  node-recovery rebuilds (14 stale replicas * sequential = 30+ min vs
+  1-6 min at default) without evidence it addresses a real failure mode.
+  Observability first; tune later if data shows cascades
+- **Increase `karakeep` namespace ResourceQuota to accommodate pod-eviction
+  overlap** - today's quota-blocking was a 30-60s delay on top of a
+  Longhorn-driven outage. The steady-state quota is correctly sized. Do
+  not inflate it for a once-in-months event
+
+### Implementation
+
+- [x] 5.9.7.1 Add kernel journal collection to Alloy
+  File: `helm/alloy/values.yaml`
+  - Added hostPath volumes for `/var/log/journal` (`type: Directory`),
+    `/run/log/journal` (`type: DirectoryOrCreate` - fallback), and
+    `/etc/machine-id` (required by the journal reader for boot correlation)
+  - Added matching readOnly mounts inside the Alloy container
+  - Extended the `configMap.content` with a `loki.source.journal` block
+    filtering on `matches = "_TRANSPORT=kernel"` that forwards into a new
+    `loki.process "kernel_logs"` pipeline
+  - The `kernel_logs` pipeline uses `stage.static_labels` to set
+    `node = env("HOSTNAME")` (same pattern as `cluster_events`), then
+    `stage.match` on `|= "PCIe Bus Error"` runs `stage.regex` (with
+    `labels_from_groups = true`) to extract the `severity=` value as a
+    label, then `stage.metrics` emits the counter
+    `kernel_pcie_bus_errors_total` (with `node` and `severity` labels
+    inherited from the entry). Pipeline then `forward_to` sends all matched
+    kernel lines to Loki as well - at <150 KB/day cluster-wide the storage
+    cost is negligible and it gives us raw kernel context at alert-fire time
+
+- [x] 5.9.7.2 Add `NodePCIeBusError` PrometheusRule
+  File: `manifests/monitoring/alerts/node-alerts.yaml` (extended)
+  ```yaml
+  - alert: NodePCIeBusError
+    expr: increase(kernel_pcie_bus_errors_total[1h]) > 0
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "PCIe bus error on {{ $labels.node }} (severity={{ $labels.severity }})."
+      description: >-
+        Kernel reported {{ $value | humanize }} PCIe Bus Error event(s)
+        on {{ $labels.node }} with severity={{ $labels.severity }} in
+        the last hour. Correctable = link retry succeeded (reseat
+        candidate). Non-Fatal / Fatal = plan drive replacement.
+      runbook_url: ".../longhorn-hardware.md#NodePCIeBusError"
+  ```
+  Metric is emitted by Alloy's `kernel_logs` pipeline (5.9.7.1). The
+  `severity` label is carried through the alert label, so Alertmanager
+  routing can eventually split Correctable (warning) from Non-Fatal / Fatal
+  (critical) without requiring separate rules. `for: 1m` is a debounce.
+
+- [x] 5.9.7.3 Add `LonghornVolumeAutoSalvaged` PrometheusRule
+  File: `manifests/monitoring/alerts/longhorn-alerts.yaml` (extended)
+  ```yaml
+  - alert: LonghornVolumeAutoSalvaged
+    expr: increase(longhorn_volume_auto_salvaged_total[15m]) > 0
+    for: 0m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Longhorn auto-salvaged a volume."
+      description: >-
+        Longhorn detected replica errors and triggered AutoSalvaged.
+        Query Loki `{source="kubernetes_events"} |= "AutoSalvaged"`
+        for the specific volume. Investigate kernel logs on the
+        replica's host for PCIe/iSCSI errors.
+      runbook_url: ".../longhorn-hardware.md#LonghornVolumeAutoSalvaged"
+  ```
+  **Source correction:** the original draft referenced
+  `kube_event_count{reason="AutoSalvaged"}`, but pre-flight showed
+  kube-state-metrics' events collector is NOT enabled in this deploy (not
+  a default collector). Longhorn's own `/metrics` endpoint has no native
+  salvage counter either. Revised source: Alloy's `cluster_events`
+  pipeline (already ingesting k8s events cluster-wide from cp1) now
+  matches `|= "AutoSalvaged"` and emits `longhorn_volume_auto_salvaged_total`
+  via `stage.metrics`. Counter has no per-volume labels (extracting them
+  from logfmt output is brittle); the runbook directs triage to Loki.
+
+- [x] 5.9.7.4 Create `docs/runbooks/longhorn-hardware.md`
+  Verified there is no pre-existing runbook covering hardware-level Longhorn
+  incidents (`docs/runbooks/` has `storage.md` for volume-level triage but
+  nothing for NVMe reseating or PCIe AER). New file covers:
+  - `NodePCIeBusError` triage (correctable vs fatal, what to check)
+  - `LonghornVolumeAutoSalvaged` triage (cross-reference to storage.md)
+  - NVMe reseat procedure (drain, shutdown, reseat, uncordon)
+  - When to reseat vs replace
+  - Apr 14 bazarr-config incident as the first entry in the "Incident log"
+    section (reference, not duplicate - detail lives in CHANGELOG)
+
+- [ ] 5.9.7.5 Verify the Alloy change end-to-end (post-deploy)
+  Run after ArgoCD has synced the `alloy` and `monitoring-manifests`
+  Applications.
+  ```bash
+  # (1) Alloy loaded the new journal pipeline without errors:
+  kubectl-homelab logs -n monitoring ds/alloy --tail=100 | grep -iE 'journal|kernel_logs|error'
+  # Expected: "loki.source.journal" component init lines, no permission errors
+
+  # (2) Alloy is exposing the two new counters at 0 (baseline):
+  kubectl-homelab -n monitoring port-forward svc/alloy 12345:http-metrics &
+  PF_PID=$!
+  sleep 2
+  curl -s localhost:12345/metrics | grep -E '^(kernel_pcie_bus_errors_total|longhorn_volume_auto_salvaged_total)'
+  kill $PF_PID
+  # Expected: both metric families exposed; values may be 0 until matching events occur
+
+  # (3) Inject a synthetic PCIe event to confirm the pipeline matches:
+  ssh wawashi@10.10.30.11 \
+    "sudo logger -t kernel -p kern.warn \
+     'PCIe Bus Error: severity=Correctable, type=Physical Layer, (Receiver ID) [ALLOY-TEST]'"
+  # Wait 30-60s for Alloy to read the journal entry.
+
+  # Re-check the metric; expect kernel_pcie_bus_errors_total{node="k8s-cp1",severity="Correctable"} == 1:
+  kubectl-homelab -n monitoring port-forward svc/alloy 12345:http-metrics &
+  PF_PID=$!
+  sleep 2
+  curl -s localhost:12345/metrics | grep kernel_pcie_bus_errors_total
+  kill $PF_PID
+
+  # (4) Confirm the same line also landed in Loki:
+  # In Grafana, query: {source="journal", node="k8s-cp1"} |= "ALLOY-TEST"
+  # Expected: one entry matching the injected log.
+  ```
+  If metric name at Alloy's `/metrics` has a different prefix than expected
+  (e.g. `loki_process_custom_kernel_pcie_bus_errors_total`), adjust the two
+  PrometheusRules (5.9.7.2 and 5.9.7.3) to match and re-commit.
+
+### Deferred / intentionally out of scope
+
+- **NVMe reseat on k8s-cp3** - physical maintenance, runbook-tracked not
+  phase-tracked. Schedule during the next planned node reboot window
+- **`concurrent-replica-rebuild-per-node-limit` tuning** - revisit only if
+  `LonghornVolumeAutoSalvaged` fires repeatedly on the same node within a
+  rolling 30-day window
+- **ResourceQuota tuning in `karakeep`** - today's quota delay was a 30-60s
+  downstream effect of a Longhorn outage, not a steady-state problem. Leave alone
+
+---
+
 ## Final: Commit and Release
 
-- [ ] `/audit-security` then `/commit`
+- [ ] `/audit-security` then `/commit` (done during install - multiple fix commits pushed)
 - [ ] `/audit-docs` then `/commit`
-- [ ] `/ship v0.39.0 "Argo Workflows"`
+- [ ] `/ship v0.39.0 "Argo Workflows"` (after 5.9.3.8/5.9.3.9 cutover and 5.9.7 observability landed)
 - [ ] `mv docs/todo/phase-5.9-argo-workflows.md docs/todo/completed/`

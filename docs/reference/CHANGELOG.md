@@ -4,6 +4,83 @@
 
 ---
 
+## April 14, 2026 - Argo Workflows + vault-snapshot migration + storage observability (v0.39.0)
+
+### Summary
+
+Phase 5.9: install Argo Workflows v4.0.4 (headless, chart 1.0.7) as a new platform component under the `argo-workflows` namespace, and migrate the daily `vault-snapshot` CronJob to a CronWorkflow with a 2-step DAG (snapshot + prune) and a Discord-on-failure exit handler. Deployed via two ArgoCD Applications (Helm chart + Git manifests), dog-fooding the GitOps split established in Phase 5.8. Manual end-to-end test succeeded; cutover of the legacy CronJob is staged for the following night to de-risk the scheduled run. Same release bundles a storage observability follow-up (Phase 5.9.7) triggered by a k8s-cp2 `NotReady` incident the same day - see dedicated subsection below.
+
+### Install & Migration
+
+- **Argo Workflows v4.0.4 (headless)** - controller + CRDs via the official Helm chart 1.0.7. `server.enabled: false` (no argo-server UI) saves ~100m CPU + ~128Mi memory. The argo CLI (via the controller pod) and ArgoCD UI cover operational needs; argo-server can be enabled later if a dedicated Workflows UI becomes worth the cost.
+- **Two ArgoCD Applications** - `argo-workflows` (Helm multi-source, chart 1.0.7 from `argoproj.github.io/argo-helm` + `$values` from this repo) and `argo-workflows-manifests` (Git-type, `recurse: true`). Matches the repo's existing `<name>` + `<name>-manifests` pattern (longhorn, monitoring, gitlab). Keeps chart-version bumps decoupled from in-repo manifest edits.
+- **vault-snapshot WorkflowTemplate** - 2-step DAG: `snapshot` (login via K8s auth + `vault operator raft snapshot save`) -> `prune` (`find -mtime +3 -delete`). `onExit: notify-on-failure` wraps a `send-discord` step guarded by `when: "{{workflow.status}} != Succeeded"` so success runs create no notify pod. `activeDeadlineSeconds: 120`, `ttlStrategy.secondsAfterSuccess: 86400`, `podGC: OnPodSuccess`.
+- **Why 2-step instead of 3** - an earlier draft separated `vault-login` as its own DAG node, but Argo Workflows DAG nodes are different pods. A Vault client token written to `/tmp` in pod 1 is not visible to pod 2, and passing it via workflow output parameters serialises the secret into the CRD `.status`. Combining login + raft snapshot in one pod keeps the token ephemeral and matches the old CronJob's security posture. The DAG still models the real dependency: `prune` must not run before `snapshot` succeeded.
+- **NFS PV/PVC pattern** - new PV `vault-snapshots-argo-nfs` (distinct cluster-scoped name) and PVC `vault-snapshots` in the argo-workflows namespace, both pointing at the existing NAS path `10.10.30.4:/Kubernetes/Backups/vault`. Old CronJob PV/PVC kept in-place so both can write to the same directory during cutover - restic off-site job unaffected.
+- **Vault Kubernetes auth role: parallel, not shared** - new role `vault-snapshot-argo` bound to `argo-workflows:vault-snapshot-workflow` SA with the existing `snapshot-policy`. Legacy role `vault-snapshot` stays bound to `vault:vault-snapshot` until the old CronJob is removed post-cutover. Avoids a brittle multi-SA binding during migration.
+- **CiliumNetworkPolicy** - default-deny + controller policy (ingress from Prometheus on 9090, argoexec from same ns, egress to kube-apiserver + DNS) + vault-snapshot workflow policy (egress to vault-0:8200, Discord FQDN on 443, NFS 10.10.30.4:2049 defense-in-depth, apiserver for WorkflowTaskResult writes). Vault's own `vault-server-ingress` patched to accept `app.kubernetes.io/component=vault-snapshot-workflow` pods from `argo-workflows`.
+- **ExternalSecret reuses `monitoring/discord-webhooks`** - the ESO `vault-backend` CSS proved broad enough to read `secret/monitoring/*` from the argo-workflows namespace; no new Vault policy needed. Only the `incidents` webhook is pulled.
+- **Monitoring** - ServiceMonitor (scrape controller metrics port 9090 via the service's `metrics` port name), PrometheusRule with 4 alerts (controller down, Workflow Failed, Workflow Error, VaultSnapshotStale), and a 4-row starter Grafana dashboard. Dashboard panels use documented v4 metric names; panel queries to be refined after a week of live scrape history. New runbook at `docs/runbooks/argo-workflows.md`.
+
+### Deployment Fixes Caught During Install
+
+Six design errors landed as follow-up commits during post-deploy validation:
+
+- **Helm `persistence.archive: false`** - setting this key enables the controller's persistence config parser which then fails with "TableName is empty" because no postgresql block is provided. Chart default is `persistence: {}` (empty) which is the correct way to disable archiving. Controller CrashLooped until the key was removed.
+- **CronWorkflow v4 schema** - `spec.schedule` (string) was replaced by `spec.schedules` (array) in v3.6+. CRD OpenAPI validation rejected the old shape.
+- **`workflow.finishedAt` is not a valid Argo variable** - spec validation failed with "failed to resolve". Use `workflow.duration` (seconds) instead; `workflow.status`, `workflow.name`, `workflow.namespace`, `workflow.failures` are the documented onExit-safe variables.
+- **Vault policy name** - plan referenced `policies=vault-snapshot` but the actual policy name is `snapshot-policy` (carried over from the legacy role). A role referencing a non-existent policy silently falls back to `default`, which cannot read `sys/storage/raft/snapshot` (403). Discovered when the first real workflow hit the Vault API.
+- **Alert metric names** - alerts referenced `argo_workflows_count{status,name}` from the v3 docs. v4.0.4 emits `argo_workflows_gauge{phase}` (current) and `argo_workflows_total_count{phase}` (cumulative), with no per-workflow `name` label. `absent()` always returned 1, firing `VaultSnapshotStale` as soon as Prometheus started scraping.
+- **Counter increase over history Prometheus never observed** - first fix switched to `increase(argo_workflows_total_count{phase="Succeeded"}[26h]) < 1`, but Prometheus only observes the counter at value 1 (no 0->1 transition captured at controller startup), so `increase()` returns 0 for the first 26h. Final fix uses `absent(argo_workflows_gauge{phase="Succeeded"} > 0)` - paired with `ttlStrategy.secondsAfterSuccess: 86400`, a current value >= 1 means a successful workflow exists within the last 24h.
+
+### Decisions
+
+- **Headless Argo Workflows** - no argo-server UI. argo CLI + ArgoCD UI cover operational needs; revisit if a dedicated UI becomes worth the resource + HTTPRoute cost.
+- **Two-app GitOps split over single-app Kustomize wrapper** - matches `longhorn` / `longhorn-manifests`, `monitoring` / `monitoring-manifests`, `gitlab` / `gitlab-manifests`. Separates upstream chart change drivers from in-repo manifest edits; independent sync state and cleaner rollback.
+- **Parallel Vault role for cutover** - `vault-snapshot-argo` alongside `vault-snapshot` avoids a multi-SA binding that would have to be shrunk after cutover. Legacy role is deleted only after the old CronJob + PV/PVC are removed.
+- **Dashboard written from docs, tuned later** - the starter dashboard's PromQL expressions were written against documented metric names without a live scrape. Panels to be refined once a week of actual `argo_workflows_*` metrics has accumulated.
+- **Phase 5.9 originally scoped as "CI/CD Pipeline Migration"** - narrowed to "install Argo Workflows + migrate vault-snapshot". GitLab Runner replacement (Buildkit as a workflow step) deferred to Phase 5.10+.
+- **Wave 2 backup-alerts work mooted** - the existing `backup-alerts.yaml:CronJobFailed` (generic `kube_job_status_failed{namespace!=""}`) already catches every backup CronJob failure. An earlier plan draft proposed a `BackupJobFailed` rule; audited away after reading the current rules.
+
+### Storage Observability Follow-up (Phase 5.9.7, bundled on v0.39.0)
+
+**Incident:** On 2026-04-14 at 16:38 local time, karakeep became unresponsive for ~3 minutes after a bookmark creation. Triaging the failure chain end-to-end revealed a gap in observability that the same release closes.
+
+**Failure chain:**
+
+1. Bazarr-config Longhorn replica on k8s-cp3 (`pvc-a1c35c01-...-r-ecb92f9a` at `10.0.2.18:11002`) stopped responding to the engine on k8s-cp2
+2. The engine on k8s-cp2 saw SCSI medium errors on its iSCSI view (`/dev/sdo`, sector 426928), marked the replica `ERR`, triggered Longhorn's `AutoSalvaged` flow
+3. Many processes on k8s-cp2 blocked on I/O to `sdo` during the stall - load average spiked from ~1 to **32**
+4. kubelet on k8s-cp2 missed node-lease renewal; node-controller flagged k8s-cp2 `NotReady` for ~95s
+5. Taint manager evicted karakeep + chrome (they happened to be on cp2). The `karakeep` namespace `ResourceQuota` was saturated during the overlap window (terminating chrome pod + replacement both counted), so chrome's replacement failed 8 times before the old pod's reservation released
+6. Longhorn finished salvage, rebuilt the replica, volume `healthy` again
+
+**Hardware audit:**
+
+- All 3 NVMe drives clean: `media_errors=0`, `critical_warning=0`, `available_spare=100`, `percentage_used=0-1%`, `smart_status=PASS`
+- **k8s-cp3 had 4 PCIe correctable errors in the 8 days prior** (Apr 6, 9, 10, 11). Zero Prometheus visibility. Correctable means the PCIe layer retry succeeded - indicates intermittent link instability, not drive wear. Today's specific Longhorn failure was NOT preceded by a kernel-level NVMe/PCIe event on Apr 14, so direct causation is unconfirmed
+
+**Changes:**
+
+- **Alloy kernel journal collection** - `helm/alloy/values.yaml` extended with a `loki.source.journal` block reading from `/var/log/journal` and `/run/log/journal` (new hostPath mounts). A new `loki.process "kernel_events"` pipeline matches `PCIe Bus Error` lines and uses `stage.metrics` to emit a counter `kernel_pcie_bus_errors_total{severity,node}`. Alloy's self-metrics are already scraped by the existing `alloy-servicemonitor.yaml`, so the counter lands in Prometheus with no new infrastructure.
+- **`NodePCIeBusError` PrometheusRule** - added to `manifests/monitoring/alerts/node-alerts.yaml`. Fires on any increase in `kernel_pcie_bus_errors_total` over a 1h window, with severity carried through as an alert label (so fatal/nonfatal events automatically page louder via the same rule).
+- **`LonghornVolumeAutoSalvaged` PrometheusRule** - added to `manifests/monitoring/alerts/longhorn-alerts.yaml`. Uses `kube_event_count{reason="AutoSalvaged"}` - kube-state-metrics already exposes this, so no new metric source. `for: 0m` because AutoSalvage is a discrete event, not a sustained condition.
+- **New runbook** `docs/runbooks/longhorn-hardware.md` - triage procedures for both new alerts, NVMe reseat procedure for the M80q chassis, and the decision tree for reseat-vs-replace based on AER severity + SMART state. Includes the Apr 14 bazarr-config incident in the "Incident Log" section.
+
+**Deliberately rejected:**
+
+- **Textfile collector DaemonSet reading `/sys/bus/pci/devices/*/aer_dev_*`** - sysfs counters are richer (persistent across dmesg rotation) but adding a new DaemonSet duplicates node_exporter's job. Revisit only if the journal-based approach shows gaps.
+- **Loki ruler with LogQL alerts** - would split alert authoring across two systems. Every existing alert in this repo is a `PrometheusRule`; keep the pattern.
+- **Lowering `concurrent-replica-rebuild-per-node-limit` from 5 to 1** - earlier draft proposed this. On re-reading the event chain, the Apr 14 replica failure was NOT caused by concurrent rebuilds on cp3 - it was a single-replica stall Longhorn correctly salvaged. Tuning would slow legitimate node-recovery rebuilds (14 stale replicas * sequential = 30+ min vs 1-6 min at default) without evidence it prevents the actual failure mode. Observability first; tune on data.
+- **Increasing `karakeep` namespace ResourceQuota** - the quota-blocking was a 30-60s delay on top of a Longhorn outage, not steady-state pressure. Don't inflate a correctly-sized quota for a once-in-months event.
+
+**Deferred:**
+
+- **NVMe reseat on k8s-cp3** - physical maintenance, tracked in `longhorn-hardware.md` not the phase plan. Schedule during the next planned node reboot.
+- **Dashboard panel for `kernel_pcie_bus_errors_total`** - add after a week of scrape history confirms the metric cardinality stays sane.
+
+---
+
 ## April 10, 2026 - Network Policy Fixes & Tooling (v0.38.4)
 
 ### Summary

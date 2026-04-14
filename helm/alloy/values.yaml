@@ -23,6 +23,22 @@ controller:
         hostPath:
           path: /var/log/kubernetes/audit
           type: DirectoryOrCreate
+      # Phase 5.9.7: kernel journal for PCIe AER + other kernel-level errors.
+      # Persistent path on Ubuntu 24.04; runtime path is the fallback before
+      # /var/log/journal exists (shouldn't matter here - already populated).
+      - name: journal-persistent
+        hostPath:
+          path: /var/log/journal
+          type: Directory
+      - name: journal-runtime
+        hostPath:
+          path: /run/log/journal
+          type: DirectoryOrCreate
+      # Required by systemd journal reader for boot correlation.
+      - name: machine-id
+        hostPath:
+          path: /etc/machine-id
+          type: File
 
 # =============================================================================
 # Alloy Configuration
@@ -162,6 +178,23 @@ alloy:
           action   = "drop"
         }
 
+        // Phase 5.9.7: count Longhorn AutoSalvaged events as a Prometheus
+        // counter. Lines still forward to Loki below for on-demand triage.
+        // Only cp1 reaches this stage (see drop above), so no deduplication
+        // needed on the counter.
+        stage.match {
+          selector = "{source=\"kubernetes_events\"} |= \"AutoSalvaged\""
+
+          stage.metrics {
+            metric.counter {
+              name        = "longhorn_volume_auto_salvaged_total"
+              description = "Count of Longhorn AutoSalvaged events observed via k8s event stream (cp1 collector only)."
+              action      = "inc"
+              match_all   = true
+            }
+          }
+        }
+
         forward_to = [loki.write.loki.receiver]
       }
 
@@ -200,6 +233,56 @@ alloy:
       }
 
       // =======================================================================
+      // Kernel Journal Collection (Phase 5.9.7)
+      // =======================================================================
+      // Tails systemd journal on each node for kernel-transport messages.
+      // Emits a Prometheus counter for PCIe Bus Errors (scraped by
+      // alloy-servicemonitor.yaml) AND forwards raw lines to Loki for
+      // ad-hoc queries. Volume is negligible (<150 KB/day cluster-wide
+      // measured 2026-04-14, ~0.05% of existing Loki ingestion).
+      loki.source.journal "kernel" {
+        forward_to = [loki.process.kernel_logs.receiver]
+        matches    = "_TRANSPORT=kernel"
+        labels = {
+          cluster = "homelab",
+          source  = "journal",
+          unit    = "kernel",
+        }
+      }
+
+      loki.process "kernel_logs" {
+        // Attach node label so counter + Loki queries can filter per node.
+        stage.static_labels {
+          values = {
+            node = env("HOSTNAME"),
+          }
+        }
+
+        // PCIe Bus Error counter. stage.regex extracts severity
+        // (Correctable / Non-Fatal / Fatal) as a label via
+        // labels_from_groups. Lines still forward to Loki below.
+        stage.match {
+          selector = "{unit=\"kernel\"} |= \"PCIe Bus Error\""
+
+          stage.regex {
+            expression         = "severity=(?P<severity>\\w+)"
+            labels_from_groups = true
+          }
+
+          stage.metrics {
+            metric.counter {
+              name        = "kernel_pcie_bus_errors_total"
+              description = "Count of kernel PCIe Bus Error events per node and severity."
+              action      = "inc"
+              match_all   = true
+            }
+          }
+        }
+
+        forward_to = [loki.write.loki.receiver]
+      }
+
+      // =======================================================================
       // Send to Loki
       // =======================================================================
       loki.write "loki" {
@@ -212,6 +295,16 @@ alloy:
     extra:
       - name: audit-logs
         mountPath: /var/log/kubernetes/audit
+        readOnly: true
+      # Phase 5.9.7: kernel journal read-only mounts.
+      - name: journal-persistent
+        mountPath: /var/log/journal
+        readOnly: true
+      - name: journal-runtime
+        mountPath: /run/log/journal
+        readOnly: true
+      - name: machine-id
+        mountPath: /etc/machine-id
         readOnly: true
 
   # Resource limits for 16GB nodes

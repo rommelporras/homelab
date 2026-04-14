@@ -35,3 +35,23 @@ spec:
               with available memory below 15%. This indicates real memory exhaustion, not
               routine NFS cache misses. Check what is consuming memory on this node.
             runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#NodeMemoryMajorPagesFaults"
+
+        # Phase 5.9.7: PCIe Advanced Error Reporting (AER) from kernel journal.
+        # Counter is emitted by Alloy's kernel_logs pipeline
+        # (helm/alloy/values.yaml) from matched dmesg lines. Correctable events
+        # indicate link instability (reseat candidate); Non-Fatal / Fatal
+        # events indicate imminent hardware failure. Severity label lets a
+        # single rule page at the correct loudness via Alertmanager routing.
+        - alert: NodePCIeBusError
+          expr: increase(kernel_pcie_bus_errors_total[1h]) > 0
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PCIe bus error on {{ $labels.node }} (severity={{ $labels.severity }})."
+            description: >-
+              Kernel reported {{ $value | humanize }} PCIe Bus Error event(s) on
+              {{ $labels.node }} with severity={{ $labels.severity }} in the last
+              hour. Correctable = link retry succeeded (reseat candidate).
+              Non-Fatal / Fatal = plan drive replacement.
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/longhorn-hardware.md#NodePCIeBusError"
