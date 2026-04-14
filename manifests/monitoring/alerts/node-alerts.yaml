@@ -42,8 +42,10 @@ spec:
         # indicate link instability (reseat candidate); Non-Fatal / Fatal
         # events indicate imminent hardware failure. Severity label lets a
         # single rule page at the correct loudness via Alertmanager routing.
+        # Alloy's loki.process component prefixes stage.metrics counters
+        # with `loki_process_custom_`; this is hardcoded and not removable.
         - alert: NodePCIeBusError
-          expr: increase(kernel_pcie_bus_errors_total[1h]) > 0
+          expr: increase(loki_process_custom_kernel_pcie_bus_errors_total[1h]) > 0
           for: 1m
           labels:
             severity: warning

@@ -59,8 +59,10 @@ spec:
         # The counter has no per-volume labels (extracting them from logfmt
         # output is brittle). On fire, triage via Loki:
         #   {source="kubernetes_events"} |= "AutoSalvaged"
+        # Alloy's loki.process component prefixes stage.metrics counters
+        # with `loki_process_custom_`; this is hardcoded and not removable.
         - alert: LonghornVolumeAutoSalvaged
-          expr: increase(longhorn_volume_auto_salvaged_total[15m]) > 0
+          expr: increase(loki_process_custom_longhorn_volume_auto_salvaged_total[15m]) > 0
           for: 0m
           labels:
             severity: warning

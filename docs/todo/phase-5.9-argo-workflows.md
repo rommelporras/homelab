@@ -746,7 +746,7 @@ for the full write-up:
   File: `manifests/monitoring/alerts/node-alerts.yaml` (extended)
   ```yaml
   - alert: NodePCIeBusError
-    expr: increase(kernel_pcie_bus_errors_total[1h]) > 0
+    expr: increase(loki_process_custom_kernel_pcie_bus_errors_total[1h]) > 0
     for: 1m
     labels:
       severity: warning
@@ -759,16 +759,21 @@ for the full write-up:
         candidate). Non-Fatal / Fatal = plan drive replacement.
       runbook_url: ".../longhorn-hardware.md#NodePCIeBusError"
   ```
-  Metric is emitted by Alloy's `kernel_logs` pipeline (5.9.7.1). The
-  `severity` label is carried through the alert label, so Alertmanager
-  routing can eventually split Correctable (warning) from Non-Fatal / Fatal
-  (critical) without requiring separate rules. `for: 1m` is a debounce.
+  Metric is emitted by Alloy's `kernel_logs` pipeline (5.9.7.1). **Name
+  prefix**: Alloy's `loki.process` component prefixes every
+  `stage.metrics`-created counter with `loki_process_custom_` (hardcoded,
+  not removable). Discovered during 5.9.7.5 verification - initial rule
+  used the unprefixed name and would have silently never fired. Follow-up
+  commit corrected the expression. The `severity` label is carried
+  through the alert label, so Alertmanager routing can eventually split
+  Correctable (warning) from Non-Fatal / Fatal (critical) without
+  requiring separate rules. `for: 1m` is a debounce.
 
 - [x] 5.9.7.3 Add `LonghornVolumeAutoSalvaged` PrometheusRule
   File: `manifests/monitoring/alerts/longhorn-alerts.yaml` (extended)
   ```yaml
   - alert: LonghornVolumeAutoSalvaged
-    expr: increase(longhorn_volume_auto_salvaged_total[15m]) > 0
+    expr: increase(loki_process_custom_longhorn_volume_auto_salvaged_total[15m]) > 0
     for: 0m
     labels:
       severity: warning
@@ -802,7 +807,37 @@ for the full write-up:
   - Apr 14 bazarr-config incident as the first entry in the "Incident log"
     section (reference, not duplicate - detail lives in CHANGELOG)
 
-- [ ] 5.9.7.5 Verify the Alloy change end-to-end (post-deploy)
+- [x] 5.9.7.5 Verify the Alloy change end-to-end (post-deploy)
+  **Executed 2026-04-14 after commit 0982eb0 synced (alloy app needed
+  manual `argocd app sync --refresh` — multi-source `$values` ref didn't
+  auto-detect the git change within the normal refresh interval).
+  Findings:**
+  1. Both `loki.source.journal.kernel` and `loki.process.kernel_logs`
+     components loaded without errors (zero permission issues reading
+     `/var/log/journal`)
+  2. Journal source is tailing: `loki_source_journal_target_lines_total`
+     incrementing on all 3 pods
+  3. **Metric prefix discovery:** Alloy's `loki.process` component
+     hardcodes a `loki_process_custom_` prefix on every `stage.metrics`
+     counter. The initial alert rules referenced the unprefixed names
+     and would have silently never fired. Corrected in follow-up commit
+  4. Synthetic test via `/dev/kmsg` (NOT `logger` - the latter produces
+     `_TRANSPORT=syslog`, not `_TRANSPORT=kernel`) successfully populated
+     `loki_process_custom_kernel_pcie_bus_errors_total{node="k8s-cp1",severity="Correctable"} 1`
+     with correct labels from the regex extraction
+  5. ServiceMonitor `alloy-servicemonitor.yaml` already scrapes Alloy's
+     `:12345/metrics`; no additional scrape config needed
+
+  **Useful verification commands for future incidents:**
+  ```bash
+  # Direct pod metric check (svc load-balances, may miss your target pod):
+  kubectl-homelab port-forward -n monitoring pod/<alloy-pod-on-node> 12345:12345 &
+  curl -s localhost:12345/metrics | grep loki_process_custom_kernel_pcie
+
+  # Synthetic kernel event on a specific node:
+  ssh wawashi@<node> \
+    "echo 'PCIe Bus Error: severity=Correctable, type=Physical Layer [TEST]' | sudo tee /dev/kmsg"
+  ```
   Run after ArgoCD has synced the `alloy` and `monitoring-manifests`
   Applications.
   ```bash
