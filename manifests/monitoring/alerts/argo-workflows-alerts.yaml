@@ -70,20 +70,36 @@ spec:
             description: "{{ $value }} workflow(s) in {{ $labels.namespace }} are in Error phase (infrastructure problem, not step exit)."
             runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argo-workflows.md#ArgoWorkflowError"
 
-        # WARNING: No successful workflow in argo-workflows ns for 26+ hours.
-        # Since this namespace is dedicated to the vault-snapshot CronWorkflow
-        # (daily), no Succeeded increase in 26h = schedule missed or perma-failing.
-        # If additional CronWorkflows are added to this namespace later, this
-        # alert becomes less specific - revisit label targeting at that point.
+        # WARNING: No successful workflow is currently tracked in the
+        # argo-workflows namespace. Relies on the WorkflowTemplate's
+        # ttlStrategy.secondsAfterSuccess=86400: a successful Workflow CR
+        # stays visible (gauge >= 1) for 24h after completion. If no new
+        # Workflow reaches Succeeded before the previous one is GC'd,
+        # the gauge drops to 0 (or the time series disappears) and the
+        # alert fires after `for:`.
+        #
+        # Why not argo_workflows_total_count[26h] increase: Prometheus
+        # does not observe the first-ever 0->1 transition (controller
+        # initialises the counter silently), so increase() returns 0
+        # for the first 26h after install, causing a false positive.
+        # The gauge-based check sidesteps that: a current value of 0 is
+        # unambiguous regardless of scrape history.
+        #
+        # absent() of a comparison filter:
+        #   - metric missing entirely: absent()=1 -> alert
+        #   - metric exists, value=0: `gauge > 0` is empty, absent()=1 -> alert
+        #   - metric exists, value>=1: absent()=0 -> no alert
+        #
+        # Since the argo-workflows namespace currently only contains the
+        # vault-snapshot CronWorkflow, namespace-level absence of a
+        # Succeeded gauge is equivalent to vault-snapshot-specific staleness.
         - alert: VaultSnapshotStale
           expr: |
-            (absent(argo_workflows_total_count{namespace="argo-workflows",phase="Succeeded"}))
-            or
-            (increase(argo_workflows_total_count{namespace="argo-workflows",phase="Succeeded"}[26h]) < 1)
+            absent(argo_workflows_gauge{namespace="argo-workflows",phase="Succeeded"} > 0)
           for: 30m
           labels:
             severity: warning
           annotations:
-            summary: "No successful vault-snapshot workflow in 26+ hours"
-            description: "The vault-snapshot CronWorkflow has not completed a Succeeded run in 26+ hours. Check: kubectl-admin get workflows -n argo-workflows --sort-by=.metadata.creationTimestamp | tail"
+            summary: "No successful vault-snapshot workflow in 24+ hours"
+            description: "The vault-snapshot CronWorkflow has no currently-tracked Succeeded workflow. Either no workflow has completed in the 24h ttlStrategy window, or the CronWorkflow schedule has not fired. Check: kubectl-admin get workflows -n argo-workflows --sort-by=.metadata.creationTimestamp | tail"
             runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argo-workflows.md#VaultSnapshotStale"
