@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
-3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 66 releases with [30 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
+3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 68 releases with [30 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
 
 > **Owner:** Rommel Porras  |  **CKA Target:** September 2026
 
@@ -72,8 +72,8 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Ansible-automated bootstrap ([10 playbooks](ansible/playbooks/))
 
 **Observability**
-- Prometheus + Grafana + Loki + Alloy (full metrics, logs, 24 Grafana dashboards)
-- Alertmanager (Discord + Email, severity routing) — 277 alert rules across 67 PrometheusRule files, including cluster-wide OOMKilled detection
+- Prometheus + Grafana + Loki + Alloy (full metrics, logs, 25 Grafana dashboards)
+- Alertmanager (Discord + Email, severity routing) — 133 alert rules across 33 PrometheusRule files, including cluster-wide OOMKilled detection
 - Blackbox probes (25 services: ArgoCD, Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr, Atuin, Vault, cert-manager-webhook, ESO webhook, Garage, Homepage, Longhorn UI, MySpeed, Prowlarr, Radarr, Recommendarr, Sonarr)
 - Dead Man's Switch (healthchecks.io), UPS monitoring (NUT + nut-exporter)
 - smartctl-exporter DaemonSet (NVMe S.M.A.R.T. health on all 3 nodes — temp, wear, spare, TBW)
@@ -88,7 +88,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Cloudflare Tunnel (HA, 2 replicas) for public services
 - Tailscale Operator (WireGuard subnet router) for private remote access
 - AdGuard DNS as primary for all VLANs + Tailscale global nameserver
-- CiliumNetworkPolicy microsegmentation (130 policies across 25 namespaces, implicit default-deny)
+- CiliumNetworkPolicy microsegmentation (136 policies across 26 namespaces + 1 CiliumClusterwideNetworkPolicy, implicit default-deny)
 
 **Applications**
 - GitLab CE (Runner, Container Registry, SSH) with CI/CD pipelines
@@ -104,6 +104,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 
 **GitOps**
 - ArgoCD v3.3.6 (non-HA, self-management Application, Discord notifications)
+- Argo Workflows v4.0.4 (headless controller, chart 1.0.7) - DAG-based workflow orchestrator for multi-step automations; first migrated workload is the daily Vault raft snapshot (2-step DAG + Discord-on-failure exit handler)
 
 **Secrets Management**
 - HashiCorp Vault 1.21.4 (standalone, Raft on Longhorn, auto-unsealer, daily NFS snapshots)
@@ -139,6 +140,8 @@ Things that bit us and might save you time:
 
 - **CiliumNetworkPolicy vs forwarded traffic** — CiliumNetworkPolicy filters forwarded/routed packets, not just local pod traffic. This means a network policy on a Tailscale Connector pod will break subnet routing entirely. Only apply policies to the operator, not the proxy.
 
+- **Argo Workflows v4 vs v3 docs** — the upstream variable reference and metric docs we used for planning described v3.x. v4.0.4 renamed `argo_workflows_count{status}` to `argo_workflows_gauge{phase}` and `argo_workflows_total_count{phase}`, and the CronWorkflow CRD schema replaced `spec.schedule` (string) with `spec.schedules` (array). Also `workflow.finishedAt` is not a valid Argo variable - use `workflow.duration`. Alerts and manifests written from the v3 docs silently fail (metric absent, `absent()` always true, false-positive alerts). Always verify against `kubectl-admin get crd ... -o jsonpath={.spec.versions[0].schema}` and a live Prometheus scrape before shipping rules.
+
 ---
 
 ## Documentation
@@ -161,8 +164,9 @@ Things that bit us and might save you time:
 2. **Resilience & Backup** — Phase 5.4 complete (v0.34.0)
 3. **Image Updates & Monitoring** — Phase 5.6 complete; Phase 5.7 complete
 4. **GitOps Migration** — Phase 5.8 complete (v0.38.0); v0.38.1 hotfix released (ArgoCD drift recovery + OOM detection)
-5. **CI/CD Pipeline Migration** — Phase 5.9 / v0.39.0 next
-6. **CKA Certification** — September 2026 target
+5. **Argo Workflows + vault-snapshot migration** — Phase 5.9 / v0.39.0 deployed and validated; cutover of legacy CronJob pending
+6. **CI/CD Pipeline Migration** — Phase 5.10+ (Argo Workflows to replace GitLab Runner for container builds)
+7. **CKA Certification** — September 2026 target
 
 ## Claude Code
 

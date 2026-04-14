@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, backup, restic, velero, longhorn]
-updated: 2026-04-01
+updated: 2026-04-14
 ---
 
 # Backups
@@ -35,8 +35,8 @@ S3 target: Garage (`velero` namespace).
 Schedule: `daily-k8s-backup` at 20:30 UTC (04:30 Manila).
 TTL: 720h (30 days).
 Backs up all K8s resources (deployments, services, configmaps, etc.) except Secrets.
-Covers 20 namespaces (all application + infrastructure except kube-system, longhorn-system, cert-manager, argocd).
-ArgoCD excluded intentionally - stateless (app definitions in git, redis ephemeral, secrets from Vault/ESO).
+Covers 20 namespaces (all application + infrastructure). Excluded: kube-system, longhorn-system, cert-manager, argocd, argo-workflows, tailscale, node-feature-discovery, intel-device-plugins, cilium-secrets, and velero itself.
+ArgoCD + argo-workflows excluded intentionally - stateless (app/workflow definitions in git, redis ephemeral, secrets from Vault/ESO). System namespaces (tailscale, NFD, intel-device-plugins, cilium-secrets) excluded because their state lives in operator CRs or is rebuilt at pod start. Velero excludes itself to avoid backup-of-backup recursion.
 
 ```bash
 # All velero CLI commands from WSL2 need --kubeconfig
@@ -66,7 +66,8 @@ NFS target: `10.10.30.4:/Kubernetes/Backups/<service>`
 
 | CronJob | Namespace | Schedule (Manila) | Retention | What |
 |---------|-----------|-------------------|-----------|------|
-| vault-snapshot | vault | 02:00 daily | 3 days | Raft snapshot |
+| vault-snapshot (legacy) | vault | 02:00 daily | 3 days | Raft snapshot. Running in parallel with the CronWorkflow (below) during Phase 5.9 cutover; will be removed after the first scheduled CronWorkflow run succeeds (v0.39.0). |
+| vault-snapshot CronWorkflow | argo-workflows | 02:00 daily | 3 days | Raft snapshot (Argo Workflows DAG: snapshot + prune, Discord-on-failure exit handler). Deployed 2026-04-13, writes to the same NFS path as the legacy CronJob. |
 | ghost-mysql-backup | ghost-prod | 02:00 daily | 3 days | mysqldump |
 | adguard-backup | home | 02:05 daily | 3 days | SQLite .backup |
 | uptime-kuma-backup | uptime-kuma | 02:10 daily | 3 days | SQLite .backup |

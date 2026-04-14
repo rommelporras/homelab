@@ -237,3 +237,5 @@ Reference: https://github.com/longhorn/longhorn/issues/11411
 - [[Cluster]] - Node storage specs
 - [[Security]] - Backup retention, etcd backup security, recovery procedures
 - [[Versions]] - Longhorn version
+- [Longhorn hardware runbook](../runbooks/longhorn-hardware.md) - PCIe AER triage, NVMe reseat procedure, `LonghornVolumeAutoSalvaged` triage
+- [Storage runbook](../runbooks/storage.md) - volume-level alerts (Degraded, ReplicaFailed, AllReplicasStopped), NVMe SMART alerts

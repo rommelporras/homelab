@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, external-services, cloudflare, analytics, tinybird, smtp, tailscale]
-updated: 2026-03-28
+updated: 2026-04-14
 ---
 
 # External Services

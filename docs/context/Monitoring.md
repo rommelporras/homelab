@@ -337,19 +337,20 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | `apiserver-alerts.yaml` | KubeApiserverFrequentRestarts (>5 restarts/24h, warning) | v0.27.0 |
 | `service-health-alerts.yaml` | ServiceHighResponseTime (>5s for 5m, warning) | v0.27.0 |
 | `cpu-throttling-alerts.yaml` | CPUThrottlingHigh (>50%, arr-stack excluded, info) | v0.27.0 |
-| `node-alerts.yaml` | NodeMemoryMajorPagesFaults (>2000/s + <15% mem available, warning) | v0.27.0 |
+| `node-alerts.yaml` | NodeMemoryMajorPagesFaults (>2000/s + <15% mem available, warning), NodePCIeBusError (kernel PCIe AER events, warning) | v0.27.0 / v0.39.0 |
 | `cluster-janitor-alerts.yaml` | ClusterJanitorFailing (CronJob last result failed, warning) | v0.28.2 |
 | `dotctl-alerts.yaml` | DotctlCollectionStale (>30min, warning), DotctlDriftDetected (>1hr, warning) | - |
 | `vault-alerts.yaml` | VaultSealed (critical, 2m), VaultMetricsMissing (warning, 15m), VaultAuditFailure (critical, 1m), VaultDown (warning, 5m), VaultHighLatency (warning, 10m), ESOSecretNotSynced (critical, 10m), ESOSyncErrors (warning, 5m), VaultSnapshotFailing (warning, 30m), ESOWebhookDown | v0.29.0 |
 | `atuin-alerts.yaml` | AtuinDown, AtuinPostgresDown, AtuinHighRestarts, AtuinHighMemory | v0.28.0 |
 | `disabled/audit-alerts.yaml.disabled` | AuditSecretAccessByNonSystem, AuditPodExec, AuditRBACChange, AuditHighAuthFailureRate (LogQL - requires Loki ruler, currently deferred) | v0.31.0 |
-| `backup-alerts.yaml` | Velero backup failures, etcd backup age, CronJob failures | v0.34.0 |
+| `backup-alerts.yaml` | VeleroBackupFailed, VeleroBackupStale, LonghornBackupFailed, GarageDown, ResourceQuotaNearLimit, EtcdBackupStale, CronJobFailed, CronJobNotScheduled | v0.34.0 |
 | `stuck-pod-alerts.yaml` | Pods stuck in pending/crashloop states | v0.34.0 |
-| `longhorn-alerts.yaml` | Longhorn volume all replicas stopped | v0.34.0 |
+| `longhorn-alerts.yaml` | LonghornVolumeAllReplicasStopped (warning), LonghornUIDown (warning), LonghornVolumeAutoSalvaged (warning, Alloy-derived counter) | v0.34.0 / v0.39.0 |
 | `gitlab-alerts.yaml` | GitLab pod health, runner connectivity | v0.35.0 |
 | `home-alerts.yaml` | Homepage pod health, HTTP probe failures | v0.35.0 |
 | `argocd-alerts.yaml` | ArgocdAppOutOfSync, ArgocdAppUnhealthy, ArgocdSyncFailed, ArgocdRepoServerDown, ArgocdControllerDown, ArgocdGitFetchFailed, ArgocdClusterConnectionLost, ArgocdRepoServerPending, ArgocdNotificationDeliveryFailed | v0.37.0 |
 | `oomkilled-alerts.yaml` | ContainerOOMKilled (warning, any OOM in 10m), ContainerOOMKilledRepeat (critical, 3+ OOMs in 1h = OOM loop) | v0.38.1 |
+| `argo-workflows-alerts.yaml` | ArgoWorkflowsControllerDown (critical, 5m), ArgoWorkflowFailed (warning), ArgoWorkflowError (warning), VaultSnapshotStale (warning, 30m) | v0.39.0 |
 
 **Severity routing:**
 - `critical` → Discord #incidents + Email (3 recipients)

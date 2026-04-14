@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, security, pss, eso, vault, service-accounts, cis, hardening, network-policies, backup, resilience]
-updated: 2026-04-01
+updated: 2026-04-14
 ---
 
 # Security
@@ -98,7 +98,7 @@ Every namespace has an `enforce` level plus `audit: restricted` and `warn: restr
 | Level | Namespaces |
 |-------|------------|
 | **restricted** | cloudflare |
-| **baseline** | ai, argocd, arr-stack, atuin, browser, cert-manager, external-secrets, ghost-dev, ghost-prod, gitlab, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, vault, velero |
+| **baseline** | ai, argo-workflows, argocd, arr-stack, atuin, browser, cert-manager, external-secrets, ghost-dev, ghost-prod, gitlab, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, vault, velero |
 | **privileged** | gitlab-runner, intel-device-plugins, kube-system, longhorn-system, monitoring, node-feature-discovery, tailscale |
 | **no labels** | cilium-secrets, default, kube-node-lease, kube-public |
 
@@ -201,9 +201,9 @@ Workaround: use L4-only policy (no `toPorts`) for critical pods that need reliab
 
 ### Coverage
 
-25 namespaces with CiliumNetworkPolicy + 1 CiliumClusterwideNetworkPolicy (Gateway `reserved:ingress` identity).
+26 namespaces with CiliumNetworkPolicy + 1 CiliumClusterwideNetworkPolicy (Gateway `reserved:ingress` identity).
 
-Covered: ai, argocd, arr-stack, atuin, browser, cert-manager, cloudflare, external-secrets, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, portfolio-dev, portfolio-prod, portfolio-staging, tailscale, uptime-kuma, vault, velero
+Covered: ai, argo-workflows, argocd, arr-stack, atuin, browser, cert-manager, cloudflare, external-secrets, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, portfolio-dev, portfolio-prod, portfolio-staging, tailscale, uptime-kuma, vault, velero
 
 Deferred: longhorn-system, intel-device-plugins, node-feature-discovery (high breakage risk, low attack surface)
 
@@ -240,9 +240,9 @@ Helm-managed workloads (Cilium, cert-manager, Longhorn, Vault, NFD, Intel device
 | Webhook TLS ciphers | `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256` |
 | ClusterSecretStore namespaceSelector | Only namespaces with `eso-enabled: "true"` can sync secrets |
 
-### ESO-Enabled Namespaces (18)
+### ESO-Enabled Namespaces (19)
 
-argocd, arr-stack, atuin, browser, cert-manager, cloudflare, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, tailscale, velero
+argo-workflows, argocd, arr-stack, atuin, browser, cert-manager, cloudflare, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, tailscale, velero
 
 ### Known Trade-offs
 
@@ -396,11 +396,11 @@ All application namespaces have a LimitRange that sets default requests/limits f
 
 ### ResourceQuota
 
-15 namespaces have ResourceQuota enforcing CPU, memory, PVC, and pod count limits:
+16 namespaces have ResourceQuota enforcing CPU, memory, PVC, and pod count limits:
 
 | Namespace | Purpose |
 |-----------|---------|
-| ai, argocd, arr-stack, atuin, ghost-dev, ghost-prod, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, velero | Prevent resource exhaustion |
+| ai, argo-workflows, argocd, arr-stack, atuin, ghost-dev, ghost-prod, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, velero | Prevent resource exhaustion |
 
 System namespaces (kube-system, monitoring, longhorn-system, gitlab) are excluded - their resource needs are variable and operator-managed.
 
@@ -525,8 +525,8 @@ Security controls for ArgoCD-managed cluster operations (Phase 5.7+).
 |-------|---------|---------|
 | Source | Self-hosted GitLab | Deploy token with `read_repository` scope |
 | Admission | ValidatingAdmissionPolicy | Trusted image registries only (CEL-based) |
-| Secrets | Vault + ESO | Never raw Secrets in Git. 36 ExternalSecrets from Vault (18 namespaces). |
-| Network | CiliumNetworkPolicy | Default-deny on 25 namespaces (130 policies) |
+| Secrets | Vault + ESO | Never raw Secrets in Git. 37 ExternalSecrets from Vault (19 namespaces). |
+| Network | CiliumNetworkPolicy | Default-deny on 26 namespaces (136 policies) |
 | Drift | Auto-sync with selfHeal | ArgoCD auto-syncs from Git, reverts manual changes |
 | Imperative exceptions | vault-unseal-keys | Bootstrap secret - ArgoCD must never prune vault namespace Secrets |
 
@@ -534,16 +534,16 @@ Security controls for ArgoCD-managed cluster operations (Phase 5.7+).
 
 | Control | Status | Coverage | Known Gaps |
 |---------|--------|----------|------------|
-| PSS | Enforced | 28/32 namespaces | 4 empty/system ns (cilium-secrets, default, kube-node-lease, kube-public) |
-| CiliumNP | Default-deny | 25/32 namespaces (130 policies) | longhorn-system, NFD, intel-dp (privileged, low attack surface) |
+| PSS | Enforced | 29/33 namespaces | 4 empty/system ns (cilium-secrets, default, kube-node-lease, kube-public) |
+| CiliumNP | Default-deny | 26/33 namespaces (136 policies) | longhorn-system, NFD, intel-dp (privileged, low attack surface) |
 | RBAC | Audited | 4 cluster-admin bindings | velero-server (accepted - cross-ns backup) |
 | etcd encryption | Active (secretbox) | All secrets | |
 | Audit logging | Active | Mutations only (get/list dropped) | Audit alerts deferred (needs Loki Ruler) |
 | Backup | 3-layer | Longhorn+Velero+etcd (24 CronJobs) | |
 | CIS benchmark | 69 pass / 7 fail | All 3 CP nodes identical | 7 justified FAILs documented |
 | Image restriction | VAP Warn mode | All non-system namespaces | Deny mode target: 2026-04-02 |
-| ESO | Healthy | 36 ExternalSecrets (18 namespaces) | All deployed and synced |
+| ESO | Healthy | 37 ExternalSecrets (19 namespaces) | All deployed and synced |
 | Supply chain | Tag pinning | All images except 1 | portfolio:latest (CI/CD pattern, Phase 5.8) |
-| ResourceQuotas | Active | 15 namespaces | System ns excluded (variable needs) |
+| ResourceQuotas | Active | 16 namespaces | System ns excluded (variable needs) |
 | PDBs | Active | 24 PDBs | |
 | Vault | Healthy | Auto-unseal, daily snapshots | |

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password, vault, external-secrets, backup]
-updated: 2026-04-06
+updated: 2026-04-14
 ---
 
 # Secrets
@@ -88,10 +88,11 @@ Local backup: `~/.vault-keys` (chmod 600). Delete after confirming 1Password bac
 | monitoring/discord-webhooks | monitoring-discord-webhooks | monitoring | manifests/monitoring/externalsecret.yaml |
 | monitoring/healthchecks | monitoring-healthchecks | monitoring | manifests/monitoring/externalsecret.yaml |
 | monitoring/smtp + monitoring/discord-webhooks + monitoring/healthchecks | alertmanager-config | monitoring | manifests/monitoring/externalsecret.yaml |
+| monitoring/discord-webhooks (property: incidents) | discord-webhooks | argo-workflows | manifests/argo-workflows/externalsecret-discord.yaml |
 | tailscale/operator-oauth | operator-oauth | tailscale | manifests/tailscale/externalsecret.yaml |
 | velero/garage | garage-secrets | velero | manifests/velero/externalsecret.yaml |
 | velero/s3-credentials | velero-s3-credentials | velero | manifests/velero/externalsecret.yaml |
-| argocd | argocd-secret (Merge) | argocd | manifests/argocd/externalsecret.yaml |
+| argocd | argocd-secret (Merge, ESO CR name: argocd-vault-secrets) | argocd | manifests/argocd/externalsecret.yaml |
 | argocd | argocd-notifications-secret | argocd | manifests/argocd/externalsecret.yaml |
 | backups/restic-k8s-configs | (WSL2 only - not a K8s Secret) | - | scripts/backup/.password |
 

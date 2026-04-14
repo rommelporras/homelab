@@ -47,6 +47,11 @@
 | v0.35.0 | Phase 5.5 | Observability & Version Hardening (component version pinning, image digest enforcement, alert coverage) | *Hardening - baked into existing guides* |
 | v0.36.0 | Phase 5.6 | Pre-GitOps Validation (VAP image registry restriction, kube-bench CronJob, security audit) | *Hardening - baked into manifests/kube-system/ and Helm values* |
 | v0.37.0 | Phase 5.7 | ArgoCD Installation & Bootstrap (GitOps engine, self-management, Discord notifications) | [v0.37.0-argocd.md](v0.37.0-argocd.md) |
+| v0.38.0 | Phase 5.8 | GitOps Migration (all Helm releases handed over to ArgoCD Applications except cilium) | *Migration - baked into manifests/argocd/apps/ and helm/ values files* |
+| v0.38.1 | - | GitOps Fixes + Prometheus Handover (ArgoCD drift recovery, OOM detection, Prometheus via ESO configSecret) | *Hotfix - baked into helm/prometheus/values.yaml and manifests/monitoring/externalsecret.yaml* |
+| v0.38.2 | Phase 5.8.2 | Version Maintenance & Digest Improvements (metrics-server, Loki, ArgoCD bumps; weekly version-check digest improvements) | *Hardening - baked into helm/ values files* |
+| v0.38.3 | - | Monitoring Storage Fix & CI Pipeline Fix (Loki retention + filter, Prometheus cardinality, GitLab CI CNP + RBAC) | *Hotfix - baked into helm/loki/values.yaml, helm/prometheus/values.yaml, manifests/gitlab-runner/* |
+| v0.38.4 | - | Network Policy Fixes & Tooling (Tailscale DNS, invoicetron egress, gitlab-runner egress, /ship skill) | *Hotfix - baked into per-namespace networkpolicy.yaml files* |
 
 > **Note:** v0.30.0+ are hardening phases that modify configs on existing components rather than
 > deploying new ones. Their settings are baked into the Ansible playbooks and kubeadm config
@@ -189,6 +194,8 @@ Ensure these DNS records exist (AdGuard/OPNsense):
 ---
 
 ## Component Versions
+
+> **Note:** This table records the version installed in each release's guide — it is a **point-in-time snapshot**, not a live inventory. Current running versions can drift significantly as patch bumps land between named releases. For the authoritative list of versions running right now, see [VERSIONS.md](../../VERSIONS.md).
 
 | Component | Version | Release |
 |-----------|---------|---------|

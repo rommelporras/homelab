@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, networking, dns, vlan, network-policies]
-updated: 2026-03-28
+updated: 2026-04-14
 ---
 
 # Networking
@@ -162,7 +162,7 @@ Phone → WireGuard tunnel → Connector Pod → AdGuard DNS (10.10.30.53)
 
 ## CiliumNetworkPolicy Traffic Matrix (Phase 5.3)
 
-CiliumNetworkPolicies across 25 namespaces + 1 CiliumClusterwideNetworkPolicy.
+CiliumNetworkPolicies across 26 namespaces + 1 CiliumClusterwideNetworkPolicy.
 See [[Security]] for policy strategy, Cilium identity reference, and known limitations.
 
 ### Cluster-Wide

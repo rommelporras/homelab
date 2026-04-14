@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** April 7, 2026
+> **Last Updated:** April 14, 2026
 
 ---
 
@@ -42,7 +42,7 @@
 | Chart | Version | App Version | Status | Namespace |
 |-------|---------|-------------|--------|-----------|
 | longhorn/longhorn | 1.11.1 | v1.11.1 | Installed | longhorn-system |
-| cilium/cilium | 1.19.2 | v1.19.2 | Installed | kube-system |
+| cilium/cilium | 1.19.1 | v1.19.2 | Installed | kube-system |
 | oci://quay.io/jetstack/charts/cert-manager | 1.19.2 | v1.19.2 | Installed | cert-manager |
 | oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack | 82.18.0 | v0.89.0 (Operator) / v3.11.0 (Prometheus) | Installed | monitoring |
 | oci://ghcr.io/grafana-community/helm-charts/loki | 6.57.0 | v3.6.7 | Installed | monitoring |
@@ -60,6 +60,7 @@
 | external-secrets/external-secrets | 2.1.0 | v2.1.0 | Installed | external-secrets |
 | vmware-tanzu/velero | 12.0.0 | v1.18.0 | Installed | velero |
 | argo/argo-cd | 9.4.17 | v3.3.6 | Installed | argocd |
+| argo/argo-workflows | 1.0.7 | v4.0.4 | Installed | argo-workflows |
 
 > **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
 > Use `grafana/loki` + `grafana/alloy` instead.
@@ -82,6 +83,7 @@ helm-homelab repo add tailscale https://pkgs.tailscale.com/helmcharts
 helm-homelab repo add intel https://intel.github.io/helm-charts/
 helm-homelab repo add hashicorp https://helm.releases.hashicorp.com
 helm-homelab repo add external-secrets https://charts.external-secrets.io
+helm-homelab repo add argo https://argoproj.github.io/argo-helm
 helm-homelab repo update
 # Note: cert-manager, kube-prometheus-stack, Loki, and NFD use OCI - no repo add needed
 ```
@@ -159,7 +161,9 @@ helm-homelab repo update
 | HashiCorp Vault | 1.21.4 | Running | Secrets management (standalone, Raft on Longhorn 5Gi) |
 | Vault Auto-Unsealer | 1.21.4 | Running | Polls vault-0 every 30s, auto-unseals with 3 Shamir keys |
 | External Secrets Operator | v2.1.0 | Running | Syncs K8s Secrets from Vault via ExternalSecret CRDs |
-| Vault Snapshot CronJob | 1.21.4 | Running | Daily Raft backup to NFS NAS (02:00 PHT, 3-day retention) |
+| Vault Snapshot CronJob | 1.21.4 | Running | Daily Raft backup to NFS NAS (02:00 PHT, 3-day retention) - migrating to CronWorkflow |
+| Argo Workflows Controller | v4.0.4 | Running | Headless workflow orchestrator (argo-workflows ns, chart 1.0.7, no argo-server UI) |
+| vault-snapshot CronWorkflow | v4.0.4 | Running | 2-step DAG (snapshot + prune) + Discord-on-failure exit handler |
 | Velero | v1.18.0 | Running | Cluster backup + restore (Helm chart, velero namespace) |
 | velero-plugin-for-aws | v1.14.0 | Running | S3-compatible storage plugin for Velero |
 | Garage S3 | v2.2.0 (dxflrs/garage) | Running | Self-hosted S3-compatible object store for Velero backend (velero namespace) |

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-04-01
+updated: 2026-04-14
 ---
 
 # Conventions
@@ -79,6 +79,7 @@ See [[Secrets]] for all 1Password paths.
 homelab/
 ├── helm/                    # Helm values files (ArgoCD-managed except cilium/)
 │   ├── alloy/values.yaml
+│   ├── argo-workflows/values.yaml
 │   ├── argocd/values.yaml
 │   ├── blackbox-exporter/values.yaml
 │   ├── cert-manager/values.yaml
@@ -99,6 +100,7 @@ homelab/
 │   └── velero/values.yaml
 ├── manifests/               # Raw K8s manifests
 │   ├── ai/                  # Ollama LLM inference server
+│   ├── argo-workflows/      # Argo Workflows controller + vault-snapshot CronWorkflow
 │   ├── argocd/              # ArgoCD config + apps/ (app-of-apps root)
 │   ├── arr-stack/           # ARR media stack (core + companions: 15 subdirs)
 │   ├── atuin/               # Atuin self-hosted shell history sync
@@ -170,8 +172,8 @@ kubectl-homelab -n monitoring get pods
 # Helm releases
 helm-homelab list -A
 
-# Logs
-kubectl-homelab -n monitoring logs -l app.kubernetes.io/name=prometheus
+# Logs (kubectl-homelab is RBAC-blocked on pods/log; use kubectl-admin)
+kubectl-admin -n monitoring logs -l app.kubernetes.io/name=prometheus
 
 # Port forward
 kubectl-homelab -n monitoring port-forward svc/prometheus-grafana 3000:80

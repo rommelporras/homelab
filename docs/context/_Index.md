@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, index]
-updated: 2026-04-01
+updated: 2026-04-14
 ---
 
 # Homelab Kubernetes Context
@@ -25,6 +25,7 @@ updated: 2026-04-01
 | Upgrade/rollback procedures | [[Upgrades]] |
 | PSS, ESO hardening, SA tokens | [[Security]] |
 | GA4, GTM, Cloudflare, Tailscale, SMTP | [[ExternalServices]] |
+| Alert triage, NVMe reseat, Argo Workflows runbook | [docs/runbooks/](../runbooks/) |
 
 ## Current State
 
@@ -34,7 +35,7 @@ updated: 2026-04-01
 | Nodes | 3 control planes (k8s-cp1, cp2, cp3) |
 | CNI | Cilium 1.19.2 |
 | Storage | Longhorn 1.11.1 |
-| Status | v0.38.2 released |
+| Status | v0.38.4 released |
 
 ## Source
 
