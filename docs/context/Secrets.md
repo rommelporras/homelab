@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password, vault, external-secrets, backup]
-updated: 2026-04-14
+updated: 2026-04-15
 ---
 
 # Secrets
@@ -89,6 +89,7 @@ Local backup: `~/.vault-keys` (chmod 600). Delete after confirming 1Password bac
 | monitoring/healthchecks | monitoring-healthchecks | monitoring | manifests/monitoring/externalsecret.yaml |
 | monitoring/smtp + monitoring/discord-webhooks + monitoring/healthchecks | alertmanager-config | monitoring | manifests/monitoring/externalsecret.yaml |
 | monitoring/discord-webhooks (property: incidents) | discord-webhooks | argo-workflows | manifests/argo-workflows/externalsecret-discord.yaml |
+| argo-workflows/sso-credentials | argo-server-sso | argo-workflows | manifests/argo-workflows/externalsecret-sso.yaml |
 | tailscale/operator-oauth | operator-oauth | tailscale | manifests/tailscale/externalsecret.yaml |
 | velero/garage | garage-secrets | velero | manifests/velero/externalsecret.yaml |
 | velero/s3-credentials | velero-s3-credentials | velero | manifests/velero/externalsecret.yaml |
@@ -143,6 +144,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | etcd Encryption Key | `password` | etcd encryption at rest (secretbox). Passed to Ansible: `--extra-vars "etcd_encryption_key=$(op read '...')"` |
 | ArgoCD | `password`, `admin-password`, `server-secret-key` | ArgoCD admin login (password=plain, admin-password=bcrypt hash), JWT signing key |
 | Kubeconfig | `admin-kubeconfig`, `claude-kubeconfig` | Device sync — admin (full access) and restricted (Claude Code read-only) kubeconfigs |
+| Argo Workflows UI | `sso-client-id`, `sso-client-secret` | argo-server SSO via GitLab OIDC (argo-workflows namespace) |
 
 ## 1Password Paths
 
@@ -289,6 +291,10 @@ op://Kubernetes/Restic Backup Keys/k8s-configs-password
 # Kubeconfig (device sync — both kubeconfigs in one item)
 # op item get 'Kubeconfig' --vault=Kubernetes --fields admin-kubeconfig > ~/.kube/homelab.yaml
 # op item get 'Kubeconfig' --vault=Kubernetes --fields claude-kubeconfig > ~/.kube/homelab-claude.yaml
+
+# Argo Workflows UI (SSO via GitLab OIDC) - Phase 5.9.1.7
+op://Kubernetes/Argo Workflows UI/sso-client-id
+op://Kubernetes/Argo Workflows UI/sso-client-secret
 
 # Homepage (widget credentials — 24 fields)
 op://Kubernetes/Homepage/proxmox-pve-user

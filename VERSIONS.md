@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** April 14, 2026
+> **Last Updated:** April 15, 2026
 
 ---
 
@@ -161,9 +161,9 @@ helm-homelab repo update
 | HashiCorp Vault | 1.21.4 | Running | Secrets management (standalone, Raft on Longhorn 5Gi) |
 | Vault Auto-Unsealer | 1.21.4 | Running | Polls vault-0 every 30s, auto-unseals with 3 Shamir keys |
 | External Secrets Operator | v2.1.0 | Running | Syncs K8s Secrets from Vault via ExternalSecret CRDs |
-| Vault Snapshot CronJob | 1.21.4 | Running | Daily Raft backup to NFS NAS (02:00 PHT, 3-day retention) - migrating to CronWorkflow |
-| Argo Workflows Controller | v4.0.4 | Running | Headless workflow orchestrator (argo-workflows ns, chart 1.0.7, no argo-server UI) |
-| vault-snapshot CronWorkflow | v4.0.4 | Running | 2-step DAG (snapshot + prune) + Discord-on-failure exit handler |
+| Argo Workflows Controller | v4.0.4 | Running | Workflow orchestrator in `--namespaced` mode (argo-workflows ns, chart 1.0.7) |
+| Argo Workflows Server | v4.0.4 | Running | UI + API in `--namespaced` mode, SSO via GitLab OIDC at https://argo-workflows.k8s.rommelporras.com |
+| vault-snapshot CronWorkflow | v4.0.4 | Running | 2-step DAG (snapshot + prune) + Discord-on-failure exit handler. Replaced the legacy vault-snapshot CronJob (removed 2026-04-15 after first scheduled run succeeded). |
 | Velero | v1.18.0 | Running | Cluster backup + restore (Helm chart, velero namespace) |
 | velero-plugin-for-aws | v1.14.0 | Running | S3-compatible storage plugin for Velero |
 | Garage S3 | v2.2.0 (dxflrs/garage) | Running | Self-hosted S3-compatible object store for Velero backend (velero namespace) |
@@ -212,6 +212,7 @@ helm-homelab repo update
 | Loki | loki.k8s.rommelporras.com | base | monitoring |
 | Vault UI | vault.k8s.rommelporras.com | base | vault |
 | ArgoCD | argocd.k8s.rommelporras.com | base | argocd |
+| Argo Workflows UI | argo-workflows.k8s.rommelporras.com | base | argo-workflows |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |

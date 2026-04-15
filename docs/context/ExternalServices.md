@@ -1,6 +1,6 @@
 ---
-tags: [homelab, kubernetes, external-services, cloudflare, analytics, tinybird, smtp, tailscale]
-updated: 2026-04-14
+tags: [homelab, kubernetes, external-services, cloudflare, analytics, tinybird, smtp, tailscale, gitlab, oidc]
+updated: 2026-04-15
 ---
 
 # External Services
@@ -238,6 +238,36 @@ For in-cluster technical details (connector spec, traffic flow, DERP relay), see
 | Staging zone | *.stg.k8s.rommelporras.com |
 | Legacy zone | *.home.rommelporras.com (Proxmox, non-K8s) |
 | Internal DNS | AdGuard (10.10.30.53) with failover (10.10.30.54) |
+
+## GitLab as OIDC Provider
+
+Self-hosted GitLab (`gitlab.k8s.rommelporras.com`) acts as an OpenID Connect identity provider for internal services that need SSO login. Reusing GitLab avoids standing up a separate IdP (Dex, Keycloak) for a single-admin homelab.
+
+| Setting | Value |
+|---------|-------|
+| Issuer URL | `https://gitlab.k8s.rommelporras.com` |
+| Discovery endpoint | `https://gitlab.k8s.rommelporras.com/.well-known/openid-configuration` (auto-configured) |
+| OAuth admin UI | `https://gitlab.k8s.rommelporras.com/admin/applications` |
+| Standard scopes | `openid`, `profile`, `email` |
+
+**Registered OAuth applications:**
+
+| Application | Redirect URI | Scopes | Consumer |
+|-------------|--------------|--------|----------|
+| Argo Workflows UI | `https://argo-workflows.k8s.rommelporras.com/oauth2/callback` | openid, profile, email | argo-server (argo-workflows namespace, Phase 5.9.1.7) |
+
+**OIDC claims returned (verified 2026-04-15 from Argo Workflows login):**
+- `sub` — numeric GitLab user ID as a string (e.g. `"1"`)
+- `preferred_username` — GitLab username (e.g. `"0xwsh"`)
+- `email` — primary email
+- `name` — display name
+- `groups` — GitLab group memberships (only when user is member of groups)
+
+Consumer apps typically match on `sub` (stable across username changes) or `preferred_username` (human-readable). A multi-claim rule like `sub == '1' || preferred_username == '0xwsh'` is defensive against GitLab OIDC config variance (some GitLab setups return username in `sub`).
+
+**Secret storage:** each consumer's OAuth client ID + secret live in a 1Password item (vault `Kubernetes`), seeded into Vault KV under `<consumer-namespace>/sso-credentials`, then synced into the cluster via ESO.
+
+**Rotation:** click "Renew secret" in the GitLab admin Applications page → update the 1P item → re-seed Vault → force-sync ESO → restart the consumer pod(s) to pick up the new Secret content.
 
 ## GitHub
 

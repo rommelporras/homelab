@@ -281,7 +281,7 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 | `radarr-probe.yaml` | Radarr | HTTP (radarr.arr-stack.svc:7878) | 60s |
 | `recommendarr-probe.yaml` | Recommendarr | HTTP (recommendarr.arr-stack.svc:3000) | 60s |
 | `sonarr-probe.yaml` | Sonarr | HTTP (sonarr.arr-stack.svc:8989) | 60s |
-| `argocd-web-probe.yaml` | ArgoCD | HTTP (argocd-server.argocd.svc:443) | 60s |
+| `argocd-probe.yaml` | ArgoCD | HTTP (argocd-server.argocd.svc:443) | 60s |
 
 **Vault probe note:** `/v1/sys/health` returns 200=active, 503=sealed. `http_2xx` treats sealed as probe failure - used by VaultSealed alert's `absent()` guard to prevent false positives when metrics are temporarily unavailable.
 
@@ -316,7 +316,6 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 
 | File | Alerts | Phase |
 |------|--------|-------|
-| `test-alert.yaml` | AlwaysFiring (manual testing only) | v0.5.0 |
 | `logging-alerts.yaml` | LokiDown, LokiIngestionStopped, LokiHighErrorRate, AlloyNotOnAllNodes, AlloyNotSendingLogs, AlloyHighMemory, LokiCompactionStalled, LokiRetentionNotRunning, LokiWALDiskFull | v0.5.0 |
 | `ups-alerts.yaml` | UPSOnBattery, UPSLowBattery, UPSBatteryCritical, UPSBatteryWarning, UPSHighLoad, UPSExporterDown, UPSOffline, UPSBackOnline | v0.4.0 |
 | `adguard-dns-alert.yaml` | AdGuardDNSUnreachable (DNS probe failure) | v0.9.0 |

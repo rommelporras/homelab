@@ -363,65 +363,159 @@ its app pod (instead of `nodeSelector`). If an app moves nodes, its backup follo
 
 ## Phase 5.9 Vault Snapshot Cutover Cleanup
 
-**Status:** Deferred - wait 5-7 days after first successful CronWorkflow run
+**Status:** Deferred - earliest 2026-04-21 (~6 days of CronWorkflow runs)
 **Priority:** Low
-**Added:** 2026-04-14 (Phase 5.9)
+**Added:** 2026-04-14, updated 2026-04-15 with real post-cutover state
 
 ### Context
 
-Phase 5.9 migrated the daily Vault Raft snapshot from a CronJob in the `vault`
-namespace to a CronWorkflow in the `argo-workflows` namespace (v0.39.0). During
-cutover, the legacy NFS PV/PVC (`vault-snapshots-nfs` / `vault-snapshots` in
-`vault` ns) were intentionally kept alongside the new argo-workflows PV/PVC so
-both could write to the same NAS directory without a gap. The legacy CronJob +
-ServiceAccount were already removed in step 5.9.3.9.
+Phase 5.9 migrated the daily Vault Raft snapshot from a CronJob in `vault` ns
+to a CronWorkflow in `argo-workflows` ns (v0.39.0). During cutover, the legacy
+NFS PV + PVC were intentionally kept alongside the new argo-workflows PV/PVC so
+both could write to the same NAS directory without a gap.
 
-Two cleanup items remain after 5-7 days of clean CronWorkflow operation.
+**State after v0.39.0 ship (2026-04-15):**
+- Legacy `vault-snapshot` CronJob + ServiceAccount — ❌ **removed** (pruned by
+  ArgoCD from commit `b1342f9`)
+- Legacy `vault-snapshots-nfs` PV + `vault-snapshots` PVC (vault ns) — ✅ **still
+  present** (pending this cleanup)
+- New `vault-snapshots-argo-nfs` PV + `vault-snapshots` PVC (argo-workflows ns)
+  — ✅ **sole active write path**
+- Legacy `vault-snapshot` Vault K8s auth role — ✅ **still present** (pending
+  this cleanup)
+- New `vault-snapshot-argo` Vault K8s auth role — ✅ **sole active role**,
+  bound to `argo-workflows:vault-snapshot-workflow`
+
+Two cleanup items remain. Both are safe once the CronWorkflow has run cleanly
+for 5-7 days.
 
 ### Readiness check before running
 
-```bash
-# At least 5 successful Argo Workflows runs of vault-snapshot-*
-kubectl-homelab get workflows -n argo-workflows --sort-by=.metadata.creationTimestamp | tail -7
-# Expect 5+ rows with STATUS=Succeeded.
+The CronWorkflow's `ttlStrategy.secondsAfterSuccess: 86400` deletes the
+Workflow object after 24h — so `kubectl get workflows` will only show the
+last 0-1 run, NOT the last week. Use these three checks instead:
 
-# Fresh snapshot files on NAS for each day of the past week
+```bash
+# 1. NAS snapshot files — ground truth, files persist for 3 days per the
+#    CronWorkflow's `find -mtime +3 -delete` prune step. Expect 3-4 files
+#    (today + last 3 nights) all ~80K and owned by uid 65534.
 ssh wawashi@10.10.30.11 \
-  'sudo mount -t nfs4 10.10.30.4:/Kubernetes /tmp/nfs && \
-   ls -lh /tmp/nfs/Backups/vault/vault-*.snap | tail; \
+  'sudo mkdir -p /tmp/nfs && \
+   sudo mount -t nfs4 10.10.30.4:/Kubernetes /tmp/nfs && \
+   ls -lh /tmp/nfs/Backups/vault/ && \
    sudo umount /tmp/nfs'
+# Pass criteria: at least 3 vault-YYYYMMDD.snap files, newest ≤26h old.
+
+# 2. VaultSnapshotStale alert should NOT have fired since the cutover.
+kubectl-admin exec -n argocd statefulset/argocd-application-controller \
+  -- sh -c 'curl -s http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090/api/v1/query?query=ALERTS%7Balertname%3D%22VaultSnapshotStale%22%7D' \
+  | jq '.data.result'
+# Pass criteria: [] (empty — alert not firing).
+# Or check Alertmanager UI: https://alertmanager.k8s.rommelporras.com
+
+# 3. Latest CronWorkflow run succeeded (if the object is still alive; see TTL note).
+kubectl-homelab get workflows -n argo-workflows --sort-by=.metadata.creationTimestamp 2>/dev/null | tail -3
+# Pass criteria: if any row exists, STATUS=Succeeded. If zero rows, that's
+# normal (TTL expired) — fall back to checks 1 + 2.
 ```
 
 ### 5.9.3.10 — Remove legacy NFS PV/PVC in the vault namespace
 
-Delete the remaining stanzas in `manifests/vault/snapshot-cronjob.yaml`:
-- `PersistentVolume vault-snapshots-nfs`
-- `PersistentVolumeClaim vault-snapshots` in the `vault` namespace
+**Pre-flight safety checks (run BEFORE editing):**
 
-After deletion, the file can be removed entirely (header-only at that point).
-Commit, push, ArgoCD prunes the PV + PVC. The NAS directory is unaffected —
-reclaim policy is `Retain` and only the Kubernetes objects go away. The
-argo-workflows PV continues mounting the same NAS path.
+```bash
+# A. New argo-workflows PV is bound and healthy (active sink):
+kubectl-homelab get pv vault-snapshots-argo-nfs -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,CLAIM:.spec.claimRef.name --no-headers
+# Expect: STATUS=Bound, CLAIM=vault-snapshots
+
+# B. Legacy PV/PVC are still Bound (not orphaned, so their deletion is predictable):
+kubectl-homelab get pv vault-snapshots-nfs -o jsonpath='{.status.phase}{"\n"}'
+kubectl-homelab get pvc vault-snapshots -n vault -o jsonpath='{.status.phase}{"\n"}'
+# Expect both: Bound
+
+# C. No other manifest references the legacy names (catch any new consumer
+# that appeared after cutover):
+grep -rn 'vault-snapshots-nfs\|vault-snapshots[^-a]' manifests/ helm/ scripts/ 2>/dev/null | grep -v 'vault-snapshots-argo-nfs'
+# Expect: only hits in manifests/vault/snapshot-cronjob.yaml itself.
+```
+
+If any check fails, stop and investigate.
+
+**Remove the file entirely (not just its contents):**
+
+```bash
+git rm manifests/vault/snapshot-cronjob.yaml
+# /audit-security then /commit - bundle this with 5.9.3.11's seed-script
+# entry if you haven't already updated it.
+git push origin main
+```
+
+ArgoCD picks up the deletion and prunes the PV + PVC. The NAS directory is
+unaffected — reclaim policy is `Retain` and only the Kubernetes objects go
+away. The argo-workflows PV continues mounting the same NAS path.
+
+**Post-deletion verify:**
+
+```bash
+kubectl-homelab get pv vault-snapshots-nfs 2>&1
+# Expect: NotFound
+kubectl-homelab get pvc -n vault
+# Expect: empty
+kubectl-homelab get cronworkflow vault-snapshot -n argo-workflows
+# Expect: still Active with next scheduled run. Wait for the next 02:00
+# Manila run to succeed (or trigger a manual `kubectl create` from the
+# template) before marking this complete.
+```
 
 ### 5.9.3.11 — Delete the legacy Vault Kubernetes auth role
 
-Run manually in a terminal with `vault` CLI + admin token (Claude has no Vault
-access):
+**Pre-flight safety checks:**
+
+```bash
+# A. Legacy role is bound ONLY to the already-deleted vault-snapshot SA:
+vault read auth/kubernetes/role/vault-snapshot
+# Expect: bound_service_account_names=[vault-snapshot],
+#         bound_service_account_namespaces=[vault]
+# If more SAs are bound, investigate before deleting.
+
+# B. The legacy SA is gone (already pruned by 5.9.3.9):
+kubectl-admin get sa vault-snapshot -n vault 2>&1
+# Expect: Error from server (NotFound)
+
+# C. The new role is alive and bound to the active SA:
+vault read auth/kubernetes/role/vault-snapshot-argo
+# Expect: bound_service_account_names=[vault-snapshot-workflow],
+#         bound_service_account_namespaces=[argo-workflows]
+```
+
+**Delete:**
 
 ```bash
 vault delete auth/kubernetes/role/vault-snapshot
+# Confirm:
+vault list auth/kubernetes/role | grep -E '^vault-snapshot'
+# Expect: only `vault-snapshot-argo` listed.
 ```
 
-The new `vault-snapshot-argo` role remains bound to the `argo-workflows`
-ServiceAccount and takes over daily snapshots. Verify the legacy role is gone:
+**Post-deletion verify the next scheduled run still works:**
 
-```bash
-vault list auth/kubernetes/role
-# Expect: vault-snapshot-argo is listed; vault-snapshot is no longer listed.
-```
+Wait until the next 02:00 Manila run. Either open Argo Workflows UI and watch
+it go green, or check NAS the next morning (`vault-YYYYMMDD.snap` for today's
+date exists, size ~80K, uid 65534). If it fails, the argo-workflows
+`vault-snapshot-workflow` SA can't auth to Vault — check the CronWorkflow
+run's snapshot-step logs and confirm the `vault-snapshot-argo` Vault role
+is still intact (binding or policy didn't drift).
 
-**When:** No earlier than 2026-04-21 (first scheduled CronWorkflow run is
-2026-04-15 02:00 Manila; 6 days gives a full weekday cycle).
+### When
+
+**Earliest: 2026-04-21** (first scheduled CronWorkflow run was 2026-04-15
+02:00 Manila; 6 days gives a full weekday cycle without a weekend break
+from the schedule).
+
+Do both 5.9.3.10 and 5.9.3.11 in the same session — they're independent but
+the work is small enough that splitting adds overhead. After 5.9.3.11
+succeeds, close out this entry by moving it to a "Resolved" subsection
+(like the "ARR Stack Backup CronJob Rework" entry above).
 
 ---
 
@@ -444,11 +538,16 @@ Correctable events signal intermittent link instability (loose seating,
 oxidation on M.2 contacts, thermal warping, dust). Reseat is the first-line
 remediation before considering drive or mainboard replacement.
 
-Today's karakeep outage (2026-04-14) was triggered by a Longhorn AutoSalvage
-of a replica on cp3. Direct causation between the PCIe AER pattern and the
-replica stall is unconfirmed (no AER events on 2026-04-14 itself), but cp3 is
-the only node with a recurring AER pattern, so reseat is the low-risk next
-step.
+The 2026-04-14 karakeep outage was triggered by a Longhorn AutoSalvage of a
+replica on cp3. Direct causation between the PCIe AER pattern and the replica
+stall is unconfirmed (no AER events on 2026-04-14 itself), but cp3 is the
+only node with a recurring AER pattern, so reseat is the low-risk next step.
+
+**Live monitoring is now in place** (Phase 5.9.7): `NodePCIeBusError` and
+`LonghornVolumeAutoSalvaged` alerts fire automatically. Before scheduling the
+reseat, check Grafana / Alertmanager for any new occurrences since 2026-04-11
+to confirm the pattern is ongoing (if errors have stopped entirely, reseat
+becomes lower priority).
 
 ### What "reseat" means
 
@@ -462,18 +561,38 @@ fully), push back in at ~30°, press flat, rescrew.
 ### Procedure
 
 Full procedure is in [`docs/runbooks/longhorn-hardware.md`](../runbooks/longhorn-hardware.md)
-under "Reseating an NVMe":
-1. Pre-flight: confirm every Longhorn volume has 3 healthy replicas on OTHER
-   nodes, take fresh Longhorn backups of critical volumes
+under "Reseating an NVMe". Summary:
+
+1. **Pre-flight:** Longhorn default is `numberOfReplicas: 2` on this cluster.
+   For each volume that has a replica on cp3, confirm at least one healthy
+   replica exists on a DIFFERENT node (cp1 or cp2) so data stays accessible
+   during the reseat. Take a Longhorn snapshot of any critical volume whose
+   only other replica is on a node with known issues. Check via:
+   ```
+   kubectl-admin get volumes.longhorn.io -n longhorn-system -o json \
+     | jq -r '.items[] | select(.status.robustness != "healthy") | .metadata.name'
+   ```
+   Must return empty before proceeding.
 2. `kubectl-admin cordon k8s-cp3 && kubectl-admin drain k8s-cp3 --ignore-daemonsets --delete-emptydir-data --force`
 3. `ssh wawashi@k8s-cp3 "sudo shutdown -h now"`
-4. Physical work: bottom cover, M.2 screw, reseat, clean if dirty
-5. Power on, wait 5-7 min for M80q BIOS POST
+4. Physical work: bottom cover (single captive screw), M.2 retaining screw,
+   pull NVMe at 30°, inspect gold-finger contacts, clean with >90% IPA if
+   visibly dirty (fully dry before reinsertion), reinsert at 30°, press
+   flat, rescrew.
+5. Power on, wait 5-7 min for M80q BIOS POST (per MEMORY.md — 300s timeout
+   is too short, 600s is right).
 6. `kubectl-admin uncordon k8s-cp3`
-7. Watch Longhorn replica rebuilds complete (5-20 min)
-8. Confirm AER counters reset: `ssh wawashi@k8s-cp3 "sudo cat /sys/bus/pci/devices/0000:01:00.0/aer_dev_correctable"` → 0
-9. Monitor for 7 days; if correctable errors return, escalate to drive or
-   mainboard replacement per the runbook's "When to Replace vs Reseat" table
+7. Watch Longhorn replica rebuilds complete (`kubectl-homelab get
+   replicas.longhorn.io -n longhorn-system --field-selector
+   spec.nodeID=k8s-cp3 -w`). All should reach `status.currentState=running`.
+8. Confirm AER counters reset:
+   `ssh wawashi@k8s-cp3 "sudo cat /sys/bus/pci/devices/0000:01:00.0/aer_dev_correctable"`
+   → 0 (counters reset on reboot even without reseating; the reseat's
+   benefit shows up in the 7-day follow-up window).
+9. Monitor for 7 days via Alertmanager / Grafana. If any
+   `NodePCIeBusError` alert fires for cp3 during that window, reseat did
+   not resolve the issue — escalate to drive or mainboard replacement
+   per the runbook's "When to Replace vs Reseat" table.
 
 ### Signals that should bump priority
 

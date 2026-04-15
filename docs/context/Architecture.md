@@ -163,7 +163,7 @@ Stateless services (Ghost, Portfolio, Homepage, ARR apps, etc.) use 60s tolerati
 | Velero only | No application data (Secrets excluded, volumes handled by Longhorn) |
 | **All three** | **Defense in depth: volume, resource, and logical backups** |
 
-Longhorn handles block-level volume snapshots to NFS. Velero handles K8s resource manifests to Garage S3. CronJobs handle application-level dumps (SQLite, PostgreSQL, MySQL, etcd) to NFS. Off-site: restic encrypts and syncs NAS backups to OneDrive.
+Longhorn handles block-level volume snapshots to NFS. Velero handles K8s resource manifests to Garage S3. CronJobs handle application-level dumps (SQLite, PostgreSQL, MySQL, etcd) to NFS; the Vault Raft snapshot specifically runs as a CronWorkflow in `argo-workflows` (DAG: snapshot + prune, Discord-on-failure exit handler; migrated from a plain CronJob in Phase 5.9). Off-site: restic encrypts and syncs NAS backups to OneDrive.
 
 ## Why Garage S3 (Not MinIO)
 

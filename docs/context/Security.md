@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, security, pss, eso, vault, service-accounts, cis, hardening, network-policies, backup, resilience]
-updated: 2026-04-14
+updated: 2026-04-15
 ---
 
 # Security
@@ -201,7 +201,7 @@ Workaround: use L4-only policy (no `toPorts`) for critical pods that need reliab
 
 ### Coverage
 
-26 namespaces with CiliumNetworkPolicy + 1 CiliumClusterwideNetworkPolicy (Gateway `reserved:ingress` identity).
+26 namespaces with CiliumNetworkPolicy (137 policies) + 1 CiliumClusterwideNetworkPolicy (Gateway `reserved:ingress` identity).
 
 Covered: ai, argo-workflows, argocd, arr-stack, atuin, browser, cert-manager, cloudflare, external-secrets, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, portfolio-dev, portfolio-prod, portfolio-staging, tailscale, uptime-kuma, vault, velero
 
@@ -225,7 +225,8 @@ Most app pods have `automountServiceAccountToken: false` — they don't call the
 | monitoring | version-checker | Queries container image versions |
 | monitoring | version-check-cronjob | Nova reads Helm release Secrets (`helm.sh/release.v1`) cluster-wide for chart drift |
 | home | homepage | Kubernetes cluster/node widgets + Longhorn storage widget |
-| vault | snapshot (CronJob) | Reads SA token for Vault Kubernetes auth login |
+| argo-workflows | vault-snapshot (CronWorkflow, Phase 5.9) | Reads SA token for Vault Kubernetes auth login (migrated from legacy vault-snapshot CronJob in vault ns, removed 2026-04-15) |
+| argo-workflows | argo-server-admin (SSO mapped SA, Phase 5.9.1.7) | UI user impersonation for workflow CRUD via static token Secret (k8s 1.24+ pattern) |
 
 Helm-managed workloads (Cilium, cert-manager, Longhorn, Vault, NFD, Intel device plugins) control their own `automountServiceAccountToken` via chart defaults.
 
@@ -243,6 +244,8 @@ Helm-managed workloads (Cilium, cert-manager, Longhorn, Vault, NFD, Intel device
 ### ESO-Enabled Namespaces (19)
 
 argo-workflows, argocd, arr-stack, atuin, browser, cert-manager, cloudflare, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, tailscale, velero
+
+The `argo-workflows` namespace now has 2 ExternalSecrets: `discord-webhooks` (reuses `monitoring/discord-webhooks`, property `incidents` for notify-on-failure) and `argo-server-sso` (GitLab OIDC client credentials for argo-server UI login, synced from Vault KV `argo-workflows/sso-credentials`).
 
 ### Known Trade-offs
 
@@ -420,7 +423,7 @@ System namespaces (kube-system, monitoring, longhorn-system, gitlab) are exclude
 
 | Time | CronJob | Target |
 |------|---------|--------|
-| 02:00 | vault-snapshot | Vault Raft snapshot |
+| 02:00 | vault-snapshot (CronWorkflow) | Vault Raft snapshot (Argo Workflows DAG: snapshot + prune, Discord-on-failure exit handler; replaced legacy CronJob on 2026-04-15) |
 | 02:00 | ghost-mysql-backup | Ghost MySQL |
 | 02:00 (Sun) | atuin-backup | Atuin PostgreSQL (pg_dump) |
 | 02:05 | adguard-backup | AdGuard SQLite |
@@ -525,8 +528,8 @@ Security controls for ArgoCD-managed cluster operations (Phase 5.7+).
 |-------|---------|---------|
 | Source | Self-hosted GitLab | Deploy token with `read_repository` scope |
 | Admission | ValidatingAdmissionPolicy | Trusted image registries only (CEL-based) |
-| Secrets | Vault + ESO | Never raw Secrets in Git. 37 ExternalSecrets from Vault (19 namespaces). |
-| Network | CiliumNetworkPolicy | Default-deny on 26 namespaces (136 policies) |
+| Secrets | Vault + ESO | Never raw Secrets in Git. 38 ExternalSecrets from Vault (19 namespaces). |
+| Network | CiliumNetworkPolicy | Default-deny on 26 namespaces (137 policies) |
 | Drift | Auto-sync with selfHeal | ArgoCD auto-syncs from Git, reverts manual changes |
 | Imperative exceptions | vault-unseal-keys | Bootstrap secret - ArgoCD must never prune vault namespace Secrets |
 
@@ -535,14 +538,14 @@ Security controls for ArgoCD-managed cluster operations (Phase 5.7+).
 | Control | Status | Coverage | Known Gaps |
 |---------|--------|----------|------------|
 | PSS | Enforced | 29/33 namespaces | 4 empty/system ns (cilium-secrets, default, kube-node-lease, kube-public) |
-| CiliumNP | Default-deny | 26/33 namespaces (136 policies) | longhorn-system, NFD, intel-dp (privileged, low attack surface) |
+| CiliumNP | Default-deny | 26/33 namespaces (137 policies) | longhorn-system, NFD, intel-dp (privileged, low attack surface) |
 | RBAC | Audited | 4 cluster-admin bindings | velero-server (accepted - cross-ns backup) |
 | etcd encryption | Active (secretbox) | All secrets | |
 | Audit logging | Active | Mutations only (get/list dropped) | Audit alerts deferred (needs Loki Ruler) |
-| Backup | 3-layer | Longhorn+Velero+etcd (24 CronJobs) | |
+| Backup | 3-layer | Longhorn+Velero+etcd (23 CronJobs + 1 CronWorkflow) | |
 | CIS benchmark | 69 pass / 7 fail | All 3 CP nodes identical | 7 justified FAILs documented |
 | Image restriction | VAP Warn mode | All non-system namespaces | Deny mode target: 2026-04-02 |
-| ESO | Healthy | 37 ExternalSecrets (19 namespaces) | All deployed and synced |
+| ESO | Healthy | 38 ExternalSecrets (19 namespaces) | All deployed and synced |
 | Supply chain | Tag pinning | All images except 1 | portfolio:latest (CI/CD pattern, Phase 5.8) |
 | ResourceQuotas | Active | 16 namespaces | System ns excluded (variable needs) |
 | PDBs | Active | 24 PDBs | |

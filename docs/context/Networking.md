@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, networking, dns, vlan, network-policies]
-updated: 2026-04-14
+updated: 2026-04-15
 ---
 
 # Networking
@@ -87,6 +87,7 @@ Network configuration for the homelab cluster.
 | Vault | https://vault.k8s.rommelporras.com | base |
 | Atuin | https://atuin.k8s.rommelporras.com | base |
 | ArgoCD | https://argocd.k8s.rommelporras.com | base |
+| Argo Workflows UI | https://argo-workflows.k8s.rommelporras.com | base |
 
 ## Tailscale (Remote Access)
 
@@ -162,7 +163,7 @@ Phone → WireGuard tunnel → Connector Pod → AdGuard DNS (10.10.30.53)
 
 ## CiliumNetworkPolicy Traffic Matrix (Phase 5.3)
 
-CiliumNetworkPolicies across 26 namespaces + 1 CiliumClusterwideNetworkPolicy.
+CiliumNetworkPolicies across 26 namespaces (137 policies) + 1 CiliumClusterwideNetworkPolicy.
 See [[Security]] for policy strategy, Cilium identity reference, and known limitations.
 
 ### Cluster-Wide
@@ -205,6 +206,9 @@ See [[Security]] for policy strategy, Cilium identity reference, and known limit
 | karakeep | intra-namespace, Gateway, monitoring, host | DNS, intra-namespace, ai/ollama (11434), internet (chrome web scraping:443/80) |
 | atuin | intra-namespace, Gateway, monitoring, host | DNS, intra-namespace, NAS NFS (2049 backup) |
 | tailscale | kube-apiserver, host | DNS, kube-apiserver, internet (Tailscale coordination) |
+| argo-workflows (server/UI) | Gateway `reserved:ingress` + host (2746), monitoring Prometheus (2746 metrics) | DNS, kube-apiserver (CRUD workflows + pod logs), gitlab webservice (8181 OIDC) |
+| argo-workflows (controller) | Prometheus (9090), argoexec sidecars (9090, intra-namespace) | DNS, kube-apiserver |
+| argo-workflows (vault-snapshot CronWorkflow) | (no inbound) | DNS, kube-apiserver (workflowtaskresults), workflow-controller (9090), vault (8200), NAS NFS (2049), FQDN: discord.com (443) |
 | cloudflare | monitoring (2000), host (2000) | DNS, Cloudflare edge (443/7844 TCP+UDP), portfolio-staging/prod (80), ghost-prod (2368/3000), invoicetron-prod (3000), uptime-kuma (3001) |
 | vault (unsealer) | (no inbound services) | DNS, vault (8200), kube-apiserver |
 | vault (snapshot) | (no inbound services) | DNS, vault (8200), NAS NFS (2049) |

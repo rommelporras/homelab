@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, gateway, tls, cert-manager]
-updated: 2026-04-14
+updated: 2026-04-15
 ---
 
 # Gateway API
@@ -139,6 +139,7 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 | Loki | https://loki.k8s.rommelporras.com | loki | monitoring | https |
 | Vault | https://vault.k8s.rommelporras.com | vault | vault | https |
 | ArgoCD | https://argocd.k8s.rommelporras.com | argocd | argocd | https |
+| Argo Workflows UI | https://argo-workflows.k8s.rommelporras.com | argo-workflows-ui | argo-workflows | https |
 
 ## Adding a New Service
 

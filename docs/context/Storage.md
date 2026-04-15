@@ -69,7 +69,7 @@ All K8s NFS storage uses a **single export** (`/export/Kubernetes`) with **one s
 │   └── media/{movies,tv,music}/      (Sonarr/Radarr hardlinked library)
 ├── Backups/                          (service database backups & snapshots)
 │   ├── atuin/                        (Atuin PostgreSQL pg_dump, weekly CronJob)
-│   ├── vault/                        (Vault Raft snapshots, daily CronJob)
+│   ├── vault/                        (Vault Raft snapshots, daily CronWorkflow in argo-workflows ns)
 │   ├── pki/                          (PKI certificate backups)
 │   ├── longhorn/                     (Longhorn volume backups - backup target)
 │   ├── etcd/                         (etcd snapshot backups)
@@ -90,7 +90,7 @@ All K8s NFS storage uses a **single export** (`/export/Kubernetes`) with **one s
 | `Immich/` | `/Kubernetes/Immich` | `immich-nfs` | `immich` | Template only (PV and namespace not deployed) |
 | `Media/` | `/Kubernetes/Media` | `arr-data-nfs` | `arr-stack` | Deployed |
 | `Backups/atuin/` | `/Kubernetes/Backups/atuin` | inline NFS volume | `atuin` | Deployed (v0.28.1) |
-| `Backups/vault/` | `/Kubernetes/Backups/vault` | `vault-snapshots-nfs` | `vault` | Deployed (v0.29.0) |
+| `Backups/vault/` | `/Kubernetes/Backups/vault` | `vault-snapshots-argo-nfs` | `argo-workflows` | Deployed (v0.39.0). Legacy `vault-snapshots-nfs` PV + PVC in `vault` ns remain temporarily; removal tracked in `docs/todo/deferred.md` 5.9.3.10. |
 | `Backups/pki/` | `/Kubernetes/Backups/pki` | inline NFS volume | `kube-system` | Deployed |
 | `Backups/longhorn/` | `/Kubernetes/Backups/longhorn` | Longhorn backup target | `longhorn-system` | Deployed |
 | `Backups/etcd/` | `/Kubernetes/Backups/etcd` | inline NFS volume | `kube-system` | Deployed |

@@ -73,7 +73,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 
 **Observability**
 - Prometheus + Grafana + Loki + Alloy (full metrics, logs, 25 Grafana dashboards)
-- Alertmanager (Discord + Email, severity routing) — 133 alert rules across 33 PrometheusRule files, including cluster-wide OOMKilled detection
+- Alertmanager (Discord + Email, severity routing) — 137 alert rules across 33 PrometheusRule files, including cluster-wide OOMKilled detection
 - Blackbox probes (25 services: ArgoCD, Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr, Atuin, Vault, cert-manager-webhook, ESO webhook, Garage, Homepage, Longhorn UI, MySpeed, Prowlarr, Radarr, Recommendarr, Sonarr)
 - Dead Man's Switch (healthchecks.io), UPS monitoring (NUT + nut-exporter)
 - smartctl-exporter DaemonSet (NVMe S.M.A.R.T. health on all 3 nodes — temp, wear, spare, TBW)
@@ -88,7 +88,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Cloudflare Tunnel (HA, 2 replicas) for public services
 - Tailscale Operator (WireGuard subnet router) for private remote access
 - AdGuard DNS as primary for all VLANs + Tailscale global nameserver
-- CiliumNetworkPolicy microsegmentation (136 policies across 26 namespaces + 1 CiliumClusterwideNetworkPolicy, implicit default-deny)
+- CiliumNetworkPolicy microsegmentation (137 policies across 26 namespaces + 1 CiliumClusterwideNetworkPolicy, implicit default-deny)
 
 **Applications**
 - GitLab CE (Runner, Container Registry, SSH) with CI/CD pipelines
@@ -104,11 +104,11 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 
 **GitOps**
 - ArgoCD v3.3.6 (non-HA, self-management Application, Discord notifications)
-- Argo Workflows v4.0.4 (headless controller, chart 1.0.7) - DAG-based workflow orchestrator for multi-step automations; first migrated workload is the daily Vault raft snapshot (2-step DAG + Discord-on-failure exit handler)
+- Argo Workflows v4.0.4 (controller + server UI, chart 1.0.7, `--namespaced` mode) - DAG-based workflow orchestrator with web UI at `argo-workflows.k8s.rommelporras.com`, SSO via self-hosted GitLab OIDC. First migrated workload: daily Vault raft snapshot (2-step DAG + Discord-on-failure exit handler)
 
 **Secrets Management**
 - HashiCorp Vault 1.21.4 (standalone, Raft on Longhorn, auto-unsealer, daily NFS snapshots)
-- External Secrets Operator v2.1.0 (36 ExternalSecrets, Kubernetes auth, all namespaces)
+- External Secrets Operator v2.1.0 (38 ExternalSecrets, Kubernetes auth, 19 namespaces)
 
 ---
 
@@ -164,7 +164,7 @@ Things that bit us and might save you time:
 2. **Resilience & Backup** — Phase 5.4 complete (v0.34.0)
 3. **Image Updates & Monitoring** — Phase 5.6 complete; Phase 5.7 complete
 4. **GitOps Migration** — Phase 5.8 complete (v0.38.0); v0.38.1 hotfix released (ArgoCD drift recovery + OOM detection)
-5. **Argo Workflows + vault-snapshot migration** — Phase 5.9 / v0.39.0 deployed and validated; cutover of legacy CronJob pending
+5. **Argo Workflows + vault-snapshot migration** — Phase 5.9 / v0.39.0 deployed and validated; legacy CronJob cutover complete (2026-04-15); UI at `argo-workflows.k8s.rommelporras.com` with SSO via GitLab
 6. **CI/CD Pipeline Migration** — Phase 5.10+ (Argo Workflows to replace GitLab Runner for container builds)
 7. **CKA Certification** — September 2026 target
 

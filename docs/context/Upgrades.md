@@ -149,11 +149,10 @@ helm-homelab rollback cilium <revision> -n kube-system
 | Component | Upgrade Method | Rollback | Risk | Notes |
 |-----------|---------------|----------|------|-------|
 | ArgoCD-managed | Git push | `git revert` + push | Low | Auto-synced, PVC persists |
-| Cilium | `helm upgrade` | `helm rollback` | Low | Only direct Helm release |
+| Cilium | `helm upgrade` | `helm rollback` | Medium-High | Only direct Helm release. Brief network disruption during agent restart |
 | Kubernetes | `kubeadm upgrade` | etcd restore (manual) | **High** | 1 minor at a time |
 | kube-vip | Edit static pod | Edit manifest back | Medium | VIP brief drop |
 | Longhorn | `helm upgrade` | **Cannot downgrade** | **Highest** | Read release notes! |
-| Cilium | `helm upgrade` | `helm rollback` | Medium-High | Brief network disruption |
 
 ## Service-Specific Warnings
 

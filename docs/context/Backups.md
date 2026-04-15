@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, backup, restic, velero, longhorn]
-updated: 2026-04-14
+updated: 2026-04-15
 ---
 
 # Backups
@@ -66,14 +66,13 @@ NFS target: `10.10.30.4:/Kubernetes/Backups/<service>`
 
 | CronJob | Namespace | Schedule (Manila) | Retention | What |
 |---------|-----------|-------------------|-----------|------|
-| vault-snapshot (legacy) | vault | 02:00 daily | 3 days | Raft snapshot. Running in parallel with the CronWorkflow (below) during Phase 5.9 cutover; will be removed after the first scheduled CronWorkflow run succeeds (v0.39.0). |
-| vault-snapshot CronWorkflow | argo-workflows | 02:00 daily | 3 days | Raft snapshot (Argo Workflows DAG: snapshot + prune, Discord-on-failure exit handler). Deployed 2026-04-13, writes to the same NFS path as the legacy CronJob. |
+| vault-snapshot CronWorkflow | argo-workflows | 02:00 daily | 3 days | Raft snapshot (Argo Workflows DAG: snapshot + prune, Discord-on-failure exit handler). Replaced the legacy `vault-snapshot` CronJob on 2026-04-15 after the first scheduled run succeeded alongside it at 02:00 Manila. Writes to NAS path `/Kubernetes/Backups/vault` (same as before — restic off-site job unchanged). Legacy PV/PVC in the `vault` namespace kept temporarily; removal tracked in `docs/todo/deferred.md` (earliest 2026-04-21). |
 | ghost-mysql-backup | ghost-prod | 02:00 daily | 3 days | mysqldump |
 | adguard-backup | home | 02:05 daily | 3 days | SQLite .backup |
 | uptime-kuma-backup | uptime-kuma | 02:10 daily | 3 days | SQLite .backup |
 | karakeep-backup | karakeep | 02:15 daily | 3 days | SQLite .backup |
 | grafana-backup | monitoring | 02:20 daily | 3 days | SQLite .backup |
-| arr-backup-cp1/cp2/cp3 | arr-stack | 02:25 daily | 3 days | SQLite .backup (per-node) |
+| arr-backup-{bazarr,jellyfin,prowlarr,qbittorrent,radarr,recommendarr,seerr,sonarr,tdarr} | arr-stack | 02:25 daily | 3 days | SQLite .backup (9 per-app CronJobs with `podAffinity` - restructured in Phase 5.8.2 from the earlier 3 per-node grouping to avoid cross-PVC mount failures when apps reschedule) |
 | myspeed-backup | home | 02:30 daily | 3 days | SQLite .backup |
 | etcd-backup | kube-system | 03:30 daily | 14 days | etcdctl snapshot |
 | atuin-backup | atuin | 02:00 Sunday | 3 days | pg_dump |
