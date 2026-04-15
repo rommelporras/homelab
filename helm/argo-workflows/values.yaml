@@ -22,6 +22,16 @@ controller:
     repository: argoproj/workflow-controller
     tag: v4.0.4
 
+  # Run in namespaced mode: controller only watches Workflow/CronWorkflow
+  # CRDs in its own namespace (argo-workflows). Paired with `--namespaced`
+  # on the server below. This matches our single-namespace usage pattern
+  # (all current and planned workflows live in argo-workflows) and lets
+  # the SSO ServiceAccount use a namespace Role instead of a ClusterRole.
+  # Trade-off: ClusterWorkflowTemplates are not usable (we don't use any -
+  # only namespace-scoped WorkflowTemplates).
+  extraArgs:
+    - --namespaced
+
   resources:
     requests:
       cpu: 100m
@@ -75,6 +85,14 @@ server:
 
   authModes:
     - sso
+
+  # Run in namespaced mode: UI queries scoped to argo-workflows namespace
+  # only (matches the controller above and the SSO SA's namespace Role).
+  # Without this, the UI calls GET /workflows?namespace="" (cluster-wide)
+  # which the namespace Role denies with "Forbidden: Permission denied,
+  # you are not allowed to list workflows in namespace """.
+  extraArgs:
+    - --namespaced
 
   # secure: false is the chart default - Gateway handles TLS. Leaving
   # it unset is intentional; do not add `secure: true` unless the
