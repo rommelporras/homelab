@@ -1,104 +1,206 @@
 # Phase 5.9.1: CI/CD Pipeline Migration (Argo Events + Workflows)
 
 > **Status:** Planned
-> **Target:** v0.39.1
-> **Prerequisite:** Phase 5.9 (v0.39.0 - Argo Workflows installed, controller running)
-> **DevOps Topics:** Event-driven CI/CD, GitOps image promotion, BuildKit, webhook triggers
-> **CKA Topics:** CRD-based automation, RBAC, cross-namespace access, Kustomize overlays
+> **Target:** v0.39.1 (Stage 1 - ArgoCD onboarding) → v0.39.2 (Stage 2 - Argo Events CI/CD)
+> **Prerequisite:** Phase 5.9 (v0.39.0 - Argo Workflows installed, controller + argo-server running with `--namespaced` mode)
+> **DevOps Topics:** Event-driven CI/CD, GitOps image promotion, BuildKit rootless, webhook triggers, Kustomize overlays
+> **CKA Topics:** CRD-based automation, RBAC (cross-namespace), ValidatingAdmissionPolicy, Kustomize
 
-> **Purpose:** Replace GitLab CI deploy pipelines for Invoicetron and Portfolio with
-> Argo Events (triggers) + Argo Workflows (execution) + ArgoCD (deploy). GitLab remains
-> as source code host and container registry. Eliminates imperative `kubectl set image`
-> that conflicts with ArgoCD selfHeal.
+> **Purpose:** Two-stage migration. Stage 1 (v0.39.1) puts Portfolio and Invoicetron under ArgoCD declarative management via Kustomize overlays while keeping GitLab CI's `kubectl set image` dormant. Stage 2 (v0.39.2) replaces the GitLab CI deploy jobs with Argo Events (webhook triggers) + Argo Workflows (build/test/deploy) + ArgoCD (reconciles the git-commit-back).
 >
-> **Learning Goal:** Event-driven architecture (Argo Events), BuildKit rootless image
-> builds in k8s, GitOps-native deploy (commit image tag to Git, ArgoCD syncs),
-> reusable WorkflowTemplates, and Kustomize overlay patterns for multi-env deployments.
+> **Learning Goal:** Event-driven architecture, GitOps-native image promotion (CI commits image tag to Git, ArgoCD syncs), BuildKit rootless image builds in Kubernetes, reusable WorkflowTemplates, Kustomize overlay patterns, and why splitting migrations into "declarative-first + automation-later" reduces blast radius.
+
+> **Image tag verification gate:** All container image tags in this plan were pinned 2026-04-16. Image ecosystems move fast — **re-verify every tag on the Docker Hub / registry page before the relevant wave runs.** Specifically check BuildKit, Playwright, alpine/git, bun, curl, node, and the Argo Events Helm chart version. Update the plan in Git if newer stable versions exist. Never use floating tags (`:latest`, `:1.2-alpine`, `:rootless`).
+
+---
+
+## Why Two Releases
+
+Plan review on 2026-04-16 found that Invoicetron and Portfolio are **not currently ArgoCD-managed** — they deploy via GitLab CI's `kubectl set image`. The original single-release plan presupposed ArgoCD Applications already existed for them. They do not (verified: `manifests/argocd/apps/` contains no `portfolio*` or `invoicetron*` files). Jumping from "imperative kubectl" to "event-driven Argo pipeline" in one release couples two independent risks.
+
+Splitting:
+
+| Release | Scope | Rollback if something breaks |
+|---------|-------|-------------------------------|
+| **v0.39.1 (Stage 1)** | Restructure manifests into Kustomize overlays. Create 5 ArgoCD Applications (invoicetron-dev/prod, portfolio-dev/staging/prod) pointed at current live images. Enable auto-sync + selfHeal. Set GitLab CI deploy jobs to `when: manual` to stop fighting ArgoCD. | Delete the 5 ArgoCD Applications; flip GitLab CI back to automatic. Cluster state is unchanged (ArgoCD was pointed at live images). |
+| **v0.39.2 (Stage 2)** | Install Argo Events. Build shared WorkflowTemplates. Create GitLab EventSources + Sensors. Deploy step commits the new image tag into the Kustomize overlay; ArgoCD syncs. Remove the GitLab CI deploy jobs. | Re-enable GitLab CI deploy jobs, delete Sensors + WorkflowTemplates. ArgoCD stays; Stage 1 state is preserved. |
+
+---
+
+## Decision Records
+
+### DR-1: Image promotion pattern — CI commits image tag to Git
+
+**Considered:** argocd-image-updater v1.1.1 (maintained, supports Kustomize `newTag` write-back, watches registry).
+
+**Chosen:** CI commits the new image tag to the homelab repo; ArgoCD detects + syncs.
+
+**Why:**
+- Tight coupling: failed tests → no deploy → nothing written to Git (visible).
+- Git history is the audit trail — every deploy leaves a `chore(ci): update <project> to <sha>` commit.
+- Rollback is `git revert` of the image-update commit; ArgoCD syncs automatically.
+- argocd-image-updater has known friction with private GitLab registries (argoproj/argo-cd#25364).
+
+**Accepted trade-off:** Every deploy creates a commit on main. Acceptable churn for two apps.
+
+### DR-2: Image tag format — 8-char short commit SHA across both projects
+
+**Considered:** Full 40-char SHA (Portfolio's current format).
+
+**Chosen:** 8-char short SHA for both projects (Invoicetron's current format).
+
+**Why:** Readable in `kubectl describe`, Grafana, Discord alerts. Collision risk across a single repo is negligible (Birthday-paradox math: <1% over decades of daily commits). One standard for both apps.
+
+**Migration note:** Portfolio's first Stage-2 deploy will introduce 8-char tags. Old 40-char tags in GitLab registry remain referenceable for rollback.
+
+### DR-3: Automated commit identity
+
+```
+Author / Committer: Argo CI Bot <ci-bot@k8s.rommelporras.com>
+Message:            chore(ci): update <project> image to <sha> [skip ci]
+Signoff:            yes (git commit --signoff)
+Signing:            not yet (ArgoCD signatureKeys on AppProject not configured)
+```
+
+`[skip ci]` included defensively in case this repo ever gains its own CI (currently none — `renovate.json:3` has `"enabled": false`, no `.github/workflows/`). `--signoff` for DCO audit trail.
+
+### DR-4: One webhook secret per project (not shared)
+
+**Considered:** Single shared webhook secret, projects distinguished by Sensor filter on `body.project.name`.
+
+**Chosen:** Per-project webhook secret: `invoicetron-webhook-secret`, `portfolio-webhook-secret`.
+
+**Why:** GitLab webhooks don't HMAC the payload (gitlab-org/gitlab-foss#50745). The shared secret is the only authentication, and `body.project.name` is attacker-controlled JSON. A shared secret means anyone holding it can forge pushes for *any* project. Per-project secrets bound the blast radius.
+
+**Implementation:** Two EventSources (one per project), each with its own `accessToken` (GitLab API) + `webhookSecret`.
+
+### DR-5: GitHub write credential — SSH deploy key, scoped to homelab repo
+
+**Considered:** GitHub App (rotating 1h tokens, installable with fine-grained perms); fine-grained PAT (GA Mar 2025).
+
+**Chosen:** SSH deploy key on `rommelporras/homelab` only.
+
+**Why:** Simplest for a homelab, no rotation plumbing needed. Scope limited to this one repo. Stored in Vault, mounted only in the `deploy-image` template's pod (not the build pod).
+
+**Mitigations for whole-repo write blast radius:**
+- Deploy step runs in its own pod (SA isolation) — build pod never sees the key.
+- `cicd-apps` AppProject `clusterResourceWhitelist` restricts what any Application can create, limiting damage from a malicious manifest commit.
+- Future upgrade to GitHub App once rotation is tooled.
+
+### DR-6: EventSource type — dedicated `gitlab` type (not generic `webhook`)
+
+**Considered:** Generic `webhook` EventSource (original plan).
+
+**Chosen:** Dedicated `gitlab` EventSource, one per project.
+
+**Why:**
+- Auto-registers the webhook on the GitLab project via API — no manual UI configuration.
+- Validates `X-Gitlab-Token` natively at the EventSource, not in a Sensor filter.
+- Manages its own webhook lifecycle (delete the EventSource → hook is deregistered from GitLab).
+
+**Required:** GitLab personal/deploy access token with `api` scope, stored in Vault at `argo-events/gitlab-api-token`.
+
+### DR-7: Concurrency guard on deploy step — Argo Workflows mutex + retry-rebase
+
+**Chosen:** Belt and braces.
+
+- `synchronization.mutex: name: deploy-image-lock` at the `deploy-image` template level (scoped to `argo-workflows` namespace). Serializes all deploy steps cluster-wide.
+- Inside the step: 5-attempt retry loop with `git pull --rebase` on push failure. Catches races at the GitHub layer if somehow two simultaneous pushes occur.
+
+**Why both:** Mutex handles in-cluster concurrency; rebase handles external writes (e.g. a human committing to main at the same time as a deploy).
+
+### DR-8: Workflow TTL — 1 day on success, 7 days on failure
+
+Matches Phase 5.9's CronWorkflow convention. Applied as `ttlStrategy` on every CI WorkflowTemplate:
+
+```yaml
+ttlStrategy:
+  secondsAfterSuccess: 86400       # 1 day
+  secondsAfterFailure: 604800      # 7 days (keep failures longer for debugging)
+  secondsAfterCompletion: 604800
+```
+
+Combined with argo-workflows controller `archiveTTL` (phase 5.9 setting) so historic workflow metadata survives pod cleanup.
 
 ---
 
 ## Problem
 
-Invoicetron and Portfolio CI/CD pipelines run on GitLab CI with `kubectl set image`
-(imperative deploy). ArgoCD selfHeal would revert these changes. These are the only
-two services not managed by ArgoCD.
+Invoicetron and Portfolio deploy today via GitLab CI using `kubectl set image`:
 
-Additionally, Invoicetron has a manifest bug: one `deployment.yaml` shared across
-dev/prod causes environment contamination when applied directly.
+- **Invoicetron** — `manifests/invoicetron/deployment.yaml:75` hardcodes a prod image path; GitLab CI patches it into both `invoicetron-dev` and `invoicetron-prod`. Applying the manifest directly causes env contamination (tracked in CLAUDE.md gotcha: "Invoicetron manifest has CI/CD-managed image"). Live tags verified 2026-04-16: `invoicetron/dev:cbcf2251` and `invoicetron/prod:d4d63d4b` — note the distinct `dev/` vs `prod/` registry sub-paths (different images because `NEXT_PUBLIC_APP_URL` is baked in at build time).
+- **Portfolio** — `manifests/portfolio/deployment.yaml:48` uses `:latest` as a placeholder; CI patches per-namespace. Live tags: `portfolio:6ac9034…` (prod), `:51ca6004…` (dev), `:0c7a025c…` (staging) — three distinct images across three namespaces from one flat manifest file.
+
+Both apps need per-env manifests before ArgoCD can manage them, because ArgoCD Applications require a deterministic image tag per Application. Stage 1 delivers that via Kustomize overlays; Stage 2 replaces the imperative CI deploy.
 
 ## Solution
 
-Replace GitLab CI pipelines with Argo Events (triggers) + Argo Workflows (execution)
-+ ArgoCD (deploy). GitLab remains as source code host and container registry.
+**Stage 1 (v0.39.1) — declarative foundation:**
+- Restructure `manifests/portfolio/` and `manifests/invoicetron/` into `base/` + `overlays/<env>/`.
+- Each overlay pins its own image tag via Kustomize `images` transformer.
+- Create 5 ArgoCD Applications in `cicd-apps` AppProject, each pointing at its overlay path. Initial tags = currently-running live images (zero cluster drift at sync time).
+- Flip GitLab CI deploy jobs to `when: manual` so they don't fight ArgoCD selfHeal.
 
-## Architecture
+**Stage 2 (v0.39.2) — event-driven CI/CD:**
+- Install Argo Events (chart-managed, ArgoCD-synced).
+- Build shared WorkflowTemplates (clone, lint, test, build-image, deploy-image, verify-health) + project-specific DAGs.
+- Deploy step commits the new image tag to the overlay's `kustomization.yaml` using the scoped SSH deploy key.
+- Per-project GitLab EventSource + Sensor in `argo-events` namespace, creates Workflows cross-namespace into `argo-workflows`.
+- Remove GitLab CI deploy jobs entirely; archive the Portfolio `kube-token-*` Vault entries.
+
+## Architecture (v0.39.2 end state)
 
 ```
 GitLab (source + registry)
     |
-    | webhook (push event)
+    | webhook (push event)           [per-project endpoint + secret]
     v
-Argo Events (EventSource + Sensor)       [argo-events namespace]
+Argo Events: gitlab EventSource + Sensor                         [argo-events namespace]
     |
-    | creates Workflow
+    | creates Workflow (cross-namespace, ClusterRole-backed)
     v
-Argo Workflows (WorkflowTemplate)        [argo-workflows namespace]
+Argo Workflows: WorkflowTemplate (DAG)                           [argo-workflows namespace]
     |
-    +-- validate (lint, type-check, test)  -- parallel steps
-    |
+    +-- clone
+    +-- lint   |
+    +-- type-check  |-- parallel fan-out
+    +-- test:unit   |
+    +-- test:e2e (Portfolio only)
     +-- build (BuildKit rootless -> push to GitLab registry)
+    +-- migrate (Invoicetron only: prisma migrate deploy)
+    +-- deploy (commit image tag to homelab repo via SSH deploy key + mutex + rebase-retry)
+    +-- verify (HTTP health check)
     |
-    +-- deploy (commit image tag to homelab repo -> ArgoCD syncs)
-    |
-    +-- verify (health check)
+    + onExit: notify-on-failure (Discord)
+
+    GitHub push ---> ArgoCD reconciles overlay ---> pod rolls out
 ```
 
-### Event Flow
+### Event Flow (Stage 2)
 
-1. Developer pushes to GitLab (`develop` or `main` branch)
-2. GitLab fires webhook POST to `argo-events.k8s.rommelporras.com/gitlab`
-3. EventSource (webhook type) receives the payload
-4. Sensor evaluates filters:
-   - Push event? (not MR, tag, etc.)
-   - Branch is `develop` or `main`?
-   - Which repo? (portfolio or invoicetron)
-5. Sensor creates a Workflow from the matching WorkflowTemplate with parameters:
-   - `commit_sha` (short)
+1. Developer pushes to GitLab (`develop` or `main`).
+2. GitLab fires webhook POST to `argo-events.k8s.rommelporras.com/gitlab/<project>` with `X-Gitlab-Token` header.
+3. Dedicated `gitlab` EventSource validates the token, publishes event to EventBus.
+4. Per-project Sensor applies branch filter (`refs/heads/develop` or `refs/heads/main`), creates a Workflow from the project's WorkflowTemplate with parameters:
+   - `commit_sha` (short 8-char, per DR-2)
    - `branch`
-   - `repo_url`
-   - `project_name`
-
-### Components
-
-**EventSource** - one shared webhook endpoint for both projects:
-- Webhook type, port 12000, endpoint `/gitlab`
-- Namespace: `argo-events`
-- Exposed via HTTPRoute: `argo-events.k8s.rommelporras.com`
-
-**Sensors** - one per project:
-- `sensor-portfolio.yaml` - filters by `body.project.name == "portfolio"`
-- `sensor-invoicetron.yaml` - filters by `body.project.name == "invoicetron"`
-- Each filters by branch (`refs/heads/develop`, `refs/heads/main`)
-- Maps to the right WorkflowTemplate with environment-specific parameters
-
-**GitLab webhook secret** - validates payload authenticity, stored in Vault.
+   - `environment` (dev/staging/prod)
+   - `image_repo` (full registry path, including the dev/prod sub-path for Invoicetron)
 
 ---
 
 ## Build Engine: BuildKit Rootless
 
-Replaces Docker-in-Docker (DinD) from GitLab CI. BuildKit is the engine that
-`docker buildx` uses under the hood - running it directly eliminates the Docker
-daemon. Kaniko (the previous go-to) was archived June 2025 with no successor.
+Replaces DinD from GitLab CI. Kaniko was archived 2025-06-03 (GoogleContainerTools/kaniko), so BuildKit is the current consensus for daemonless k8s builds.
 
-| Aspect | Current (GitLab CI + DinD) | New (Argo Workflows + BuildKit) |
-|--------|--------------------------|--------------------------------|
-| Trigger | GitLab webhook -> Runner | GitLab webhook -> Argo Events -> Workflow |
+| Aspect | GitLab CI + DinD (today) | Argo Workflows + BuildKit (Stage 2) |
+|--------|--------------------------|-------------------------------------|
+| Trigger | GitLab webhook → Runner | GitLab webhook → Argo Events → Workflow |
 | Build engine | Docker daemon (DinD) | BuildKit (no daemon) |
-| Privilege | Privileged container | Rootless (UID 1000) |
-| Image | docker:27.4.1-dind | moby/buildkit:rootless |
-| Build command | docker buildx build | buildctl build |
-| Cache | Registry cache | Same registry cache (compatible) |
+| Privilege | Privileged container | Rootless, UID 1000 |
+| Image (pinned) | `docker:27.4.1-dind` | `moby/buildkit:v0.29.0-rootless` |
+| Build command | `docker buildx build` | `buildctl build` |
+| Cache | Registry cache | Same registry cache (`--cache-type=registry`, `BUILDKIT_INLINE_CACHE=1`) |
 | Registry | GitLab registry (unchanged) | GitLab registry (unchanged) |
 | Dockerfiles | Unchanged | Unchanged |
 
@@ -114,7 +216,7 @@ clone --------+ +--- type-check --+---> build ---> deploy ---> verify
                 +--- test:unit ---+
                 +--- test:e2e ----+
                     (parallel)
-                                        on-exit: discord-notify
+                                        onExit: notify-on-failure
 ```
 
 ### Invoicetron
@@ -122,95 +224,143 @@ clone --------+ +--- type-check --+---> build ---> deploy ---> verify
 ```
                 +--- lint --------+
 clone --------+ +--- type-check --+---> build ---> migrate ---> deploy ---> verify
-                +--- test:unit ---+       |
-                    (parallel)     env-specific build
-                                  (NEXT_PUBLIC_APP_URL)
-                                        on-exit: discord-notify
+                +--- test:unit ---+       (env-specific build args:
+                    (parallel)              NEXT_PUBLIC_APP_URL)
+                                        onExit: notify-on-failure
 ```
 
-### Step Details
+### Step Details (pinned image tags — verify before install)
 
-| Step | Image | What it does | Shared? |
-|------|-------|-------------|---------|
-| clone | alpine/git:2.47.2 | Clones repo from GitLab into shared volume | Yes |
-| lint | oven/bun:1.2-alpine | `bun run lint` | Yes (template) |
-| type-check | oven/bun:1.2-alpine | `bun run type-check` (+ prisma generate for Invoicetron) | Parameterized |
-| test:unit | oven/bun:1.2-alpine | `bun run test:unit` (Invoicetron uses node:22-slim) | Per-project |
-| test:e2e | mcr.microsoft.com/playwright:v1.52.0 | Smoke tests (Portfolio only, requires VAP exception) | Portfolio only |
-| build | moby/buildkit:v0.21.1-rootless | `buildctl build` + push to GitLab registry | Yes (template) |
-| migrate | App image (just built) | `bunx prisma migrate deploy` | Invoicetron only |
-| deploy | alpine/git:2.47.2 | Updates image tag in homelab repo, ArgoCD syncs | Yes (template) |
-| verify | curlimages/curl:8.12.1 | Health check HTTP probe | Yes (template) |
-| discord-notify | curlimages/curl:8.12.1 | Exit handler, reuses notify-on-failure from Phase 5.9 | Yes (template) |
+| Step | Image (verified 2026-04-16) | What it does | Shared? |
+|------|-----------------------------|--------------|---------|
+| clone | `alpine/git:2.52.0` | Clones repo from GitLab into shared volume | Yes |
+| lint | `oven/bun:1.2.15-alpine` | `bun install && bun run lint` | Yes (template) |
+| type-check | `oven/bun:1.2.15-alpine` | `bun run type-check` (+ `prisma generate` for Invoicetron) | Parameterized |
+| test:unit (Portfolio) | `oven/bun:1.2.15-alpine` | `bun run test:unit` | Per-project |
+| test:unit (Invoicetron) | `node:22.14-slim` | `bun run test:unit` (Vitest SSR needs Node) | Per-project |
+| test:e2e (Portfolio only) | `mcr.microsoft.com/playwright:v1.58.2-noble` | Smoke tests; VAP allowlist update required | Portfolio only |
+| build | `moby/buildkit:v0.29.0-rootless` | `buildctl build` + push to GitLab registry | Yes (template) |
+| migrate (Invoicetron only) | App image just built | `bunx prisma migrate deploy` | Invoicetron only |
+| deploy | `alpine/git:2.52.0` | Updates image tag in overlay via kustomize + commits + pushes | Yes (template) |
+| verify | `curlimages/curl:8.19.0` | HTTP health check with retry | Yes (template) |
+| notify-on-failure | `curlimages/curl:8.19.0` | onExit handler — reuses Phase 5.9 template | Yes (existing) |
+
+**Argo Events Helm chart (Stage 2):** `argo/argo-events` version **2.4.21** (verify before install — chart cadence is weekly).
+
+**Notify template reuse:** `manifests/argo-workflows/templates/vault-snapshot-template.yaml:155-159` already defines `notify-on-failure`. It is specific to vault-snapshot today; Stage 2 extracts it into a standalone template file that both vault-snapshot and CI workflows reference. No functional change for vault-snapshot.
 
 ### Shared Volume
 
-Steps within a workflow share data via an `emptyDir` volume at `/workspace`.
-The `clone` step checks out source code, subsequent steps read from it.
+Steps within a workflow share data via an `emptyDir` volume at `/workspace`. `clone` populates it; subsequent steps read from it.
 
-### Branch to Environment Mapping
+### Branch-to-Environment Mapping
 
-| Project | Branch | Build | Deploy to | ArgoCD App |
-|---------|--------|-------|-----------|------------|
-| Portfolio | develop | Single image | portfolio-dev | portfolio-dev |
-| Portfolio | develop (manual `kubectl create workflow`) | Same image | portfolio-staging | portfolio-staging |
-| Portfolio | main | Single image | portfolio-prod | portfolio-prod |
-| Invoicetron | develop | Image with dev URL | invoicetron-dev | invoicetron-dev |
-| Invoicetron | main | Image with prod URL | invoicetron-prod | invoicetron-prod |
+| Project | Branch | Image built | Deploy target | ArgoCD App |
+|---------|--------|-------------|---------------|------------|
+| Portfolio | `develop` | `.../portfolio:<sha>` | `portfolio-dev` | portfolio-dev |
+| Portfolio | `main` | `.../portfolio:<sha>` | `portfolio-prod` | portfolio-prod |
+| Portfolio | Staging promotion | (see below) | `portfolio-staging` | portfolio-staging |
+| Invoicetron | `develop` | `.../invoicetron/dev:<sha>` (NEXT_PUBLIC_APP_URL=dev URL) | `invoicetron-dev` | invoicetron-dev |
+| Invoicetron | `main` | `.../invoicetron/prod:<sha>` (NEXT_PUBLIC_APP_URL=prod URL) | `invoicetron-prod` | invoicetron-prod |
+
+**Portfolio staging promotion (GitOps-compliant):** A `GitOpsPromoteToStaging` WorkflowTemplate accepts a `source_sha` parameter and a `target_env=staging` parameter, runs `verify` + `deploy` only (skips build), promoting a previously-built dev image. Triggered by either (a) a GitLab manual job on the portfolio pipeline that POSTs to a dedicated `/staging-promote` webhook, or (b) a `kubectl-admin create workflow` with explicit SHA. Option (a) preferred because it leaves a GitLab pipeline record; option (b) kept as break-glass. **No `kubectl set image` or direct namespace mutation.**
 
 ---
 
-## Deploy Strategy: Git-based Image Updates
-
-**Current (imperative):** `kubectl set image` directly mutates the Deployment.
-
-**New (GitOps-native):** Build step commits the new image tag to the homelab repo.
-ArgoCD detects the change and syncs.
+## Deploy Strategy: Git-Based Image Updates
 
 ### Flow
 
-1. Build step pushes image to GitLab registry
-2. Deploy step updates the image tag in the homelab repo manifest
-3. Deploy step commits + pushes to homelab repo (GitHub)
-4. ArgoCD detects the commit, syncs the Deployment, pod rolls out
+1. Build step pushes the image to GitLab registry.
+2. Deploy step:
+   - Acquires Argo Workflows mutex `deploy-image-lock` (serializes all deploys).
+   - Clones homelab repo with SSH deploy key.
+   - Runs `kustomize edit set image <name>=<registry>/...:<sha>` inside the correct overlay directory.
+   - Commits with DR-3 identity, `--signoff`, message includes `[skip ci]`.
+   - Retry loop (5 attempts, exponential backoff): `git pull --rebase origin main && git push`. If the push fails due to a concurrent commit (human or bot), rebase and retry.
+3. ArgoCD detects the commit within ~3 min, syncs the Deployment, pod rolls out.
+4. `verify` step hits the app's health endpoint (with retry), fails the workflow if unhealthy.
 
-### Invoicetron Kustomize Overlays
+### Concurrency Guard (DR-7 detail)
 
-Fixes the shared deployment.yaml bug by splitting into base + overlays:
+```yaml
+# In deploy-image WorkflowTemplate
+synchronization:
+  mutex:
+    name: deploy-image-lock
+    namespace: argo-workflows
+```
+
+Mutex holder is logged in workflow events; Prometheus alert `CIDeployMutexHeldTooLong` fires if held > 10 min (indicates stuck step).
+
+### Portfolio Manifest Layout (Stage 1 end state)
+
+```
+manifests/portfolio/
+  base/
+    deployment.yaml
+    rbac.yaml
+    networkpolicy.yaml
+    pdb.yaml
+    kustomization.yaml
+  overlays/
+    dev/
+      kustomization.yaml       # images: [{name: ..., newTag: <current-dev-sha>}]
+      namespace.yaml
+      limitrange.yaml
+      resourcequota.yaml
+    staging/
+      kustomization.yaml       # newTag: <current-staging-sha>
+      namespace.yaml
+      limitrange.yaml
+      resourcequota.yaml
+    prod/
+      kustomization.yaml       # newTag: <current-prod-sha>
+      namespace.yaml
+      limitrange.yaml
+      resourcequota.yaml
+```
+
+Deploy step updates only `overlays/<env>/kustomization.yaml`.
+
+### Invoicetron Manifest Layout (Stage 1 end state)
 
 ```
 manifests/invoicetron/
   base/
-    deployment.yaml          # shared spec (ports, probes, resources, securityContext)
-    service.yaml
+    deployment.yaml            # no namespace, no hardcoded image path
     postgresql.yaml
+    rbac.yaml
+    backup-cronjob.yaml
+    kustomization.yaml
   overlays/
     dev/
-      kustomization.yaml     # patches image to .../dev:<sha>
+      kustomization.yaml       # images: [{name: app, newName: .../invoicetron/dev, newTag: <sha>}]
+      namespace.yaml
+      externalsecret.yaml
+      networkpolicy.yaml
+      limitrange.yaml
+      resourcequota.yaml
     prod/
-      kustomization.yaml     # patches image to .../prod:<sha>
+      kustomization.yaml       # newName: .../invoicetron/prod, newTag: <sha>
+      namespace.yaml
+      externalsecret.yaml
+      networkpolicy.yaml
+      limitrange.yaml
+      resourcequota.yaml
 ```
 
-ArgoCD Applications point at overlays:
-- `invoicetron-dev` Application -> `manifests/invoicetron/overlays/dev/`
-- `invoicetron-prod` Application -> `manifests/invoicetron/overlays/prod/`
-
-The deploy workflow step modifies only the overlay's `kustomization.yaml`
-(image transformer), not the base Deployment.
-
-### Portfolio
-
-Single image across all envs. Deploy step updates the image tag directly in
-`manifests/portfolio/deployment.yaml`. No Kustomize needed.
+Kustomize `newName` handles the dev vs prod registry sub-path difference; `newTag` handles the SHA.
 
 ### Git Authentication
 
-Deploy step pushes to the homelab GitHub repo via SSH deploy key (read/write):
-- Stored in Vault: `secret/argo-workflows/github-deploy-key`
-- Pulled via ESO ExternalSecret
-- Mounted in deploy step as SSH key
+Deploy step mounts the SSH deploy key from Vault (via ESO):
 
-Automated commit message: `chore(ci): update <project> image to <sha>`
+- Vault path: `secret/argo-workflows/github-deploy-key`
+- K8s Secret: `github-deploy-key` in `argo-workflows` namespace
+- Mount: `volumeMounts[].name: ssh-key, mountPath: /root/.ssh/id_ed25519, subPath: ssh-privatekey`
+- Env: `GIT_SSH_COMMAND="ssh -i /root/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/known_hosts"`
+- Remote URL: `git@github.com:rommelporras/homelab.git`
 
 ---
 
@@ -219,369 +369,509 @@ Automated commit message: `chore(ci): update <project> image to <sha>`
 ### RBAC
 
 | ServiceAccount | Namespace | Permissions |
-|---------------|-----------|-------------|
-| argo-events-sa | argo-events | Create Workflows in argo-workflows |
-| ci-workflow-sa | argo-workflows | Get Secrets in argo-workflows |
+|----------------|-----------|-------------|
+| `argo-events-sa` | argo-events | EventSource + Sensor CRUD in `argo-events`; create Workflows in `argo-workflows` (via ClusterRole-backed RoleBinding — see note) |
+| `ci-workflow-sa` | argo-workflows | Get Secrets in `argo-workflows`; no cluster-wide access |
 
-No cluster-admin. No cross-namespace access except Sensor -> Workflow creation.
+**Cross-namespace Workflow creation (DR-relevant):** A `RoleBinding` in `argo-workflows` can name a subject in `argo-events`, so a namespace-scoped `Role` is sufficient for the create permission. **However, the argo-workflows controller is running in `--namespaced` mode (Phase 5.9 gotcha), so it reconciles only Workflows in its own namespace.** That is fine for Stage 2 because all Workflows created by Sensors target `argo-workflows`. Verify controller `--managed-namespace` covers `argo-workflows` explicitly (step 5.9.1.6.1).
 
-### Secrets (Vault -> ESO)
+No cluster-admin. No wildcards.
 
-| Secret | Vault Path | Used By |
-|--------|-----------|---------|
-| GitLab registry credentials | argo-workflows/gitlab-registry | build step |
-| GitHub deploy key (SSH) | argo-workflows/github-deploy-key | deploy step |
-| GitLab webhook token | argo-events/gitlab-webhook-secret | EventSource |
-| Discord webhook | monitoring/discord-webhooks (existing) | notify step |
+### Secrets (Vault → ESO)
+
+| Secret | Vault Path | Namespace | Used By |
+|--------|-----------|-----------|---------|
+| GitLab API token (for EventSource hook registration) | `argo-events/gitlab-api-token` | argo-events | EventSource |
+| Invoicetron webhook secret | `argo-events/invoicetron-webhook-secret` | argo-events | EventSource (per DR-4) |
+| Portfolio webhook secret | `argo-events/portfolio-webhook-secret` | argo-events | EventSource (per DR-4) |
+| GitLab registry push credentials | `argo-workflows/gitlab-registry` | argo-workflows | `build` step |
+| GitHub deploy key (SSH) | `argo-workflows/github-deploy-key` | argo-workflows | `deploy` step (per DR-5) |
+| Discord webhooks | `argo-workflows/discord-webhooks` (already seeded for Phase 5.9) | argo-workflows | `notify-on-failure` |
 
 ### CiliumNetworkPolicy
 
 | Namespace | Ingress | Egress |
 |-----------|---------|--------|
-| argo-events | Gateway (webhook) | kube-apiserver (create Workflows) |
-| argo-workflows | Prometheus (metrics) | GitLab registry, GitHub, kube-apiserver, GitLab (clone) |
+| argo-events | `fromEntities: [ingress]` on EventSource service (Cilium Gateway API, per Phase 5.9 gotcha); Prometheus (metrics) | kube-apiserver (create Workflows cross-namespace); GitLab API (hook registration) |
+| argo-workflows | Prometheus (metrics, existing) | GitLab registry push; GitHub SSH (port 22 to github.com CIDRs); GitLab clone HTTPS; DNS for FQDN resolution (`toFQDNs` requires matching DNS egress rule, per CLAUDE.md gotcha); kube-apiserver |
 
 ### PSS Compliance
 
-- BuildKit rootless: UID 1000, baseline compatible
-- All workflow pods: seccompProfile RuntimeDefault, allowPrivilegeEscalation false, drop ALL
-- No privileged containers, no hostNetwork, no hostPID
-- VAP image-registry-policy: mcr.microsoft.com/ added for Playwright E2E tests
+- `argo-events` namespace: `pod-security.kubernetes.io/enforce: baseline` (EventBus uses NATS which needs baseline, not restricted).
+- All workflow pods: `seccompProfile: RuntimeDefault`, `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`.
+- BuildKit rootless: UID 1000 → baseline compatible.
+- No privileged containers, no `hostNetwork`, no `hostPID`, no `hostIPC`.
+
+### VAP (Image Registry Allowlist)
+
+`manifests/kube-system/image-registry-policy.yaml:44-55` currently allows: `docker.io/`, `ghcr.io/`, `registry.k8s.io/`, `quay.io/`, `registry.k8s.rommelporras.com/`, `registry.gitlab.com/`, `lscr.io/`, `gcr.io/`, `public.ecr.aws/`. Currently in `Warn` mode only (`validationActions: [Warn]`).
+
+**Stage 2 adds:** `mcr.microsoft.com/` (for Playwright E2E). This is a plan change that ships with Stage 2, not Stage 1.
+
+### Webhook Authentication (per DR-4 + DR-6)
+
+- `gitlab` EventSource validates `X-Gitlab-Token` natively.
+- Per-project secrets — no cross-project forgery if one leaks.
+- EventSource auto-registers the hook in GitLab via API (requires `argo-events/gitlab-api-token`).
+- Sensor filters by branch (`refs/heads/develop|main`) before creating the Workflow.
 
 ---
 
 ## Namespace Layout
 
 | Namespace | What lives there |
-|-----------|-----------------|
-| argo-events | EventSource, Sensors, event-bus controller |
-| argo-workflows | WorkflowTemplates, CronWorkflows (Phase 5.9), CI Workflows |
-| portfolio-dev/staging/prod | Application pods (unchanged) |
-| invoicetron-dev/prod | Application pods (unchanged) |
+|-----------|------------------|
+| `argo-events` | EventBus, per-project GitLab EventSources, Sensors |
+| `argo-workflows` | WorkflowTemplates (shared + per-project), CronWorkflows (existing), CI Workflow instances |
+| `portfolio-dev`, `portfolio-staging`, `portfolio-prod` | Application pods (existing namespaces, onboarded to ArgoCD in Stage 1) |
+| `invoicetron-dev`, `invoicetron-prod` | Application pods (existing, onboarded in Stage 1) |
 
 ---
 
-## 5.9.1.0 Pre-Installation
+---
 
-> **Gate:** Phase 5.9 must be complete. Argo Workflows controller running, CRDs registered.
+# Stage 1 — v0.39.1 — ArgoCD Onboarding
 
-- [ ] 5.9.1.0.1 Verify Argo Workflows controller is healthy
-- [ ] 5.9.1.0.2 Verify ArgoCD Applications all Synced/Healthy
-- [ ] 5.9.1.0.3 Check cluster resource headroom for Argo Events controller (~100m CPU, ~128Mi)
-- [ ] 5.9.1.0.4 Verify VAP allows Playwright image (Portfolio E2E tests)
+Goal: every manifest under `manifests/portfolio/` and `manifests/invoicetron/` becomes ArgoCD-managed via Kustomize overlays, with overlay image tags matching current live pods. Zero cluster drift at first sync.
+
+## 5.9.1.1 Stage 1 Pre-Flight
+
+- [ ] 5.9.1.1.1 Capture current live images (record for overlays)
+  ```bash
+  kubectl-homelab -n portfolio-dev get deploy -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' ; echo
+  kubectl-homelab -n portfolio-staging get deploy -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' ; echo
+  kubectl-homelab -n portfolio-prod get deploy -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' ; echo
+  kubectl-homelab -n invoicetron-dev get deploy -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' ; echo
+  kubectl-homelab -n invoicetron-prod get deploy -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' ; echo
+  ```
+  Paste these values into the corresponding overlay `kustomization.yaml` so initial sync produces no image change.
+
+- [ ] 5.9.1.1.2 Confirm `cicd-apps` AppProject exists and has the 5 destinations
+  - Read `manifests/argocd/appprojects.yaml` — verify `cicd-apps` project covers `invoicetron-dev`, `invoicetron-prod`, `portfolio-dev`, `portfolio-staging`, `portfolio-prod`.
+  - If a destination is missing, add it and commit before proceeding.
+
+- [ ] 5.9.1.1.3 Confirm GitLab CI deploy jobs are ready to be dormant
+  - Review `.gitlab-ci.yml` in each project (portfolio, invoicetron) — identify the deploy stage job names.
+  - Plan to flip them to `when: manual` in step 5.9.1.4.1 so they don't fight ArgoCD.
+
+## 5.9.1.2 Wave 1A: Invoicetron Kustomize Overlays
+
+- [ ] 5.9.1.2.1 Restructure `manifests/invoicetron/` into `base/` + `overlays/{dev,prod}/`
+  - Move shared resources to `base/`: `deployment.yaml` (strip the hardcoded image tag, use a placeholder name for Kustomize `images:` transformer), `postgresql.yaml`, `rbac.yaml`, `backup-cronjob.yaml`.
+  - Create `base/kustomization.yaml` listing all base resources.
+  - Move per-env files to `overlays/<env>/`: `namespace-<env>.yaml` → `namespace.yaml`, `externalsecret-<env>.yaml` → `externalsecret.yaml`, `networkpolicy-<env>.yaml` → `networkpolicy.yaml`, `limitrange-<env>.yaml`, `resourcequota-<env>.yaml`.
+  - Overlay `kustomization.yaml`:
+    ```yaml
+    resources:
+      - ../../base
+      - namespace.yaml
+      - externalsecret.yaml
+      - networkpolicy.yaml
+      - limitrange.yaml
+      - resourcequota.yaml
+    namespace: invoicetron-<env>
+    images:
+      - name: app                    # placeholder name matching base/deployment.yaml
+        newName: registry.k8s.rommelporras.com/0xwsh/invoicetron/<env>
+        newTag: <sha-from-5.9.1.1.1>
+    ```
+- [ ] 5.9.1.2.2 Verify overlays produce expected output
+  ```bash
+  kubectl-admin kustomize manifests/invoicetron/overlays/dev | grep -E '^(kind|  namespace|  image):'
+  kubectl-admin kustomize manifests/invoicetron/overlays/prod | grep -E '^(kind|  namespace|  image):'
+  ```
+  Image field must show the correct live tag; namespace must match env.
+
+- [ ] 5.9.1.2.3 Create `manifests/argocd/apps/invoicetron-dev.yaml` and `invoicetron-prod.yaml`
+  - `spec.project: cicd-apps`
+  - `spec.source.repoURL: https://github.com/rommelporras/homelab.git`
+  - `spec.source.path: manifests/invoicetron/overlays/<env>`
+  - `spec.destination.namespace: invoicetron-<env>`
+  - `spec.syncPolicy.automated: { prune: true, selfHeal: true }` — but **create with `syncPolicy: {}` initially** (manual sync) to verify diff.
+  - `spec.syncPolicy.syncOptions: [ServerSideApply=true, CreateNamespace=false]` (namespaces exist already).
+- [ ] 5.9.1.2.4 Commit the restructure; `ArgoCD auto-discovers apps within 3 min
+- [ ] 5.9.1.2.5 Manually trigger initial sync for each app, verify **zero diff** (image matches live)
+  ```bash
+  kubectl-admin exec -n argocd statefulset/argocd-application-controller -- argocd app diff invoicetron-dev --core
+  # Expect: "no differences" or at most non-image metadata (labels, annotations from kustomize)
+  kubectl-admin exec -n argocd statefulset/argocd-application-controller -- argocd app sync invoicetron-dev --core
+  ```
+- [ ] 5.9.1.2.6 Enable auto-sync + selfHeal on both invoicetron apps once diff is clean
+  - Edit the Application YAMLs in git to add `syncPolicy.automated`, commit, push.
+- [ ] 5.9.1.2.7 Remove CLAUDE.md gotcha "Invoicetron manifest has CI/CD-managed image" (only after Wave 1C flips CI to manual — track in 5.9.1.4.4)
+
+## 5.9.1.3 Wave 1B: Portfolio Kustomize Overlays
+
+- [ ] 5.9.1.3.1 Restructure `manifests/portfolio/` into `base/` + `overlays/{dev,staging,prod}/`
+  - `base/`: `deployment.yaml` (replace `:latest` placeholder with `images:` transformer target), `rbac.yaml`, `networkpolicy.yaml`, `pdb.yaml`, `kustomization.yaml`.
+  - `overlays/<env>/`: `namespace.yaml`, `limitrange.yaml`, `resourcequota.yaml`, `kustomization.yaml` with `images:` transformer and `namespace: portfolio-<env>`.
+  - Each overlay's `newTag` = current live tag from 5.9.1.1.1.
+- [ ] 5.9.1.3.2 Verify overlays with `kubectl-admin kustomize` (same as 5.9.1.2.2)
+- [ ] 5.9.1.3.3 Create `manifests/argocd/apps/portfolio-dev.yaml`, `portfolio-staging.yaml`, `portfolio-prod.yaml`
+- [ ] 5.9.1.3.4 Commit restructure; manual sync; verify zero diff
+- [ ] 5.9.1.3.5 Enable auto-sync + selfHeal on all three portfolio apps
+
+## 5.9.1.4 Wave 1C: Flip GitLab CI Deploys to Manual + Docs Cleanup
+
+- [ ] 5.9.1.4.1 Flip deploy jobs in both `.gitlab-ci.yml` files to `when: manual`
+  - Portfolio: deploy:dev, deploy:staging, deploy:prod jobs
+  - Invoicetron: deploy:dev, deploy:prod jobs
+  - Commit + push on each project repo.
+- [ ] 5.9.1.4.2 Watch for ArgoCD selfHeal events
+  - `kubectl-admin get events -n portfolio-dev --field-selector reason=ResourceUpdated --sort-by=.lastTimestamp | tail -20`
+  - If GitLab CI was auto-deploying before this step, expect a few selfHeal reverts. Should settle within 15 min.
+- [ ] 5.9.1.4.3 Remove the old flat `manifests/portfolio/deployment.yaml` and flat `manifests/invoicetron/deployment.yaml` from `.gitlab-ci.yml` references. Any `kubectl set image` lines should remain commented out or gated behind `when: manual` for emergency use.
+- [ ] 5.9.1.4.4 Remove outdated CLAUDE.md gotcha
+  - Delete the "Invoicetron manifest has CI/CD-managed image" gotcha — no longer applies once Kustomize overlays enforce env-specific images.
+
+## 5.9.1.5 Wave 1D: Verification + Ship v0.39.1
+
+- [ ] 5.9.1.5.1 Verify all 5 ArgoCD Applications Synced + Healthy
+  ```bash
+  kubectl-admin get applications -n argocd -l argocd.argoproj.io/instance \
+    -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status | \
+    grep -E 'invoicetron|portfolio'
+  ```
+- [ ] 5.9.1.5.2 Verify live images still match overlay tags (no unintended drift)
+- [ ] 5.9.1.5.3 Sanity check a manual deploy via GitLab CI `when: manual` job
+  - Bump an image tag on `develop`, trigger the manual deploy job, confirm ArgoCD picks up the change (because GitLab CI's `kubectl set image` is a no-op against the Kustomize overlay — the real change is the manual overlay edit or Stage 2 automation). **This step is optional; it's just verifying the dormant fallback still works.**
+- [ ] 5.9.1.5.4 Update `docs/context/Conventions.md`: Portfolio and Invoicetron are now ArgoCD-managed; deploy workflow is "commit to overlay, ArgoCD syncs".
+- [ ] 5.9.1.5.5 Update `docs/reference/CHANGELOG.md` entry for v0.39.1
+- [ ] 5.9.1.5.6 `/audit-security` → `/commit`
+- [ ] 5.9.1.5.7 `/audit-docs` → `/commit`
+- [ ] 5.9.1.5.8 `/ship v0.39.1 "ArgoCD Onboarding for Portfolio and Invoicetron"`
+
+---
+
+---
+
+# Stage 2 — v0.39.2 — Argo Events CI/CD Migration
+
+Goal: GitLab pushes drive Argo Workflows builds end-to-end; GitLab CI deploy jobs are deleted. Stage 1 must be complete and stable for at least 3 days before starting Stage 2.
+
+## 5.9.1.6 Stage 2 Pre-Flight
+
+- [ ] 5.9.1.6.1 Verify argo-workflows controller has `--managed-namespace=argo-workflows` configured
+  ```bash
+  kubectl-homelab -n argo-workflows get deploy argo-workflows-workflow-controller \
+    -o jsonpath='{.spec.template.spec.containers[0].args}' | jq
+  ```
+  Should include `--namespaced` AND `--managed-namespace=argo-workflows` (or the controller installed in `argo-workflows` with `--namespaced` alone is sufficient — confirm by reading Phase 5.9 install values).
+
+- [ ] 5.9.1.6.2 Verify argocd Applications from Stage 1 are still green
+- [ ] 5.9.1.6.3 Check cluster resource headroom for Argo Events (~100m CPU, ~128Mi memory)
+- [ ] 5.9.1.6.4 VAP playwright check (expect Warn, not Deny — policy is currently advisory):
   ```bash
   kubectl-admin run test-playwright \
-    --image=mcr.microsoft.com/playwright:v1.52.0 \
+    --image=mcr.microsoft.com/playwright:v1.58.2-noble \
     --dry-run=server -n default
-  # If VAP denies: add mcr.microsoft.com/ to manifests/kube-system/image-registry-policy.yaml
   ```
+  Plan to add `mcr.microsoft.com/` to the allowlist in step 5.9.1.7.
 
----
+## 5.9.1.7 Wave 2A: Argo Events Installation (declarative)
 
-## 5.9.1.1 Wave 0: Argo Events Installation
+All resources committed as YAML; nothing imperative.
 
-- [ ] 5.9.1.1.1 Create namespace `argo-events` with PSS baseline + ESO label
+- [ ] 5.9.1.7.1 Create 1Password items (user runs once in a safe terminal)
+  - **Argo Events** (Kubernetes vault):
+    - `gitlab-api-token` — GitLab personal access token with `api` scope (for webhook auto-registration)
+    - `invoicetron-webhook-secret` — random 32-byte hex
+    - `portfolio-webhook-secret` — random 32-byte hex
+  - **Argo Workflows CI/CD** (Kubernetes vault):
+    - `gitlab-registry-username` — GitLab deploy token username
+    - `gitlab-registry-password` — GitLab deploy token password (scope: `write_registry`)
+    - `github-deploy-key` — SSH private key generated via `ssh-keygen -t ed25519 -f id_ed25519_argo_ci -C argo-ci@k8s.rommelporras.com`
+  - Add the matching public key to the `rommelporras/homelab` GitHub repo as a **deploy key with write access**.
+
+- [ ] 5.9.1.7.2 Update `scripts/vault/seed-vault-from-1password.sh` with new paths
+  - `argo-events/gitlab-api-token` → from "Argo Events" 1P item, field `gitlab-api-token`
+  - `argo-events/invoicetron-webhook-secret` → same 1P item
+  - `argo-events/portfolio-webhook-secret` → same 1P item
+  - `argo-workflows/gitlab-registry` → from "Argo Workflows CI/CD" 1P item (username+password)
+  - `argo-workflows/github-deploy-key` → from "Argo Workflows CI/CD" 1P item (ssh-privatekey field)
+
+- [ ] 5.9.1.7.3 Commit `manifests/argo-events/` scaffolding (declarative)
+  - `namespace.yaml` with `pod-security.kubernetes.io/enforce: baseline`, `pod-security.kubernetes.io/warn: restricted`, `eso-enabled: "true"` labels.
+  - `limitrange.yaml`, `resourcequota.yaml` (matching Phase 5.9's conventions).
+  - `ciliumnetworkpolicy.yaml` (ingress: `reserved:ingress` for Gateway API webhook traffic, egress to kube-apiserver + GitLab API + DNS with `toFQDNs` + matching DNS rule).
+  - `externalsecret-*.yaml` files for each of the three secrets (target `ClusterSecretStore: vault`).
+  - `eventbus.yaml` (NATS-based EventBus CR).
+  - `eventsource-invoicetron.yaml` and `eventsource-portfolio.yaml` (`gitlab` type, per DR-6).
+  - `sensor-invoicetron.yaml` and `sensor-portfolio.yaml` (branch filter → create Workflow).
+  - `httproute.yaml` — `argo-events.k8s.rommelporras.com/gitlab/invoicetron` and `/gitlab/portfolio`.
+  - `servicemonitor.yaml` for EventSource/Sensor metrics.
+  - `rbac/` — Role + RoleBinding for `argo-events-sa` to create Workflows in `argo-workflows`.
+
+- [ ] 5.9.1.7.4 Commit `helm/argo-events/values.yaml` pinned to chart **2.4.21** (verify before apply)
+  - Disable `argo-events-webhook` (we run our own).
+  - Set seccompProfile, drop capabilities, non-root.
+  - Enable metrics ServiceMonitor.
+
+- [ ] 5.9.1.7.5 Commit `manifests/argocd/apps/argo-events.yaml`
+  - AppProject: `infrastructure`.
+  - Multi-source Helm + values ref (same pattern as argo-workflows).
+  - `targetRevision: 2.4.21`.
+
+- [ ] 5.9.1.7.6 Commit `manifests/argocd/appprojects.yaml` update — add `argo-events` namespace destination to `infrastructure` project.
+
+- [ ] 5.9.1.7.7 Add `mcr.microsoft.com/` to `manifests/kube-system/image-registry-policy.yaml`
+
+- [ ] 5.9.1.7.8 Seed Vault (user runs locally)
   ```bash
-  kubectl-admin create namespace argo-events
-  kubectl-admin label namespace argo-events \
-    pod-security.kubernetes.io/enforce=baseline \
-    pod-security.kubernetes.io/warn=restricted \
-    eso-enabled="true"
-  ```
-- [ ] 5.9.1.1.2 Create LimitRange and ResourceQuota
-- [ ] 5.9.1.1.3 Create Helm values file (`helm/argo-events/values.yaml`)
-  - event-bus-controller, eventsource-controller, sensor-controller
-  - Disable argo-events-webhook (not needed, saves resources)
-  - Non-root, seccompProfile, drop ALL
-- [ ] 5.9.1.1.4 Create ArgoCD Application (`manifests/argocd/apps/argo-events.yaml`)
-  - Helm chart: `argo/argo-events`
-  - AppProject: `infrastructure`
-- [ ] 5.9.1.1.5 Deploy and verify controllers are running
-- [ ] 5.9.1.1.6 Create CiliumNetworkPolicy for argo-events namespace
-- [ ] 5.9.1.1.6a Update infrastructure AppProject destinations
-  ```yaml
-  # manifests/argocd/appprojects.yaml - add to infrastructure project destinations:
-  - namespace: argo-events
-    server: https://kubernetes.default.svc
-  # Note: argo-workflows destination should already be added in Phase 5.9
+  ./scripts/vault/seed-vault-from-1password.sh
   ```
 
-- [ ] 5.9.1.1.6b Create cross-namespace RBAC for Sensor -> Workflow creation
-  ```yaml
-  # manifests/argo-workflows/rbac/argo-events-workflow-creator.yaml
-  apiVersion: rbac.authorization.k8s.io/v1
-  kind: Role
-  metadata:
-    name: workflow-creator
-    namespace: argo-workflows
-  rules:
-    - apiGroups: ["argoproj.io"]
-      resources: ["workflows"]
-      verbs: ["create", "get", "list", "watch"]
-  ---
-  apiVersion: rbac.authorization.k8s.io/v1
-  kind: RoleBinding
-  metadata:
-    name: argo-events-workflow-creator
-    namespace: argo-workflows
-  roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: Role
-    name: workflow-creator
-  subjects:
-    - kind: ServiceAccount
-      name: argo-events-sa
-      namespace: argo-events
-  ```
-
-- [ ] 5.9.1.1.7 Create ESO ExternalSecret for GitLab webhook token
-  - Vault path: `argo-events/gitlab-webhook-secret`
-  - Seed Vault with a generated webhook secret
-- [ ] 5.9.1.1.7a Create 1Password items for Argo CI/CD secrets
-  ```
-  # User must create these in 1Password Kubernetes vault:
-  # 1. "Argo Events" item:
-  #    - gitlab-webhook-secret: generated random token
-  # 2. "Argo Workflows CI/CD" item:
-  #    - gitlab-registry-username: deploy token username
-  #    - gitlab-registry-password: deploy token password
-  #    - github-deploy-key: SSH private key (generate with ssh-keygen)
-  #
-  # Add public key to GitHub homelab repo as deploy key (read/write)
-  ```
-
-- [ ] 5.9.1.1.7b Update Vault seed script
+- [ ] 5.9.1.7.9 Push; ArgoCD installs Argo Events. Verify controllers Ready:
   ```bash
-  # scripts/vault/seed-vault-from-1password.sh - add new paths:
-  # argo-events/gitlab-webhook-secret -> from "Argo Events" 1P item
-  # argo-workflows/gitlab-registry -> from "Argo Workflows CI/CD" 1P item
-  # argo-workflows/github-deploy-key -> from "Argo Workflows CI/CD" 1P item
+  kubectl-homelab -n argo-events get pods
+  kubectl-homelab -n argo-events get eventsources,sensors,eventbus
   ```
 
-- [ ] 5.9.1.1.8 Create EventSource (`manifests/argo-events/eventsource-gitlab.yaml`)
-  - Webhook type, port 12000, endpoint `/gitlab`
-  - Secret ref for webhook token validation
-- [ ] 5.9.1.1.9 Create HTTPRoute for webhook ingress
-  - `argo-events.k8s.rommelporras.com` -> EventSource Service
-- [ ] 5.9.1.1.10 Create ServiceMonitor for Argo Events controllers
-- [ ] 5.9.1.1.11 Create PrometheusRules (EventSourceDown, SensorDown)
+- [ ] 5.9.1.7.10 Verify webhook auto-registration on GitLab
+  - GitLab → invoicetron project → Settings → Webhooks → should see hook pointing at `https://argo-events.k8s.rommelporras.com/gitlab/invoicetron`.
+  - Same for portfolio.
 
----
+- [ ] 5.9.1.7.11 Commit PrometheusRules
+  - `EventSourceDown`, `SensorDown`, `CIPipelineFailed` (workflow phase=Failed for > 5m), `CIBuildStuck` (running > 15m), `WebhookDeliveryFailed`, `CIDeployMutexHeldTooLong` (mutex held > 10m).
 
-## 5.9.1.2 Wave 1: Shared WorkflowTemplates
+## 5.9.1.8 Wave 2B: Shared WorkflowTemplates
 
-- [ ] 5.9.1.2.1 Create ESO ExternalSecrets in argo-workflows namespace
-  - GitLab registry credentials (`argo-workflows/gitlab-registry`)
-  - GitHub deploy key SSH (`argo-workflows/github-deploy-key`)
-  - Seed both in Vault (generate GitHub deploy key, configure on GitHub repo)
-- [ ] 5.9.1.2.2 Create shared WorkflowTemplate: `clone`
-  - alpine/git image, clones repo to /workspace
-  - Parameters: repo_url, branch, commit_sha
-- [ ] 5.9.1.2.3 Create shared WorkflowTemplate: `lint`
-  - oven/bun:1-alpine, `bun install && bun run lint`
-- [ ] 5.9.1.2.4 Create shared WorkflowTemplate: `build-image`
-  - moby/buildkit:rootless
-  - `buildctl build` with registry cache, push to GitLab registry
-  - Parameters: image_name, tag, build_args, dockerfile_path
-- [ ] 5.9.1.2.5 Create shared WorkflowTemplate: `deploy-image`
-  - alpine/git:2.47.2, updates image tag in homelab repo via git commit + push
-  - Parameters: project, image_tag, target_file, target_field (supports both
-    deployment.yaml image field and kustomization.yaml newTag field)
-  - Uses GitHub deploy key from Secret mount
-  - target_file must be parameterized to support future Deployment-to-Rollout
-    conversions (Phase 5.10) without pipeline changes
-- [ ] 5.9.1.2.6 Create shared WorkflowTemplate: `verify-health`
-  - curlimages/curl, HTTP health check with retry
-  - Parameters: url, expected_status
-- [ ] 5.9.1.2.7 Reuse `notify-on-failure` WorkflowTemplate from Phase 5.9
-  - Already created in Phase 5.9 (manifests/argo-workflows/templates/notify-on-failure.yaml)
-  - CI/CD workflows reference the same template via onExit handler
-  - No new template needed - just verify it exists and is deployed
-- [ ] 5.9.1.2.8 Test each template individually with manual Workflow submissions
-  - `kubectl-admin create -f` test workflows for clone, build, deploy
-  - Verify each step completes successfully in isolation
+All committed under `manifests/argo-workflows/templates/`.
 
----
+- [ ] 5.9.1.8.1 Extract `notify-on-failure` into a standalone template
+  - Move the definition from `vault-snapshot-template.yaml:155-159` into `notify-on-failure-template.yaml`.
+  - Update `vault-snapshot-template.yaml` to reference the standalone template (`templateRef`).
+  - Verify vault-snapshot still runs cleanly.
+- [ ] 5.9.1.8.2 `clone-template.yaml`
+  - `alpine/git:2.52.0`. Parameters: `repo_url`, `branch`, `commit_sha`, `ssh_secret` (optional, public repos skip).
+- [ ] 5.9.1.8.3 `lint-template.yaml`, `type-check-template.yaml`, `test-unit-template.yaml`
+  - Parameterized `image` + `command` so both Portfolio (bun) and Invoicetron (node) can share.
+- [ ] 5.9.1.8.4 `build-image-template.yaml`
+  - `moby/buildkit:v0.29.0-rootless`. Parameters: `image_repo`, `tag`, `build_args`, `dockerfile_path`.
+  - Mounts BuildKit `rootlesskit` tmpfs. Uses `buildctl-daemonless.sh build` with `--cache-type=registry` and `BUILDKIT_INLINE_CACHE=1`.
+- [ ] 5.9.1.8.5 `deploy-image-template.yaml` (most complex)
+  - `alpine/git:2.52.0`. Parameters: `project`, `environment`, `image_repo`, `image_tag`, `overlay_path` (`manifests/<project>/overlays/<env>`).
+  - `synchronization.mutex: { name: deploy-image-lock, namespace: argo-workflows }` (DR-7).
+  - Steps inside the template:
+    1. `git clone` the homelab repo via SSH deploy key.
+    2. `cd <overlay_path> && kustomize edit set image app=<image_repo>:<image_tag>`.
+    3. `git config user.name "Argo CI Bot" && git config user.email ci-bot@k8s.rommelporras.com`.
+    4. `git add kustomization.yaml && git commit --signoff -m "chore(ci): update <project>/<env> image to <sha> [skip ci]"`.
+    5. Retry loop (5 attempts, `sleep $((2**i))`): `git pull --rebase origin main && git push`.
+    6. On final failure, exit non-zero — workflow fails, `notify-on-failure` fires.
+- [ ] 5.9.1.8.6 `verify-health-template.yaml`
+  - `curlimages/curl:8.19.0`. Parameters: `url`, `expected_status` (default 200), `retries` (default 30), `interval` (default 10s).
+- [ ] 5.9.1.8.7 Per-template `ttlStrategy` (DR-8): 1d success, 7d failure.
+- [ ] 5.9.1.8.8 Individually test each template with `kubectl-admin create` submissions
+  - Use throwaway parameters. Confirm each step reaches Succeeded.
+  - For `deploy-image`: point at a test overlay (e.g., create a sandbox app); verify the retry-rebase loop works by committing to main mid-run.
 
-## 5.9.1.3 Wave 2: Portfolio (pilot)
+## 5.9.1.9 Wave 2C: Portfolio Pipeline (pilot)
 
-- [ ] 5.9.1.3.1 Verify ArgoCD Applications exist for portfolio-dev/staging/prod
-  - If missing, create them pointing at `manifests/portfolio/`
-- [ ] 5.9.1.3.2 Create portfolio WorkflowTemplate (DAG)
-  - Entrypoint: clone -> (lint + type-check + test:unit + test:e2e parallel) -> build -> deploy -> verify
-  - Parameters from Sensor: commit_sha, branch, environment
-  - Exit handler: notify-discord
-- [ ] 5.9.1.3.3 Create Sensor for portfolio (`manifests/argo-events/sensor-portfolio.yaml`)
-  - Filter: `body.project.name == "portfolio"`
-  - Branch mapping: develop -> portfolio-dev, main -> portfolio-prod
-  - Creates Workflow from portfolio WorkflowTemplate with parameters
-- [ ] 5.9.1.3.4 Configure GitLab webhook on portfolio project
-  - URL: `https://argo-events.k8s.rommelporras.com/gitlab`
-  - Secret token: from Vault
-  - Events: Push events only
-- [ ] 5.9.1.3.5 Test: push to develop branch
-  - Verify: webhook received -> Workflow created -> all steps pass -> image pushed -> git commit -> ArgoCD syncs -> pod rolls out
-- [ ] 5.9.1.3.6 Test: push to main branch (prod deploy)
-- [ ] 5.9.1.3.7 Test: manual staging deploy via `kubectl create workflow`
-- [ ] 5.9.1.3.8 Disable deploy stages in portfolio `.gitlab-ci.yml`
-  - Keep validate/test/build stages as comments for rollback reference
-  - Or add `when: manual` to all deploy jobs as a dormant fallback
+- [ ] 5.9.1.9.1 Commit `manifests/argo-workflows/templates/portfolio-pipeline.yaml`
+  - WorkflowTemplate with DAG: clone → (lint, type-check, test:unit, test:e2e in parallel) → build → deploy → verify; onExit: notify-on-failure.
+  - Parameters from Sensor: `commit_sha`, `branch`, `environment`.
+- [ ] 5.9.1.9.2 Smoke test by submitting manually with a known-good commit SHA
+  ```bash
+  kubectl-admin -n argo-workflows create -f <(cat <<EOF
+  apiVersion: argoproj.io/v1alpha1
+  kind: Workflow
+  metadata:
+    generateName: portfolio-pipeline-smoke-
+  spec:
+    workflowTemplateRef:
+      name: portfolio-pipeline
+    arguments:
+      parameters:
+      - name: commit_sha
+        value: <known-good-sha>
+      - name: branch
+        value: develop
+      - name: environment
+        value: dev
+  EOF
+  )
+  ```
+- [ ] 5.9.1.9.3 Push to `develop` — verify full path: webhook → EventSource → Sensor → Workflow → all steps pass → git commit lands → ArgoCD syncs → pod rolls out.
+- [ ] 5.9.1.9.4 Push to `main` — same, prod target.
+- [ ] 5.9.1.9.5 Remove deploy stages from portfolio `.gitlab-ci.yml` (now truly dead)
+  - Delete `deploy:dev`, `deploy:staging`, `deploy:prod` jobs.
+  - Archive the Portfolio `kube-token-*` secrets in Vault (rename to `archived/kube-token-*`) — no longer used.
 
----
+## 5.9.1.10 Wave 2D: Invoicetron Pipeline
 
-## 5.9.1.4 Wave 3: Invoicetron
+- [ ] 5.9.1.10.1 Commit `manifests/argo-workflows/templates/invoicetron-pipeline.yaml`
+  - DAG: clone → (lint, type-check, test:unit in parallel) → build → migrate → deploy → verify; onExit: notify-on-failure.
+  - `migrate` step runs `bunx prisma migrate deploy` using the just-built app image. Database connection string sourced from ExternalSecret.
+  - `image_repo` parameter includes the `/dev` or `/prod` sub-path per Sensor branch mapping.
+  - Env-specific build args (`NEXT_PUBLIC_APP_URL`) passed to `build-image-template` as `build_args`.
+- [ ] 5.9.1.10.2 Test: push to `develop`; verify prisma migration ran, image has correct `NEXT_PUBLIC_APP_URL`, ArgoCD synced new tag.
+- [ ] 5.9.1.10.3 Test: push to `main`; same for prod.
+- [ ] 5.9.1.10.4 Remove deploy stages from invoicetron `.gitlab-ci.yml`.
 
-- [ ] 5.9.1.4.1 Restructure `manifests/invoicetron/` into Kustomize base + overlays
-  - Move shared resources to `base/` (deployment, service, postgresql)
-  - Create `overlays/dev/kustomization.yaml` with dev image
-  - Create `overlays/prod/kustomization.yaml` with prod image
-  - Move per-env resources (limitrange, resourcequota, namespace, networkpolicy, externalsecret) into overlays
-- [ ] 5.9.1.4.2 Create ArgoCD Applications pointing at overlays
-  - `invoicetron-dev` -> `manifests/invoicetron/overlays/dev/`
-  - `invoicetron-prod` -> `manifests/invoicetron/overlays/prod/`
-  - Replace existing invoicetron ArgoCD app (if any) or create new ones
-- [ ] 5.9.1.4.3 Verify Kustomize overlays produce correct output
-  - `kubectl-admin kustomize manifests/invoicetron/overlays/dev/`
-  - `kubectl-admin kustomize manifests/invoicetron/overlays/prod/`
-  - Verify image paths are environment-specific
-- [ ] 5.9.1.4.4 Create invoicetron WorkflowTemplate (DAG)
-  - Adds: prisma migrate step after build, env-specific build args (NEXT_PUBLIC_APP_URL)
-  - Invoicetron test:unit uses node:22-slim (Vitest SSR compatibility)
-  - No test:e2e (Invoicetron has no E2E tests)
-- [ ] 5.9.1.4.5 Create Sensor for invoicetron (`manifests/argo-events/sensor-invoicetron.yaml`)
-  - Filter: `body.project.name == "invoicetron"`
-  - Branch mapping: develop -> invoicetron-dev, main -> invoicetron-prod
-  - Per-env build args passed as parameters
-- [ ] 5.9.1.4.6 Configure GitLab webhook on invoicetron project
-- [ ] 5.9.1.4.7 Test: push to develop branch
-  - Verify: full pipeline with Prisma migration
-  - Verify: dev image has correct NEXT_PUBLIC_APP_URL baked in
-- [ ] 5.9.1.4.8 Test: push to main branch (prod deploy with migration)
-- [ ] 5.9.1.4.9 Disable deploy stages in invoicetron `.gitlab-ci.yml`
+## 5.9.1.11 Wave 2E: Portfolio Staging Promotion
 
----
+- [ ] 5.9.1.11.1 Commit `manifests/argo-workflows/templates/portfolio-staging-promote.yaml`
+  - Accepts `source_sha` parameter; skips build; runs deploy → verify against `portfolio-staging`.
+- [ ] 5.9.1.11.2 Create a GitLab manual job in portfolio `.gitlab-ci.yml` that POSTs to `argo-events.k8s.rommelporras.com/staging-promote` with `source_sha` payload.
+- [ ] 5.9.1.11.3 Add staging-promote EventSource + Sensor (single endpoint, token-validated).
+- [ ] 5.9.1.11.4 Test: promote a `develop` SHA to staging; verify ArgoCD syncs portfolio-staging to that SHA.
 
-## 5.9.1.5 Wave 4: Monitoring + Cleanup
+## 5.9.1.12 Wave 2F: Monitoring
 
-- [ ] 5.9.1.5.1 Create Grafana dashboard for CI/CD pipelines
-  - Row 1: Pod Status (Argo Events + Workflows controllers)
-  - Row 2: Pipeline Execution (success/failure rates, duration)
-  - Row 3: Build Metrics (BuildKit build duration, image sizes)
-  - Row 4: Webhook Events (received, filtered, triggered)
-  - Row 5: Resource Usage (CPU/Memory with dashed request/limit lines)
-  - Descriptions on every panel and row
-  - ConfigMap with grafana_dashboard: "1" label, grafana_folder: "Homelab" annotation
-- [ ] 5.9.1.5.2 Create PrometheusRules for CI/CD
-  - CIPipelineFailed (workflow status Failed, 5m)
-  - CIBuildStuck (workflow running > 15m)
-  - WebhookDeliveryFailed (EventSource errors)
-  - CIPipelineNoActivity (no workflows created in 7d, info)
-- [ ] 5.9.1.5.3 Update context docs
-  - Architecture.md: add Argo Events + CI/CD flow
-  - Conventions.md: update deploy workflow section
-  - Secrets.md: add new Vault paths
-  - Monitoring.md: add CI/CD alerts and dashboard
-  - ExternalServices.md: update GitLab section (webhook config)
-- [ ] 5.9.1.5.4 Update CLAUDE.md
-  - Add Argo Events to architecture section
-  - Remove invoicetron deployment.yaml gotcha (fixed by Kustomize overlays)
-  - Update "Still on Helm" if applicable
-- [ ] 5.9.1.5.5 Remove invoicetron CI/CD deferred item from `docs/todo/deferred.md`
+- [ ] 5.9.1.12.1 Commit Grafana dashboard `manifests/monitoring/dashboards/argo-cicd.json`
+  - Row: Pod Status (EventBus + EventSource + Sensor + controller)
+  - Row: Pipeline Execution (workflow phase=Succeeded/Failed rates, duration percentiles)
+  - Row: Build Metrics (BuildKit duration, cache hit rate, image size)
+  - Row: Webhook Events (received, filtered, triggered — per project)
+  - Row: Deploy mutex hold time
+  - Row: Resource Usage (CPU/Memory with dashed request/limit lines)
+  - Descriptions on every panel and row. ConfigMap with `grafana_dashboard: "1"` label, `grafana_folder: "Homelab"` annotation.
+- [ ] 5.9.1.12.2 Update `manifests/monitoring/probes/` with HTTP probes for:
+  - `argo-events.k8s.rommelporras.com/health` (EventSource liveness)
+  - `argo-workflows.k8s.rommelporras.com/healthz` (already exists from Phase 5.9)
+
+## 5.9.1.13 Stage 2 Documentation + Ship
+
+- [ ] 5.9.1.13.1 Update context docs:
+  - `Architecture.md`: Add Argo Events to architecture section, CI/CD flow.
+  - `Conventions.md`: Deploy workflow is now "commit to overlay, ArgoCD syncs" (automated via Sensor).
+  - `Secrets.md`: Add the 6 new Vault paths.
+  - `Monitoring.md`: Add CI/CD alerts and dashboard.
+  - `ExternalServices.md`: GitLab section — document webhook configuration.
+- [ ] 5.9.1.13.2 Update CLAUDE.md:
+  - Add Argo Events to architecture section.
+  - Add any new gotchas discovered during Stage 2 (track them as we go).
+  - Confirm "Invoicetron deployment.yaml CI/CD-managed" gotcha was already removed in Stage 1.
+- [ ] 5.9.1.13.3 Update `docs/rebuild/` with a v0.39.2 rebuild guide entry.
+- [ ] 5.9.1.13.4 Update `docs/reference/CHANGELOG.md` v0.39.2 entry.
+- [ ] 5.9.1.13.5 `/audit-security` → `/commit`
+- [ ] 5.9.1.13.6 `/audit-docs` → `/commit`
+- [ ] 5.9.1.13.7 `/ship v0.39.2 "Argo Events CI/CD Migration"`
+- [ ] 5.9.1.13.8 `git mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/`
 
 ---
 
 ## What Changes Per Repo
 
-| Repo | Changes |
-|------|---------|
-| homelab | New manifests (argo-events/, argo-workflows/templates), Kustomize overlays for invoicetron, new ArgoCD Applications, monitoring |
-| portfolio (GitLab) | Webhook configured, .gitlab-ci.yml deploy stages disabled |
-| invoicetron (GitLab) | Webhook configured, .gitlab-ci.yml deploy stages disabled |
+| Repo | Stage 1 changes | Stage 2 changes |
+|------|-----------------|-----------------|
+| homelab | Kustomize base+overlays for portfolio and invoicetron; 5 new ArgoCD Applications; CLAUDE.md gotcha removal | `manifests/argo-events/`, `manifests/argo-workflows/templates/` (shared + per-project), VAP allowlist update, monitoring dashboards/alerts, context docs |
+| portfolio (GitLab) | Deploy jobs flipped to `when: manual` | Webhook configured; deploy jobs deleted; `kube-token-*` Vault entries archived |
+| invoicetron (GitLab) | Deploy jobs flipped to `when: manual` | Webhook configured; deploy jobs deleted |
 
 ## What Does NOT Change
 
-- GitLab stays as source code host + container registry
-- GitLab Runner stays deployed (dormant fallback)
-- Application manifests (Services, NetworkPolicies, ExternalSecrets) unchanged
-- Existing ArgoCD Applications for non-CI/CD services unchanged
-- Existing CronWorkflows from Phase 5.9 unchanged
+- GitLab stays as source code host + container registry.
+- GitLab Runner stays deployed through Stage 2 (used for build/test/lint in GitLab CI until Stage 2 lands; dormant after).
+- Application runtime (Services, NetworkPolicies, ExternalSecrets, PostgreSQL StatefulSet) — contents may be reorganized into overlays but resources are identical.
+- Existing CronWorkflows from Phase 5.9 (vault-snapshot) — extract `notify-on-failure` into a shared template file, reference preserved.
 
 ---
 
 ## Verification Checklist
 
-**Argo Events:**
-- [ ] `argo-events` namespace with PSS baseline label
-- [ ] EventSource receiving webhooks from GitLab
-- [ ] Sensors filtering and creating Workflows
-- [ ] CiliumNetworkPolicy applied
+### Stage 1 (v0.39.1)
+- [ ] 5 new ArgoCD Applications visible, `syncPolicy.automated: { prune: true, selfHeal: true }`, Synced + Healthy
+- [ ] Kustomize overlays produce correct output (`kubectl-admin kustomize`)
+- [ ] Live images unchanged vs pre-migration snapshot (no unintended drift)
+- [ ] GitLab CI deploy jobs all `when: manual`; no auto-deploy churn visible in ArgoCD events
+- [ ] CLAUDE.md gotcha "Invoicetron manifest has CI/CD-managed image" removed
 
-**Shared Templates:**
-- [ ] All 6 WorkflowTemplates deployed and tested individually (notify-on-failure reused from Phase 5.9)
-- [ ] ESO ExternalSecrets synced (GitLab registry, GitHub deploy key)
-- [ ] Cross-namespace RBAC: argo-events-sa can create Workflows in argo-workflows
-- [ ] 1Password items created and Vault seed script updated
-- [ ] VAP updated to allow mcr.microsoft.com/ images (if Playwright approach kept)
+### Stage 2 (v0.39.2)
+- [ ] `argo-events` namespace + controllers Running, PSS baseline labeled
+- [ ] Per-project EventSources auto-registered webhooks on GitLab
+- [ ] All shared WorkflowTemplates deployed and individually tested
+- [ ] `notify-on-failure` extracted; vault-snapshot still succeeds referencing it
+- [ ] Cross-namespace RBAC: `argo-events-sa` can create Workflows in `argo-workflows`
+- [ ] Controller `--managed-namespace` confirmed to cover `argo-workflows`
+- [ ] Webhook secret validation works (test with wrong token → request rejected at EventSource)
+- [ ] Per-project secret isolation: leaking invoicetron secret cannot forge portfolio push
+- [ ] Portfolio develop push → Workflow → all steps pass → ArgoCD sync → dev pod updated
+- [ ] Portfolio main push → same, prod target
+- [ ] Portfolio staging promotion via manual GitLab job works
+- [ ] Invoicetron develop push → pipeline with prisma migration → ArgoCD sync → dev pod updated, correct NEXT_PUBLIC_APP_URL baked in
+- [ ] Invoicetron main push → same for prod
+- [ ] Deploy mutex serializes concurrent runs (test: trigger two near-simultaneous pushes, verify second deploy waits)
+- [ ] Rebase retry loop works (test: commit to main during deploy step, verify the rebase+retry succeeds)
+- [ ] Workflow TTL: succeeded workflows cleaned after 24h; failed retained 7 days
+- [ ] VAP allows mcr.microsoft.com/ (Playwright)
+- [ ] CI alerts fire on induced failure; Discord notification works
+- [ ] Grafana dashboard populated
 
-**Portfolio:**
-- [ ] Push to develop -> full pipeline -> ArgoCD sync -> dev pod updated
-- [ ] Push to main -> full pipeline -> ArgoCD sync -> prod pod updated
-- [ ] Manual staging deploy works
-- [ ] GitLab CI deploy stages disabled
-
-**Invoicetron:**
-- [ ] Kustomize overlays produce correct per-env manifests
-- [ ] Push to develop -> pipeline with migration -> ArgoCD sync -> dev pod updated
-- [ ] Push to main -> pipeline with migration -> ArgoCD sync -> prod pod updated
-- [ ] GitLab CI deploy stages disabled
-
-**Monitoring:**
-- [ ] ServiceMonitor scraping Argo Events controllers
-- [ ] CI/CD alerts firing correctly (test with a failing workflow)
-- [ ] Grafana dashboard showing pipeline metrics
-
-**Security:**
+### Security (both stages)
 - [ ] All workflow pods non-root, PSS baseline compliant
-- [ ] BuildKit rootless (UID 1000)
+- [ ] BuildKit rootless UID 1000
 - [ ] No cluster-admin ServiceAccounts
-- [ ] Webhook secret validates GitLab payloads
-- [ ] GitHub deploy key has minimal repo scope (read/write on homelab only)
+- [ ] SSH deploy key mounted only in deploy step pod (not build pod)
+- [ ] Per-project webhook secrets validated
+- [ ] `[skip ci]` marker present on automated commits
+- [ ] `--signoff` present on automated commits
 
 ---
 
 ## Rollback
 
-**Per-project rollback (re-enable GitLab CI):**
+### Stage 1 rollback (pre-ship or post-ship)
 ```bash
-# 1. Re-enable deploy stages in .gitlab-ci.yml (uncomment or remove when: manual)
-# 2. Push to trigger GitLab CI pipeline
-# 3. Delete the Argo Events Sensor for that project
-# GitLab Runner is dormant but still deployed - it picks up jobs immediately
+# Delete the 5 ArgoCD Applications — apps continue to run with current image
+kubectl-admin delete application -n argocd invoicetron-dev invoicetron-prod portfolio-dev portfolio-staging portfolio-prod
+
+# Flip GitLab CI back to automatic by reverting the `when: manual` commit in each project
+# (or just let it stay manual — cluster state is unchanged)
+
+# Optionally revert the homelab Kustomize restructure commits in Git (not required for runtime)
+git revert <stage-1-commits>
+git push
+```
+Apps continue running on their live images. GitLab CI's `kubectl set image` still works.
+
+### Stage 2 rollback (per-project)
+```bash
+# Re-enable deploy stages in .gitlab-ci.yml for the affected project
+# Delete the project's Sensor (+ EventSource if the only project on it)
+kubectl-admin delete sensor -n argo-events sensor-<project>
+kubectl-admin delete eventsource -n argo-events eventsource-<project>
+
+# GitLab Runner picks up deploys immediately — no cluster state lost
 ```
 
-**Full rollback (remove Argo Events):**
+### Full Stage 2 rollback
 ```bash
-# Delete ArgoCD Application
-kubectl-admin delete application argo-events -n argocd
+# Delete Argo Events Application
+kubectl-admin delete application -n argocd argo-events
 
 # Remove namespace
 kubectl-admin delete namespace argo-events
 
-# Re-enable all GitLab CI deploy stages
-# GitLab Runner handles all deployments again
+# Re-enable all GitLab CI deploy stages on both projects
+# Restore archived kube-token-* Vault entries if needed
 ```
 
-**Invoicetron Kustomize rollback:**
+### App rollback (production incident)
+Image-specific rollback — no Stage/Phase rollback needed:
 ```bash
-# Revert manifests/invoicetron/ to flat structure (git revert the restructure commit)
-# Re-create single ArgoCD Application pointing at manifests/invoicetron/
+# Find the offending commit on the homelab repo (chore(ci): update <project>...)
+git log --oneline | grep "update <project>"
+
+# Revert it
+git revert <sha>
+git push
+
+# ArgoCD syncs the previous image tag within 3 min
 ```
 
 ---
 
-## Final: Commit and Release
+## Final: Commit and Ship
 
-- [ ] `/audit-security` then `/commit`
-- [ ] `/audit-docs` then `/commit`
-- [ ] `/ship v0.39.1 "CI/CD Pipeline Migration"`
-- [ ] `mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/`
+**Stage 1 (v0.39.1):**
+- [ ] `/audit-security` → `/commit` for Kustomize restructure + new ArgoCD Applications
+- [ ] `/audit-docs` → `/commit` for context doc updates
+- [ ] `/ship v0.39.1 "ArgoCD Onboarding for Portfolio and Invoicetron"`
+
+**Stage 2 (v0.39.2):**
+- [ ] `/audit-security` → `/commit` for Argo Events manifests + WorkflowTemplates
+- [ ] `/audit-docs` → `/commit` for context doc updates
+- [ ] `/ship v0.39.2 "Argo Events CI/CD Migration"`
+- [ ] `git mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/`
