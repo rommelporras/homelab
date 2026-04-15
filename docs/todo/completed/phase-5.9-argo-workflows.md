@@ -1,6 +1,6 @@
 # Phase 5.9: Argo Workflows
 
-> **Status:** Ready to ship — all cluster work complete (UI + SSO live, legacy CronJob cutover done, docs audited). One final `/commit` + `/ship v0.39.0` remaining.
+> **Status:** ✅ Shipped v0.39.0 on 2026-04-16 ([GitHub release](https://github.com/rommelporras/homelab/releases/tag/v0.39.0)). Post-cutover cleanup (5.9.3.10 + 5.9.3.11) tracked in `docs/todo/deferred.md`, earliest 2026-04-21.
 > **Target:** v0.39.0
 > **Prerequisite:** Phase 5.8 (v0.38.0 - GitOps migration complete, ArgoCD stable)
 > **DevOps Topics:** Workflow orchestration, DAG-based automation, CronWorkflow
@@ -36,14 +36,9 @@
 | Monitoring (5.9.6) | ✅ ServiceMonitor, 4 alerts, dashboard deployed |
 | 5.9.7 Storage Observability Follow-up | ✅ Complete (Alloy kernel pipeline, 2 alerts, runbook, commits 0982eb0 + 4237275) |
 | Docs audit | ✅ Complete — two deep audits run this phase (commits 41259fc + e8f894e + post-UI-cleanup pending this ship commit) |
-| Ship (v0.39.0) | ⏳ One commit + `/ship v0.39.0` away |
+| Ship (v0.39.0) | ✅ Tagged + GitHub release created 2026-04-16 |
 
-**What's left (final ship sequence):**
-
-1. `/audit-security` → `/commit` — bundles the post-UI doc audit (~13 files: CHANGELOG, VERSIONS, README, 10 context/ files)
-2. `git push origin main`
-3. `/ship v0.39.0 "Argo Workflows"`
-4. `git mv docs/todo/phase-5.9-argo-workflows.md docs/todo/completed/` + commit + push
+**What's left:** All phase work complete. Post-cutover cleanup of legacy `vault` namespace PV/PVC + `vault-snapshot` CronJob tracked in `docs/todo/deferred.md` (5.9.3.10 + 5.9.3.11, earliest 2026-04-21).
 
 ---
 
@@ -1102,6 +1097,6 @@ for the full write-up:
   April 14: `41259fc` (docs audit pass) + `e8f894e` (CLAUDE.md gotchas).
   April 15: post-UI-rollout audit + fixes pending one final commit
   bundling ~13 files (CHANGELOG, VERSIONS, README, 10 context/ files).
-- [ ] `/ship v0.39.0 "Argo Workflows"` — one commit away (final docs
-  audit) before running.
-- [ ] `mv docs/todo/phase-5.9-argo-workflows.md docs/todo/completed/`
+- [x] `/ship v0.39.0 "Argo Workflows"` — tagged 2026-04-16, GitHub
+  release published: https://github.com/rommelporras/homelab/releases/tag/v0.39.0
+- [x] `git mv docs/todo/phase-5.9-argo-workflows.md docs/todo/completed/`
