@@ -29,6 +29,27 @@ metadata:
     workflows.argoproj.io/rbac-rule: "sub == '1' || preferred_username == '0xwsh'"
     workflows.argoproj.io/rbac-rule-precedence: "10"
 ---
+# Static service-account token Secret. Kubernetes 1.24+ no longer
+# auto-creates these - argo-server needs a static token to impersonate
+# the SA when granting UI access to SSO-authenticated users. Without
+# this Secret, SSO login succeeds but argo-server returns 403 on every
+# API call: `failed to get service account secret: secrets
+# "argo-server-admin.service-account-token" not found`.
+#
+# The Secret is populated by the token controller automatically once
+# the SA exists. Trade-off: static token is a deprecated pattern vs.
+# TokenRequest API, but Argo Workflows' SSO impersonation requires a
+# static token. Blast radius is limited to this SA's RBAC (workflow
+# CRUD in argo-workflows namespace only, no cluster-level permissions).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argo-server-admin.service-account-token
+  namespace: argo-workflows
+  annotations:
+    kubernetes.io/service-account.name: argo-server-admin
+type: kubernetes.io/service-account-token
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
