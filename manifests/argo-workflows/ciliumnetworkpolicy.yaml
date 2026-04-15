@@ -84,21 +84,21 @@ spec:
 # argo-server (UI, Phase 5.9.1.7)
 # ============================================================
 #
-# Ingress: Gateway API terminates TLS and forwards to argo-server:2746.
-# Cilium LB rewrites source identity to `host`/`remote-node`/`world`
-# depending on the client path (see CLAUDE.md Cilium CNP gotcha for
-# fromCIDRSet on LoadBalancer ingress). Adding fromEntities covers
-# all three cases.
+# Ingress: Cilium Gateway API envoy forwards traffic with identity
+# `reserved:ingress` — NOT the LoadBalancer path identities (host/
+# remote-node/world). Observed via atuin, ghost, gitlab, and other
+# HTTPRoute-exposed services in this cluster; an earlier draft used
+# the LB identities and failed with "upstream connect error ... reset
+# reason: connection timeout" in the browser.
+#
+# Prometheus scrapes via the pod-to-pod path (same cluster, matching
+# on monitoring/prometheus labels).
 #
 # Egress: GitLab OIDC discovery/authorize/token/userinfo calls. The
-# first draft targets the gitlab namespace webservice directly via
-# toEndpoints because `toCIDR` with the Gateway LB VIP silently fails
-# per the documented gotcha. This requires one of:
-#   a) CoreDNS rewrite of gitlab.k8s.rommelporras.com to the internal
-#      service (gitlab-webservice-default.gitlab.svc), OR
-#   b) an issuer-URL override in argo-server (not all versions support)
-# Test during deploy; fall back to toFQDNs + toEntities: [host,
-# remote-node, world] if direct cluster path doesn't resolve.
+# gitlab namespace webservice is targeted directly via toEndpoints
+# (observed working at deploy time — OIDC discovery succeeded without
+# a CoreDNS rewrite per the argo-server startup logs showing "SSO
+# enabled").
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -110,11 +110,17 @@ spec:
     matchLabels:
       app.kubernetes.io/component: server
   ingress:
-    # Gateway -> argo-server UI (HTTP, TLS terminates at Gateway)
+    # Cilium Gateway API envoy -> argo-server UI (HTTP, TLS terminates
+    # at Gateway). Gateway traffic has identity `reserved:ingress`.
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "2746"
+              protocol: TCP
+    # Same-node access from the host (kubectl port-forward, etc.)
     - fromEntities:
         - host
-        - remote-node
-        - world
       toPorts:
         - ports:
             - port: "2746"
