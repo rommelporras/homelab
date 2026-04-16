@@ -23,6 +23,14 @@
 # GitLab instance URL
 gitlabUrl: https://gitlab.k8s.rommelporras.com
 
+# Maximum concurrent CI jobs across all runners
+# Each job pod uses up to 4Gi memory + 256Mi helper = ~4.3Gi.
+# 3 nodes x 16Gi each, ~4-6Gi for system workloads = ~10Gi/node for CI.
+# 4 concurrent keeps total job memory at ~17Gi spread across 3 nodes (safe).
+# Default is 10 - caused OOM when both invoicetron + portfolio pipelines
+# triggered simultaneously (7 concurrent pods, 28Gi limit on one node).
+concurrent: 4
+
 # Runner authentication token (from secret)
 runners:
   secret: gitlab-runner-token
@@ -57,6 +65,21 @@ runners:
         # Pod labels for identification
         [runners.kubernetes.pod_labels]
           "gitlab-runner" = "true"
+
+        # Spread job pods across nodes to prevent single-node OOM.
+        # Soft anti-affinity: scheduler prefers different nodes but doesn't block
+        # if only one node has capacity. Matches on gitlab-runner=true pod label.
+        [runners.kubernetes.affinity]
+          [runners.kubernetes.affinity.pod_anti_affinity]
+            [[runners.kubernetes.affinity.pod_anti_affinity.preferred_during_scheduling_ignored_during_execution]]
+              weight = 100
+              [runners.kubernetes.affinity.pod_anti_affinity.preferred_during_scheduling_ignored_during_execution.pod_affinity_term]
+                topology_key = "kubernetes.io/hostname"
+                [runners.kubernetes.affinity.pod_anti_affinity.preferred_during_scheduling_ignored_during_execution.pod_affinity_term.label_selector]
+                  [[runners.kubernetes.affinity.pod_anti_affinity.preferred_during_scheduling_ignored_during_execution.pod_affinity_term.label_selector.match_expressions]]
+                    key = "gitlab-runner"
+                    operator = "In"
+                    values = ["true"]
 
 # RBAC - required for creating job pods
 rbac:
