@@ -1,7 +1,6 @@
 # ArgoCD Application: Invoicetron Prod
 # Phase 5.9.1 - ArgoCD onboarding via Kustomize overlays
 #
-# syncPolicy.automated intentionally omitted — enable after verifying zero diff at first sync
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -21,6 +20,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: invoicetron-prod
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - ServerSideApply=true
       - CreateNamespace=false

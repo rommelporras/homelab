@@ -464,16 +464,15 @@ Goal: every manifest under `manifests/portfolio/` and `manifests/invoicetron/` b
 - [x] 5.9.1.2.3 Create `manifests/argocd/apps/invoicetron-dev.yaml` and `invoicetron-prod.yaml`
   - Created with manual sync (no `syncPolicy.automated`) — enable after zero-diff verify in 5.9.1.2.5
 
-- [ ] 5.9.1.2.4 Commit the restructure; ArgoCD auto-discovers apps within 3 min
-- [ ] 5.9.1.2.5 Manually trigger initial sync for each app, verify **zero diff** (image matches live)
-  ```bash
-  kubectl-admin exec -n argocd statefulset/argocd-application-controller -- argocd app diff invoicetron-dev --core
-  # Expect: "no differences" or at most non-image metadata (labels, annotations from kustomize)
-  kubectl-admin exec -n argocd statefulset/argocd-application-controller -- argocd app sync invoicetron-dev --core
-  ```
-- [ ] 5.9.1.2.6 Enable auto-sync + selfHeal on both invoicetron apps once diff is clean
-  - Edit the Application YAMLs in git to add `syncPolicy.automated`, commit, push.
-- [ ] 5.9.1.2.7 Remove CLAUDE.md gotcha "Invoicetron manifest has CI/CD-managed image" (only after Wave 1C flips CI to manual — track in 5.9.1.4.4)
+- [x] 5.9.1.2.4 Commit the restructure; ArgoCD auto-discovers apps within 3 min
+  - Committed as `3a0366b`. Root app auto-sync created the 5 Application resources.
+  - ArgoCD controller OOM during post-cp2-recovery reconciliation storm; temporarily bumped to 2Gi, reverted after sync completed.
+- [x] 5.9.1.2.5 Manually trigger initial sync for each app, verify **zero diff** (image matches live)
+  - All 5 apps: only ArgoCD tracking-id annotation diffs (expected on first sync). Zero image/spec drift.
+  - invoicetron-prod required patching live deployment strategy from RollingUpdate back to Recreate (was modified by CI at some point; SSA field manager conflict).
+- [x] 5.9.1.2.6 Enable auto-sync + selfHeal on both invoicetron apps once diff is clean
+- [x] 5.9.1.2.7 Remove CLAUDE.md gotcha "Invoicetron manifest has CI/CD-managed image"
+  - Removed in the infra commit (same as 5.9.1.2.4)
 
 ## 5.9.1.3 Wave 1B: Portfolio Kustomize Overlays
 
@@ -490,8 +489,9 @@ Goal: every manifest under `manifests/portfolio/` and `manifests/invoicetron/` b
 - [x] 5.9.1.3.3 Create `manifests/argocd/apps/portfolio-dev.yaml`, `portfolio-staging.yaml`, `portfolio-prod.yaml`
   - Created with manual sync — enable after zero-diff verify in 5.9.1.3.4
 
-- [ ] 5.9.1.3.4 Commit restructure; manual sync; verify zero diff
-- [ ] 5.9.1.3.5 Enable auto-sync + selfHeal on all three portfolio apps
+- [x] 5.9.1.3.4 Commit restructure; manual sync; verify zero diff
+  - All 3 portfolio apps: only tracking-id annotation diffs. Zero image/spec drift.
+- [x] 5.9.1.3.5 Enable auto-sync + selfHeal on all three portfolio apps
 
 ## 5.9.1.4 Wave 1C: Flip GitLab CI Deploys to Manual + Docs Cleanup
 
