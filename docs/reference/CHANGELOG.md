@@ -21,7 +21,7 @@ Phase 5.9.1 Stage 1: restructure Portfolio and Invoicetron manifests from flat f
 ### Deployment Notes
 
 - invoicetron-prod live deployment had strategy `RollingUpdate` (modified by CI), but manifest declares `Recreate` (ResourceQuota constraint). SSA field manager conflict required manual patch before first sync.
-- ArgoCD application-controller OOMKilled during post-cp2-recovery reconciliation storm. Temporarily bumped to 2Gi, reverted to 1Gi after sync completed.
+- ArgoCD application-controller OOMKilled repeatedly with 1Gi limit after onboarding 5 new apps (40+ total). Permanently bumped to 1Gi request / 2Gi limit in `helm/argocd/values.yaml`.
 - Stage 2 (Argo Events CI/CD - v0.39.2) not started. Current deploy workflow: manually update overlay `newTag`, commit, push - ArgoCD syncs.
 
 ---

@@ -97,8 +97,8 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - ARR Companions (Seerr, Configarr, Unpackerr, Scraparr, Tdarr, Recommendarr, Byparr)
 - Ollama (CPU-only LLM: qwen3:1.7b, qwen2.5:3b, moondream, gemma3:1b)
 - Karakeep (bookmark manager with Ollama AI tagging + Meilisearch)
-- Portfolio (Next.js, 3-env GitLab CI/CD: dev/staging/prod)
-- Invoicetron (Next.js + PostgreSQL, Cloudflare Access)
+- Portfolio (Next.js, ArgoCD-managed via Kustomize overlays: dev/staging/prod)
+- Invoicetron (Next.js + PostgreSQL, ArgoCD-managed via Kustomize overlays: dev/prod)
 - Atuin (self-hosted shell history sync, E2E encrypted, PostgreSQL)
 - Homepage dashboard, MySpeed, Firefox browser (KasmVNC)
 
@@ -165,7 +165,7 @@ Things that bit us and might save you time:
 3. **Image Updates & Monitoring** — Phase 5.6 complete; Phase 5.7 complete
 4. **GitOps Migration** — Phase 5.8 complete (v0.38.0); v0.38.1 hotfix released (ArgoCD drift recovery + OOM detection)
 5. **Argo Workflows + vault-snapshot migration** — Phase 5.9 / v0.39.0 deployed and validated; legacy CronJob cutover complete (2026-04-15); UI at `argo-workflows.k8s.rommelporras.com` with SSO via GitLab
-6. **CI/CD Pipeline Migration** — Phase 5.10+ (Argo Workflows to replace GitLab Runner for container builds)
+6. **CI/CD Pipeline Migration (Stage 1)** — Phase 5.9.1 / v0.39.1: Portfolio + Invoicetron onboarded to ArgoCD via Kustomize overlays; GitLab CI deploy jobs dormant. Stage 2 (v0.39.2): Argo Events + Workflows to replace GitLab CI builds end-to-end
 7. **CKA Certification** — September 2026 target
 
 ## Claude Code

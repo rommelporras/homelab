@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.38.4 (Network Policy Fixes & Tooling)
+> **Latest Release:** v0.39.0 (Argo Workflows + vault-snapshot migration)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -59,6 +59,7 @@
 | v0.38.2 | Version Maintenance & Digest Improvements | Phase 5.8.2 | ✅ Released |
 | v0.38.3 | Monitoring Storage Fix & CI Pipeline Fix | - | ✅ Released |
 | v0.38.4 | Network Policy Fixes & Tooling | - | ✅ Released |
+| v0.39.0 | Argo Workflows + vault-snapshot migration | Phase 5.9 | ✅ Released |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 
 ---
@@ -112,12 +113,12 @@
 | 5.7 | ArgoCD Installation & Bootstrap | [phase-5.7-argocd-installation.md](completed/phase-5.7-argocd-installation.md) |
 | 5.8 | GitOps Migration | [phase-5.8-gitops-migration.md](completed/phase-5.8-gitops-migration.md) |
 | 5.8.2 | Version Maintenance & Digest Improvements | [phase-5.8.2-version-maintenance.md](completed/phase-5.8.2-version-maintenance.md) |
+| 5.9 | Argo Workflows | [phase-5.9-argo-workflows.md](completed/phase-5.9-argo-workflows.md) |
 
 ### Planned
 
 | Phase | Description | File |
 |-------|-------------|------|
-| 5.9 | Argo Workflows | [phase-5.9-argo-workflows.md](phase-5.9-argo-workflows.md) |
 | 5.9.1 | CI/CD Pipeline Migration (GitLab Runner → Argo Workflows) | [phase-5.9.1-cicd-pipeline-migration.md](phase-5.9.1-cicd-pipeline-migration.md) |
 | 5.10 | Argo Rollouts | [phase-5.10-argo-rollouts.md](phase-5.10-argo-rollouts.md) |
 | 6 | CKA Focused Learning | [phase-6-cka.md](phase-6-cka.md) |
