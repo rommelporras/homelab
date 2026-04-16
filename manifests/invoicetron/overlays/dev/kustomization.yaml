@@ -1,0 +1,17 @@
+# Invoicetron dev overlay
+# Phase 5.9.1 - ArgoCD onboarding via Kustomize
+#
+# Image: registry.k8s.rommelporras.com/0xwsh/invoicetron/dev
+# Tag: pinned to currently-running live image (zero cluster drift at first sync)
+resources:
+  - ../../base
+  - namespace.yaml
+  - externalsecret.yaml
+  - networkpolicy.yaml
+  - limitrange.yaml
+  - resourcequota.yaml
+namespace: invoicetron-dev
+images:
+  - name: app
+    newName: registry.k8s.rommelporras.com/0xwsh/invoicetron/dev
+    newTag: cbcf2251

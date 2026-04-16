@@ -1,0 +1,29 @@
+# ArgoCD Application: Portfolio Dev
+# Phase 5.9.1 - ArgoCD onboarding via Kustomize overlays
+#
+# syncPolicy.automated intentionally omitted — enable after verifying zero diff at first sync
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: portfolio-dev
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: cicd-apps
+  source:
+    repoURL: https://github.com/rommelporras/homelab.git
+    targetRevision: main
+    path: manifests/portfolio/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: portfolio-dev
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true

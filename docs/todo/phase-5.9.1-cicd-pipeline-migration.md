@@ -436,60 +436,35 @@ Goal: every manifest under `manifests/portfolio/` and `manifests/invoicetron/` b
 
 ## 5.9.1.1 Stage 1 Pre-Flight
 
-- [ ] 5.9.1.1.1 Capture current live images (record for overlays)
-  ```bash
-  kubectl-homelab -n portfolio-dev get deploy -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' ; echo
-  kubectl-homelab -n portfolio-staging get deploy -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' ; echo
-  kubectl-homelab -n portfolio-prod get deploy -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' ; echo
-  kubectl-homelab -n invoicetron-dev get deploy -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' ; echo
-  kubectl-homelab -n invoicetron-prod get deploy -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' ; echo
-  ```
-  Paste these values into the corresponding overlay `kustomization.yaml` so initial sync produces no image change.
+- [x] 5.9.1.1.1 Capture current live images (record for overlays)
+  - portfolio-dev: `...portfolio:51ca6004a9f8fc78a1dd7ea54dcd465c810f2c60`
+  - portfolio-staging: `...portfolio:0c7a025cdf9f1808cb73499868c052ef9f6c838d`
+  - portfolio-prod: `...portfolio:6ac9034300a27657504e4517154b9d0d6b1f2919`
+  - invoicetron-dev: `...invoicetron/dev:cbcf2251`
+  - invoicetron-prod: `...invoicetron/prod:d4d63d4b`
 
-- [ ] 5.9.1.1.2 Confirm `cicd-apps` AppProject exists and has the 5 destinations
-  - Read `manifests/argocd/appprojects.yaml` — verify `cicd-apps` project covers `invoicetron-dev`, `invoicetron-prod`, `portfolio-dev`, `portfolio-staging`, `portfolio-prod`.
-  - If a destination is missing, add it and commit before proceeding.
+- [x] 5.9.1.1.2 Confirm `cicd-apps` AppProject exists and has the 5 destinations
+  - Verified: `manifests/argocd/appprojects.yaml` already has all 5 destinations. No change needed.
 
-- [ ] 5.9.1.1.3 Confirm GitLab CI deploy jobs are ready to be dormant
-  - Review `.gitlab-ci.yml` in each project (portfolio, invoicetron) — identify the deploy stage job names.
-  - Plan to flip them to `when: manual` in step 5.9.1.4.1 so they don't fight ArgoCD.
+- [x] 5.9.1.1.3 Confirm GitLab CI deploy jobs are ready to be dormant
+  - Invoicetron: `deploy:dev` (develop), `deploy:prod` (main) — both auto, flipped to manual in 5.9.1.4.1
+  - Portfolio: `deploy:development` (develop), `deploy:production` (main), `deploy:staging` (already manual)
 
 ## 5.9.1.2 Wave 1A: Invoicetron Kustomize Overlays
 
-- [ ] 5.9.1.2.1 Restructure `manifests/invoicetron/` into `base/` + `overlays/{dev,prod}/`
-  - Move shared resources to `base/`: `deployment.yaml` (strip the hardcoded image tag, use a placeholder name for Kustomize `images:` transformer), `postgresql.yaml`, `rbac.yaml`, `backup-cronjob.yaml`.
-  - Create `base/kustomization.yaml` listing all base resources.
-  - Move per-env files to `overlays/<env>/`: `namespace-<env>.yaml` → `namespace.yaml`, `externalsecret-<env>.yaml` → `externalsecret.yaml`, `networkpolicy-<env>.yaml` → `networkpolicy.yaml`, `limitrange-<env>.yaml`, `resourcequota-<env>.yaml`.
-  - Overlay `kustomization.yaml`:
-    ```yaml
-    resources:
-      - ../../base
-      - namespace.yaml
-      - externalsecret.yaml
-      - networkpolicy.yaml
-      - limitrange.yaml
-      - resourcequota.yaml
-    namespace: invoicetron-<env>
-    images:
-      - name: app                    # placeholder name matching base/deployment.yaml
-        newName: registry.k8s.rommelporras.com/0xwsh/invoicetron/<env>
-        newTag: <sha-from-5.9.1.1.1>
-    ```
-- [ ] 5.9.1.2.2 Verify overlays produce expected output
-  ```bash
-  kubectl-admin kustomize manifests/invoicetron/overlays/dev | grep -E '^(kind|  namespace|  image):'
-  kubectl-admin kustomize manifests/invoicetron/overlays/prod | grep -E '^(kind|  namespace|  image):'
-  ```
-  Image field must show the correct live tag; namespace must match env.
+- [x] 5.9.1.2.1 Restructure `manifests/invoicetron/` into `base/` + `overlays/{dev,prod}/`
+  - NOTE: `backup-cronjob.yaml` placed in `overlays/prod/` only (not base) — it's prod-specific (NFS path, 9AM schedule). Dev does not need DB backups.
+  - Image placeholder in base/deployment.yaml: `image: app` → overlay sets `newName + newTag` per env.
+  - Old flat files removed via `git rm`.
 
-- [ ] 5.9.1.2.3 Create `manifests/argocd/apps/invoicetron-dev.yaml` and `invoicetron-prod.yaml`
-  - `spec.project: cicd-apps`
-  - `spec.source.repoURL: https://github.com/rommelporras/homelab.git`
-  - `spec.source.path: manifests/invoicetron/overlays/<env>`
-  - `spec.destination.namespace: invoicetron-<env>`
-  - `spec.syncPolicy.automated: { prune: true, selfHeal: true }` — but **create with `syncPolicy: {}` initially** (manual sync) to verify diff.
-  - `spec.syncPolicy.syncOptions: [ServerSideApply=true, CreateNamespace=false]` (namespaces exist already).
-- [ ] 5.9.1.2.4 Commit the restructure; `ArgoCD auto-discovers apps within 3 min
+- [x] 5.9.1.2.2 Verify overlays produce expected output
+  - invoicetron-dev: `registry.k8s.rommelporras.com/0xwsh/invoicetron/dev:cbcf2251` ✓, all resources in `invoicetron-dev` namespace ✓
+  - invoicetron-prod: `registry.k8s.rommelporras.com/0xwsh/invoicetron/prod:d4d63d4b` ✓, CronJob included ✓
+
+- [x] 5.9.1.2.3 Create `manifests/argocd/apps/invoicetron-dev.yaml` and `invoicetron-prod.yaml`
+  - Created with manual sync (no `syncPolicy.automated`) — enable after zero-diff verify in 5.9.1.2.5
+
+- [ ] 5.9.1.2.4 Commit the restructure; ArgoCD auto-discovers apps within 3 min
 - [ ] 5.9.1.2.5 Manually trigger initial sync for each app, verify **zero diff** (image matches live)
   ```bash
   kubectl-admin exec -n argocd statefulset/argocd-application-controller -- argocd app diff invoicetron-dev --core
@@ -502,27 +477,34 @@ Goal: every manifest under `manifests/portfolio/` and `manifests/invoicetron/` b
 
 ## 5.9.1.3 Wave 1B: Portfolio Kustomize Overlays
 
-- [ ] 5.9.1.3.1 Restructure `manifests/portfolio/` into `base/` + `overlays/{dev,staging,prod}/`
-  - `base/`: `deployment.yaml` (replace `:latest` placeholder with `images:` transformer target), `rbac.yaml`, `networkpolicy.yaml`, `pdb.yaml`, `kustomization.yaml`.
-  - `overlays/<env>/`: `namespace.yaml`, `limitrange.yaml`, `resourcequota.yaml`, `kustomization.yaml` with `images:` transformer and `namespace: portfolio-<env>`.
-  - Each overlay's `newTag` = current live tag from 5.9.1.1.1.
-- [ ] 5.9.1.3.2 Verify overlays with `kubectl-admin kustomize` (same as 5.9.1.2.2)
-- [ ] 5.9.1.3.3 Create `manifests/argocd/apps/portfolio-dev.yaml`, `portfolio-staging.yaml`, `portfolio-prod.yaml`
+- [x] 5.9.1.3.1 Restructure `manifests/portfolio/` into `base/` + `overlays/{dev,staging,prod}/`
+  - NOTE: `networkpolicy.yaml` placed per-overlay (not base) — dev/staging/prod have different Cloudflare ingress rules.
+  - Base: `deployment.yaml` (image placeholder `registry.k8s.rommelporras.com/0xwsh/portfolio:placeholder`), `rbac.yaml`, `pdb.yaml`.
+  - Overlay kustomization uses `name: registry.k8s.rommelporras.com/0xwsh/portfolio` + `newTag:` only (no newName needed — same registry path for all envs).
+
+- [x] 5.9.1.3.2 Verify overlays with `kubectl-admin kustomize`
+  - portfolio-dev: `...portfolio:51ca6004a9f8fc78a1dd7ea54dcd465c810f2c60` ✓
+  - portfolio-staging: `...portfolio:0c7a025cdf9f1808cb73499868c052ef9f6c838d` ✓
+  - portfolio-prod: `...portfolio:6ac9034300a27657504e4517154b9d0d6b1f2919` ✓
+
+- [x] 5.9.1.3.3 Create `manifests/argocd/apps/portfolio-dev.yaml`, `portfolio-staging.yaml`, `portfolio-prod.yaml`
+  - Created with manual sync — enable after zero-diff verify in 5.9.1.3.4
+
 - [ ] 5.9.1.3.4 Commit restructure; manual sync; verify zero diff
 - [ ] 5.9.1.3.5 Enable auto-sync + selfHeal on all three portfolio apps
 
 ## 5.9.1.4 Wave 1C: Flip GitLab CI Deploys to Manual + Docs Cleanup
 
-- [ ] 5.9.1.4.1 Flip deploy jobs in both `.gitlab-ci.yml` files to `when: manual`
-  - Portfolio: deploy:dev, deploy:staging, deploy:prod jobs
-  - Invoicetron: deploy:dev, deploy:prod jobs
-  - Commit + push on each project repo.
-- [ ] 5.9.1.4.2 Watch for ArgoCD selfHeal events
+- [x] 5.9.1.4.1 Flip deploy jobs in both `.gitlab-ci.yml` files to `when: manual`
+  - Invoicetron: `deploy:dev` and `deploy:prod` rules updated to `when: manual` (inside `rules:` block, not job-level)
+  - Portfolio: `deploy:development` and `deploy:production` rules updated to `when: manual`; `deploy:staging` was already manual
+  - `kubectl set image` lines retained as-is (still works for emergency break-glass; ArgoCD's selfHeal reverts it within 3 min if run)
+  - Commit + push on each project repo pending user `/commit` in each repo.
+- [ ] 5.9.1.4.2 Watch for ArgoCD selfHeal events (after apps are synced)
   - `kubectl-admin get events -n portfolio-dev --field-selector reason=ResourceUpdated --sort-by=.lastTimestamp | tail -20`
-  - If GitLab CI was auto-deploying before this step, expect a few selfHeal reverts. Should settle within 15 min.
-- [ ] 5.9.1.4.3 Remove the old flat `manifests/portfolio/deployment.yaml` and flat `manifests/invoicetron/deployment.yaml` from `.gitlab-ci.yml` references. Any `kubectl set image` lines should remain commented out or gated behind `when: manual` for emergency use.
-- [ ] 5.9.1.4.4 Remove outdated CLAUDE.md gotcha
-  - Delete the "Invoicetron manifest has CI/CD-managed image" gotcha — no longer applies once Kustomize overlays enforce env-specific images.
+- [x] 5.9.1.4.3 Old flat manifests removed via `git rm` in homelab repo
+- [x] 5.9.1.4.4 Remove outdated CLAUDE.md gotcha
+  - Removed "Invoicetron manifest has CI/CD-managed image" from CLAUDE.md Gotchas section
 
 ## 5.9.1.5 Wave 1D: Verification + Ship v0.39.1
 

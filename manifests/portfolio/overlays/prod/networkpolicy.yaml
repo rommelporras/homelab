@@ -1,0 +1,63 @@
+# CiliumNetworkPolicies for portfolio-prod
+# Phase 5.9.1: Namespace stripped - set by Kustomize overlay
+# Static site, port 80. Cloudflare tunnel for rommelporras.com.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: portfolio-gateway-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      app: portfolio
+  ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+    # Cloudflare tunnel: rommelporras.com
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cloudflare
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+    # Monitoring: blackbox exporter probes
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kubelet-probes
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - host

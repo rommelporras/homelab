@@ -1,0 +1,13 @@
+# Portfolio PodDisruptionBudget
+# Phase 5.9.1 - Moved to Kustomize base; namespace injected by overlay
+# Ensures at least 1 replica remains during voluntary disruptions (drain, upgrade)
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: portfolio-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: portfolio

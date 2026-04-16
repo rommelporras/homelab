@@ -1,0 +1,6 @@
+# Portfolio base resources shared across all environments
+# Phase 5.9.1 - Kustomize Overlays for ArgoCD management
+resources:
+  - deployment.yaml
+  - rbac.yaml
+  - pdb.yaml

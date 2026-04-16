@@ -1,0 +1,14 @@
+# Portfolio dev overlay
+# Phase 5.9.1 - ArgoCD onboarding via Kustomize
+#
+# Tag: pinned to currently-running live image (zero cluster drift at first sync)
+resources:
+  - ../../base
+  - namespace.yaml
+  - networkpolicy.yaml
+  - limitrange.yaml
+  - resourcequota.yaml
+namespace: portfolio-dev
+images:
+  - name: registry.k8s.rommelporras.com/0xwsh/portfolio
+    newTag: "51ca6004a9f8fc78a1dd7ea54dcd465c810f2c60"

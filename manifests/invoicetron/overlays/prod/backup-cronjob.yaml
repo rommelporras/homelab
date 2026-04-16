@@ -1,0 +1,83 @@
+# Database Backup CronJob for Invoicetron Prod
+# Phase 5.4 - Migrated from Longhorn PVC to NFS (off-cluster)
+# Phase 5.9.1 - Moved to prod overlay; namespace injected by Kustomize overlay
+#
+# Daily pg_dump at 9 AM with 3-day retention (deep history in restic off-site)
+# Database is ~14MB so backups are lightweight
+#
+# Manual test run:
+#   kubectl-homelab create job --from=cronjob/invoicetron-db-backup invoicetron-backup-test -n invoicetron-prod
+#
+# CKA topics: CronJobs, NFS volume mounts, backup strategies
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: invoicetron-db-backup
+  labels:
+    app: invoicetron-db
+    app.kubernetes.io/part-of: invoicetron
+spec:
+  schedule: "0 9 * * *"
+  timeZone: "Asia/Manila"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: invoicetron-db-backup
+          annotations:
+            match-regex.version-checker.io/backup: '^\d+\.\d+-alpine$'
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
+            fsGroup: 70
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: postgres:18.3-alpine
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  BACKUP_FILE="/backups/invoicetron-$(date +%Y%m%d-%H%M%S).sql"
+                  pg_dump -h invoicetron-db -U invoicetron -d invoicetron > "$BACKUP_FILE"
+                  if [ ! -s "$BACKUP_FILE" ]; then
+                    echo "ERROR: Backup file is empty" >&2
+                    rm -f "$BACKUP_FILE"
+                    exit 1
+                  fi
+                  echo "Backup created: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
+                  # Prune backups older than 3 days (deep history in restic off-site)
+                  find /backups -name "invoicetron-*.sql" -mtime +3 -delete
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: 200m, memory: 256Mi }
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: invoicetron-db
+                      key: postgres-password
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+          volumes:
+            - name: backups
+              nfs:
+                server: 10.10.30.4
+                path: /Kubernetes/Backups/invoicetron
