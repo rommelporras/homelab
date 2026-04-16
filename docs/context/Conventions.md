@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-04-14
+updated: 2026-04-16
 ---
 
 # Conventions
@@ -45,6 +45,13 @@ kubectl-admin annotate application <name> -n argocd argocd.argoproj.io/refresh=h
 ```
 
 **Do NOT use `kubectl apply` or `helm upgrade` for ArgoCD-managed services.** ArgoCD's selfHeal will revert manual changes on the next reconciliation cycle (~3 minutes).
+
+**Portfolio and Invoicetron** are now ArgoCD-managed via Kustomize overlays (Phase 5.9.1). Each environment has its own overlay under `manifests/<project>/overlays/<env>/`. To deploy a new image:
+1. Update `newTag` in the overlay's `kustomization.yaml` (e.g., `manifests/portfolio/overlays/dev/kustomization.yaml`)
+2. Commit and push to homelab repo
+3. ArgoCD auto-syncs the deployment within 3 minutes
+
+Do NOT use `kubectl set image` or GitLab CI's manual deploy jobs - ArgoCD selfHeal will revert them.
 
 **Exception (still uses Helm directly):**
 - `cilium` - `helm-homelab upgrade cilium cilium/cilium -n kube-system -f helm/cilium/values.yaml`
@@ -115,12 +122,12 @@ homelab/
 │   ├── gitlab/              # GitLab SSH LoadBalancer
 │   ├── gitlab-runner/       # GitLab Runner ExternalSecret
 │   ├── home/                # Home services (AdGuard, Homepage, MySpeed)
-│   ├── invoicetron/         # Invoicetron app + PostgreSQL + backup
+│   ├── invoicetron/         # Invoicetron app + PostgreSQL + backup (Kustomize: base/ + overlays/{dev,prod})
 │   ├── karakeep/            # Karakeep bookmark manager (AIO, Chrome, Meilisearch)
 │   ├── kube-system/         # System CronJobs, RBAC (claude-code SA), cert utilities
 │   ├── monitoring/          # Observability (alerts/, dashboards/, probes/, exporters/, servicemonitors/, grafana/, otel/, version-checker/)
 │   ├── network-policies/    # CiliumClusterwideNetworkPolicy (gateway ingress)
-│   ├── portfolio/           # Portfolio deployment + RBAC
+│   ├── portfolio/           # Portfolio site (Kustomize: base/ + overlays/{dev,staging,prod})
 │   ├── storage/             # Longhorn HTTPRoute, NFS PVs
 │   ├── tailscale/           # Tailscale Operator + Connector (subnet router)
 │   ├── uptime-kuma/         # Uptime Kuma StatefulSet

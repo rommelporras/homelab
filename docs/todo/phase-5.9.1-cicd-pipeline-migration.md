@@ -508,17 +508,13 @@ Goal: every manifest under `manifests/portfolio/` and `manifests/invoicetron/` b
 
 ## 5.9.1.5 Wave 1D: Verification + Ship v0.39.1
 
-- [ ] 5.9.1.5.1 Verify all 5 ArgoCD Applications Synced + Healthy
-  ```bash
-  kubectl-admin get applications -n argocd -l argocd.argoproj.io/instance \
-    -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status | \
-    grep -E 'invoicetron|portfolio'
-  ```
-- [ ] 5.9.1.5.2 Verify live images still match overlay tags (no unintended drift)
-- [ ] 5.9.1.5.3 Sanity check a manual deploy via GitLab CI `when: manual` job
-  - Bump an image tag on `develop`, trigger the manual deploy job, confirm ArgoCD picks up the change (because GitLab CI's `kubectl set image` is a no-op against the Kustomize overlay — the real change is the manual overlay edit or Stage 2 automation). **This step is optional; it's just verifying the dormant fallback still works.**
-- [ ] 5.9.1.5.4 Update `docs/context/Conventions.md`: Portfolio and Invoicetron are now ArgoCD-managed; deploy workflow is "commit to overlay, ArgoCD syncs".
-- [ ] 5.9.1.5.5 Update `docs/reference/CHANGELOG.md` entry for v0.39.1
+- [x] 5.9.1.5.1 Verify all 5 ArgoCD Applications Synced + Healthy
+  - All 5 Synced + Healthy after auto-sync enablement push.
+- [x] 5.9.1.5.2 Verify live images still match overlay tags (no unintended drift)
+  - invoicetron dev:cbcf2251, prod:d4d63d4b; portfolio dev:51ca6004, staging:0c7a025c, prod:6ac90343
+- [ ] 5.9.1.5.3 Sanity check a manual deploy via GitLab CI `when: manual` job (OPTIONAL - skipped; ArgoCD selfHeal would revert kubectl set image anyway)
+- [x] 5.9.1.5.4 Update `docs/context/Conventions.md`: Portfolio and Invoicetron are now ArgoCD-managed; deploy workflow is "commit to overlay, ArgoCD syncs".
+- [x] 5.9.1.5.5 Update `docs/reference/CHANGELOG.md` entry for v0.39.1
 - [ ] 5.9.1.5.6 `/audit-security` → `/commit`
 - [ ] 5.9.1.5.7 `/audit-docs` → `/commit`
 - [ ] 5.9.1.5.8 `/ship v0.39.1 "ArgoCD Onboarding for Portfolio and Invoicetron"`

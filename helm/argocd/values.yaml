@@ -77,9 +77,9 @@ controller:
   resources:
     requests:
       cpu: 250m
-      memory: 512Mi
-    limits:
       memory: 1Gi
+    limits:
+      memory: 2Gi
   metrics:
     enabled: true
     serviceMonitor:

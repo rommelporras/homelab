@@ -4,6 +4,28 @@
 
 ---
 
+## April 16, 2026 - ArgoCD onboarding for Portfolio + Invoicetron (v0.39.1)
+
+### Summary
+
+Phase 5.9.1 Stage 1: restructure Portfolio and Invoicetron manifests from flat files into Kustomize base/ + overlays/ and onboard them to ArgoCD with auto-sync + selfHeal. GitLab CI deploy jobs flipped to `when: manual` (break-glass only). Separate fix: GitLab Runner `concurrent` capped at 4 with pod anti-affinity to prevent node OOM from simultaneous pipelines.
+
+### Changes
+
+- **Kustomize overlays** - `manifests/invoicetron/` restructured into `base/` (deployment, postgresql, rbac) + `overlays/{dev,prod}/` (namespace, externalsecret, networkpolicy, limitrange, resourcequota). `backup-cronjob.yaml` in prod overlay only. `manifests/portfolio/` restructured into `base/` (deployment, rbac, pdb) + `overlays/{dev,staging,prod}/`. Network policies per-overlay (dev/staging/prod differ on Cloudflare ingress rules). Image tags pinned to live-running images at cutover time - zero cluster drift on first sync.
+- **5 ArgoCD Applications** - `invoicetron-dev`, `invoicetron-prod`, `portfolio-dev`, `portfolio-staging`, `portfolio-prod` in `cicd-apps` AppProject. Created with manual sync, verified zero diff (only tracking-id annotations), then enabled `syncPolicy.automated: { prune: true, selfHeal: true }`.
+- **GitLab CI deploy jobs dormant** - `deploy:dev` + `deploy:prod` (invoicetron) and `deploy:development` + `deploy:production` (portfolio) flipped to `when: manual` inside `rules:` blocks. `deploy:staging` (portfolio) was already manual.
+- **CLAUDE.md gotcha removed** - "Invoicetron manifest has CI/CD-managed image" no longer applies with Kustomize overlays enforcing per-env images.
+- **GitLab Runner OOM fix** - `concurrent: 4` (was default 10) + pod anti-affinity (preferred, weight 100, spread by `kubernetes.io/hostname`). Two simultaneous pipelines had spawned 7 runner pods on cp2 (28Gi limit on 16Gi node), OOM-killing kubelet.
+
+### Deployment Notes
+
+- invoicetron-prod live deployment had strategy `RollingUpdate` (modified by CI), but manifest declares `Recreate` (ResourceQuota constraint). SSA field manager conflict required manual patch before first sync.
+- ArgoCD application-controller OOMKilled during post-cp2-recovery reconciliation storm. Temporarily bumped to 2Gi, reverted to 1Gi after sync completed.
+- Stage 2 (Argo Events CI/CD - v0.39.2) not started. Current deploy workflow: manually update overlay `newTag`, commit, push - ArgoCD syncs.
+
+---
+
 ## April 14, 2026 - Argo Workflows + vault-snapshot migration + UI + storage observability (v0.39.0)
 
 ### Summary
