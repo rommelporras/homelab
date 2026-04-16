@@ -1,7 +1,7 @@
 # Phase 5.9.1: CI/CD Pipeline Migration (Argo Events + Workflows)
 
-> **Status:** Planned
-> **Target:** v0.39.1 (Stage 1 - ArgoCD onboarding) → v0.39.2 (Stage 2 - Argo Events CI/CD)
+> **Status:** Stage 1 Complete (v0.39.1 shipped 2026-04-16) / Stage 2 Planned
+> **Target:** v0.39.1 (Stage 1 - ArgoCD onboarding, SHIPPED) → v0.39.2 (Stage 2 - Argo Events CI/CD)
 > **Prerequisite:** Phase 5.9 (v0.39.0 - Argo Workflows installed, controller + argo-server running with `--namespaced` mode)
 > **DevOps Topics:** Event-driven CI/CD, GitOps image promotion, BuildKit rootless, webhook triggers, Kustomize overlays
 > **CKA Topics:** CRD-based automation, RBAC (cross-namespace), ValidatingAdmissionPolicy, Kustomize
@@ -293,62 +293,70 @@ synchronization:
 
 Mutex holder is logged in workflow events; Prometheus alert `CIDeployMutexHeldTooLong` fires if held > 10 min (indicates stuck step).
 
-### Portfolio Manifest Layout (Stage 1 end state)
+### Portfolio Manifest Layout (Stage 1 end state - ACTUAL)
 
 ```
 manifests/portfolio/
   base/
-    deployment.yaml
+    deployment.yaml            # image: registry.k8s.rommelporras.com/0xwsh/portfolio:placeholder
     rbac.yaml
-    networkpolicy.yaml
     pdb.yaml
     kustomization.yaml
   overlays/
     dev/
-      kustomization.yaml       # images: [{name: ..., newTag: <current-dev-sha>}]
+      kustomization.yaml       # images: [{name: .../portfolio, newTag: 51ca6004...}]
       namespace.yaml
+      networkpolicy.yaml       # per-overlay: dev has no Cloudflare ingress
       limitrange.yaml
       resourcequota.yaml
     staging/
-      kustomization.yaml       # newTag: <current-staging-sha>
+      kustomization.yaml       # newTag: 0c7a025c...
       namespace.yaml
+      networkpolicy.yaml       # per-overlay: staging has Cloudflare beta
       limitrange.yaml
       resourcequota.yaml
     prod/
-      kustomization.yaml       # newTag: <current-prod-sha>
+      kustomization.yaml       # newTag: 6ac90343...
       namespace.yaml
+      networkpolicy.yaml       # per-overlay: prod has Cloudflare prod
       limitrange.yaml
       resourcequota.yaml
 ```
 
+NOTE: `networkpolicy.yaml` is per-overlay (not base) because dev/staging/prod have
+different Cloudflare ingress rules. Plan originally had it in base.
+
 Deploy step updates only `overlays/<env>/kustomization.yaml`.
 
-### Invoicetron Manifest Layout (Stage 1 end state)
+### Invoicetron Manifest Layout (Stage 1 end state - ACTUAL)
 
 ```
 manifests/invoicetron/
   base/
-    deployment.yaml            # no namespace, no hardcoded image path
+    deployment.yaml            # image: app (Kustomize placeholder, overlay sets newName+newTag)
     postgresql.yaml
     rbac.yaml
-    backup-cronjob.yaml
     kustomization.yaml
   overlays/
     dev/
-      kustomization.yaml       # images: [{name: app, newName: .../invoicetron/dev, newTag: <sha>}]
+      kustomization.yaml       # images: [{name: app, newName: .../invoicetron/dev, newTag: cbcf2251}]
       namespace.yaml
       externalsecret.yaml
       networkpolicy.yaml
       limitrange.yaml
       resourcequota.yaml
     prod/
-      kustomization.yaml       # newName: .../invoicetron/prod, newTag: <sha>
+      kustomization.yaml       # newName: .../invoicetron/prod, newTag: d4d63d4b
       namespace.yaml
       externalsecret.yaml
       networkpolicy.yaml
       limitrange.yaml
       resourcequota.yaml
+      backup-cronjob.yaml      # prod-only (NFS path, 9AM schedule)
 ```
+
+NOTE: `backup-cronjob.yaml` is in prod overlay only (not base as originally planned).
+Dev does not need DB backups.
 
 Kustomize `newName` handles the dev vs prod registry sub-path difference; `newTag` handles the SHA.
 
@@ -466,7 +474,7 @@ Goal: every manifest under `manifests/portfolio/` and `manifests/invoicetron/` b
 
 - [x] 5.9.1.2.4 Commit the restructure; ArgoCD auto-discovers apps within 3 min
   - Committed as `3a0366b`. Root app auto-sync created the 5 Application resources.
-  - ArgoCD controller OOM during post-cp2-recovery reconciliation storm; temporarily bumped to 2Gi, reverted after sync completed.
+  - ArgoCD controller OOM during post-cp2-recovery reconciliation storm; permanently bumped to 1Gi/2Gi in `helm/argocd/values.yaml` (40+ apps exceeded 1Gi).
 - [x] 5.9.1.2.5 Manually trigger initial sync for each app, verify **zero diff** (image matches live)
   - All 5 apps: only ArgoCD tracking-id annotation diffs (expected on first sync). Zero image/spec drift.
   - invoicetron-prod required patching live deployment strategy from RollingUpdate back to Recreate (was modified by CI at some point; SSA field manager conflict).
@@ -500,8 +508,8 @@ Goal: every manifest under `manifests/portfolio/` and `manifests/invoicetron/` b
   - Portfolio: `deploy:development` and `deploy:production` rules updated to `when: manual`; `deploy:staging` was already manual
   - `kubectl set image` lines retained as-is (still works for emergency break-glass; ArgoCD's selfHeal reverts it within 3 min if run)
   - Commit + push on each project repo pending user `/commit` in each repo.
-- [ ] 5.9.1.4.2 Watch for ArgoCD selfHeal events (after apps are synced)
-  - `kubectl-admin get events -n portfolio-dev --field-selector reason=ResourceUpdated --sort-by=.lastTimestamp | tail -20`
+- [x] 5.9.1.4.2 Watch for ArgoCD selfHeal events (after apps are synced)
+  - Tested: manually triggered `deploy:development` (pipeline 188, job 1295). GitLab CI `kubectl set image` succeeded but ArgoCD selfHeal reverted to overlay tag within 3 min. Confirmed working.
 - [x] 5.9.1.4.3 Old flat manifests removed via `git rm` in homelab repo
 - [x] 5.9.1.4.4 Remove outdated CLAUDE.md gotcha
   - Removed "Invoicetron manifest has CI/CD-managed image" from CLAUDE.md Gotchas section
@@ -512,12 +520,13 @@ Goal: every manifest under `manifests/portfolio/` and `manifests/invoicetron/` b
   - All 5 Synced + Healthy after auto-sync enablement push.
 - [x] 5.9.1.5.2 Verify live images still match overlay tags (no unintended drift)
   - invoicetron dev:cbcf2251, prod:d4d63d4b; portfolio dev:51ca6004, staging:0c7a025c, prod:6ac90343
-- [ ] 5.9.1.5.3 Sanity check a manual deploy via GitLab CI `when: manual` job (OPTIONAL - skipped; ArgoCD selfHeal would revert kubectl set image anyway)
+- [x] 5.9.1.5.3 Sanity check a manual deploy via GitLab CI `when: manual` job
+  - Tested via portfolio pipeline 188 job 1295 (deploy:development). ArgoCD selfHeal reverted the kubectl set image within 3 min. Confirms dormant fallback works but is a no-op with auto-sync enabled.
 - [x] 5.9.1.5.4 Update `docs/context/Conventions.md`: Portfolio and Invoicetron are now ArgoCD-managed; deploy workflow is "commit to overlay, ArgoCD syncs".
 - [x] 5.9.1.5.5 Update `docs/reference/CHANGELOG.md` entry for v0.39.1
-- [ ] 5.9.1.5.6 `/audit-security` → `/commit`
-- [ ] 5.9.1.5.7 `/audit-docs` → `/commit`
-- [ ] 5.9.1.5.8 `/ship v0.39.1 "ArgoCD Onboarding for Portfolio and Invoicetron"`
+- [x] 5.9.1.5.6 `/audit-security` → `/commit` (infra commit `3a0366b`, auto-sync commit `1daf383`)
+- [x] 5.9.1.5.7 `/audit-docs` → `/commit` (docs commit `f8404cb`, audit fixes `b6e9b28`)
+- [x] 5.9.1.5.8 `/ship v0.39.1 "ArgoCD Onboarding for Portfolio and Invoicetron"` - shipped 2026-04-16
 
 ---
 
@@ -526,6 +535,14 @@ Goal: every manifest under `manifests/portfolio/` and `manifests/invoicetron/` b
 # Stage 2 — v0.39.2 — Argo Events CI/CD Migration
 
 Goal: GitLab pushes drive Argo Workflows builds end-to-end; GitLab CI deploy jobs are deleted. Stage 1 must be complete and stable for at least 3 days before starting Stage 2.
+
+> **Stage 1 shipped:** v0.39.1 on 2026-04-16. Earliest Stage 2 start: 2026-04-19.
+>
+> **Current deploy workflow (interim):** Update `newTag` in the overlay kustomization.yaml (e.g., `manifests/portfolio/overlays/dev/kustomization.yaml`), commit + push to homelab repo, ArgoCD auto-syncs within 3 min. Do NOT use `kubectl set image` or GitLab CI manual deploy buttons - ArgoCD selfHeal reverts them.
+>
+> **Bonus fixes shipped with v0.39.1:** GitLab Runner `concurrent: 4` + pod anti-affinity (prevents node OOM from simultaneous pipelines); ArgoCD controller memory 1Gi→2Gi (OOM with 40+ apps).
+>
+> **External repos:** invoicetron lives at `~/personal/invoicetron`, portfolio at `~/personal/portfolio`. Both have `develop` and `main` branches with deploy jobs flipped to `when: manual`.
 
 ## 5.9.1.6 Stage 2 Pre-Flight
 
@@ -749,12 +766,15 @@ All committed under `manifests/argo-workflows/templates/`.
 
 ## Verification Checklist
 
-### Stage 1 (v0.39.1)
-- [ ] 5 new ArgoCD Applications visible, `syncPolicy.automated: { prune: true, selfHeal: true }`, Synced + Healthy
-- [ ] Kustomize overlays produce correct output (`kubectl-admin kustomize`)
-- [ ] Live images unchanged vs pre-migration snapshot (no unintended drift)
-- [ ] GitLab CI deploy jobs all `when: manual`; no auto-deploy churn visible in ArgoCD events
-- [ ] CLAUDE.md gotcha "Invoicetron manifest has CI/CD-managed image" removed
+### Stage 1 (v0.39.1) - VERIFIED 2026-04-16
+- [x] 5 new ArgoCD Applications visible, `syncPolicy.automated: { prune: true, selfHeal: true }`, Synced + Healthy
+- [x] Kustomize overlays produce correct output (`kubectl-admin kustomize`)
+- [x] Live images unchanged vs pre-migration snapshot (no unintended drift)
+- [x] GitLab CI deploy jobs all `when: manual`; no auto-deploy churn visible in ArgoCD events
+- [x] CLAUDE.md gotcha "Invoicetron manifest has CI/CD-managed image" removed
+- [x] selfHeal tested: manual GitLab CI deploy reverted by ArgoCD within 3 min
+- [x] GitLab Runner OOM fix: concurrent=4 + pod anti-affinity (bonus fix, shipped with v0.39.1)
+- [x] ArgoCD controller memory bumped 1Gi→2Gi (bonus fix, shipped with v0.39.1)
 
 ### Stage 2 (v0.39.2)
 - [ ] `argo-events` namespace + controllers Running, PSS baseline labeled
@@ -843,10 +863,10 @@ git push
 
 ## Final: Commit and Ship
 
-**Stage 1 (v0.39.1):**
-- [ ] `/audit-security` → `/commit` for Kustomize restructure + new ArgoCD Applications
-- [ ] `/audit-docs` → `/commit` for context doc updates
-- [ ] `/ship v0.39.1 "ArgoCD Onboarding for Portfolio and Invoicetron"`
+**Stage 1 (v0.39.1) - SHIPPED 2026-04-16:**
+- [x] `/audit-security` → `/commit` for Kustomize restructure + new ArgoCD Applications
+- [x] `/audit-docs` → `/commit` for context doc updates
+- [x] `/ship v0.39.1 "ArgoCD Onboarding for Portfolio and Invoicetron"`
 
 **Stage 2 (v0.39.2):**
 - [ ] `/audit-security` → `/commit` for Argo Events manifests + WorkflowTemplates
