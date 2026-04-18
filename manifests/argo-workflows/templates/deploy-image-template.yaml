@@ -37,10 +37,14 @@ metadata:
 spec:
   templates:
     - name: deploy-image
+      # Argo Workflows 3.6+ (v4.0.4 here) replaced singular
+      # `synchronization.mutex` with the plural `synchronization.mutexes`
+      # list. SSA rejects the old singular form with
+      #   field not declared in schema: .spec.templates[0].synchronization.mutex
       synchronization:
-        mutex:
-          name: deploy-image-lock
-          namespace: argo-workflows
+        mutexes:
+          - name: deploy-image-lock
+            namespace: argo-workflows
       inputs:
         parameters:
           - name: project

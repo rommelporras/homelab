@@ -52,6 +52,14 @@ spec:
       - name: branch
       - name: environment
       - name: image_repo
+  # imagePullSecrets belongs at the workflow spec level (not per-template
+  # in v4.0.4 - schema rejects it under .spec.templates[].imagePullSecrets).
+  # Applied to every step pod; BuildKit and deploy steps don't actually
+  # need it (they pull alpine/git, moby/buildkit from public registries)
+  # but the migrate step pulls the freshly-built app image from the
+  # private GitLab registry, so the pull secret is required.
+  imagePullSecrets:
+    - name: gitlab-registry
   volumes:
     - name: workspace
       emptyDir:
@@ -235,8 +243,6 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop: ["ALL"]
-      imagePullSecrets:
-        - name: gitlab-registry
 
     # --- verify dispatch: picks the right URL per environment ---
     - name: verify-dispatch
