@@ -628,3 +628,52 @@ the media repo is deferred.
 - Add `media` subcommand to `homelab-backup.sh`
 
 **When:** After Immich is deployed and has data worth backing up.
+
+## Argo Workflows Restricted PSS Hardening (Phase 5.9.1 Stage 2 Follow-up)
+
+**Status:** Deferred - acceptable under baseline PSS; warn-only for restricted
+**Priority:** Low
+**Added:** 2026-04-18 (Phase 5.9.1 Stage 2 security audit)
+
+### Context
+
+Three CI pipeline WorkflowTemplates in `manifests/argo-workflows/templates/` trip
+`warn: restricted` on the argo-workflows namespace (enforcement is `baseline`, so
+pods still start — they just emit a PSS warning). The gaps below were flagged in the
+`/audit-security` pass before shipping v0.39.2 and deferred because tightening them
+requires more than a 2-line diff.
+
+### What's left
+
+**`clone-template.yaml`** — alpine/git:2.52.0 runs as root by default; git clone
+itself doesn't need root, but the shared `/workspace` emptyDir is created as
+`root:root 0755` so a non-root container can't write to it. Fix requires coordinating
+a pod-level `fsGroup: 1000` setting across `portfolio-pipeline.yaml` and
+`invoicetron-pipeline.yaml` (fsGroup is pod-scoped, not container-scoped).
+
+**`invoicetron-pipeline.yaml` migrate step** — uses the app's own image; needs
+verification that the Invoicetron Dockerfile sets `USER 1000` (or `USER node`)
+before adding `runAsNonRoot: true`. If the app image runs as root, this step
+would fail to start with `container has runAsNonRoot and image will run as root`.
+
+**`deploy-image-template.yaml`** — intentionally runs as root today (writes
+`/root/.ssh/id_ed25519`, runs `apk add --no-cache curl tar gzip`). Going non-root
+requires either:
+  - Pre-built image with kustomize + git + ssh + curl baked in (no `apk add` step)
+  - Mount the SSH key at `/home/git/.ssh` and adjust `GIT_SSH_COMMAND` path
+  - Run the chmod + ssh config as an initContainer under root, then drop to
+    non-root for the actual git push
+`seccompProfile: RuntimeDefault` is already applied (seccomp filtering is
+independent of uid=0), so syscall-restriction is in place even while uid=0.
+
+### When to revisit
+
+Bundle with the next Argo Workflows chart bump or if the namespace PSS is
+upgraded from `enforce: baseline` to `enforce: restricted` (that change is
+not currently scheduled).
+
+### Acceptance criteria
+
+- Restricted PSS warnings on argo-workflows namespace go to zero
+- All CI pipelines still succeed end-to-end (clone / build / deploy / verify)
+- No regression on deploy-image step's ability to commit + push via SSH

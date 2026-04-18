@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, monitoring, prometheus, grafana, alerting]
-updated: 2026-04-07
+updated: 2026-04-19
 ---
 
 # Monitoring
@@ -282,6 +282,7 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 | `recommendarr-probe.yaml` | Recommendarr | HTTP (recommendarr.arr-stack.svc:3000) | 60s |
 | `sonarr-probe.yaml` | Sonarr | HTTP (sonarr.arr-stack.svc:8989) | 60s |
 | `argocd-probe.yaml` | ArgoCD | HTTP (argocd-server.argocd.svc:443) | 60s |
+| `argo-events-probe.yaml` | Argo Events | HTTPS (argo-events.k8s.rommelporras.com/gitlab/invoicetron) | 60s |
 
 **Vault probe note:** `/v1/sys/health` returns 200=active, 503=sealed. `http_2xx` treats sealed as probe failure - used by VaultSealed alert's `absent()` guard to prevent false positives when metrics are temporarily unavailable.
 
@@ -350,6 +351,7 @@ All ServiceMonitors have `release: prometheus` + `app.kubernetes.io/part-of: kub
 | `argocd-alerts.yaml` | ArgocdAppOutOfSync, ArgocdAppUnhealthy, ArgocdSyncFailed, ArgocdRepoServerDown, ArgocdControllerDown, ArgocdGitFetchFailed, ArgocdClusterConnectionLost, ArgocdRepoServerPending, ArgocdNotificationDeliveryFailed | v0.37.0 |
 | `oomkilled-alerts.yaml` | ContainerOOMKilled (warning, any OOM in 10m), ContainerOOMKilledRepeat (critical, 3+ OOMs in 1h = OOM loop) | v0.38.1 |
 | `argo-workflows-alerts.yaml` | ArgoWorkflowsControllerDown (critical, 5m), ArgoWorkflowFailed (warning), ArgoWorkflowError (warning), VaultSnapshotStale (warning, 30m) | v0.39.0 |
+| `argo-events-alerts.yaml` | ArgoEventsControllerDown (critical, 5m), EventSourceDown (critical, 5m), SensorDown (critical, 5m), EventBusDegraded (warning, 10m), CIPipelineFailed (warning, 5m), CIBuildStuck (warning, 15m), CIDeployMutexHeldTooLong (warning, 10m), WebhookDeliveryFailed (warning, 10m) | v0.39.2 |
 
 **Severity routing:**
 - `critical` → Discord #incidents + Email (3 recipients)
@@ -389,6 +391,7 @@ All dashboards are auto-provisioned via Grafana sidecar. All have `grafana_folde
 | `loki-storage-dashboard-configmap.yaml` | Loki Storage | Ingestion rate, chunk sizes, storage usage, query latency |
 | `uptime-kuma-dashboard-configmap.yaml` | Uptime Kuma | Pod status, HTTP probe, response time, resource usage |
 | `argocd-dashboard-configmap.yaml` | ArgoCD GitOps Health | Pod status, network traffic, sync/health status, Git & repository, notifications, resource usage |
+| `argo-cicd-dashboard-configmap.yaml` | Argo CI/CD | Pod status (argo-events + EventBus + EventSources + Sensors), workflow phase + completion rate, webhook events received + processing failures, resource usage |
 
 ### Version Checker (`manifests/monitoring/version-checker/`)
 

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, architecture, decisions, backup]
-updated: 2026-04-14
+updated: 2026-04-19
 ---
 
 # Architecture
@@ -124,6 +124,18 @@ CiliumNetworkPolicy restricts ingress to only authorized namespaces (`monitoring
 Git is the single source of truth. ArgoCD watches the repo and syncs to the cluster automatically. 48 Applications managed via app-of-apps pattern (`manifests/argocd/apps/root.yaml` discovers all Application YAMLs in the directory). Six AppProjects enforce RBAC boundaries between service groups.
 
 **Exception:** Cilium is ArgoCD-managed but manual-sync only (CNI chicken-and-egg - auto-sync could delete networking during failed reconciliation). All other services use automated sync with selfHeal.
+
+## Why Argo Events + Argo Workflows for CI/CD (Not GitLab CI kubectl set image)
+
+| Approach | Problem |
+|----------|---------|
+| GitLab CI `kubectl set image` (pre-v0.39.1) | Imperative; ArgoCD `selfHeal` reverts the change; env contamination from flat manifests |
+| argocd-image-updater | No tight coupling to test results; private GitLab registry friction |
+| **Argo Events + Argo Workflows** | **Event-driven pipelines, GitOps-native image promotion, per-step pod isolation** |
+
+GitLab push → Argo Events EventSource (`argo-events` namespace) → Sensor creates a Workflow in `argo-workflows`. The pipeline DAG (clone, lint, type-check, test, build, deploy, verify) runs each step in an isolated pod under `ci-workflow-sa`. The `deploy-image` step commits the new image tag to the Kustomize overlay in this Git repo via a scoped SSH deploy key (DR-5 in the phase plan); ArgoCD reconciles the overlay and rolls out the Deployment within ~3 min. Failed tests leave no commit trail.
+
+**Why three namespaces instead of one:** `argo-events` (NATS EventBus + controllers) is the ingress edge; `argo-workflows` runs the DAG; `portfolio-*` / `invoicetron-*` are the targets. Separation keeps the webhook blast radius bounded - a compromised webhook secret cannot rewrite Deployments directly, only submit workflows the deploy-image template's RBAC and Git commit signature chain permits.
 
 ## Why Vault + ESO (Not Direct K8s Secrets)
 

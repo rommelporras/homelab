@@ -4,6 +4,34 @@
 
 ---
 
+## Unreleased - Argo Events CI/CD migration (v0.39.2)
+
+### Summary
+
+Phase 5.9.1 Stage 2: replace GitLab CI's imperative `kubectl set image` deploy jobs with an event-driven Argo Events + Argo Workflows + ArgoCD pipeline for the two CI-managed apps (Portfolio + Invoicetron). GitLab webhooks hit per-project EventSources; Sensors branch on `body.ref` and create a Workflow in `argo-workflows` that runs the full DAG (clone, lint, type-check, test, build via BuildKit rootless, [migrate for Invoicetron], deploy via Git commit to the Kustomize overlay, verify). Stage 1 (v0.39.1) put the apps under ArgoCD management; Stage 2 closes the loop by making the image-tag commit automatic.
+
+### Changes
+
+- **Argo Events install** - `argo-events` namespace with Helm chart 2.4.21 (controller-manager), 3-replica NATS JetStream EventBus (in-memory, event durability not critical - GitLab retries), two GitLab-type EventSources (invoicetron + portfolio) that auto-register their webhooks on GitLab via API token, one generic webhook EventSource for Portfolio staging promotion. Per-project webhook secrets (DR-4) to bound forgery blast radius.
+- **Shared WorkflowTemplates** - extracted `notify-on-failure` from vault-snapshot into a standalone template (both vault-snapshot and CI workflows now `templateRef` it). Six new shared templates: `clone`, `lint`, `type-check`, `test-unit`, `test-e2e`, `build-image` (BuildKit rootless, replaces DinD), `deploy-image` (mutex + 5-attempt rebase-retry on Git push, per DR-7), `verify-health` (HTTP health check with retries). Every CI WorkflowTemplate pins `ttlStrategy: { secondsAfterSuccess: 86400, secondsAfterFailure: 604800 }` per DR-8.
+- **Per-project pipelines** - `portfolio-pipeline` (clone → lint/type-check/unit/e2e parallel → build → deploy → verify), `invoicetron-pipeline` (no E2E, but has `migrate` step running `bunx prisma migrate deploy` against the env DB), `portfolio-staging-promote` (accepts `source_sha`, skips build, just deploy + verify - triggered by a GitLab manual job that POSTs to `/staging-promote`).
+- **Git-based image promotion (DR-1)** - deploy step commits `newTag` into the Kustomize overlay via a scoped SSH deploy key (`rommelporras/homelab` only, DR-5). Author "Argo CI Bot <ci-bot@k8s.rommelporras.com>", message `chore(ci): update <project>/<env> image to <sha> [skip ci]`, `--signoff` for DCO audit trail. ArgoCD syncs the overlay within ~3 min.
+- **Concurrency guard** - `synchronization.mutex: deploy-image-lock` at the `deploy-image` template level serialises all deploy steps cluster-wide. Inside the step, 5-attempt retry loop with `git pull --rebase` handles external writes (human committing to main during a deploy).
+- **Cross-namespace RBAC** - `argo-events-sa` in `argo-events` binds a Role in `argo-workflows` granting `create workflows` (RoleBinding cross-namespace pattern - no ClusterRole needed). `ci-workflow-sa` in argo-workflows gets `get` on the four Secrets each pipeline uses (discord-webhooks, gitlab-registry, github-deploy-key, invoicetron-migrate-db-urls).
+- **Network policies** - default-deny baseline in argo-events plus per-controller allow rules. Workflow pipeline pods labelled `app.kubernetes.io/component: ci-pipeline` get egress to GitLab (clone + registry), GitHub SSH (deploy), and HTTPS (verify). Invoicetron migrate pods labelled `app.kubernetes.io/component: invoicetron-migrate` get cross-namespace egress to the invoicetron-<env> PostgreSQL; the corresponding ingress on the invoicetron-db CNP in both overlays was updated to accept them.
+- **VAP allowlist** - `mcr.microsoft.com/` added to `manifests/kube-system/image-registry-policy.yaml` for Playwright E2E.
+- **LimitRange bump** - argo-workflows namespace container max memory raised from 1Gi to 2Gi for Playwright + BuildKit steps. Still under the 4Gi namespace quota ceiling.
+- **Monitoring** - new PrometheusRule `argo-events-alerts.yaml` with 8 alerts (controller/eventsource/sensor down, EventBus degraded, CI pipeline failed/stuck, deploy mutex held too long, webhook delivery failed). New Grafana dashboard `argo-cicd-dashboard-configmap.yaml` (5 rows: pod status, pipeline execution, webhook events, deploy mutex, resource usage). New blackbox probe `argo-events-probe.yaml`.
+- **Vault seeding** - 6 new Vault KV paths: `argo-events/gitlab-api-token`, `argo-events/invoicetron-webhook-secret`, `argo-events/portfolio-webhook-secret`, `argo-events/staging-promote-token`, `argo-workflows/gitlab-registry`, `argo-workflows/github-deploy-key`. 1P item consolidation: renamed existing "Argo Workflows UI" → "Argo Workflows" (drops the now-misleading UI qualifier) and extended with 7 new fields covering CI/CD (registry-username, registry-password, github-deploy-key) and Argo Events (gitlab-api-token + 3 webhook secrets). Rationale: Argo Events is an argoproj sibling project whose sole purpose here is triggering Argo Workflows, so all argo-* credentials are consolidated under one umbrella item.
+
+### What Happens Next (Post-Ship)
+
+- Remove deploy stages from both projects' `.gitlab-ci.yml` once webhook-driven pipelines are green on both branches for 3+ days.
+- Archive Portfolio `kube-token-*` Vault entries (no longer used).
+- Consider removing the legacy `job-name: invoicetron-migrate` selector from `invoicetron-<env>/invoicetron-db-ingress` CNP once GitLab CI deploy is fully retired.
+
+---
+
 ## April 16, 2026 - ArgoCD onboarding for Portfolio + Invoicetron (v0.39.1)
 
 ### Summary

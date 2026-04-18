@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, external-services, cloudflare, analytics, tinybird, smtp, tailscale, gitlab, oidc]
-updated: 2026-04-15
+updated: 2026-04-19
 ---
 
 # External Services
@@ -268,6 +268,20 @@ Consumer apps typically match on `sub` (stable across username changes) or `pref
 **Secret storage:** each consumer's OAuth client ID + secret live in a 1Password item (vault `Kubernetes`), seeded into Vault KV under `<consumer-namespace>/sso-credentials`, then synced into the cluster via ESO.
 
 **Rotation:** click "Renew secret" in the GitLab admin Applications page → update the 1P item → re-seed Vault → force-sync ESO → restart the consumer pod(s) to pick up the new Secret content.
+
+## GitLab Webhooks (CI/CD)
+
+Self-hosted GitLab fires Push webhooks to Argo Events for the two CI-managed projects. The `gitlab`-type EventSource auto-registers the webhook on each project when the `gitlab-api-token` Secret is valid; deleting the EventSource deregisters it.
+
+| Project | Endpoint | Secret |
+|---------|----------|--------|
+| `0xwsh/invoicetron` | `https://argo-events.k8s.rommelporras.com/gitlab/invoicetron` | `argo-events/invoicetron-webhook-secret` (DR-4: per-project) |
+| `0xwsh/portfolio` | `https://argo-events.k8s.rommelporras.com/gitlab/portfolio` | `argo-events/portfolio-webhook-secret` (DR-4: per-project) |
+| `0xwsh/portfolio` (staging promote) | `https://argo-events.k8s.rommelporras.com/staging-promote` | `argo-events/staging-promote-token` (manual-job token) |
+
+**Why per-project:** GitLab webhooks do not HMAC the payload; the secret is the only authentication, and `body.project.name` is attacker-controlled JSON. A shared secret means anyone holding it can forge pushes for any project.
+
+**API token:** a single personal access token with `api` scope (1P item "Argo Workflows", field `gitlab-api-token`) is shared by all GitLab EventSources for webhook registration.
 
 ## GitHub
 

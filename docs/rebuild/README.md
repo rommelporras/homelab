@@ -52,6 +52,9 @@
 | v0.38.2 | Phase 5.8.2 | Version Maintenance & Digest Improvements (metrics-server, Loki, ArgoCD bumps; weekly version-check digest improvements) | *Hardening - baked into helm/ values files* |
 | v0.38.3 | - | Monitoring Storage Fix & CI Pipeline Fix (Loki retention + filter, Prometheus cardinality, GitLab CI CNP + RBAC) | *Hotfix - baked into helm/loki/values.yaml, helm/prometheus/values.yaml, manifests/gitlab-runner/* |
 | v0.38.4 | - | Network Policy Fixes & Tooling (Tailscale DNS, invoicetron egress, gitlab-runner egress, /ship skill) | *Hotfix - baked into per-namespace networkpolicy.yaml files* |
+| v0.39.0 | Phase 5.9 | Argo Workflows v4.0.4 + vault-snapshot migration (controller + argo-server UI, SSO via GitLab OIDC, DAG replacement for legacy CronJob) | *No standalone guide — install via `manifests/argo-workflows/` + `helm/argo-workflows/values.yaml` + CHANGELOG v0.39.0 entry* |
+| v0.39.1 | Phase 5.9.1 Stage 1 | ArgoCD onboarding for Portfolio + Invoicetron (Kustomize base/overlays restructure, 5 new ArgoCD Applications, GitLab CI deploy jobs flipped to manual) | *No standalone guide — restructure captured in CHANGELOG v0.39.1 entry + resulting `manifests/{portfolio,invoicetron}/` layout* |
+| v0.39.2 | Phase 5.9.1 Stage 2 | Argo Events CI/CD Migration (EventSources + Sensors, shared WorkflowTemplates, BuildKit rootless, Git-based image promotion) | [v0.39.2-argo-events-cicd.md](v0.39.2-argo-events-cicd.md) |
 
 > **Note:** v0.30.0+ are hardening phases that modify configs on existing components rather than
 > deploying new ones. Their settings are baked into the Ansible playbooks and kubeadm config

@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-04-16
+updated: 2026-04-19
 ---
 
 # Conventions
@@ -46,12 +46,18 @@ kubectl-admin annotate application <name> -n argocd argocd.argoproj.io/refresh=h
 
 **Do NOT use `kubectl apply` or `helm upgrade` for ArgoCD-managed services.** ArgoCD's selfHeal will revert manual changes on the next reconciliation cycle (~3 minutes).
 
-**Portfolio and Invoicetron** are now ArgoCD-managed via Kustomize overlays (Phase 5.9.1). Each environment has its own overlay under `manifests/<project>/overlays/<env>/`. To deploy a new image:
-1. Update `newTag` in the overlay's `kustomization.yaml` (e.g., `manifests/portfolio/overlays/dev/kustomization.yaml`)
-2. Commit and push to homelab repo
-3. ArgoCD auto-syncs the deployment within 3 minutes
+**Portfolio and Invoicetron** are now ArgoCD-managed via Kustomize overlays. As of Phase 5.9.1 Stage 2 (v0.39.2) the image-tag commit happens automatically:
+
+1. Push to `develop` or `main` on the project's GitLab repo
+2. GitLab fires a webhook to `argo-events.k8s.rommelporras.com/gitlab/<project>`
+3. Argo Events Sensor creates a Workflow in `argo-workflows` (clone, lint, type-check, test, build, [migrate for Invoicetron], deploy, verify)
+4. The `deploy-image` step commits `newTag` into the Kustomize overlay via an SSH deploy key; ArgoCD auto-syncs within 3 minutes
+
+To deploy a specific image manually (break-glass), edit `newTag` in the overlay's `kustomization.yaml` and push. ArgoCD will pick it up.
 
 Do NOT use `kubectl set image` or GitLab CI's manual deploy jobs - ArgoCD selfHeal will revert them.
+
+**Portfolio staging promotion (GitOps-compliant):** promote an already-built dev image to `portfolio-staging` by triggering the GitLab manual `promote-staging` job on a passing dev pipeline. The job POSTs to `argo-events.k8s.rommelporras.com/staging-promote` with the 8-char source SHA; the `portfolio-staging-promote` WorkflowTemplate runs deploy + verify (no rebuild).
 
 **Exception (still uses Helm directly):**
 - `cilium` - `helm-homelab upgrade cilium cilium/cilium -n kube-system -f helm/cilium/values.yaml`
@@ -86,6 +92,7 @@ See [[Secrets]] for all 1Password paths.
 homelab/
 ├── helm/                    # Helm values files (ArgoCD-managed except cilium/)
 │   ├── alloy/values.yaml
+│   ├── argo-events/values.yaml
 │   ├── argo-workflows/values.yaml
 │   ├── argocd/values.yaml
 │   ├── blackbox-exporter/values.yaml
@@ -107,7 +114,8 @@ homelab/
 │   └── velero/values.yaml
 ├── manifests/               # Raw K8s manifests
 │   ├── ai/                  # Ollama LLM inference server
-│   ├── argo-workflows/      # Argo Workflows controller + vault-snapshot CronWorkflow
+│   ├── argo-events/         # EventBus + EventSources + Sensors (GitLab webhook receivers)
+│   ├── argo-workflows/      # Argo Workflows controller + vault-snapshot CronWorkflow + CI pipeline templates
 │   ├── argocd/              # ArgoCD config + apps/ (app-of-apps root)
 │   ├── arr-stack/           # ARR media stack (core + companions: 15 subdirs)
 │   ├── atuin/               # Atuin self-hosted shell history sync

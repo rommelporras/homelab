@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, secrets, 1password, vault, external-secrets, backup]
-updated: 2026-04-15
+updated: 2026-04-19
 ---
 
 # Secrets
@@ -90,6 +90,13 @@ Local backup: `~/.vault-keys` (chmod 600). Delete after confirming 1Password bac
 | monitoring/smtp + monitoring/discord-webhooks + monitoring/healthchecks | alertmanager-config | monitoring | manifests/monitoring/externalsecret.yaml |
 | monitoring/discord-webhooks (property: incidents) | discord-webhooks | argo-workflows | manifests/argo-workflows/externalsecret-discord.yaml |
 | argo-workflows/sso-credentials | argo-server-sso | argo-workflows | manifests/argo-workflows/externalsecret-sso.yaml |
+| argo-workflows/gitlab-registry | gitlab-registry (dockerconfigjson) | argo-workflows | manifests/argo-workflows/externalsecret-gitlab-registry.yaml |
+| argo-workflows/github-deploy-key | github-deploy-key | argo-workflows | manifests/argo-workflows/externalsecret-github-deploy-key.yaml |
+| invoicetron-dev/app + invoicetron-prod/app (property: database-url) | invoicetron-migrate-db-urls | argo-workflows | manifests/argo-workflows/externalsecret-invoicetron-db-urls.yaml |
+| argo-events/gitlab-api-token | gitlab-api-token | argo-events | manifests/argo-events/externalsecret-gitlab-api.yaml |
+| argo-events/invoicetron-webhook-secret | invoicetron-webhook-secret | argo-events | manifests/argo-events/externalsecret-invoicetron-webhook.yaml |
+| argo-events/portfolio-webhook-secret | portfolio-webhook-secret | argo-events | manifests/argo-events/externalsecret-portfolio-webhook.yaml |
+| argo-events/staging-promote-token | staging-promote-token | argo-events | manifests/argo-events/externalsecret-staging-promote.yaml |
 | tailscale/operator-oauth | operator-oauth | tailscale | manifests/tailscale/externalsecret.yaml |
 | velero/garage | garage-secrets | velero | manifests/velero/externalsecret.yaml |
 | velero/s3-credentials | velero-s3-credentials | velero | manifests/velero/externalsecret.yaml |
@@ -144,7 +151,7 @@ Do NOT modify items in the `Proxmox` vault (legacy infrastructure).
 | etcd Encryption Key | `password` | etcd encryption at rest (secretbox). Passed to Ansible: `--extra-vars "etcd_encryption_key=$(op read '...')"` |
 | ArgoCD | `password`, `admin-password`, `server-secret-key` | ArgoCD admin login (password=plain, admin-password=bcrypt hash), JWT signing key |
 | Kubeconfig | `admin-kubeconfig`, `claude-kubeconfig` | Device sync — admin (full access) and restricted (Claude Code read-only) kubeconfigs |
-| Argo Workflows UI | `sso-client-id`, `sso-client-secret` | argo-server SSO via GitLab OIDC (argo-workflows namespace) |
+| Argo Workflows | `sso-client-id`, `sso-client-secret`, `registry-username`, `registry-password`, `github-deploy-key`, `gitlab-api-token`, `invoicetron-webhook-secret`, `portfolio-webhook-secret`, `staging-promote-token` | Umbrella item for the entire Argo stack (argo-workflows + argo-events namespaces): UI SSO via GitLab OIDC, BuildKit registry push, GitHub deploy key for image-tag commits, GitLab webhook auto-registration, per-project webhook validation, staging-promote token. Renamed from "Argo Workflows UI" in Phase 5.9.1 Stage 2 when CI/CD + Events fields were added. |
 
 ## 1Password Paths
 
@@ -292,9 +299,18 @@ op://Kubernetes/Restic Backup Keys/k8s-configs-password
 # op item get 'Kubeconfig' --vault=Kubernetes --fields admin-kubeconfig > ~/.kube/homelab.yaml
 # op item get 'Kubeconfig' --vault=Kubernetes --fields claude-kubeconfig > ~/.kube/homelab-claude.yaml
 
-# Argo Workflows UI (SSO via GitLab OIDC) - Phase 5.9.1.7
-op://Kubernetes/Argo Workflows UI/sso-client-id
-op://Kubernetes/Argo Workflows UI/sso-client-secret
+# Argo Workflows - umbrella item for the entire Argo stack
+# (argo-workflows + argo-events). Renamed from "Argo Workflows UI"
+# in Phase 5.9.1 Stage 2 when CI/CD + Events fields were added.
+op://Kubernetes/Argo Workflows/sso-client-id
+op://Kubernetes/Argo Workflows/sso-client-secret
+op://Kubernetes/Argo Workflows/registry-username
+op://Kubernetes/Argo Workflows/registry-password
+op://Kubernetes/Argo Workflows/github-deploy-key
+op://Kubernetes/Argo Workflows/gitlab-api-token
+op://Kubernetes/Argo Workflows/invoicetron-webhook-secret
+op://Kubernetes/Argo Workflows/portfolio-webhook-secret
+op://Kubernetes/Argo Workflows/staging-promote-token
 
 # Homepage (widget credentials — 24 fields)
 op://Kubernetes/Homepage/proxmox-pve-user
