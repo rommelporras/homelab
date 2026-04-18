@@ -179,7 +179,7 @@ spec:
             arguments:
               parameters:
                 - name: url
-                  value: https://portfolio-dev.k8s.rommelporras.com/
+                  value: https://portfolio.dev.k8s.rommelporras.com/
           - name: prod
             when: "{{inputs.parameters.environment}} == prod"
             templateRef:
@@ -188,7 +188,7 @@ spec:
             arguments:
               parameters:
                 - name: url
-                  value: https://rommelporras.com/
+                  value: https://portfolio.k8s.rommelporras.com/
 
     # --- exit handler: delegate to shared notify-on-failure ---
     - name: notify-on-failure

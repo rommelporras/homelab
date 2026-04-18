@@ -75,7 +75,7 @@ spec:
             arguments:
               parameters:
                 - name: url
-                  value: https://portfolio-staging.k8s.rommelporras.com/
+                  value: https://portfolio.stg.k8s.rommelporras.com/
 
     - name: notify-on-failure
       steps:

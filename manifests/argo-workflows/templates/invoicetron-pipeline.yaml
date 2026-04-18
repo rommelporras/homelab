@@ -198,7 +198,7 @@ spec:
         source: |
           set -e
           case "{{inputs.parameters.environment}}" in
-            dev)  echo -n "https://invoicetron-dev.k8s.rommelporras.com" ;;
+            dev)  echo -n "https://invoicetron.dev.k8s.rommelporras.com" ;;
             prod) echo -n "https://invoicetron.rommelporras.com" ;;
             *) echo "unknown environment: {{inputs.parameters.environment}}" >&2; exit 1 ;;
           esac
@@ -272,7 +272,7 @@ spec:
             arguments:
               parameters:
                 - name: url
-                  value: https://invoicetron-dev.k8s.rommelporras.com/
+                  value: https://invoicetron.dev.k8s.rommelporras.com/
           - name: prod
             when: "{{inputs.parameters.environment}} == prod"
             templateRef:
@@ -281,7 +281,7 @@ spec:
             arguments:
               parameters:
                 - name: url
-                  value: https://invoicetron.rommelporras.com/
+                  value: https://invoicetron.k8s.rommelporras.com/
 
     # --- exit handler ---
     - name: notify-on-failure
