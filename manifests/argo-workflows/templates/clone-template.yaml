@@ -26,7 +26,9 @@ spec:
       inputs:
         parameters:
           - name: repo_url
-          - name: commit_sha
+          - name: branch        # required - servers only accept branch/tag/full-SHA refs,
+                                # not 8-char short SHAs; fetch branch then checkout SHA locally
+          - name: commit_sha    # 8-char SHA (DR-2) - checked out from the fetched branch
       container:
         image: alpine/git:2.52.0
         imagePullPolicy: IfNotPresent
@@ -34,14 +36,18 @@ spec:
         args:
           - |
             set -e
-            echo "=== Clone {{inputs.parameters.repo_url}} @ {{inputs.parameters.commit_sha}} ==="
+            echo "=== Clone {{inputs.parameters.repo_url}} branch={{inputs.parameters.branch}} sha={{inputs.parameters.commit_sha}} ==="
             cd /workspace
-            # --filter=tree:0 for partial clone; fast initial fetch,
-            # sha checkout still works. --depth bumps per-step pulls.
             git init
             git remote add origin "{{inputs.parameters.repo_url}}"
-            git fetch --depth=1 origin "{{inputs.parameters.commit_sha}}"
-            git checkout FETCH_HEAD
+            # Fetch the last 50 commits on the branch - enough depth
+            # to find the short SHA without a full-history clone.
+            # `git fetch origin <8-char-sha>` fails with "couldn't find
+            # remote ref <sha>" because git wire protocol only accepts
+            # branch/tag/full-SHA refs. Fetch by branch, then resolve
+            # the short SHA locally via `git checkout`.
+            git fetch --depth=50 origin "{{inputs.parameters.branch}}"
+            git checkout "{{inputs.parameters.commit_sha}}"
             echo "=== Tree: ==="
             ls -la
         env:

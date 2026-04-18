@@ -103,6 +103,17 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
+    # Discord webhook egress for notify-on-failure (shared template).
+    # When a CI pipeline fails, the onExit handler fires send-discord
+    # from the notify-on-failure template; that pod inherits the
+    # ci-pipeline podMetadata label, so this rule applies.
+    - toFQDNs:
+        - matchPattern: "discord.com"
+        - matchPattern: "*.discord.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
 
 # ============================================================
 # invoicetron-migrate pods (egress to invoicetron-<env> DB)

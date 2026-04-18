@@ -81,6 +81,8 @@ spec:
               parameters:
                 - name: repo_url
                   value: https://gitlab.k8s.rommelporras.com/0xwsh/portfolio.git
+                - name: branch
+                  value: "{{workflow.parameters.branch}}"
                 - name: commit_sha
                   value: "{{workflow.parameters.commit_sha}}"
           - name: lint
