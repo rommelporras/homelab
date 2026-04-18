@@ -1,7 +1,28 @@
 # manifests/argo-workflows/resourcequota.yaml
-# Hard ceiling for the argo-workflows namespace. Workflow pods are
-# transient - a runaway workflow creating many parallel pods cannot
-# starve the rest of the cluster beyond these limits.
+# Hard ceiling for the argo-workflows namespace.
+#
+# Sized for a single Portfolio CI pipeline running 4 parallel test
+# steps (lint, type-check, test-unit, test-e2e) plus the controller +
+# argo-server + vault-snapshot CronWorkflow overhead. Each step pod
+# carries ~512Mi of argoexec sidecar/init overhead on top of its
+# template container limits, so the peak is meaningfully higher than
+# the sum of template limits alone.
+#
+# Worst-case math (one Portfolio pipeline running):
+#   lint          1Gi + 512Mi overhead = 1.5Gi
+#   type-check    1Gi + 512Mi overhead = 1.5Gi
+#   test-unit     1Gi + 512Mi overhead = 1.5Gi
+#   test-e2e      2Gi + 512Mi overhead = 2.5Gi
+#   build (later) 2Gi + 512Mi overhead = 2.5Gi (serialises after tests,
+#                                               but vault-snapshot may
+#                                               be running concurrently)
+#   controller + server + vault-snapshot + headroom  ~1.5Gi
+#   Total peak: ~10Gi during parallel test phase
+#
+# Initial 4Gi quota blocked test-unit + test-e2e with
+#   exceeded quota: argo-workflows-quota, requested: limits.memory=2304Mi,
+#     used: limits.memory=3328Mi, limited: limits.memory=4Gi
+# once lint + type-check were admitted.
 ---
 apiVersion: v1
 kind: ResourceQuota
@@ -10,9 +31,9 @@ metadata:
   namespace: argo-workflows
 spec:
   hard:
-    requests.cpu: "2"
-    requests.memory: 2Gi
-    limits.cpu: "4"
-    limits.memory: 4Gi
-    pods: "20"
+    requests.cpu: "4"
+    requests.memory: 4Gi
+    limits.cpu: "8"
+    limits.memory: 10Gi
+    pods: "25"
     persistentvolumeclaims: "5"
