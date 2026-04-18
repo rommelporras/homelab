@@ -53,10 +53,21 @@ spec:
       - name: branch
       - name: environment
       - name: image_repo
+  # emptyDir was the plan's original choice but does not actually share
+  # data between step pods - each pod gets its own empty volume.
+  # volumeClaimTemplates creates a single PVC per workflow run that all
+  # step pods mount; Argo pins all pods to the same node so a Longhorn
+  # RWO volume works. Deleted automatically when the workflow completes.
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 2Gi
   volumes:
-    - name: workspace
-      emptyDir:
-        sizeLimit: 2Gi
     - name: ssh-key
       secret:
         secretName: github-deploy-key

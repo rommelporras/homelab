@@ -60,10 +60,17 @@ spec:
   # private GitLab registry, so the pull secret is required.
   imagePullSecrets:
     - name: gitlab-registry
+  # See portfolio-pipeline for why volumeClaimTemplates instead of emptyDir.
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 2Gi
   volumes:
-    - name: workspace
-      emptyDir:
-        sizeLimit: 2Gi
     - name: ssh-key
       secret:
         secretName: github-deploy-key
