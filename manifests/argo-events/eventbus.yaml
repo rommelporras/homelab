@@ -18,7 +18,12 @@ metadata:
   namespace: argo-events
 spec:
   jetstream:
-    version: 2.10.17
+    # NATS JetStream versions supported by argo-events v1.9.10:
+    # latest, 2.8.1, 2.8.1-alpine, 2.8.2, 2.8.2-alpine, 2.9.1, 2.9.12,
+    # 2.9.16, 2.10.10. The controller errors with
+    #   failed to get jetstream version, err: unsupported version "<v>"
+    # on any value outside that allowlist.
+    version: 2.10.10
     replicas: 3
     containerTemplate:
       resources:
