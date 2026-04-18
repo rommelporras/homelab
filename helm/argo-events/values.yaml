@@ -15,12 +15,14 @@
 # on per-project paths via our own HTTPRoute.
 
 # -------------- controller-manager --------------
+# Image intentionally not overridden - the chart's default
+# `quay.io/argoproj/argo-events:<chart appVersion>` (v1.9.10 at chart
+# 2.4.21) is the right image. An earlier attempt to set
+# `controller.image.registry/repository/tag` failed because this chart
+# uses `global.image.repository` (full path) + `global.image.tag`
+# instead of the split-field pattern used by other argoproj charts.
 controller:
   replicas: 1
-  image:
-    registry: quay.io
-    repository: argoproj/argo-events
-    tag: v1.9.6
   resources:
     requests:
       cpu: 50m
