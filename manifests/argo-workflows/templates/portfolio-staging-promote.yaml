@@ -1,0 +1,85 @@
+# manifests/argo-workflows/templates/portfolio-staging-promote.yaml
+# GitOps-compliant Portfolio staging promotion (Phase 5.9.1 Stage 2,
+# Wave 2E).
+#
+# Takes an already-built dev image tag and deploys it to
+# portfolio-staging by committing the new tag to the staging overlay
+# (reuses deploy-image + verify-health from Wave 2B). No rebuild - the
+# premise is that the dev image has been smoke-tested by CI already.
+#
+# Triggered by sensor-portfolio-staging-promote.yaml when a GitLab
+# manual job POSTs { "source_sha": "<8-char>" } to
+# argo-events.k8s.rommelporras.com/staging-promote with the shared
+# X-Staging-Promote-Token header.
+#
+# Break-glass: can be invoked directly by
+#   kubectl-admin create workflow ... (see docs/runbooks/ci-cd.md).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: portfolio-staging-promote
+  namespace: argo-workflows
+spec:
+  entrypoint: staging-promote-dag
+  serviceAccountName: ci-workflow-sa
+  activeDeadlineSeconds: 900
+  onExit: notify-on-failure
+  ttlStrategy:
+    secondsAfterSuccess: 86400
+    secondsAfterFailure: 604800
+    secondsAfterCompletion: 604800
+  podGC:
+    strategy: OnPodSuccess
+  podMetadata:
+    labels:
+      app.kubernetes.io/component: ci-pipeline
+      app.kubernetes.io/name: portfolio-staging-promote
+  arguments:
+    parameters:
+      - name: source_sha
+      - name: target_env
+        value: staging
+  volumes:
+    - name: ssh-key
+      secret:
+        secretName: github-deploy-key
+        defaultMode: 0400
+  templates:
+    - name: staging-promote-dag
+      dag:
+        tasks:
+          - name: deploy
+            templateRef:
+              name: deploy-image
+              template: deploy-image
+            arguments:
+              parameters:
+                - name: project
+                  value: portfolio
+                - name: environment
+                  value: "{{workflow.parameters.target_env}}"
+                - name: image_repo
+                  value: registry.k8s.rommelporras.com/0xwsh/portfolio
+                - name: image_tag
+                  value: "{{workflow.parameters.source_sha}}"
+                - name: overlay_path
+                  value: "manifests/portfolio/overlays/{{workflow.parameters.target_env}}"
+                - name: image_name
+                  value: "registry.k8s.rommelporras.com/0xwsh/portfolio"
+          - name: verify
+            dependencies: [deploy]
+            templateRef:
+              name: verify-health
+              template: verify-health
+            arguments:
+              parameters:
+                - name: url
+                  value: https://portfolio-staging.k8s.rommelporras.com/
+
+    - name: notify-on-failure
+      steps:
+        - - name: delegate
+            templateRef:
+              name: notify-on-failure
+              template: notify-on-failure

@@ -1,0 +1,200 @@
+# Grafana Dashboard - Argo CI/CD (Argo Events + Workflows + Pipelines)
+# Phase 5.9.1 Stage 2.
+#
+# Starter dashboard - panels will be refined after a week of metrics.
+# Rows: Pod Status, Pipeline Execution, Webhook Events, Deploy Mutex,
+# Resource Usage.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argo-cicd-dashboard
+  namespace: monitoring
+  annotations:
+    grafana_folder: "Homelab"
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: kube-prometheus-stack
+data:
+  argo-cicd.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+          "id": 1,
+          "title": "Pod Status",
+          "description": "Health of argo-events controllers (eventsource, sensor, eventbus) and argo-workflows controller. Any DOWN halts CI.",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [{"options": {"1": {"color": "green", "text": "UP"}}, "type": "value"}],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
+              "noValue": "DOWN"
+            }
+          },
+          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1},
+          "id": 2,
+          "title": "argo-events controller",
+          "description": "argo-events controller-manager pod running state. DOWN = no EventSource/Sensor/EventBus reconciliation.",
+          "type": "stat",
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"]}, "textMode": "auto"},
+          "targets": [
+            {"expr": "count(kube_pod_info{namespace=\"argo-events\", pod=~\".*controller-manager.*\"})", "legendFormat": "controller", "instant": true}
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 4, "w": 6, "x": 6, "y": 1},
+          "id": 3,
+          "title": "EventBus ready replicas",
+          "description": "NATS JetStream replicas Ready. 3 = full HA, 2 = degraded-but-functional, <2 = EventBusDegraded alert fires.",
+          "type": "stat",
+          "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"]}, "textMode": "auto"},
+          "targets": [
+            {"expr": "count(kube_pod_status_ready{namespace=\"argo-events\", pod=~\"eventbus-.*\", condition=\"true\"} == 1)", "legendFormat": "ready", "instant": true}
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1},
+          "id": 4,
+          "title": "EventSources up",
+          "description": "Number of EventSource pods reporting up. Expected: 3 (invoicetron, portfolio, portfolio-staging-promote).",
+          "type": "stat",
+          "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"]}, "textMode": "auto"},
+          "targets": [
+            {"expr": "count(up{job=~\".*argo-events.*eventsource.*\"} == 1)", "legendFormat": "up", "instant": true}
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
+          "id": 5,
+          "title": "Sensors up",
+          "description": "Number of Sensor pods reporting up. Expected: 5 (invoicetron develop, invoicetron main, portfolio develop, portfolio main, portfolio staging-promote).",
+          "type": "stat",
+          "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"]}, "textMode": "auto"},
+          "targets": [
+            {"expr": "count(up{job=~\".*argo-events.*sensor.*\"} == 1)", "legendFormat": "up", "instant": true}
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5},
+          "id": 10,
+          "title": "Pipeline Execution",
+          "description": "Rate of workflow completions by phase and current in-flight workflows in argo-workflows namespace.",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+          "id": 11,
+          "title": "Workflow phase (current)",
+          "description": "Workflows by phase currently visible in the namespace. Running > 0 = build in progress.",
+          "type": "timeseries",
+          "options": {"legend": {"displayMode": "table", "placement": "right"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {"expr": "sum by (phase) (argo_workflows_gauge{namespace=\"argo-workflows\"})", "legendFormat": "{{phase}}"}
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+          "id": 12,
+          "title": "Workflow completions / 5m",
+          "description": "Rate of workflow entries into terminal phases (Succeeded / Failed / Error) over 5m. A steady flow of Succeeded = healthy CI; any Failed/Error spike should correlate with CIPipelineFailed.",
+          "type": "timeseries",
+          "options": {"legend": {"displayMode": "table", "placement": "right"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {"expr": "sum by (phase) (rate(argo_workflows_total_count{namespace=\"argo-workflows\", phase=~\"Succeeded|Failed|Error\"}[5m]))", "legendFormat": "{{phase}}"}
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 14},
+          "id": 20,
+          "title": "Webhook Events",
+          "description": "GitLab webhook delivery to EventSources and onward event processing.",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 15},
+          "id": 21,
+          "title": "Events received / 5m (per EventSource)",
+          "description": "argo_events_action_triggered_total incremented on each successful webhook processing. Flat line = no pushes; spikes = active development.",
+          "type": "timeseries",
+          "options": {"legend": {"displayMode": "table", "placement": "right"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {"expr": "sum by (eventsource_name) (rate(argo_events_action_triggered_total[5m]))", "legendFormat": "{{eventsource_name}}"}
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 15},
+          "id": 22,
+          "title": "Event processing failures / 5m",
+          "description": "argo_events_event_processing_failed_total rate. Non-zero = token mismatch or malformed payload - triggers WebhookDeliveryFailed alert.",
+          "type": "timeseries",
+          "options": {"legend": {"displayMode": "table", "placement": "right"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {"expr": "sum by (eventsource_name) (rate(argo_events_event_processing_failed_total[5m]))", "legendFormat": "{{eventsource_name}}"}
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23},
+          "id": 30,
+          "title": "Resource Usage",
+          "description": "argo-events + argo-workflows namespaces. CI runs are bursty - look for sustained near-limit usage indicating right-sizing needed.",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+          "id": 31,
+          "title": "CPU usage (cores)",
+          "description": "Aggregate CPU across both argo-* namespaces. Dashed line = namespace quota. Sustained > 80% of quota means queued pipelines.",
+          "type": "timeseries",
+          "options": {"legend": {"displayMode": "table", "placement": "right"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {"expr": "sum by (namespace) (rate(container_cpu_usage_seconds_total{namespace=~\"argo-events|argo-workflows\", container!=\"\"}[5m]))", "legendFormat": "{{namespace}}"}
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+          "id": 32,
+          "title": "Memory usage (MiB)",
+          "description": "Aggregate memory across both argo-* namespaces. Watch for BuildKit steps spiking close to their 2Gi limit.",
+          "type": "timeseries",
+          "fieldConfig": {"defaults": {"unit": "bytes"}},
+          "options": {"legend": {"displayMode": "table", "placement": "right"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {"expr": "sum by (namespace) (container_memory_working_set_bytes{namespace=~\"argo-events|argo-workflows\", container!=\"\"})", "legendFormat": "{{namespace}}"}
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["homelab", "argo", "ci-cd"],
+      "templating": {"list": []},
+      "time": {"from": "now-6h", "to": "now"},
+      "timepicker": {},
+      "timezone": "Asia/Manila",
+      "title": "Argo CI/CD",
+      "uid": "argo-cicd",
+      "version": 1,
+      "weekStart": ""
+    }

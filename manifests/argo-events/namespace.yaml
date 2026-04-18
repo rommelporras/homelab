@@ -1,0 +1,24 @@
+# manifests/argo-events/namespace.yaml
+# Namespace for Argo Events (Phase 5.9.1 Stage 2 - v0.39.2).
+#
+# Labels:
+# - pod-security.kubernetes.io/enforce=baseline - EventBus uses NATS which
+#   needs baseline (restricted blocks non-root capabilities NATS requires).
+# - pod-security.kubernetes.io/warn=restricted - still warn on riskier specs.
+# - eso-enabled=true - allows the vault-backend ClusterSecretStore to sync
+#   ExternalSecrets into this namespace (namespace selector on the CSS).
+#
+# Bootstrap note: applied imperatively once via
+#   kubectl-admin apply -f manifests/argo-events/namespace.yaml
+# because both the Helm Application and the Git manifests Application
+# target this namespace with CreateNamespace=false. After the first
+# apply, ArgoCD owns this object via the Git app.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argo-events
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    eso-enabled: "true"

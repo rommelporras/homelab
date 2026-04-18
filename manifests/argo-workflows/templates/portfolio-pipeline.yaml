@@ -1,0 +1,177 @@
+# manifests/argo-workflows/templates/portfolio-pipeline.yaml
+# Portfolio CI/CD pipeline WorkflowTemplate (Phase 5.9.1 Stage 2).
+#
+# DAG (all step images come from shared templates):
+#
+#              +-- lint -------+
+#   clone ----+--- type-check -+--- build --- deploy --- verify
+#              +-- test:unit --+
+#              +-- test:e2e ---+
+#                  (parallel)
+#
+#   onExit: notify-on-failure (Discord #incidents)
+#
+# Triggered by Sensor `gitlab-portfolio-develop` or
+# `gitlab-portfolio-main`. Staging is NOT triggered here; see
+# portfolio-staging-promote.yaml for that path.
+#
+# Parameters (provided by the Sensor on Workflow creation):
+#   commit_sha   8-char SHA (DR-2)
+#   branch       develop | main
+#   environment  dev | prod
+#   image_repo   registry.k8s.rommelporras.com/0xwsh/portfolio
+#
+# Volumes declared at workflow level because Argo does not propagate
+# volumes across templateRef boundaries:
+#   - workspace    emptyDir shared by clone/lint/type-check/test/build
+#   - ssh-key      Secret (github-deploy-key) mounted only by deploy
+#   - buildkit-home Secret (gitlab-registry) mounted only by build
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: portfolio-pipeline
+  namespace: argo-workflows
+spec:
+  entrypoint: portfolio-dag
+  serviceAccountName: ci-workflow-sa
+  activeDeadlineSeconds: 1800
+  onExit: notify-on-failure
+  ttlStrategy:
+    secondsAfterSuccess: 86400    # 1 day
+    secondsAfterFailure: 604800   # 7 days
+    secondsAfterCompletion: 604800
+  podGC:
+    strategy: OnPodSuccess
+  podMetadata:
+    labels:
+      app.kubernetes.io/component: ci-pipeline
+      app.kubernetes.io/name: portfolio
+  arguments:
+    parameters:
+      - name: commit_sha
+      - name: branch
+      - name: environment
+      - name: image_repo
+  volumes:
+    - name: workspace
+      emptyDir:
+        sizeLimit: 2Gi
+    - name: ssh-key
+      secret:
+        secretName: github-deploy-key
+        defaultMode: 0400
+    - name: buildkit-home
+      secret:
+        secretName: gitlab-registry
+        items:
+          - key: .dockerconfigjson
+            path: config.json
+        defaultMode: 0400
+  templates:
+    # --- entrypoint DAG ---
+    - name: portfolio-dag
+      dag:
+        tasks:
+          - name: clone
+            templateRef:
+              name: clone
+              template: clone
+            arguments:
+              parameters:
+                - name: repo_url
+                  value: https://gitlab.k8s.rommelporras.com/0xwsh/portfolio.git
+                - name: commit_sha
+                  value: "{{workflow.parameters.commit_sha}}"
+          - name: lint
+            dependencies: [clone]
+            templateRef:
+              name: lint
+              template: lint
+          - name: type-check
+            dependencies: [clone]
+            templateRef:
+              name: type-check
+              template: type-check
+          - name: test-unit
+            dependencies: [clone]
+            templateRef:
+              name: test-unit
+              template: test-unit
+          - name: test-e2e
+            dependencies: [clone]
+            templateRef:
+              name: test-e2e
+              template: test-e2e
+          - name: build
+            dependencies: [lint, type-check, test-unit, test-e2e]
+            templateRef:
+              name: build-image
+              template: build-image
+            arguments:
+              parameters:
+                - name: image_repo
+                  value: "{{workflow.parameters.image_repo}}"
+                - name: tag
+                  value: "{{workflow.parameters.commit_sha}}"
+          - name: deploy
+            dependencies: [build]
+            templateRef:
+              name: deploy-image
+              template: deploy-image
+            arguments:
+              parameters:
+                - name: project
+                  value: portfolio
+                - name: environment
+                  value: "{{workflow.parameters.environment}}"
+                - name: image_repo
+                  value: "{{workflow.parameters.image_repo}}"
+                - name: image_tag
+                  value: "{{workflow.parameters.commit_sha}}"
+                - name: overlay_path
+                  value: "manifests/portfolio/overlays/{{workflow.parameters.environment}}"
+                - name: image_name
+                  value: "registry.k8s.rommelporras.com/0xwsh/portfolio"
+          - name: verify
+            dependencies: [deploy]
+            template: verify-dispatch
+            arguments:
+              parameters:
+                - name: environment
+                  value: "{{workflow.parameters.environment}}"
+
+    # --- verify dispatch: picks the right URL per environment ---
+    # verify-health is shared but takes a fixed URL; a thin dispatcher
+    # avoids per-env branching in the DAG above.
+    - name: verify-dispatch
+      inputs:
+        parameters:
+          - name: environment
+      steps:
+        - - name: dev
+            when: "{{inputs.parameters.environment}} == dev"
+            templateRef:
+              name: verify-health
+              template: verify-health
+            arguments:
+              parameters:
+                - name: url
+                  value: https://portfolio-dev.k8s.rommelporras.com/
+          - name: prod
+            when: "{{inputs.parameters.environment}} == prod"
+            templateRef:
+              name: verify-health
+              template: verify-health
+            arguments:
+              parameters:
+                - name: url
+                  value: https://rommelporras.com/
+
+    # --- exit handler: delegate to shared notify-on-failure ---
+    - name: notify-on-failure
+      steps:
+        - - name: delegate
+            templateRef:
+              name: notify-on-failure
+              template: notify-on-failure

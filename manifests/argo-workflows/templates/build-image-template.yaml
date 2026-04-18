@@ -1,0 +1,109 @@
+# manifests/argo-workflows/templates/build-image-template.yaml
+# Shared BuildKit rootless image build + push step.
+#
+# Replaces GitLab CI's DinD-based `docker buildx build`. Kaniko was
+# archived in June 2025, so BuildKit is the current consensus for
+# daemonless in-cluster builds (per Phase 5.9.1 plan).
+#
+# Registry: reuses the existing `registry.k8s.rommelporras.com` tag
+# pattern. Auth via `gitlab-registry` secret (imagePullSecret format),
+# which buildkit reads from the rootless daemon's config when
+# $DOCKER_CONFIG is set.
+#
+# Cache: registry-backed inline cache so subsequent builds reuse
+# layers - `BUILDKIT_INLINE_CACHE=1` attached to the pushed image.
+#
+# Parameters:
+#   image_repo       e.g. registry.k8s.rommelporras.com/0xwsh/portfolio
+#   tag              commit_sha (8 chars)
+#   dockerfile_path  e.g. Dockerfile
+#   build_args       optional newline-separated KEY=VALUE string
+#                    (e.g. "NEXT_PUBLIC_APP_URL=https://dev.example.com")
+#
+# Security: UID 1000, baseline PSS. Some BuildKit privileged
+# operations (bind mounts, overlay) work under `rootlesskit`, which
+# the `-rootless` image variant enables.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: build-image
+  namespace: argo-workflows
+spec:
+  templates:
+    - name: build-image
+      inputs:
+        parameters:
+          - name: image_repo
+          - name: tag
+          - name: dockerfile_path
+            value: Dockerfile
+          - name: build_args
+            value: ""
+      container:
+        image: moby/buildkit:v0.29.0-rootless
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            cd /workspace
+            echo "=== BuildKit build + push ==="
+            echo "  image: {{inputs.parameters.image_repo}}:{{inputs.parameters.tag}}"
+            echo "  dockerfile: {{inputs.parameters.dockerfile_path}}"
+
+            # Render build args from the newline-separated parameter into
+            # repeated --opt build-arg:KEY=VALUE flags.
+            BUILD_ARG_FLAGS=""
+            if [ -n "{{inputs.parameters.build_args}}" ]; then
+              while IFS= read -r line; do
+                [ -z "$line" ] && continue
+                BUILD_ARG_FLAGS="$BUILD_ARG_FLAGS --opt build-arg:$line"
+              done <<EOF
+            {{inputs.parameters.build_args}}
+            EOF
+            fi
+
+            # Start rootlesskit-backed buildkitd and run buildctl build.
+            # The -rootless image provides buildctl-daemonless.sh.
+            buildctl-daemonless.sh build \
+              --frontend dockerfile.v0 \
+              --local context=/workspace \
+              --local dockerfile=/workspace \
+              --opt filename={{inputs.parameters.dockerfile_path}} \
+              $BUILD_ARG_FLAGS \
+              --output type=image,name={{inputs.parameters.image_repo}}:{{inputs.parameters.tag}},push=true \
+              --export-cache type=inline \
+              --import-cache type=registry,ref={{inputs.parameters.image_repo}}:buildcache
+        env:
+          - name: BUILDKITD_FLAGS
+            value: --oci-worker-no-process-sandbox
+          - name: DOCKER_CONFIG
+            value: /home/user/.docker
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: "2"
+            memory: 2Gi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          # BuildKit rootless needs seccomp=unconfined for user-
+          # namespace operations. Baseline PSS permits this via the
+          # explicit seccompProfile override. If the cluster upgrades
+          # to restricted PSS in this namespace, switch to a custom
+          # seccomp profile.
+          seccompProfile:
+            type: Unconfined
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+          - name: buildkit-home
+            mountPath: /home/user/.docker
+            readOnly: true

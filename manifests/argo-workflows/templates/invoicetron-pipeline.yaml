@@ -1,0 +1,272 @@
+# manifests/argo-workflows/templates/invoicetron-pipeline.yaml
+# Invoicetron CI/CD pipeline WorkflowTemplate (Phase 5.9.1 Stage 2).
+#
+# DAG:
+#
+#              +-- lint ---------+
+#   clone ----+--- type-check ---+--- build --- migrate --- deploy --- verify
+#              +-- test:unit ----+
+#                  (parallel)
+#
+#   onExit: notify-on-failure
+#
+# Triggered by Sensor `gitlab-invoicetron-develop` or `-main`.
+#
+# Differences vs. portfolio-pipeline:
+#   - no E2E step
+#   - test-unit runs on node:22-slim (Vitest SSR is unreliable on bun)
+#   - type-check must `bunx prisma generate` first
+#   - build passes NEXT_PUBLIC_APP_URL as a build-arg per environment
+#     (baked into the Next.js bundle at build time)
+#   - dedicated `migrate` step between build and deploy runs
+#     `bunx prisma migrate deploy` against the target DB using the
+#     just-built image and DATABASE_URL from Vault
+#   - image_repo includes the `/dev` or `/prod` sub-path (from Sensor)
+#   - deploy uses `image_name=app` to hit the Kustomize `newName` entry
+#
+# Volumes: workspace + ssh-key + buildkit-home (same as portfolio).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: invoicetron-pipeline
+  namespace: argo-workflows
+spec:
+  entrypoint: invoicetron-dag
+  serviceAccountName: ci-workflow-sa
+  activeDeadlineSeconds: 1800
+  onExit: notify-on-failure
+  ttlStrategy:
+    secondsAfterSuccess: 86400
+    secondsAfterFailure: 604800
+    secondsAfterCompletion: 604800
+  podGC:
+    strategy: OnPodSuccess
+  podMetadata:
+    labels:
+      app.kubernetes.io/component: ci-pipeline
+      app.kubernetes.io/name: invoicetron
+  arguments:
+    parameters:
+      - name: commit_sha
+      - name: branch
+      - name: environment
+      - name: image_repo
+  volumes:
+    - name: workspace
+      emptyDir:
+        sizeLimit: 2Gi
+    - name: ssh-key
+      secret:
+        secretName: github-deploy-key
+        defaultMode: 0400
+    - name: buildkit-home
+      secret:
+        secretName: gitlab-registry
+        items:
+          - key: .dockerconfigjson
+            path: config.json
+        defaultMode: 0400
+  templates:
+    # --- entrypoint DAG ---
+    - name: invoicetron-dag
+      dag:
+        tasks:
+          - name: clone
+            templateRef:
+              name: clone
+              template: clone
+            arguments:
+              parameters:
+                - name: repo_url
+                  value: https://gitlab.k8s.rommelporras.com/0xwsh/invoicetron.git
+                - name: commit_sha
+                  value: "{{workflow.parameters.commit_sha}}"
+          - name: lint
+            dependencies: [clone]
+            templateRef:
+              name: lint
+              template: lint
+          - name: type-check
+            dependencies: [clone]
+            templateRef:
+              name: type-check
+              template: type-check
+            arguments:
+              parameters:
+                - name: command
+                  value: "bun install --frozen-lockfile && bunx prisma generate && bun run type-check"
+          - name: test-unit
+            dependencies: [clone]
+            templateRef:
+              name: test-unit
+              template: test-unit
+            arguments:
+              parameters:
+                - name: image
+                  value: node:22-slim
+                - name: command
+                  value: "npm install -g bun && bun install --frozen-lockfile && bun run test:unit"
+          - name: build
+            dependencies: [lint, type-check, test-unit]
+            templateRef:
+              name: build-image
+              template: build-image
+            arguments:
+              parameters:
+                - name: image_repo
+                  value: "{{workflow.parameters.image_repo}}"
+                - name: tag
+                  value: "{{workflow.parameters.commit_sha}}"
+                - name: build_args
+                  value: "NEXT_PUBLIC_APP_URL={{tasks.app-url-dispatch.outputs.result}}"
+          - name: app-url-dispatch
+            template: app-url-dispatch
+            arguments:
+              parameters:
+                - name: environment
+                  value: "{{workflow.parameters.environment}}"
+          - name: migrate
+            dependencies: [build]
+            template: migrate
+            arguments:
+              parameters:
+                - name: image_repo
+                  value: "{{workflow.parameters.image_repo}}"
+                - name: image_tag
+                  value: "{{workflow.parameters.commit_sha}}"
+                - name: environment
+                  value: "{{workflow.parameters.environment}}"
+          - name: deploy
+            dependencies: [migrate]
+            templateRef:
+              name: deploy-image
+              template: deploy-image
+            arguments:
+              parameters:
+                - name: project
+                  value: invoicetron
+                - name: environment
+                  value: "{{workflow.parameters.environment}}"
+                - name: image_repo
+                  value: "{{workflow.parameters.image_repo}}"
+                - name: image_tag
+                  value: "{{workflow.parameters.commit_sha}}"
+                - name: overlay_path
+                  value: "manifests/invoicetron/overlays/{{workflow.parameters.environment}}"
+                - name: image_name
+                  value: app
+          - name: verify
+            dependencies: [deploy]
+            template: verify-dispatch
+            arguments:
+              parameters:
+                - name: environment
+                  value: "{{workflow.parameters.environment}}"
+
+    # --- app URL dispatch: picks build-arg per environment ---
+    # Output is consumed by build's build_args parameter.
+    - name: app-url-dispatch
+      inputs:
+        parameters:
+          - name: environment
+      script:
+        image: alpine/k8s:1.35.3
+        command: [sh]
+        source: |
+          set -e
+          case "{{inputs.parameters.environment}}" in
+            dev)  echo -n "https://invoicetron-dev.k8s.rommelporras.com" ;;
+            prod) echo -n "https://invoicetron.rommelporras.com" ;;
+            *) echo "unknown environment: {{inputs.parameters.environment}}" >&2; exit 1 ;;
+          esac
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+
+    # --- migrate: prisma migrate deploy against env DB ---
+    # Pod label `app.kubernetes.io/component: invoicetron-migrate` lets
+    # the cross-namespace CNPs (argo-workflows-invoicetron-migrate +
+    # invoicetron-<env>-db-ingress) select this pod specifically.
+    - name: migrate
+      metadata:
+        labels:
+          app.kubernetes.io/component: invoicetron-migrate
+      inputs:
+        parameters:
+          - name: image_repo
+          - name: image_tag
+          - name: environment
+      container:
+        image: "{{inputs.parameters.image_repo}}:{{inputs.parameters.image_tag}}"
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            echo "=== Prisma migrate deploy ({{inputs.parameters.environment}}) ==="
+            cd /app
+            bunx prisma migrate deploy
+        env:
+          - name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: invoicetron-migrate-db-urls
+                key: "{{inputs.parameters.environment}}"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+      imagePullSecrets:
+        - name: gitlab-registry
+
+    # --- verify dispatch: picks the right URL per environment ---
+    - name: verify-dispatch
+      inputs:
+        parameters:
+          - name: environment
+      steps:
+        - - name: dev
+            when: "{{inputs.parameters.environment}} == dev"
+            templateRef:
+              name: verify-health
+              template: verify-health
+            arguments:
+              parameters:
+                - name: url
+                  value: https://invoicetron-dev.k8s.rommelporras.com/
+          - name: prod
+            when: "{{inputs.parameters.environment}} == prod"
+            templateRef:
+              name: verify-health
+              template: verify-health
+            arguments:
+              parameters:
+                - name: url
+                  value: https://invoicetron.rommelporras.com/
+
+    # --- exit handler ---
+    - name: notify-on-failure
+      steps:
+        - - name: delegate
+            templateRef:
+              name: notify-on-failure
+              template: notify-on-failure

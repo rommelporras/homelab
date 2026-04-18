@@ -1,0 +1,48 @@
+# manifests/argo-events/eventbus.yaml
+# EventBus CR - NATS JetStream backend for event delivery between
+# EventSources (publishers) and Sensors (subscribers).
+#
+# Topology: 3-replica NATS cluster matching the 3-node HA cluster
+# (etcd quorum parity). JetStream persists event state; stream is
+# recreated on restart if lost.
+#
+# Storage: in-memory (no PVC) - event durability is not critical for
+# CI/CD webhooks. If the EventBus dies mid-webhook the in-flight event
+# is lost, but GitLab retries webhooks automatically. Avoids the
+# Longhorn PVC lifecycle overhead.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: EventBus
+metadata:
+  name: default
+  namespace: argo-events
+spec:
+  jetstream:
+    version: 2.10.17
+    replicas: 3
+    containerTemplate:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+    metricsContainerTemplate:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      seccompProfile:
+        type: RuntimeDefault

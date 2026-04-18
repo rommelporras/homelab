@@ -1,0 +1,45 @@
+# manifests/argo-workflows/templates/test-unit-template.yaml
+# Shared unit-test step. Portfolio runs bun (oven/bun); Invoicetron
+# uses node:22-slim because Vitest SSR tests fail on bun (observed
+# during phase planning). Both accept the runner image via parameter.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: test-unit
+  namespace: argo-workflows
+spec:
+  templates:
+    - name: test-unit
+      inputs:
+        parameters:
+          - name: image
+            value: oven/bun:1.2.15-alpine
+          - name: command
+            value: "bun install --frozen-lockfile && bun run test:unit"
+      container:
+        image: "{{inputs.parameters.image}}"
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            cd /workspace
+            echo "=== Unit tests ==="
+            {{inputs.parameters.command}}
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace

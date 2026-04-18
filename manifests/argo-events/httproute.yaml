@@ -1,0 +1,54 @@
+# manifests/argo-events/httproute.yaml
+# HTTPRoute exposing the per-project EventSource webhook services at
+# argo-events.k8s.rommelporras.com.
+#
+# Path routing:
+#   /gitlab/invoicetron -> gitlab-invoicetron-eventsource-svc:12000
+#   /gitlab/portfolio   -> gitlab-portfolio-eventsource-svc:12000
+#   /staging-promote    -> gitlab-portfolio-staging-promote-eventsource-svc:12000
+#     (Wave 2E: dedicated EventSource for manual GitLab staging promotion)
+#
+# Attached to the shared homelab-gateway https listener (wildcard TLS
+# via cert-manager). EventSource pods serve plain HTTP on :12000;
+# Gateway terminates TLS. X-Gitlab-Token validation happens inside
+# each EventSource pod against its per-project webhook secret.
+#
+# Service name pattern: `<eventsource-name>-eventsource-svc` is the
+# argo-events controller's default suffix when spec.service is set.
+# This is stable across chart 2.x; confirm with `kubectl-homelab -n
+# argo-events get svc` after first deploy.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argo-events-webhooks
+  namespace: argo-events
+spec:
+  parentRefs:
+    - name: homelab-gateway
+      namespace: default
+      sectionName: https
+  hostnames:
+    - "argo-events.k8s.rommelporras.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /gitlab/invoicetron
+      backendRefs:
+        - name: gitlab-invoicetron-eventsource-svc
+          port: 12000
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /gitlab/portfolio
+      backendRefs:
+        - name: gitlab-portfolio-eventsource-svc
+          port: 12000
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /staging-promote
+      backendRefs:
+        - name: portfolio-staging-promote-eventsource-svc
+          port: 12000

@@ -1,0 +1,109 @@
+# manifests/argo-events/sensor-portfolio.yaml
+# Sensors for portfolio GitLab push events.
+#
+# Portfolio uses the same image_repo across environments (unlike
+# invoicetron which bakes NEXT_PUBLIC_APP_URL into the image per-env),
+# so the only difference between the two Sensors is the branch filter
+# + environment parameter.
+#
+# Staging is NOT driven by a branch push - staging is a manual
+# promotion from a prior dev build via the portfolio-staging-promote
+# WorkflowTemplate. See sensor-portfolio-staging-promote.yaml.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: gitlab-portfolio-develop
+  namespace: argo-events
+spec:
+  template:
+    serviceAccountName: argo-events-sa
+  dependencies:
+    - name: push
+      eventSourceName: gitlab-portfolio
+      eventName: portfolio
+      filters:
+        data:
+          - path: body.ref
+            type: string
+            value:
+              - "refs/heads/develop"
+  triggers:
+    - template:
+        name: portfolio-dev
+        k8s:
+          operation: create
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: portfolio-dev-
+                namespace: argo-workflows
+              spec:
+                workflowTemplateRef:
+                  name: portfolio-pipeline
+                arguments:
+                  parameters:
+                    - name: commit_sha
+                      value: PLACEHOLDER
+                    - name: branch
+                      value: develop
+                    - name: environment
+                      value: dev
+                    - name: image_repo
+                      value: registry.k8s.rommelporras.com/0xwsh/portfolio
+          parameters:
+            - src:
+                dependencyName: push
+                dataTemplate: '{{ .Input.body.after | trunc 8 }}'
+              dest: spec.arguments.parameters.0.value
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: gitlab-portfolio-main
+  namespace: argo-events
+spec:
+  template:
+    serviceAccountName: argo-events-sa
+  dependencies:
+    - name: push
+      eventSourceName: gitlab-portfolio
+      eventName: portfolio
+      filters:
+        data:
+          - path: body.ref
+            type: string
+            value:
+              - "refs/heads/main"
+  triggers:
+    - template:
+        name: portfolio-prod
+        k8s:
+          operation: create
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: portfolio-prod-
+                namespace: argo-workflows
+              spec:
+                workflowTemplateRef:
+                  name: portfolio-pipeline
+                arguments:
+                  parameters:
+                    - name: commit_sha
+                      value: PLACEHOLDER
+                    - name: branch
+                      value: main
+                    - name: environment
+                      value: prod
+                    - name: image_repo
+                      value: registry.k8s.rommelporras.com/0xwsh/portfolio
+          parameters:
+            - src:
+                dependencyName: push
+                dataTemplate: '{{ .Input.body.after | trunc 8 }}'
+              dest: spec.arguments.parameters.0.value

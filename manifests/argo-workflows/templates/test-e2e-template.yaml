@@ -1,0 +1,49 @@
+# manifests/argo-workflows/templates/test-e2e-template.yaml
+# Portfolio-only E2E test step using Playwright. Image comes from
+# mcr.microsoft.com (added to VAP allowlist in Stage 2).
+#
+# Playwright expects the app to be served somewhere. The default here
+# is to `bun run test:e2e` which (per Portfolio's package.json) spins
+# up a local server inside the Playwright config. If that changes,
+# pass a custom `command` parameter from the pipeline.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: test-e2e
+  namespace: argo-workflows
+spec:
+  templates:
+    - name: test-e2e
+      inputs:
+        parameters:
+          - name: image
+            value: mcr.microsoft.com/playwright:v1.58.2-noble
+          - name: command
+            value: "bun install --frozen-lockfile && bunx playwright install chromium --with-deps && bun run test:e2e"
+      container:
+        image: "{{inputs.parameters.image}}"
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            cd /workspace
+            echo "=== E2E tests ==="
+            {{inputs.parameters.command}}
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: "2"
+            memory: 2Gi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace

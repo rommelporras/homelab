@@ -1,0 +1,16 @@
+# manifests/argo-events/resourcequota.yaml
+# Hard ceiling for the argo-events namespace. Controllers + EventBus NATS
+# cluster + a handful of EventSource/Sensor pods stay well under these.
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: argo-events-quota
+  namespace: argo-events
+spec:
+  hard:
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+    limits.memory: 2Gi
+    pods: "15"

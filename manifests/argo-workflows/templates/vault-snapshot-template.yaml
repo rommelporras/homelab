@@ -149,69 +149,13 @@ spec:
             mountPath: /tmp
 
     # --- Exit handler wrapper ---
-    # Uses steps+when so the discord step fires only on non-success.
-    # The bash `if` approach would always create a pod that usually
-    # exits silently, wasting scheduling cycles on successful runs.
+    # Delegates to the shared `notify-on-failure` WorkflowTemplate
+    # (Phase 5.9.1 Stage 2 - extracted to let CI workflows reuse it
+    # without copy-paste). The standalone template handles the
+    # `workflow.status != Succeeded` gate internally.
     - name: notify-on-failure
       steps:
-        - - name: send-discord
-            template: send-discord
-            when: "{{workflow.status}} != Succeeded"
-
-    # --- Discord notification step (only invoked from exit handler) ---
-    - name: send-discord
-      container:
-        image: alpine/k8s:1.35.3
-        imagePullPolicy: IfNotPresent
-        command: ["/bin/sh", "-c"]
-        args:
-          - |
-            set -e
-            # Only `workflow.status`, `workflow.duration`, `workflow.failures`,
-            # `workflow.name`, `workflow.namespace` are available in onExit
-            # handlers per the Argo Workflows variable docs. `workflow.finishedAt`
-            # is not a valid variable - avoid.
-            STATUS="{{workflow.status}}"
-            NAME="{{workflow.name}}"
-            NAMESPACE="{{workflow.namespace}}"
-            DURATION="{{workflow.duration}}"
-            FAILURES='{{workflow.failures}}'
-            PAYLOAD=$(cat <<EOF
-            {
-              "content": ":rotating_light: Vault snapshot workflow ${STATUS}",
-              "embeds": [{
-                "title": "${NAMESPACE}/${NAME}",
-                "description": "Duration: ${DURATION}s",
-                "color": 15158332,
-                "fields": [
-                  {"name": "Failures", "value": "\`\`\`${FAILURES}\`\`\`"}
-                ]
-              }]
-            }
-            EOF
-            )
-            curl -sS -X POST "$DISCORD_WEBHOOK" \
-              -H "Content-Type: application/json" \
-              -d "$PAYLOAD"
-            echo
-        env:
-          - name: DISCORD_WEBHOOK
-            valueFrom:
-              secretKeyRef:
-                name: discord-webhooks
-                key: incidents
-        resources:
-          requests:
-            cpu: 10m
-            memory: 32Mi
-          limits:
-            cpu: 200m
-            memory: 128Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop: ["ALL"]
-        volumeMounts:
-          - name: tmp
-            mountPath: /tmp
+        - - name: delegate
+            templateRef:
+              name: notify-on-failure
+              template: notify-on-failure

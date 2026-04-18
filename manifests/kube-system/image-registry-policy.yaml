@@ -5,8 +5,12 @@
 # Prevents untrusted images from being deployed, including via ArgoCD syncs.
 #
 # Trusted registries: docker.io, ghcr.io, registry.k8s.io, quay.io, lscr.io,
-# gcr.io, public.ecr.aws, registry.k8s.rommelporras.com, registry.gitlab.com,
-# and any Docker Hub org (short name without dot in first path segment).
+# gcr.io, public.ecr.aws, mcr.microsoft.com, registry.k8s.rommelporras.com,
+# registry.gitlab.com, and any Docker Hub org (short name without dot in
+# first path segment).
+#
+# mcr.microsoft.com added 2026-04-18 for Playwright E2E container image
+# (Phase 5.9.1 Stage 2). Playwright publishes only to MCR.
 #
 # CKA topics: ValidatingAdmissionPolicy (native K8s admission control, GA since v1.30)
 #
@@ -46,6 +50,7 @@ spec:
           c.image.startsWith('ghcr.io/') ||
           c.image.startsWith('registry.k8s.io/') ||
           c.image.startsWith('quay.io/') ||
+          c.image.startsWith('mcr.microsoft.com/') ||
           c.image.startsWith('registry.k8s.rommelporras.com/') ||
           c.image.startsWith('registry.gitlab.com/') ||
           c.image.startsWith('lscr.io/') ||
@@ -56,14 +61,16 @@ spec:
         )
       message: >-
         Container image must be from a trusted registry. Allowed: docker.io, ghcr.io,
-        registry.k8s.io, quay.io, lscr.io, gcr.io, public.ecr.aws, registry.k8s.rommelporras.com,
-        registry.gitlab.com, or any Docker Hub org (short name without dot).
+        registry.k8s.io, quay.io, mcr.microsoft.com, lscr.io, gcr.io, public.ecr.aws,
+        registry.k8s.rommelporras.com, registry.gitlab.com, or any Docker Hub org
+        (short name without dot).
     - expression: >-
         object.spec.?initContainers.orValue([]).all(c,
           c.image.startsWith('docker.io/') ||
           c.image.startsWith('ghcr.io/') ||
           c.image.startsWith('registry.k8s.io/') ||
           c.image.startsWith('quay.io/') ||
+          c.image.startsWith('mcr.microsoft.com/') ||
           c.image.startsWith('registry.k8s.rommelporras.com/') ||
           c.image.startsWith('registry.gitlab.com/') ||
           c.image.startsWith('lscr.io/') ||
@@ -79,6 +86,7 @@ spec:
           c.image.startsWith('ghcr.io/') ||
           c.image.startsWith('registry.k8s.io/') ||
           c.image.startsWith('quay.io/') ||
+          c.image.startsWith('mcr.microsoft.com/') ||
           c.image.startsWith('registry.k8s.rommelporras.com/') ||
           c.image.startsWith('registry.gitlab.com/') ||
           c.image.startsWith('lscr.io/') ||

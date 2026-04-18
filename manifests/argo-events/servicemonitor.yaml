@@ -1,0 +1,62 @@
+# manifests/argo-events/servicemonitor.yaml
+# ServiceMonitors for argo-events controller, EventSource, and Sensor
+# metrics. The chart does not ship a ServiceMonitor; metrics are
+# exposed on :7777 /metrics on each pod type.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argo-events-controller
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - argo-events
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: argo-events
+      app.kubernetes.io/component: controller-manager
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argo-events-eventsource
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - argo-events
+  selector:
+    matchLabels:
+      controller: eventsource-controller
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argo-events-sensor
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - argo-events
+  selector:
+    matchLabels:
+      controller: sensor-controller
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics

@@ -1,0 +1,49 @@
+# manifests/argo-events/eventsource-invoicetron.yaml
+# GitLab EventSource for the invoicetron project (DR-6).
+#
+# EventSource type "gitlab" (not generic webhook):
+#   - auto-registers the webhook on the GitLab project via API when the
+#     EventSource starts (no manual UI config needed).
+#   - validates X-Gitlab-Token natively at the EventSource, before the
+#     event reaches the EventBus.
+#   - manages webhook lifecycle: deleting this EventSource deregisters
+#     the hook from GitLab.
+#
+# Webhook URL: https://argo-events.k8s.rommelporras.com/gitlab/invoicetron
+# (served by the per-EventSource webhook service, routed via HTTPRoute).
+#
+# Required Vault paths:
+#   argo-events/gitlab-api-token   (for auto-registration)
+#   argo-events/invoicetron-webhook-secret (for X-Gitlab-Token validation)
+---
+apiVersion: argoproj.io/v1alpha1
+kind: EventSource
+metadata:
+  name: gitlab-invoicetron
+  namespace: argo-events
+spec:
+  service:
+    ports:
+      - port: 12000
+        targetPort: 12000
+  gitlab:
+    invoicetron:
+      projects:
+        # GitLab project path: 0xwsh/invoicetron (self-hosted)
+        - "0xwsh/invoicetron"
+      webhook:
+        endpoint: /gitlab/invoicetron
+        port: "12000"
+        method: POST
+        url: https://argo-events.k8s.rommelporras.com
+      events:
+        - PushEvents
+      accessToken:
+        key: token
+        name: gitlab-api-token
+      secretToken:
+        key: secret
+        name: invoicetron-webhook-secret
+      enableSSLVerification: true
+      gitlabBaseURL: https://gitlab.k8s.rommelporras.com
+      deleteHookOnFinish: true

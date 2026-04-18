@@ -1,0 +1,136 @@
+# manifests/argo-workflows/templates/deploy-image-template.yaml
+# Shared deploy step: commits the new image tag to the Kustomize
+# overlay in the homelab repo on GitHub (DR-1, DR-3). ArgoCD picks
+# up the commit within ~3 min and syncs the live Deployment.
+#
+# Mutex: `deploy-image-lock` in argo-workflows serializes all deploy
+# steps cluster-wide (DR-7). Combined with a 5-attempt retry-rebase
+# loop for external race handling (e.g. a human committing to main
+# during a deploy).
+#
+# Git identity (DR-3):
+#   Author / Committer: Argo CI Bot <ci-bot@k8s.rommelporras.com>
+#   Message:            chore(ci): update <project>/<env> image to <sha> [skip ci]
+#   Signoff:            yes (--signoff)
+#
+# SSH deploy key (DR-5): scoped to rommelporras/homelab on GitHub.
+# Mounted at /root/.ssh/id_ed25519 from the `github-deploy-key`
+# secret (sourced from Vault argo-workflows/github-deploy-key via
+# ExternalSecret). Writer blast radius bound by `cicd-apps` AppProject
+# clusterResourceWhitelist + per-namespace destination restrictions.
+#
+# Parameters:
+#   project       portfolio | invoicetron (used for commit message)
+#   environment   dev | staging | prod (picks the overlay directory)
+#   image_repo    full registry path (e.g. registry.k8s.../portfolio)
+#   image_tag     8-char SHA
+#   overlay_path  manifests/<project>/overlays/<env>
+#   image_name    kustomize `name:` key to edit (e.g. "app" for
+#                 Invoicetron base, or the full image path for
+#                 Portfolio base)
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: deploy-image
+  namespace: argo-workflows
+spec:
+  templates:
+    - name: deploy-image
+      synchronization:
+        mutex:
+          name: deploy-image-lock
+          namespace: argo-workflows
+      inputs:
+        parameters:
+          - name: project
+          - name: environment
+          - name: image_repo
+          - name: image_tag
+          - name: overlay_path
+          - name: image_name
+      container:
+        image: alpine/git:2.52.0
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            echo "=== Deploy: commit {{inputs.parameters.image_repo}}:{{inputs.parameters.image_tag}} to {{inputs.parameters.overlay_path}} ==="
+
+            # --- Install kustomize (alpine/git has git but not kustomize) ---
+            apk add --no-cache curl tar gzip
+            # Pinned kustomize: 5.4.3 is the version matching Stage 1
+            # overlays (verified with `kustomize version` after a local
+            # build). Update pin when bumping elsewhere.
+            curl -sSL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz \
+              | tar -xz -C /usr/local/bin
+
+            # --- SSH config (DR-5) ---
+            mkdir -p /root/.ssh
+            cp /ssh-key/ssh-privatekey /root/.ssh/id_ed25519
+            chmod 600 /root/.ssh/id_ed25519
+            export GIT_SSH_COMMAND="ssh -i /root/.ssh/id_ed25519 \
+              -o StrictHostKeyChecking=accept-new \
+              -o UserKnownHostsFile=/root/.ssh/known_hosts"
+
+            # --- Clone homelab repo ---
+            WORKDIR=$(mktemp -d)
+            cd "$WORKDIR"
+            git clone --depth=10 git@github.com:rommelporras/homelab.git
+            cd homelab
+            git config user.name "Argo CI Bot"
+            git config user.email "ci-bot@k8s.rommelporras.com"
+
+            # --- Edit overlay ---
+            cd "{{inputs.parameters.overlay_path}}"
+            kustomize edit set image "{{inputs.parameters.image_name}}={{inputs.parameters.image_repo}}:{{inputs.parameters.image_tag}}"
+            cd "$WORKDIR/homelab"
+
+            # --- Commit ---
+            if git diff --quiet "{{inputs.parameters.overlay_path}}/kustomization.yaml"; then
+              echo "No change in overlay (tag already at {{inputs.parameters.image_tag}}) - nothing to commit."
+              exit 0
+            fi
+            git add "{{inputs.parameters.overlay_path}}/kustomization.yaml"
+            git commit --signoff \
+              -m "chore(ci): update {{inputs.parameters.project}}/{{inputs.parameters.environment}} image to {{inputs.parameters.image_tag}} [skip ci]"
+
+            # --- Push with retry-rebase (DR-7) ---
+            MAX_ATTEMPTS=5
+            for i in $(seq 1 $MAX_ATTEMPTS); do
+              echo "Push attempt $i/$MAX_ATTEMPTS..."
+              if git push origin main; then
+                echo "Push succeeded."
+                exit 0
+              fi
+              echo "Push failed. Rebasing and retrying..."
+              sleep $((2 ** i))
+              git pull --rebase origin main
+            done
+            echo "Push failed after $MAX_ATTEMPTS attempts. Workflow will fail; notify-on-failure will fire."
+            exit 1
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        securityContext:
+          # Runs as root for /root/.ssh write + apk add. Pod is
+          # ephemeral and the SSH key is the sole capability that
+          # matters here - defended by K8s RBAC (ServiceAccount has
+          # only `get secrets/github-deploy-key`).
+          # seccompProfile: RuntimeDefault is still applied (seccomp
+          # filtering is independent of uid=0) for syscall restriction.
+          # Full non-root migration is tracked in docs/todo/deferred.md.
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+          - name: ssh-key
+            mountPath: /ssh-key
+            readOnly: true

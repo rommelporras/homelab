@@ -1,0 +1,44 @@
+# manifests/argo-workflows/templates/lint-template.yaml
+# Shared lint step, parameterized for bun (Portfolio + Invoicetron).
+# Runs in /workspace populated by `clone`.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: lint
+  namespace: argo-workflows
+spec:
+  templates:
+    - name: lint
+      inputs:
+        parameters:
+          - name: image
+            value: oven/bun:1.2.15-alpine
+          - name: command
+            value: "bun install --frozen-lockfile && bun run lint"
+      container:
+        image: "{{inputs.parameters.image}}"
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            cd /workspace
+            echo "=== Lint ==="
+            {{inputs.parameters.command}}
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace

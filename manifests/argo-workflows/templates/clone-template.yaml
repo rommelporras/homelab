@@ -1,0 +1,64 @@
+# manifests/argo-workflows/templates/clone-template.yaml
+# Shared clone step. Checks out `commit_sha` from a GitLab repo URL
+# into /workspace (shared emptyDir volume within a single workflow).
+#
+# Public repos only need `repo_url` + `commit_sha`. Private GitLab
+# repos (invoicetron, portfolio) clone over HTTPS with a read-only
+# deploy token passed as basic-auth; that token is separate from the
+# write-credential SSH deploy key used in `deploy-image`.
+#
+# Parameters:
+#   repo_url    full HTTPS clone URL (e.g. https://gitlab.k8s.rommelporras.com/0xwsh/portfolio.git)
+#   commit_sha  full or short SHA to check out
+#
+# Shared volume contract: caller MUST provide a `workspace` emptyDir
+# volume and mount it at /workspace on every step that reads the
+# working copy (lint, type-check, test, build).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: clone
+  namespace: argo-workflows
+spec:
+  templates:
+    - name: clone
+      inputs:
+        parameters:
+          - name: repo_url
+          - name: commit_sha
+      container:
+        image: alpine/git:2.52.0
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            echo "=== Clone {{inputs.parameters.repo_url}} @ {{inputs.parameters.commit_sha}} ==="
+            cd /workspace
+            # --filter=tree:0 for partial clone; fast initial fetch,
+            # sha checkout still works. --depth bumps per-step pulls.
+            git init
+            git remote add origin "{{inputs.parameters.repo_url}}"
+            git fetch --depth=1 origin "{{inputs.parameters.commit_sha}}"
+            git checkout FETCH_HEAD
+            echo "=== Tree: ==="
+            ls -la
+        env:
+          - name: GIT_CONFIG_GLOBAL
+            value: /workspace/.gitconfig
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace

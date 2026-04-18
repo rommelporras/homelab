@@ -1,0 +1,25 @@
+# manifests/argo-events/limitrange.yaml
+# Default resource requests/limits for pods in argo-events.
+# EventSource and Sensor pods are small long-running listeners; these
+# defaults apply only when a pod spec omits its own resources block.
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: argo-events-defaults
+  namespace: argo-events
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 200m
+        memory: 256Mi
+      defaultRequest:
+        cpu: 25m
+        memory: 64Mi
+      max:
+        cpu: "1"
+        memory: 512Mi
+      min:
+        cpu: 10m
+        memory: 32Mi

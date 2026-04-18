@@ -1,0 +1,106 @@
+# manifests/argo-workflows/templates/notify-on-failure-template.yaml
+# Shared exit handler: posts a Discord notification to the #incidents
+# channel when the invoking workflow did not end in Succeeded.
+#
+# Consumers reference this via `templateRef`:
+#
+#   onExit: notify-on-failure     # (legacy inline name)
+#   # or when referencing this standalone template from another
+#   # WorkflowTemplate:
+#   templates:
+#     - name: notify-on-failure
+#       templateRef:
+#         name: notify-on-failure
+#         template: notify-on-failure
+#
+# Extracted from vault-snapshot-template.yaml in Phase 5.9.1 Stage 2
+# so both vault-snapshot and CI workflows can reference the same
+# implementation. No behavioural change for vault-snapshot: same image,
+# same curl call, same webhook key.
+#
+# Dependencies (already in place from Phase 5.9):
+#   - `discord-webhooks` Secret in argo-workflows namespace via the
+#     externalsecret-discord.yaml ExternalSecret (key: incidents).
+#   - consumer workflow's serviceAccount needs `get` on that Secret
+#     (vault-snapshot-workflow SA already has it; CI SAs get the same
+#     in their own RBAC files).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: notify-on-failure
+  namespace: argo-workflows
+spec:
+  entrypoint: notify-on-failure
+  templates:
+    # steps+when so the Discord pod only fires on non-success.
+    # The bash `if` approach always creates a pod that usually exits
+    # silently, wasting scheduling cycles on successful runs.
+    - name: notify-on-failure
+      steps:
+        - - name: send-discord
+            template: send-discord
+            when: "{{workflow.status}} != Succeeded"
+
+    - name: send-discord
+      container:
+        image: alpine/k8s:1.35.3
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            # Only `workflow.status`, `workflow.duration`, `workflow.failures`,
+            # `workflow.name`, `workflow.namespace` are available in onExit
+            # handlers per the Argo Workflows variable docs. `workflow.finishedAt`
+            # is not a valid variable - avoid.
+            STATUS="{{workflow.status}}"
+            NAME="{{workflow.name}}"
+            NAMESPACE="{{workflow.namespace}}"
+            DURATION="{{workflow.duration}}"
+            FAILURES='{{workflow.failures}}'
+            PAYLOAD=$(cat <<EOF
+            {
+              "content": ":rotating_light: Workflow ${NAMESPACE}/${NAME} ${STATUS}",
+              "embeds": [{
+                "title": "${NAMESPACE}/${NAME}",
+                "description": "Duration: ${DURATION}s",
+                "color": 15158332,
+                "fields": [
+                  {"name": "Failures", "value": "\`\`\`${FAILURES}\`\`\`"}
+                ]
+              }]
+            }
+            EOF
+            )
+            curl -sS -X POST "$DISCORD_WEBHOOK" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD"
+            echo
+        env:
+          - name: DISCORD_WEBHOOK
+            valueFrom:
+              secretKeyRef:
+                name: discord-webhooks
+                key: incidents
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          # readOnlyRootFilesystem intentionally unset: Argo Workflows
+          # does NOT propagate `spec.volumes` across templateRef
+          # boundaries, so requiring a caller-provided tmp emptyDir
+          # would leak an implementation detail to every consumer.
+          # The pod exists for <10s per invocation and runs a single
+          # curl POST; writable rootfs is acceptable.
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault

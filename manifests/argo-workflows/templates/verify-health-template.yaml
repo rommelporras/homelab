@@ -1,0 +1,58 @@
+# manifests/argo-workflows/templates/verify-health-template.yaml
+# Post-deploy HTTP health check. Polls the target URL until it returns
+# `expected_status` or the retry budget is exhausted.
+#
+# Used at the tail of every CI pipeline. ArgoCD typically needs ~3 min
+# to pick up the image-tag commit, sync the Deployment, and roll the
+# pod. Defaults: 30 retries * 10s = 5 minutes.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: verify-health
+  namespace: argo-workflows
+spec:
+  templates:
+    - name: verify-health
+      inputs:
+        parameters:
+          - name: url
+          - name: expected_status
+            value: "200"
+          - name: retries
+            value: "30"
+          - name: interval
+            value: "10"
+      container:
+        image: curlimages/curl:8.19.0
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            echo "=== Verify: {{inputs.parameters.url}} (expected {{inputs.parameters.expected_status}}) ==="
+            for i in $(seq 1 {{inputs.parameters.retries}}); do
+              STATUS=$(curl -sSo /dev/null -w '%{http_code}' --max-time 10 "{{inputs.parameters.url}}" || echo "000")
+              if [ "$STATUS" = "{{inputs.parameters.expected_status}}" ]; then
+                echo "  Attempt $i: HTTP $STATUS - OK"
+                exit 0
+              fi
+              echo "  Attempt $i: HTTP $STATUS - retrying in {{inputs.parameters.interval}}s"
+              sleep {{inputs.parameters.interval}}
+            done
+            echo "Verification failed after {{inputs.parameters.retries}} attempts."
+            exit 1
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 100
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]

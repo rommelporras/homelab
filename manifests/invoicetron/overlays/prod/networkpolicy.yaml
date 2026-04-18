@@ -81,7 +81,11 @@ spec:
             - port: "443"
               protocol: TCP
 ---
-# DB ingress: invoicetron app + backup CronJob can reach the database
+# DB ingress: invoicetron app + backup CronJob + legacy migrate Job +
+# argo-workflows ci-pipeline migrate pods (Phase 5.9.1 Stage 2) can
+# reach the database. The legacy `job-name: invoicetron-migrate`
+# label selector is kept for fallback while GitLab CI deploy is set
+# to `when: manual`; once Stage 2 is fully cut over it can be removed.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -98,6 +102,9 @@ spec:
             app: invoicetron-db-backup
         - matchLabels:
             job-name: invoicetron-migrate
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: argo-workflows
+            app.kubernetes.io/component: invoicetron-migrate
       toPorts:
         - ports:
             - port: "5432"

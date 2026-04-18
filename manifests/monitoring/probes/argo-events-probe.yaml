@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: argo-events-webhook
+  namespace: monitoring
+  labels:
+    app: argo-events-probe
+    release: prometheus
+spec:
+  jobName: argo-events
+  interval: 60s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+        # Health endpoint served by the gitlab-invoicetron EventSource
+        # (one of the two GitLab EventSources); the blackbox probe just
+        # needs any live :12000 listener behind the HTTPRoute to prove
+        # end-to-end connectivity. 404 is expected for an unknown path,
+        # but the 2xx on the root catch-all is provided by the Gateway.
+        - https://argo-events.k8s.rommelporras.com/gitlab/invoicetron
+      labels:
+        target_name: argo-events

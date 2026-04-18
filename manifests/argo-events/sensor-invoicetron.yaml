@@ -1,0 +1,118 @@
+# manifests/argo-events/sensor-invoicetron.yaml
+# Sensors for invoicetron GitLab push events.
+#
+# Per-project EventSource emits all pushes; two Sensors branch on
+# body.ref at the dependency filter (before any trigger fires):
+#   - gitlab-invoicetron-develop -> creates Workflow with env=dev,
+#     image_repo=.../invoicetron/dev
+#   - gitlab-invoicetron-main    -> creates Workflow with env=prod,
+#     image_repo=.../invoicetron/prod
+#
+# Feature branches, tags, and MR events match neither filter and the
+# Sensor records "filter did not match" without creating a Workflow.
+#
+# Parameter extraction:
+#   commit_sha: first 8 chars of body.after via sprig trunc (DR-2)
+#   branch, environment, image_repo: hardcoded per Sensor
+#
+# Workflow creation is cross-namespace (argo-events -> argo-workflows).
+# RBAC at rbac/argo-events-sa.yaml binds argo-events-sa to a Role in
+# the argo-workflows namespace granting `create workflows`.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: gitlab-invoicetron-develop
+  namespace: argo-events
+spec:
+  template:
+    serviceAccountName: argo-events-sa
+  dependencies:
+    - name: push
+      eventSourceName: gitlab-invoicetron
+      eventName: invoicetron
+      filters:
+        data:
+          - path: body.ref
+            type: string
+            value:
+              - "refs/heads/develop"
+  triggers:
+    - template:
+        name: invoicetron-dev
+        k8s:
+          operation: create
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: invoicetron-dev-
+                namespace: argo-workflows
+              spec:
+                workflowTemplateRef:
+                  name: invoicetron-pipeline
+                arguments:
+                  parameters:
+                    - name: commit_sha
+                      value: PLACEHOLDER
+                    - name: branch
+                      value: develop
+                    - name: environment
+                      value: dev
+                    - name: image_repo
+                      value: registry.k8s.rommelporras.com/0xwsh/invoicetron/dev
+          parameters:
+            - src:
+                dependencyName: push
+                dataTemplate: '{{ .Input.body.after | trunc 8 }}'
+              dest: spec.arguments.parameters.0.value
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: gitlab-invoicetron-main
+  namespace: argo-events
+spec:
+  template:
+    serviceAccountName: argo-events-sa
+  dependencies:
+    - name: push
+      eventSourceName: gitlab-invoicetron
+      eventName: invoicetron
+      filters:
+        data:
+          - path: body.ref
+            type: string
+            value:
+              - "refs/heads/main"
+  triggers:
+    - template:
+        name: invoicetron-prod
+        k8s:
+          operation: create
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: invoicetron-prod-
+                namespace: argo-workflows
+              spec:
+                workflowTemplateRef:
+                  name: invoicetron-pipeline
+                arguments:
+                  parameters:
+                    - name: commit_sha
+                      value: PLACEHOLDER
+                    - name: branch
+                      value: main
+                    - name: environment
+                      value: prod
+                    - name: image_repo
+                      value: registry.k8s.rommelporras.com/0xwsh/invoicetron/prod
+          parameters:
+            - src:
+                dependencyName: push
+                dataTemplate: '{{ .Input.body.after | trunc 8 }}'
+              dest: spec.arguments.parameters.0.value

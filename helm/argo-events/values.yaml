@@ -1,0 +1,70 @@
+# helm/argo-events/values.yaml
+# Argo Events chart values - chart 2.4.21 (verify before apply; chart
+# cadence is weekly - update pin if newer stable exists).
+#
+# Controllers managed:
+#   - eventsource-controller: watches EventSource CRs, spawns a
+#     webhook-listener pod per EventSource.
+#   - sensor-controller: watches Sensor CRs, spawns a per-Sensor pod
+#     that subscribes to the EventBus.
+#   - eventbus-controller: watches EventBus CRs, spawns NATS
+#     JetStream StatefulSet per EventBus.
+#
+# Chart's built-in webhook is disabled - we do not use the chart-
+# native webhook pattern; GitLab EventSources in this repo listen
+# on per-project paths via our own HTTPRoute.
+
+# -------------- controller-manager --------------
+controller:
+  replicas: 1
+  image:
+    registry: quay.io
+    repository: argoproj/argo-events
+    tag: v1.9.6
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  metrics:
+    enabled: true
+    port: 7777
+  # ServiceMonitor shipped separately under manifests/argo-events/
+  # servicemonitor.yaml so the scrape label matches our release=prometheus
+  # convention rather than the chart's default.
+  serviceMonitor:
+    enabled: false
+
+# -------------- configs --------------
+configs:
+  # JetStream EventBus ConfigMap lets the chart supply default NATS
+  # settings. Our EventBus CR (manifests/argo-events/eventbus.yaml)
+  # overrides replicas/resources per install.
+  jetstream:
+    settings: |
+      max_file_store: 1GB
+      max_memory_store: 128MB
+
+# -------------- webhook (disabled) --------------
+# The chart's optional `argo-events-webhook` is an admission webhook for
+# validating custom resources. We skip it to reduce blast radius; the
+# CRDs have enough schema validation on their own.
+webhook:
+  enabled: false
+
+# -------------- CRDs --------------
+crds:
+  install: true
+  keep: true

@@ -1,0 +1,76 @@
+# manifests/argo-events/rbac/argo-events-sa.yaml
+# ServiceAccount + RBAC for the Sensor pods.
+#
+# The Sensor's k8s trigger creates Workflow objects cross-namespace
+# (argo-events -> argo-workflows). K8s supports this via a RoleBinding
+# in the target namespace naming a subject in another namespace, so
+# a namespace-scoped Role is sufficient - no ClusterRole needed.
+#
+# Permissions in argo-workflows:
+#   - create/get workflows (submit new CI runs)
+#
+# Permissions in argo-events (same namespace):
+#   - list/get/watch events, eventsources, sensors, eventbus (Sensor
+#     self-observation)
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argo-events-sa
+  namespace: argo-events
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-events-sa-local
+  namespace: argo-events
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["events", "eventsources", "sensors", "eventbus"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-events-sa-local
+  namespace: argo-events
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-events-sa-local
+subjects:
+  - kind: ServiceAccount
+    name: argo-events-sa
+    namespace: argo-events
+---
+# Cross-namespace: Role in argo-workflows bound to SA in argo-events.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-events-sa-workflow-create
+  namespace: argo-workflows
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflows"]
+    verbs: ["create", "get", "list", "watch"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflowtemplates"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-events-sa-workflow-create
+  namespace: argo-workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-events-sa-workflow-create
+subjects:
+  - kind: ServiceAccount
+    name: argo-events-sa
+    namespace: argo-events

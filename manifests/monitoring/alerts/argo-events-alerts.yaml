@@ -1,0 +1,125 @@
+# PrometheusRule for Argo Events + CI/CD pipeline health
+# Phase 5.9.1 Stage 2 - v0.39.2
+#
+# Alerts cover:
+#   - argo-events controller + EventSource + Sensor liveness (scrape up{})
+#   - EventBus (NATS JetStream) unavailability
+#   - CI pipeline failures (Workflow phase=Failed for the two CI
+#     pipelines - portfolio + invoicetron)
+#   - Build stuck (Workflow phase=Running for > 15m)
+#   - Deploy mutex held too long (> 10m indicates stuck deploy-image step)
+#   - Webhook delivery failures (argo-events emits event_processing
+#     counter; delta between received and triggered suggests drops)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: argo-events-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  groups:
+    - name: argo-events-controllers
+      rules:
+        # CRITICAL: argo-events controller-manager is down (no CR reconcile)
+        - alert: ArgoEventsControllerDown
+          expr: up{job=~".*argo-events.*controller.*"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Argo Events controller is down"
+            description: "The argo-events controller-manager has been unreachable for 5+ minutes. EventSources and Sensors cannot be reconciled; CI pipelines will not trigger."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argo-events.md#ArgoEventsControllerDown"
+
+        # CRITICAL: EventSource pod is down (webhooks will not be received)
+        - alert: EventSourceDown
+          expr: up{job=~".*argo-events.*eventsource.*"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Argo Events EventSource {{ $labels.instance }} is down"
+            description: "An EventSource pod has been unreachable for 5+ minutes. GitLab webhooks to this EventSource will fail and GitLab will retry with exponential backoff; after the retry window exhausts, pushes will not build."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argo-events.md#EventSourceDown"
+
+        # CRITICAL: Sensor pod is down (events will not trigger Workflows)
+        - alert: SensorDown
+          expr: up{job=~".*argo-events.*sensor.*"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Argo Events Sensor {{ $labels.instance }} is down"
+            description: "A Sensor pod has been unreachable for 5+ minutes. EventBus events will accumulate in the JetStream queue but no Workflows will be created."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argo-events.md#SensorDown"
+
+        # WARNING: EventBus (NATS) pod degraded
+        - alert: EventBusDegraded
+          expr: |
+            count by (namespace) (kube_pod_status_ready{namespace="argo-events",pod=~"eventbus-.*",condition="true"} == 1) < 2
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Argo Events EventBus is degraded"
+            description: "Fewer than 2 of the 3 NATS JetStream replicas are Ready. Event delivery still works (quorum of 2) but loss of one more replica will halt the EventBus."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/argo-events.md#EventBusDegraded"
+
+    - name: argo-events-ci-pipelines
+      rules:
+        # WARNING: CI pipeline failed (Portfolio or Invoicetron)
+        - alert: CIPipelineFailed
+          expr: |
+            sum by (namespace) (argo_workflows_gauge{namespace="argo-workflows",phase="Failed"}) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "CI pipeline(s) in Failed phase"
+            description: "{{ $value }} workflow(s) in argo-workflows are in Failed phase. Check the DAG step logs: kubectl-admin get workflows -n argo-workflows --sort-by=.metadata.creationTimestamp | tail"
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/ci-cd.md#CIPipelineFailed"
+
+        # WARNING: CI build stuck (Running for > 15m; max expected is
+        # ~8m for Portfolio main with E2E and ~6m for Invoicetron).
+        - alert: CIBuildStuck
+          expr: |
+            sum by (namespace) (argo_workflows_gauge{namespace="argo-workflows",phase="Running"}) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "CI build running for more than 15 minutes"
+            description: "A workflow in argo-workflows has been in Running phase for 15+ minutes. Typical CI runs complete in 4-8 minutes. Likely a stuck step (BuildKit cache fetch, deploy mutex, or rebase loop spinning)."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/ci-cd.md#CIBuildStuck"
+
+        # WARNING: deploy-image mutex held too long (> 10m).
+        # argo_workflows_workflow_condition reports
+        # {type="Synchronization", status="False"} when mutex is held.
+        # If the same workflow holds it for > 10m a step is stuck.
+        - alert: CIDeployMutexHeldTooLong
+          expr: |
+            max by (namespace) (argo_workflows_workflow_condition{type="Synchronization",status="False",namespace="argo-workflows"}) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Deploy-image mutex held for more than 10 minutes"
+            description: "A workflow is blocking on `deploy-image-lock` for 10+ minutes. Normal hold time is seconds. Likely a stuck deploy-image step (git push retry loop, SSH auth failure)."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/ci-cd.md#CIDeployMutexHeldTooLong"
+
+        # WARNING: GitLab webhook delivery failing (argo-events emits
+        # argo_events_event_processing_failed_total on error). Rate
+        # > 0 over 10m = sustained failures.
+        - alert: WebhookDeliveryFailed
+          expr: |
+            rate(argo_events_event_processing_failed_total[10m]) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Argo Events webhook processing failures on {{ $labels.eventsource_name }}"
+            description: "EventSource {{ $labels.eventsource_name }} has failed to process incoming events in the last 10 minutes. Likely a webhook secret mismatch (X-Gitlab-Token validation failure) or malformed payload."
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/ci-cd.md#WebhookDeliveryFailed"

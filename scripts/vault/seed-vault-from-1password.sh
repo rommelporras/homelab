@@ -242,8 +242,46 @@ vault kv put secret/argocd \
 # argo-workflows UI SSO (GitLab as OIDC provider) - Phase 5.9.1.7
 echo "  argo-workflows/sso-credentials"
 vault kv put secret/argo-workflows/sso-credentials \
-  client-id="$(op read 'op://Kubernetes/Argo Workflows UI/sso-client-id')" \
-  client-secret="$(op read 'op://Kubernetes/Argo Workflows UI/sso-client-secret')"
+  client-id="$(op read 'op://Kubernetes/Argo Workflows/sso-client-id')" \
+  client-secret="$(op read 'op://Kubernetes/Argo Workflows/sso-client-secret')"
+
+# argo-events (Phase 5.9.1 Stage 2 - v0.39.2)
+# DR-4: per-project webhook secrets to bound forgery blast radius.
+# DR-6: gitlab-type EventSource needs GitLab API token for hook
+# auto-registration.
+# Consolidated under "Argo Workflows" 1P item (Argo Events is an
+# argoproj sub-project that triggers Workflows, so all argo-* creds
+# live in one place).
+echo "  argo-events/gitlab-api-token"
+vault kv put secret/argo-events/gitlab-api-token \
+  token="$(op read 'op://Kubernetes/Argo Workflows/gitlab-api-token')"
+
+echo "  argo-events/invoicetron-webhook-secret"
+vault kv put secret/argo-events/invoicetron-webhook-secret \
+  secret="$(op read 'op://Kubernetes/Argo Workflows/invoicetron-webhook-secret')"
+
+echo "  argo-events/portfolio-webhook-secret"
+vault kv put secret/argo-events/portfolio-webhook-secret \
+  secret="$(op read 'op://Kubernetes/Argo Workflows/portfolio-webhook-secret')"
+
+echo "  argo-events/staging-promote-token"
+vault kv put secret/argo-events/staging-promote-token \
+  token="$(op read 'op://Kubernetes/Argo Workflows/staging-promote-token')"
+
+# argo-workflows CI/CD credentials (Phase 5.9.1 Stage 2)
+# Build step pushes to GitLab registry; deploy step commits the new
+# image tag to this repo via scoped SSH deploy key (DR-5).
+# Consolidated under the "Argo Workflows" 1P item (renamed from
+# "Argo Workflows UI" in Phase 5.9.1 Stage 2) so all argo-workflows
+# credentials (UI SSO + CI/CD) live in one place.
+echo "  argo-workflows/gitlab-registry"
+vault kv put secret/argo-workflows/gitlab-registry \
+  username="$(op read 'op://Kubernetes/Argo Workflows/registry-username')" \
+  password="$(op read 'op://Kubernetes/Argo Workflows/registry-password')"
+
+echo "  argo-workflows/github-deploy-key"
+vault kv put secret/argo-workflows/github-deploy-key \
+  ssh-privatekey="$(op read 'op://Kubernetes/Argo Workflows/github-deploy-key')"
 
 echo ""
 echo "=== Verification ==="

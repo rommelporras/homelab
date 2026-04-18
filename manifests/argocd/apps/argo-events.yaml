@@ -1,0 +1,43 @@
+# ArgoCD Application: Argo Events (Helm multi-source)
+# Phase 5.9.1 Stage 2 - v0.39.2.
+#
+# Follows the argo-workflows multi-source pattern: chart pulled from
+# argoproj.github.io/argo-helm, values referenced from this Git repo
+# under helm/argo-events/values.yaml via $values.
+#
+# Companion Git-type Application `argo-events-manifests` deploys
+# namespace, limitrange, resourcequota, EventBus, EventSources,
+# Sensors, HTTPRoute, ServiceMonitors, CNP, ExternalSecrets, RBAC.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-events
+  namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-events
+      targetRevision: "2.4.21"
+      helm:
+        valueFiles:
+          - $values/helm/argo-events/values.yaml
+    - repoURL: https://github.com/rommelporras/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-events
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - ServerSideDiff=true
+      - RespectIgnoreDifferences=true

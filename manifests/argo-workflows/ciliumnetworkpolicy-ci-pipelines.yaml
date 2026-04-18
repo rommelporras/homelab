@@ -1,0 +1,155 @@
+# manifests/argo-workflows/ciliumnetworkpolicy-ci-pipelines.yaml
+# Egress policies for CI pipeline pods (clone/lint/test/build/deploy/
+# verify + invoicetron migrate). Kept in a separate file from the
+# Phase 5.9 controller/vault-snapshot CNP to keep migration diffs
+# reviewable.
+#
+# Pod selection: workflow pods get app.kubernetes.io/component=
+# ci-pipeline from the pipeline WorkflowTemplate's `podMetadata`.
+# The invoicetron migrate step overrides that to `invoicetron-migrate`
+# via `metadata` on its template.
+#
+# Egress catalogue:
+#   clone       GitLab clone HTTPS (gitlab.k8s.rommelporras.com:8181)
+#   test:e2e    none extra (tests run against local dev server)
+#   build       GitLab registry push (registry.k8s.rommelporras.com:443)
+#   deploy      GitHub SSH (github.com:22)
+#   verify      app health HTTPS (*.k8s.rommelporras.com:443 +
+#               rommelporras.com:443 for prod)
+#   migrate     invoicetron-<env> PostgreSQL:5432
+#   all         DNS + kube-apiserver (argoexec)
+#
+# toFQDNs require a paired DNS egress rule (CLAUDE.md gotcha). The
+# catch-all DNS rule below covers that for every matchPattern used.
+
+# ============================================================
+# ci-pipeline pods (all steps except migrate)
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argo-workflows-ci-pipeline
+  namespace: argo-workflows
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: ci-pipeline
+  egress:
+    # DNS (also populates FQDN -> IP cache for toFQDNs below)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "*"
+    # argoexec -> kube-apiserver (WorkflowTaskResult) + to controller
+    - toEntities:
+        - kube-apiserver
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: workflow-controller
+            k8s:io.kubernetes.pod.namespace: argo-workflows
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+    # GitLab clone + registry push (in-cluster gitlab namespace)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: gitlab
+            app: webservice
+      toPorts:
+        - ports:
+            - port: "8181"
+              protocol: TCP
+    # External registry via FQDN (registry.k8s.rommelporras.com is
+    # routed through the homelab gateway on port 443)
+    - toFQDNs:
+        - matchName: registry.k8s.rommelporras.com
+        - matchName: gitlab.k8s.rommelporras.com
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # GitHub SSH for deploy step
+    - toFQDNs:
+        - matchName: github.com
+      toPorts:
+        - ports:
+            - port: "22"
+              protocol: TCP
+    # Verify step - hits the app HTTPS endpoint
+    - toFQDNs:
+        - matchPattern: "*.k8s.rommelporras.com"
+        - matchName: rommelporras.com
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # Playwright browser (chromium) pulls additional assets during
+    # install; e2e step runs against localhost but `playwright install`
+    # fetches binaries from CDN.
+    - toFQDNs:
+        - matchPattern: "*.playwright.dev"
+        - matchPattern: "*.azureedge.net"
+        - matchName: playwright.azureedge.net
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+
+# ============================================================
+# invoicetron-migrate pods (egress to invoicetron-<env> DB)
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argo-workflows-invoicetron-migrate
+  namespace: argo-workflows
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: invoicetron-migrate
+  egress:
+    # DNS
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "*"
+    # argoexec
+    - toEntities:
+        - kube-apiserver
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: workflow-controller
+            k8s:io.kubernetes.pod.namespace: argo-workflows
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+    # Cross-namespace PostgreSQL to invoicetron-<env>/invoicetron-db
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: invoicetron-dev
+            app: invoicetron-db
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: invoicetron-prod
+            app: invoicetron-db
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP

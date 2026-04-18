@@ -1,0 +1,259 @@
+# manifests/argo-events/ciliumnetworkpolicy.yaml
+# CiliumNetworkPolicies for the argo-events namespace (Stage 2).
+#
+# Design:
+# - argo-events-default-deny: empty ingress + egress on all endpoints.
+#   Additional allow-list policies below override per-pod.
+# - argo-events-controller: controller-manager allow Prometheus scrape,
+#   egress to kube-apiserver (CRD reconcile) + DNS.
+# - argo-events-eventbus: NATS intra-cluster traffic + Prometheus scrape.
+# - argo-events-eventsource: ingress from Cilium Gateway envoy (identity
+#   reserved:ingress) to the webhook port, egress to GitLab API (hook
+#   auto-registration), EventBus (publish events), kube-apiserver, DNS.
+# - argo-events-sensor: egress to EventBus (subscribe), kube-apiserver
+#   (create Workflows cross-namespace), DNS.
+#
+# GitLab egress uses toFQDNs because the self-hosted GitLab webservice
+# lives in-cluster (gitlab namespace) and the public GitLab API for
+# webhook registration is also gitlab.k8s.rommelporras.com. Per the
+# CLAUDE.md gotcha, toFQDNs requires a paired DNS egress rule with
+# rules.dns.matchPattern="*".
+
+# ============================================================
+# Default deny
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argo-events-default-deny
+  namespace: argo-events
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress: []
+
+# ============================================================
+# controller-manager
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argo-events-controller
+  namespace: argo-events
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: argo-events
+      app.kubernetes.io/component: controller-manager
+  ingress:
+    # Prometheus scrapes controller metrics
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "7777"
+              protocol: TCP
+  egress:
+    # DNS
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "*"
+    # kube-apiserver (reconcile EventSource/Sensor/EventBus CRDs)
+    - toEntities:
+        - kube-apiserver
+
+# ============================================================
+# EventBus (NATS JetStream)
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argo-events-eventbus
+  namespace: argo-events
+spec:
+  endpointSelector:
+    matchLabels:
+      controller: eventbus-controller
+  ingress:
+    # Intra-cluster NATS peer traffic + publishers (EventSource)
+    # + subscribers (Sensor) all live in argo-events namespace
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: argo-events
+      toPorts:
+        - ports:
+            - port: "4222"  # client
+              protocol: TCP
+            - port: "6222"  # cluster
+              protocol: TCP
+            - port: "8222"  # monitoring
+              protocol: TCP
+            - port: "7777"  # metrics
+              protocol: TCP
+    # Prometheus scrape (NATS exporter sidecar)
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "7777"
+              protocol: TCP
+  egress:
+    # DNS
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "*"
+    # Intra-cluster NATS peer traffic
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: argo-events
+      toPorts:
+        - ports:
+            - port: "4222"
+              protocol: TCP
+            - port: "6222"
+              protocol: TCP
+
+# ============================================================
+# EventSource pods
+# ============================================================
+#
+# Ingress: webhook traffic arrives via Cilium Gateway API envoy proxy
+# (HTTPRoute at argo-events.k8s.rommelporras.com). Identity is
+# reserved:ingress (see CLAUDE.md gotcha about argo-workflows server).
+#
+# Egress: hook auto-registration calls the GitLab API at
+# gitlab.k8s.rommelporras.com, plus NATS publish to EventBus, plus
+# kube-apiserver for CR status updates.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argo-events-eventsource
+  namespace: argo-events
+spec:
+  endpointSelector:
+    matchLabels:
+      controller: eventsource-controller
+  ingress:
+    # Cilium Gateway API envoy -> EventSource webhook listener
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "12000"
+              protocol: TCP
+    # Prometheus scrape
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "7777"
+              protocol: TCP
+  egress:
+    # DNS
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "*"
+    # kube-apiserver (CR status updates)
+    - toEntities:
+        - kube-apiserver
+    # NATS publish to EventBus
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: argo-events
+            controller: eventbus-controller
+      toPorts:
+        - ports:
+            - port: "4222"
+              protocol: TCP
+    # GitLab API for webhook registration (in-cluster gitlab webservice)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: gitlab
+            app: webservice
+      toPorts:
+        - ports:
+            - port: "8181"
+              protocol: TCP
+
+# ============================================================
+# Sensor pods
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argo-events-sensor
+  namespace: argo-events
+spec:
+  endpointSelector:
+    matchLabels:
+      controller: sensor-controller
+  ingress:
+    # Prometheus scrape
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "7777"
+              protocol: TCP
+  egress:
+    # DNS
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "*"
+    # kube-apiserver (create Workflows cross-namespace into argo-workflows)
+    - toEntities:
+        - kube-apiserver
+    # NATS subscribe from EventBus
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: argo-events
+            controller: eventbus-controller
+      toPorts:
+        - ports:
+            - port: "4222"
+              protocol: TCP

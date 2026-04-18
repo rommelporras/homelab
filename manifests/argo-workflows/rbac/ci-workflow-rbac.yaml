@@ -1,0 +1,49 @@
+# manifests/argo-workflows/rbac/ci-workflow-rbac.yaml
+# ServiceAccount + Role for CI Workflow pods (portfolio-pipeline,
+# invoicetron-pipeline, portfolio-staging-promote). Scoped to the
+# three Secrets each pipeline needs to mount.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-workflow-sa
+  namespace: argo-workflows
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-workflow-sa
+  namespace: argo-workflows
+rules:
+  # argoexec sidecar writes WorkflowTaskResult per step
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflowtaskresults"]
+    verbs: ["create", "patch"]
+  # argoexec streams logs from the main container
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "watch"]
+  # Mount secrets via envFrom / secretKeyRef
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      - discord-webhooks              # notify-on-failure
+      - gitlab-registry               # build-image
+      - github-deploy-key             # deploy-image
+      - invoicetron-migrate-db-urls   # invoicetron migrate step
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-workflow-sa
+  namespace: argo-workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ci-workflow-sa
+subjects:
+  - kind: ServiceAccount
+    name: ci-workflow-sa
+    namespace: argo-workflows

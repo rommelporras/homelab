@@ -1,0 +1,63 @@
+# manifests/argo-events/sensor-portfolio-staging-promote.yaml
+# Sensor: validates the staging-promote token, then creates a
+# portfolio-staging-promote Workflow with source_sha from the payload.
+#
+# Token validation: dependency-level filter compares the
+# X-Staging-Promote-Token header against the value in the
+# staging-promote-token Secret. Mismatched / missing token -> no
+# workflow created.
+#
+# Body contract: { "source_sha": "abc12345" }. The trigger parameter
+# substitutes source_sha into the Workflow argument.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: portfolio-staging-promote
+  namespace: argo-events
+spec:
+  template:
+    serviceAccountName: argo-events-sa
+    container:
+      env:
+        - name: STAGING_PROMOTE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: staging-promote-token
+              key: token
+  dependencies:
+    - name: promote
+      eventSourceName: portfolio-staging-promote
+      eventName: portfolio-staging-promote
+      filters:
+        data:
+          - path: headers.X-Staging-Promote-Token
+            type: string
+            value:
+              - "{{env.STAGING_PROMOTE_TOKEN}}"
+  triggers:
+    - template:
+        name: portfolio-staging-promote
+        k8s:
+          operation: create
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: portfolio-staging-promote-
+                namespace: argo-workflows
+              spec:
+                workflowTemplateRef:
+                  name: portfolio-staging-promote
+                arguments:
+                  parameters:
+                    - name: source_sha
+                      value: PLACEHOLDER
+                    - name: target_env
+                      value: staging
+          parameters:
+            - src:
+                dependencyName: promote
+                dataKey: body.source_sha
+              dest: spec.arguments.parameters.0.value

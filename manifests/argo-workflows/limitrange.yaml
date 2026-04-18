@@ -19,7 +19,8 @@ spec:
         memory: 64Mi
       max:
         cpu: "2"
-        memory: 1Gi
+        memory: 2Gi        # bumped 1Gi -> 2Gi for Playwright E2E (Stage 2);
+                           # still well under the 4Gi namespace quota ceiling.
       min:
         cpu: 10m
         memory: 32Mi
