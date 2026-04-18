@@ -47,15 +47,14 @@ controller:
   serviceMonitor:
     enabled: false
 
-# -------------- configs --------------
-configs:
-  # JetStream EventBus ConfigMap lets the chart supply default NATS
-  # settings. Our EventBus CR (manifests/argo-events/eventbus.yaml)
-  # overrides replicas/resources per install.
-  jetstream:
-    settings: |
-      max_file_store: 1GB
-      max_memory_store: 128MB
+# -------------- configs (use chart defaults) --------------
+# The chart ships `configs.jetstream.settings` as a map with typed
+# keys (maxFileStore, maxMemoryStore). Overriding with a YAML string
+# block fails with:
+#   cannot overwrite table with non table for argo-events.configs.jetstream.settings
+# Defaults (-1 = unlimited) are fine for a homelab CI workload; our
+# EventBus CR (manifests/argo-events/eventbus.yaml) sets replicas and
+# resources explicitly, which is what actually matters.
 
 # -------------- webhook (disabled) --------------
 # The chart's optional `argo-events-webhook` is an admission webhook for
