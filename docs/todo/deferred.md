@@ -629,6 +629,58 @@ the media repo is deferred.
 
 **When:** After Immich is deployed and has data worth backing up.
 
+## Portfolio Pipeline E2E Step (Phase 5.9.1 Stage 2 Follow-up)
+
+**Status:** Deferred - portfolio-pipeline ships with lint/type-check/test-unit only
+**Priority:** Medium (regression surface without E2E in the pipeline)
+**Added:** 2026-04-19 (Phase 5.9.1 Stage 2 smoke-testing)
+
+### Context
+
+The original Phase 5.9.1 Stage 2 plan included a `test-e2e` step in the
+portfolio-pipeline DAG using Playwright. Three issues surfaced during
+smoke testing that made shipping E2E in v0.39.2 impractical without
+further iteration:
+
+1. `manifests/argo-workflows/templates/test-e2e-template.yaml` specifies
+   `mcr.microsoft.com/playwright:v1.58.2-noble` as the container image
+   but the parameterized `command` runs `bun install`. The Playwright
+   image does not ship bun - the step errors with `bun: command not found`.
+   Fix requires either installing bun inside the Playwright image at
+   runtime (slow, fragile) or switching to `oven/bun:*` + `bunx
+   playwright install chromium --with-deps` (simpler but needs CNP
+   + image size verification).
+
+2. `~/personal/portfolio/playwright.config.ts` `webServer` section runs
+   `npx serve out -l 3000` when `process.env.CI` is set, which assumes
+   `out/` exists in the workspace. The current DAG structure has
+   test-e2e depend only on `clone`, not on `build`, so `out/` is never
+   produced. Fix requires either running `bun run build` inline in the
+   test-e2e step (couples test to build ordering) or restructuring the
+   DAG so test-e2e depends on build (defeats parallelism).
+
+3. Playwright chromium binary download (`playwright.download.prss.microsoft.com`
+   or similar Microsoft CDN) needs CNP egress coverage. The broad
+   HTTPS-to-world egress added in v0.39.2 covers this, so the CNP
+   side is ready.
+
+### What's needed
+
+- Pick the Playwright-in-CI strategy: bun-based image + `bunx playwright
+  install`, or pre-built Playwright + bun side-install
+- Restructure portfolio-pipeline DAG so `test-e2e` has access to `out/`
+  (either via `bun run build` inline or via an artifact dependency on
+  the build step)
+- Update `test-e2e-template.yaml` to match the chosen strategy
+- Re-wire `test-e2e` into `portfolio-pipeline.yaml` DAG
+- Validate end-to-end with a Workflow submission before ship
+
+### When to revisit
+
+After v0.39.2 is stable and GitLab-CI deploys have been retired. The
+test-e2e template file stays in-tree but unwired, so the work is
+additive when it happens.
+
 ## Argo Workflows Restricted PSS Hardening (Phase 5.9.1 Stage 2 Follow-up)
 
 **Status:** Deferred - acceptable under baseline PSS; warn-only for restricted

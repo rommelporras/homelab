@@ -59,7 +59,10 @@ spec:
         - ports:
             - port: "9090"
               protocol: TCP
-    # GitLab clone + registry push (in-cluster gitlab namespace)
+    # GitLab clone + registry push (in-cluster gitlab namespace,
+    # webservice listens on 8181 so this is kept explicit rather than
+    # relying on the world:443 rule - Cilium Gateway terminates TLS
+    # and forwards on 8181 inside the cluster).
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: gitlab
@@ -68,48 +71,31 @@ spec:
         - ports:
             - port: "8181"
               protocol: TCP
-    # External registry via FQDN (registry.k8s.rommelporras.com is
-    # routed through the homelab gateway on port 443)
-    - toFQDNs:
-        - matchName: registry.k8s.rommelporras.com
-        - matchName: gitlab.k8s.rommelporras.com
-      toPorts:
-        - ports:
-            - port: "443"
-              protocol: TCP
-    # GitHub SSH for deploy step
+    # GitHub SSH for deploy step (deploy-image git push).
     - toFQDNs:
         - matchName: github.com
       toPorts:
         - ports:
             - port: "22"
               protocol: TCP
-    # Verify step - hits the app HTTPS endpoint
-    - toFQDNs:
-        - matchPattern: "*.k8s.rommelporras.com"
-        - matchName: rommelporras.com
-      toPorts:
-        - ports:
-            - port: "443"
-              protocol: TCP
-    # Playwright browser (chromium) pulls additional assets during
-    # install; e2e step runs against localhost but `playwright install`
-    # fetches binaries from CDN.
-    - toFQDNs:
-        - matchPattern: "*.playwright.dev"
-        - matchPattern: "*.azureedge.net"
-        - matchName: playwright.azureedge.net
-      toPorts:
-        - ports:
-            - port: "443"
-              protocol: TCP
-    # Discord webhook egress for notify-on-failure (shared template).
-    # When a CI pipeline fails, the onExit handler fires send-discord
-    # from the notify-on-failure template; that pod inherits the
-    # ci-pipeline podMetadata label, so this rule applies.
-    - toFQDNs:
-        - matchPattern: "discord.com"
-        - matchPattern: "*.discord.com"
+    # Broad HTTPS egress for CI-typical dependency fetches.
+    #
+    # Initial design enumerated each FQDN (registry.npmjs.org, docker.io,
+    # deb.debian.org, dl-cdn.alpinelinux.org, mcr.microsoft.com,
+    # playwright.download.prss.microsoft.com, github.com:443, etc.)
+    # but that list is effectively unbounded for a generic CI pipeline
+    # - every bun install / apt-get / apk add / curl release tarball
+    # would require another CNP edit.
+    #
+    # Opening HTTPS to the world is the standard pattern for CI
+    # workloads (GitHub Actions, GitLab runners, CircleCI all do this
+    # implicitly). CI pipeline code is trusted - it comes from our
+    # own GitLab repos running our own WorkflowTemplates under
+    # ci-workflow-sa which has a narrow Secret get allowlist.
+    # Non-HTTPS egress stays tight: DNS + kube-apiserver + in-cluster
+    # NATS/GitLab + SSH to github.com only.
+    - toEntities:
+        - world
       toPorts:
         - ports:
             - port: "443"

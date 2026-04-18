@@ -6,10 +6,13 @@
 #              +-- lint -------+
 #   clone ----+--- type-check -+--- build --- deploy --- verify
 #              +-- test:unit --+
-#              +-- test:e2e ---+
 #                  (parallel)
 #
 #   onExit: notify-on-failure (Discord #incidents)
+#
+# NOTE: test-e2e (Playwright) deferred per docs/todo/deferred.md —
+# the template exists but is not wired into the DAG until the
+# Playwright image + out/ build orchestration is sorted out.
 #
 # Triggered by Sensor `gitlab-portfolio-develop` or
 # `gitlab-portfolio-main`. Staging is NOT triggered here; see
@@ -111,13 +114,8 @@ spec:
             templateRef:
               name: test-unit
               template: test-unit
-          - name: test-e2e
-            dependencies: [clone]
-            templateRef:
-              name: test-e2e
-              template: test-e2e
           - name: build
-            dependencies: [lint, type-check, test-unit, test-e2e]
+            dependencies: [lint, type-check, test-unit]
             templateRef:
               name: build-image
               template: build-image
