@@ -50,6 +50,17 @@ spec:
     labels:
       app.kubernetes.io/component: ci-pipeline
       app.kubernetes.io/name: portfolio
+  # fsGroup=1000 forces kubelet to chown the workspace PVC mount point
+  # to group 1000 on first mount. Without it the Longhorn volume is
+  # root:root 0755 by default, the clone step (runs as root in
+  # alpine/git) writes the repo in, then lint/type-check/test-unit
+  # (UID 1000 from oven/bun:*-alpine) hit
+  #   EACCES: Permission denied: could not create the "node_modules" directory
+  # OnRootMismatch skips the chown walk on subsequent mounts where the
+  # root already has group 1000 - matters for large workspaces.
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
   arguments:
     parameters:
       - name: commit_sha

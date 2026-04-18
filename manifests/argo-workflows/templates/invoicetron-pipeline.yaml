@@ -46,6 +46,11 @@ spec:
     labels:
       app.kubernetes.io/component: ci-pipeline
       app.kubernetes.io/name: invoicetron
+  # See portfolio-pipeline for fsGroup rationale (workspace PVC mount
+  # chown so bun/node containers running as UID 1000 can write).
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
   arguments:
     parameters:
       - name: commit_sha
