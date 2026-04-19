@@ -1,0 +1,77 @@
+# manifests/argo-workflows/templates/push-image-template.yaml
+# Shared skopeo push step. Takes the OCI archive produced by the
+# build-image step and copies it to the container registry.
+#
+# Why skopeo and not BuildKit: BuildKit v0.29.0 returns 403 on
+# `HEAD /v2/<repo>/blobs/<sha>` against this cluster's self-hosted
+# GitLab registry despite valid credentials (diagnosed by running
+# skopeo copy with the same Secret - it pushes cleanly). See Phase
+# 5.9.1 Stage 2 Execution Note #28. skopeo's registry client handles
+# GitLab's JWT auth flow correctly and is the standard CI-push tool.
+#
+# Input contract:
+#   - /workspace/image.tar must exist (produced by build-image)
+#   - gitlab-registry Secret mounted at /auth/config.json
+#
+# Parameters:
+#   image_repo  e.g. registry.k8s.rommelporras.com/0xwsh/portfolio
+#   tag         commit_sha (8 chars)
+#
+# Baseline-PSS compatible (no privilege escalation, no extra caps).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: push-image
+  namespace: argo-workflows
+spec:
+  templates:
+    - name: push-image
+      inputs:
+        parameters:
+          - name: image_repo
+          - name: tag
+      container:
+        image: quay.io/skopeo/stable:v1.16.1
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            echo "=== skopeo push ==="
+            echo "  source: oci-archive:/workspace/image.tar"
+            echo "  dest:   docker://{{inputs.parameters.image_repo}}:{{inputs.parameters.tag}}"
+            ls -lh /workspace/image.tar
+
+            # skopeo wants an authfile in Docker config.json format;
+            # gitlab-registry Secret is already rendered in that
+            # exact shape by its ExternalSecret template.
+            skopeo copy \
+              --authfile /auth/config.json \
+              --retry-times 3 \
+              oci-archive:/workspace/image.tar \
+              docker://{{inputs.parameters.image_repo}}:{{inputs.parameters.tag}}
+            echo "=== push ok ==="
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: "1"
+            memory: 512Mi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+          - name: buildkit-home
+            mountPath: /auth
+            readOnly: true

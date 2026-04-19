@@ -4,7 +4,7 @@
 # DAG (all step images come from shared templates):
 #
 #                              +-- lint -------+
-#   clone --- install-deps ---+--- type-check -+--- build --- deploy --- verify
+#   clone --- install-deps ---+--- type-check -+--- build --- push --- deploy --- verify
 #                              +-- test:unit --+
 #                                  (parallel)
 #
@@ -12,6 +12,11 @@
 # shared workspace before fanning out. Inlining install into each
 # parallel step caused 3 pods to race on the same node_modules and
 # crash Bun with a segfault (smoke6, 2026-04-19).
+#
+# build + push are split: BuildKit rootless emits an OCI archive to
+# /workspace/image.tar, then skopeo (next step) copies it to the
+# registry. BuildKit v0.29.0 has a 403 issue against this cluster's
+# GitLab registry JWT auth; skopeo doesn't. See Execution Note #28.
 #
 #   onExit: notify-on-failure (Discord #incidents)
 #
@@ -165,8 +170,19 @@ spec:
                   value: "{{workflow.parameters.image_repo}}"
                 - name: tag
                   value: "{{workflow.parameters.commit_sha}}"
-          - name: deploy
+          - name: push
             dependencies: [build]
+            templateRef:
+              name: push-image
+              template: push-image
+            arguments:
+              parameters:
+                - name: image_repo
+                  value: "{{workflow.parameters.image_repo}}"
+                - name: tag
+                  value: "{{workflow.parameters.commit_sha}}"
+          - name: deploy
+            dependencies: [push]
             templateRef:
               name: deploy-image
               template: deploy-image

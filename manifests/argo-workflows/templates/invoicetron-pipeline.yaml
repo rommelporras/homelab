@@ -4,9 +4,15 @@
 # DAG:
 #
 #                                  +-- lint ---------+
-#   clone --- install-deps -------+--- type-check ---+--- build --- migrate --- deploy --- verify
+#   clone --- install-deps -------+--- type-check ---+--- build --- push --- migrate --- deploy --- verify
 #                                  +-- test:unit ----+
 #                                      (parallel)
+#
+# Push is a separate skopeo step because BuildKit v0.29.0 has a 403
+# issue against this cluster's GitLab registry JWT auth; skopeo
+# handles it cleanly. See Phase 5.9.1 Execution Note #28.
+# migrate pulls the just-pushed image, so it must depend on push
+# rather than build.
 #
 #   onExit: notify-on-failure
 #
@@ -159,8 +165,19 @@ spec:
               parameters:
                 - name: environment
                   value: "{{workflow.parameters.environment}}"
-          - name: migrate
+          - name: push
             dependencies: [build]
+            templateRef:
+              name: push-image
+              template: push-image
+            arguments:
+              parameters:
+                - name: image_repo
+                  value: "{{workflow.parameters.image_repo}}"
+                - name: tag
+                  value: "{{workflow.parameters.commit_sha}}"
+          - name: migrate
+            dependencies: [push]
             template: migrate
             arguments:
               parameters:

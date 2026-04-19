@@ -1,21 +1,25 @@
 # manifests/argo-workflows/templates/build-image-template.yaml
-# Shared BuildKit rootless image build + push step.
+# Shared BuildKit rootless image BUILD step (push lives in
+# push-image-template.yaml - see Phase 5.9.1 Execution Note #28 for
+# why the push path pivoted to skopeo).
 #
 # Replaces GitLab CI's DinD-based `docker buildx build`. Kaniko was
 # archived in June 2025, so BuildKit is the current consensus for
-# daemonless in-cluster builds (per Phase 5.9.1 plan).
+# daemonless in-cluster builds.
 #
-# Registry: reuses the existing `registry.k8s.rommelporras.com` tag
-# pattern. Auth via `gitlab-registry` secret (imagePullSecret format),
-# which buildkit reads from the rootless daemon's config when
-# $DOCKER_CONFIG is set.
+# Output: OCI archive at /workspace/image.tar. The downstream
+# `push-image` step copies it to the registry via skopeo.
 #
-# Cache: registry-backed inline cache so subsequent builds reuse
-# layers - `BUILDKIT_INLINE_CACHE=1` attached to the pushed image.
+# Registry cache: omitted. BuildKit v0.29.0 has a known 403 issue
+# against this cluster's GitLab registry JWT flow, so registry-backed
+# inline cache can't be used here either. For a single-app homelab
+# build this costs ~10s on no-op changes; accept the tradeoff.
 #
 # Parameters:
 #   image_repo       e.g. registry.k8s.rommelporras.com/0xwsh/portfolio
-#   tag              commit_sha (8 chars)
+#   tag              commit_sha (8 chars) - used only to label the
+#                    image inside the OCI archive; push step uses the
+#                    same ref when copying to the registry
 #   dockerfile_path  e.g. Dockerfile
 #   build_args       optional newline-separated KEY=VALUE string
 #                    (e.g. "NEXT_PUBLIC_APP_URL=https://dev.example.com")
@@ -72,15 +76,21 @@ spec:
 
             # Start rootlesskit-backed buildkitd and run buildctl build.
             # The -rootless image provides buildctl-daemonless.sh.
+            #
+            # `type=oci,dest=/workspace/image.tar` writes an OCI image
+            # archive to the shared workspace PVC. The next DAG node
+            # (push-image) reads this file and skopeo-copies it to the
+            # registry. See Phase 5.9.1 Execution Note #28.
             buildctl-daemonless.sh build \
               --frontend dockerfile.v0 \
               --local context=/workspace \
               --local dockerfile=/workspace \
               --opt filename={{inputs.parameters.dockerfile_path}} \
               $BUILD_ARG_FLAGS \
-              --output type=image,name={{inputs.parameters.image_repo}}:{{inputs.parameters.tag}},push=true \
-              --export-cache type=inline \
-              --import-cache type=registry,ref={{inputs.parameters.image_repo}}:buildcache
+              --output type=oci,dest=/workspace/image.tar,name={{inputs.parameters.image_repo}}:{{inputs.parameters.tag}}
+
+            echo "=== OCI archive written ==="
+            ls -lh /workspace/image.tar
         env:
           - name: BUILDKITD_FLAGS
             value: --oci-worker-no-process-sandbox
@@ -108,18 +118,20 @@ spec:
           # Security.md "Privileged Justifications").
           seccompProfile:
             type: Unconfined
-          # Deliberately NOT dropping capabilities. When caps are
-          # dropped, Linux clears the container's bounding set; on exec
-          # of a setuid-root binary, the new process's permitted set is
-          # F(permitted) & P(bounding) - and an empty bounding set means
-          # newuidmap ends up with no SETUID/SETGID caps to call
-          # setresuid() with. The exec itself returns EPERM
-          # ("fork/exec /usr/bin/newuidmap: operation not permitted").
-          # Upstream BuildKit's k8s example omits the capabilities block
-          # for the same reason; we mirror that.
+          # Capabilities story (smoke13/14/15):
+          # - Don't drop:[ALL] - it clears the bounding set and blocks
+          #   setuid exec of newuidmap (SETUID/SETGID default caps are
+          #   needed to call setresuid() post-exec).
+          # - Add SYS_ADMIN - rootlesskit's first steps inside its user
+          #   namespace call `mount --make-rprivate /` to isolate the
+          #   mount namespace. That needs CAP_SYS_ADMIN; without it
+          #   rootlesskit errors with
+          #     [rootlesskit:child ] error: failed to share mount
+          #     point: /: permission denied
+          # PSS=privileged accepts SYS_ADMIN; kernel constrains it to
+          # this pod's user namespace in practice.
+          capabilities:
+            add: ["SYS_ADMIN"]
         volumeMounts:
           - name: workspace
             mountPath: /workspace
-          - name: buildkit-home
-            mountPath: /home/user/.docker
-            readOnly: true
