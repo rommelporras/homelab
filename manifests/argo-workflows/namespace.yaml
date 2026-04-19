@@ -2,9 +2,16 @@
 # Namespace for Argo Workflows (Phase 5.9).
 #
 # Labels:
-# - pod-security.kubernetes.io/enforce=baseline - workflow pods need to
-#   mount PVCs and run shell commands; restricted blocks too much.
-# - pod-security.kubernetes.io/warn=restricted - still warn on riskier specs.
+# - pod-security.kubernetes.io/enforce=privileged - BuildKit rootless
+#   needs `seccompProfile: Unconfined` for CLONE_NEWUSER/unshare;
+#   baseline PSS rejects that value outright (smoke10 admission
+#   rejection, 2026-04-19). The build-image template is the only pod
+#   that actually uses the extra headroom - all other CI steps keep
+#   baseline-compatible securityContext blocks. See
+#   docs/context/Security.md "Privileged Justifications" for the
+#   corresponding entry.
+# - pod-security.kubernetes.io/warn=restricted - still warn on riskier
+#   specs so drift toward privileged is visible.
 # - eso-enabled=true - allows the vault-backend ClusterSecretStore to sync
 #   ExternalSecrets into this namespace (namespace selector on the CSS).
 #
@@ -19,6 +26,6 @@ kind: Namespace
 metadata:
   name: argo-workflows
   labels:
-    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/warn: restricted
     eso-enabled: "true"

@@ -20,9 +20,15 @@
 #   build_args       optional newline-separated KEY=VALUE string
 #                    (e.g. "NEXT_PUBLIC_APP_URL=https://dev.example.com")
 #
-# Security: UID 1000, baseline PSS. Some BuildKit privileged
-# operations (bind mounts, overlay) work under `rootlesskit`, which
-# the `-rootless` image variant enables.
+# Security: UID 1000 + rootlesskit user-namespace isolation (the
+# `-rootless` image variant). The namespace is labeled
+# `pod-security.kubernetes.io/enforce: privileged` specifically so
+# BuildKit can set `seccompProfile: Unconfined` (baseline PSS
+# explicitly prohibits that value, even though everyone reaches for it
+# first; smoke10 admission rejection, 2026-04-19). All other CI
+# templates in this namespace voluntarily keep baseline-compatible
+# securityContext blocks - the relaxation is scoped to this one
+# container.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
@@ -92,11 +98,14 @@ spec:
           runAsUser: 1000
           runAsGroup: 1000
           allowPrivilegeEscalation: false
-          # BuildKit rootless needs seccomp=unconfined for user-
-          # namespace operations. Baseline PSS permits this via the
-          # explicit seccompProfile override. If the cluster upgrades
-          # to restricted PSS in this namespace, switch to a custom
-          # seccomp profile.
+          # BuildKit rootless needs seccomp=Unconfined for the
+          # CLONE_NEWUSER + unshare syscalls used to set up build
+          # containers. RuntimeDefault blocks a subset of these on
+          # containerd; `--oci-worker-no-process-sandbox` helps but is
+          # not sufficient. Kept Unconfined and relaxed the namespace
+          # PSS enforce to `privileged` (see namespace.yaml + Security.md
+          # exception entry). Localhost seccomp profile is the next
+          # escalation if we later tighten PSS back to baseline.
           seccompProfile:
             type: Unconfined
           capabilities:

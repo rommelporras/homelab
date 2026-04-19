@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, security, pss, eso, vault, service-accounts, cis, hardening, network-policies, backup, resilience]
-updated: 2026-04-15
+updated: 2026-04-20
 ---
 
 # Security
@@ -98,14 +98,15 @@ Every namespace has an `enforce` level plus `audit: restricted` and `warn: restr
 | Level | Namespaces |
 |-------|------------|
 | **restricted** | cloudflare |
-| **baseline** | ai, argo-workflows, argocd, arr-stack, atuin, browser, cert-manager, external-secrets, ghost-dev, ghost-prod, gitlab, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, vault, velero |
-| **privileged** | gitlab-runner, intel-device-plugins, kube-system, longhorn-system, monitoring, node-feature-discovery, tailscale |
+| **baseline** | ai, argocd, arr-stack, atuin, browser, cert-manager, external-secrets, ghost-dev, ghost-prod, gitlab, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, vault, velero |
+| **privileged** | argo-workflows, gitlab-runner, intel-device-plugins, kube-system, longhorn-system, monitoring, node-feature-discovery, tailscale |
 | **no labels** | cilium-secrets, default, kube-node-lease, kube-public |
 
 ### Privileged Justifications
 
 | Namespace | Reason |
 |-----------|--------|
+| argo-workflows | BuildKit rootless CI step needs `seccompProfile: Unconfined` for CLONE_NEWUSER/unshare syscalls; baseline PSS prohibits that value (Phase 5.9.1 Stage 2). Only the `build-image` WorkflowTemplate uses the relaxation; every other CI step (clone, install-deps, lint, type-check, test-unit, deploy, migrate, verify, notify) keeps a baseline-compatible securityContext block. Future tightening path: localhost seccomp profile shipped to each node, then revert enforce to `baseline`. |
 | gitlab-runner | Build pods may need elevated permissions |
 | intel-device-plugins | hostPath volumes for GPU device access |
 | kube-system | System components (Cilium, coredns, kube-proxy) |
