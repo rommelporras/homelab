@@ -103,6 +103,10 @@ spec:
           - key: .dockerconfigjson
             path: config.json
         defaultMode: 0400
+    # Writable /var/tmp for push-image (skopeo extracts the OCI archive
+    # there; readOnlyRootFilesystem blocks in-rootfs writes).
+    - name: tmp
+      emptyDir: {}
   templates:
     # --- entrypoint DAG ---
     - name: portfolio-dag

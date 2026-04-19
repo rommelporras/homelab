@@ -75,3 +75,9 @@ spec:
           - name: buildkit-home
             mountPath: /auth
             readOnly: true
+          # skopeo extracts the OCI archive via /var/tmp; with
+          # readOnlyRootFilesystem:true we need an explicit writable
+          # mount there (smoke25). emptyDir is fine - the archive is
+          # re-created per workflow anyway.
+          - name: tmp
+            mountPath: /var/tmp
