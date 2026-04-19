@@ -97,7 +97,18 @@ spec:
           runAsNonRoot: true
           runAsUser: 1000
           runAsGroup: 1000
-          allowPrivilegeEscalation: false
+          # allowPrivilegeEscalation MUST be true for BuildKit rootless.
+          # It sets NO_NEW_PRIVS=false, which lets rootlesskit exec the
+          # setuid-root `newuidmap`/`newgidmap` helpers needed to build
+          # its user-namespace UID/GID map. With false (smoke12/13),
+          # rootlesskit fails with:
+          #   [rootlesskit:parent] error: failed to setup UID/GID map:
+          #   newuidmap ... fork/exec /usr/bin/newuidmap:
+          #   operation not permitted
+          # Dropping capabilities is still fine because newuidmap is
+          # setuid - it elevates itself on exec rather than inheriting
+          # from the container's bounding set.
+          allowPrivilegeEscalation: true
           # BuildKit rootless needs seccomp=Unconfined for the
           # CLONE_NEWUSER + unshare syscalls used to set up build
           # containers. RuntimeDefault blocks a subset of these on
