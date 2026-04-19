@@ -135,8 +135,11 @@ spec:
               parameters:
                 - name: image
                   value: node:22-slim
+                # Same EACCES workaround as portfolio-pipeline test-unit:
+                # node:22-slim runs as UID 1000, /usr/local is root-owned,
+                # so npm -g must redirect to a writable prefix.
                 - name: command
-                  value: "npm install -g bun && bun run test:unit"
+                  value: "npm install --prefix /tmp/npm-global -g bun && /tmp/npm-global/bin/bun run test:unit"
           - name: build
             dependencies: [lint, type-check, test-unit]
             templateRef:

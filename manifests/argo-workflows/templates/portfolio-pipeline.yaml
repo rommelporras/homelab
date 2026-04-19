@@ -143,10 +143,17 @@ spec:
                 # uses: run on node:22-slim, install bun globally just
                 # to act as the script runner against the already
                 # populated node_modules from install-deps.
+                #
+                # `npm install -g` goes to /usr/local which is root-
+                # owned in node:22-slim; the container runs as UID 1000
+                # so the install fails with EACCES (smoke9). Redirect
+                # npm's prefix to /tmp/npm-global (world-writable, on
+                # the pod's tmpfs so it dies with the pod) and add it
+                # to PATH for the subsequent bun call.
                 - name: image
                   value: node:22-slim
                 - name: command
-                  value: "npm install -g bun && bun run test:unit"
+                  value: "npm install --prefix /tmp/npm-global -g bun && /tmp/npm-global/bin/bun run test:unit"
           - name: build
             dependencies: [lint, type-check, test-unit]
             templateRef:
