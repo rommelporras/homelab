@@ -31,8 +31,11 @@ spec:
           - |
             set -e
             echo "=== Verify: {{inputs.parameters.url}} (expected {{inputs.parameters.expected_status}}) ==="
+            # -L follows redirects so an app that 307s `/` to `/login`
+            # (e.g. Invoicetron's auth gate) still reports the final
+            # 200 instead of looping on the redirect status.
             for i in $(seq 1 {{inputs.parameters.retries}}); do
-              STATUS=$(curl -sSo /dev/null -w '%{http_code}' --max-time 10 "{{inputs.parameters.url}}" || echo "000")
+              STATUS=$(curl -sLSo /dev/null -w '%{http_code}' --max-time 10 "{{inputs.parameters.url}}" || echo "000")
               if [ "$STATUS" = "{{inputs.parameters.expected_status}}" ]; then
                 echo "  Attempt $i: HTTP $STATUS - OK"
                 exit 0
