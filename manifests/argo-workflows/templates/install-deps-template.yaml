@@ -48,7 +48,12 @@ spec:
             memory: 512Mi
           limits:
             cpu: "1"
-            memory: 1Gi
+            # bun install RSS varies per package set: smoke7 portfolio
+            # ran clean at ~810Mi peak, smoke8 OOMKilled at 1Gi on the
+            # same lockfile. Headroom prevents flakes; the install
+            # finishes and the pod terminates within ~30s so the burst
+            # doesn't dent the namespace quota.
+            memory: 2Gi
         securityContext:
           runAsNonRoot: true
           runAsUser: 1000
