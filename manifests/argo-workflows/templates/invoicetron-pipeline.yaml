@@ -3,10 +3,10 @@
 #
 # DAG:
 #
-#              +-- lint ---------+
-#   clone ----+--- type-check ---+--- build --- migrate --- deploy --- verify
-#              +-- test:unit ----+
-#                  (parallel)
+#                                  +-- lint ---------+
+#   clone --- install-deps -------+--- type-check ---+--- build --- migrate --- deploy --- verify
+#                                  +-- test:unit ----+
+#                                      (parallel)
 #
 #   onExit: notify-on-failure
 #
@@ -15,7 +15,10 @@
 # Differences vs. portfolio-pipeline:
 #   - no E2E step
 #   - test-unit runs on node:22-slim (Vitest SSR is unreliable on bun)
-#   - type-check must `bunx prisma generate` first
+#   - install-deps runs `bunx prisma generate` (extra_command) so
+#     type-check sees @prisma/client - bundled into install instead of
+#     prefixed onto type-check's command (avoids races on shared
+#     workspace, see portfolio-pipeline note)
 #   - build passes NEXT_PUBLIC_APP_URL as a build-arg per environment
 #     (baked into the Next.js bundle at build time)
 #   - dedicated `migrate` step between build and deploy runs
@@ -104,22 +107,27 @@ spec:
                   value: "{{workflow.parameters.branch}}"
                 - name: commit_sha
                   value: "{{workflow.parameters.commit_sha}}"
-          - name: lint
+          - name: install-deps
             dependencies: [clone]
+            templateRef:
+              name: install-deps
+              template: install-deps
+            arguments:
+              parameters:
+                - name: extra_command
+                  value: "bunx prisma generate"
+          - name: lint
+            dependencies: [install-deps]
             templateRef:
               name: lint
               template: lint
           - name: type-check
-            dependencies: [clone]
+            dependencies: [install-deps]
             templateRef:
               name: type-check
               template: type-check
-            arguments:
-              parameters:
-                - name: command
-                  value: "bun install --frozen-lockfile && bunx prisma generate && bun run type-check"
           - name: test-unit
-            dependencies: [clone]
+            dependencies: [install-deps]
             templateRef:
               name: test-unit
               template: test-unit
@@ -128,7 +136,7 @@ spec:
                 - name: image
                   value: node:22-slim
                 - name: command
-                  value: "npm install -g bun && bun install --frozen-lockfile && bun run test:unit"
+                  value: "npm install -g bun && bun run test:unit"
           - name: build
             dependencies: [lint, type-check, test-unit]
             templateRef:

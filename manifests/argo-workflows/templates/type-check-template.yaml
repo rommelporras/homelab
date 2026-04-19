@@ -1,7 +1,7 @@
 # manifests/argo-workflows/templates/type-check-template.yaml
-# Shared type-check step. Invoicetron needs a `prisma generate` call
-# before tsc runs; Portfolio does not. Both projects pass their own
-# command via `command` parameter.
+# Shared type-check step. Both projects share the same default command;
+# Invoicetron's `bunx prisma generate` prerequisite is handled in the
+# preceding install-deps step (extra_command), not here.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
@@ -16,7 +16,7 @@ spec:
           - name: image
             value: oven/bun:1.2.15-alpine
           - name: command
-            value: "bun install --frozen-lockfile && bun run type-check"
+            value: "bun run type-check"
       container:
         image: "{{inputs.parameters.image}}"
         imagePullPolicy: IfNotPresent

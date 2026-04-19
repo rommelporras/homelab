@@ -1,0 +1,60 @@
+# manifests/argo-workflows/templates/install-deps-template.yaml
+# Shared dependency-install step. Runs `bun install --frozen-lockfile`
+# once against the shared workspace, before the parallel
+# lint/type-check/test-unit layer.
+#
+# Why this exists: when each parallel step ran its own `bun install`
+# against the same RWO workspace PVC, three pods racing on the same
+# node_modules directory crashed Bun with a segfault during the
+# post-install pass (smoke6, 2026-04-19). Centralizing the install
+# eliminates the race - lint/type-check/test-unit just `bun run` the
+# pre-populated node_modules.
+#
+# Optional `extra_command` lets callers tack on something that depends
+# on node_modules but must run before the parallel layer (Invoicetron
+# uses it for `bunx prisma generate` so type-check sees @prisma/client).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: install-deps
+  namespace: argo-workflows
+spec:
+  templates:
+    - name: install-deps
+      inputs:
+        parameters:
+          - name: image
+            value: oven/bun:1.2.15-alpine
+          - name: extra_command
+            value: ""
+      container:
+        image: "{{inputs.parameters.image}}"
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            cd /workspace
+            echo "=== Install deps ==="
+            bun install --frozen-lockfile
+            if [ -n "{{inputs.parameters.extra_command}}" ]; then
+              echo "=== Extra: {{inputs.parameters.extra_command}} ==="
+              {{inputs.parameters.extra_command}}
+            fi
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace

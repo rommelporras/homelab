@@ -3,10 +3,15 @@
 #
 # DAG (all step images come from shared templates):
 #
-#              +-- lint -------+
-#   clone ----+--- type-check -+--- build --- deploy --- verify
-#              +-- test:unit --+
-#                  (parallel)
+#                              +-- lint -------+
+#   clone --- install-deps ---+--- type-check -+--- build --- deploy --- verify
+#                              +-- test:unit --+
+#                                  (parallel)
+#
+# install-deps runs `bun install --frozen-lockfile` ONCE against the
+# shared workspace before fanning out. Inlining install into each
+# parallel step caused 3 pods to race on the same node_modules and
+# crash Bun with a segfault (smoke6, 2026-04-19).
 #
 #   onExit: notify-on-failure (Discord #incidents)
 #
@@ -110,18 +115,23 @@ spec:
                   value: "{{workflow.parameters.branch}}"
                 - name: commit_sha
                   value: "{{workflow.parameters.commit_sha}}"
-          - name: lint
+          - name: install-deps
             dependencies: [clone]
+            templateRef:
+              name: install-deps
+              template: install-deps
+          - name: lint
+            dependencies: [install-deps]
             templateRef:
               name: lint
               template: lint
           - name: type-check
-            dependencies: [clone]
+            dependencies: [install-deps]
             templateRef:
               name: type-check
               template: type-check
           - name: test-unit
-            dependencies: [clone]
+            dependencies: [install-deps]
             templateRef:
               name: test-unit
               template: test-unit
