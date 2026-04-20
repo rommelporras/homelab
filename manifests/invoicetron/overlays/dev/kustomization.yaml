@@ -4,14 +4,16 @@
 # Image: registry.k8s.rommelporras.com/0xwsh/invoicetron/dev
 # Tag: pinned to currently-running live image (zero cluster drift at first sync)
 resources:
-  - ../../base
-  - namespace.yaml
-  - externalsecret.yaml
-  - networkpolicy.yaml
-  - limitrange.yaml
-  - resourcequota.yaml
+- ../../base
+- namespace.yaml
+- externalsecret.yaml
+- networkpolicy.yaml
+- limitrange.yaml
+- resourcequota.yaml
 namespace: invoicetron-dev
 images:
-  - name: app
-    newName: registry.k8s.rommelporras.com/0xwsh/invoicetron/dev
-    newTag: cbcf2251
+- name: app
+  newName: registry.k8s.rommelporras.com/0xwsh/invoicetron/dev
+  newTag: 3f82c518
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
