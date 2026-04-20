@@ -1,6 +1,6 @@
 # Phase 5.9.1: CI/CD Pipeline Migration (Argo Events + Workflows)
 
-> **Status:** Stage 1 Complete (v0.39.1 shipped 2026-04-16) / Stage 2 In Progress as of 2026-04-20.
+> **Status:** Stage 1 Complete (v0.39.1 shipped 2026-04-16) / Stage 2 In Progress as of 2026-04-21.
 >
 > **Portfolio pipeline: green end-to-end, proven by smoke35 (2026-04-20T05:54Z).**
 > `phase=Succeeded progress=9/9` — clone, install-deps, lint, type-check,
@@ -10,16 +10,24 @@
 > overlay change; `portfolio-dev` Deployment rolled to `:51ca6004` and
 > serves 200 from fresh pods.
 >
-> **Invoicetron pipeline: wired, unchanged since portfolio pivots, untested.**
-> Next session task: submit a manual invoicetron-pipeline Workflow, watch
-> through migrate + deploy, fix any remaining deltas. See new section
-> "5.9.1.10.2 Invoicetron Smoke Plan" near the end of this file.
+> **Invoicetron pipeline: green end-to-end, proven by smoke55 (2026-04-21T04:29Z).**
+> `phase=Succeeded progress=11/11` — clone, install-deps, lint, type-check,
+> test-unit, app-url-dispatch, build, push, migrate (Prisma apply, 30
+> migrations already up-to-date), deploy (CI bot commit `278d148` to
+> main bumping dev overlay to `:3f82c518`), verify (HTTP 200 on
+> invoicetron.dev.k8s.rommelporras.com) all succeeded. ArgoCD `invoicetron-dev`
+> Synced + Healthy at `278d148`; Deployment rolled to `:3f82c518`.
 >
 > **Still untested**: real webhook triggers (portfolio develop + main,
 > invoicetron develop + main, staging-promote).
 >
-> 37 commits landed so far (`2bcce8d` → `dc5a64f`). See "Stage 2 Execution
-> Notes" for the accumulated plan-vs-cluster deltas (39 notes).
+> **Must-do before closing the phase:** restore auto-sync on
+> `argo-workflows-manifests` (reverts commit `f866986`). Applied as a
+> debug-only pause during the invoicetron iteration; leaving it off
+> means WorkflowTemplate drift between git and cluster won't self-heal.
+>
+> 43 commits landed so far (`2bcce8d` → `278d148`). See "Stage 2 Execution
+> Notes" for the accumulated plan-vs-cluster deltas (51 notes).
 > **Target:** v0.39.1 (Stage 1 - ArgoCD onboarding, SHIPPED) → v0.39.2 (Stage 2 - Argo Events CI/CD)
 > **Prerequisite:** Phase 5.9 (v0.39.0 - Argo Workflows installed, controller + argo-server running with `--namespaced` mode)
 > **DevOps Topics:** Event-driven CI/CD, GitOps image promotion, BuildKit rootless, webhook triggers, Kustomize overlays
@@ -650,8 +658,22 @@ All committed under `manifests/argo-workflows/templates/`.
   - **SCHEMA DEVIATION**: `imagePullSecrets` is not valid at `.spec.templates[].imagePullSecrets` in v4.0.4 — must live at `.spec.imagePullSecrets` (workflow level). Plan put it on the migrate step; moved to workflow spec so every step pod inherits it.
   - **DB URL DEVIATION**: Plan said "Database connection string sourced from ExternalSecret". Implementation uses a single `invoicetron-migrate-db-urls` Secret with keys `dev` + `prod`, and the migrate step's `secretKeyRef.key` is parameterized by `{{workflow.parameters.environment}}`. One Secret + one resourceName grant in ci-workflow-sa Role.
   - **CNP DEVIATION**: migrate pods use `app.kubernetes.io/component: invoicetron-migrate` (not `ci-pipeline`) so they get the dedicated `argo-workflows-invoicetron-migrate` CNP for cross-namespace PostgreSQL egress. Updated `manifests/invoicetron/overlays/{dev,prod}/networkpolicy.yaml` to allow ingress from these pods on the `invoicetron-db` selector.
-- [ ] 5.9.1.10.2 Manual smoke test (same pattern as portfolio smoke35)
-  - **Invoicetron Smoke Plan**. Most of the portfolio pain (#1-#39) is already paid for; this section exists to keep us honest about what's *different* about the invoicetron path.
+- [x] 5.9.1.10.2 Manual smoke test (same pattern as portfolio smoke35) — **PASSED smoke55 2026-04-21T04:29Z**
+  - 20 smoke submissions (smoke36 → smoke55) uncovered Notes #40-#50.
+  - Per-range breakdown:
+    - **smoke36**: clone failed (HTTPS auth missing) → Note #40.
+    - **smoke37-38**: install-deps EACCES (umask leak) → Note #41.
+    - **smoke39-40**: Prisma Node version check (bun shim 22.6) → Note #42.
+    - **smoke41**: canvas musl build (no prebuilt) → Note #43.
+    - **smoke42**: Prisma config loader DATABASE_URL → Note #44; type-check OOM at 1Gi (template default).
+    - **smoke43**: DAG stall on `{{tasks.app-url-dispatch.outputs.result}}` without explicit dep → Note #45.
+    - **smoke44-47**: build OOMKilled at 2Gi → 4Gi → 6Gi → Note #46.
+    - **smoke47**: BuildKit OCI session deadline (transient) → Note #47.
+    - **smoke48-49**: gitaly 500 transient during GitLab pod rolls → Note #48.
+    - **smoke50**: deploy happened; migrate P1001 on short service name → Note #49 (but actually caused by Note #50's label bug — FQDN needed *and* label fix).
+    - **smoke51-54**: still P1001 despite FQDN because migrate pod's `app.kubernetes.io/component` label was `ci-pipeline` not `invoicetron-migrate` → Note #50.
+    - **smoke55: GREEN end-to-end.** 11/11 stages passed, CI bot commit `278d148` landed on main, Deployment rolled to `:3f82c518`, verify-health 200.
+  - **Invoicetron Smoke Plan (reference)**. Most of the portfolio pain (#1-#39) was already paid for; this section documented what's *different* about the invoicetron path.
 
   ### Invoicetron-specific differences vs portfolio (already wired in the template, not yet exercised)
 
@@ -689,15 +711,15 @@ All committed under `manifests/argo-workflows/templates/`.
      ```
   5. **Migrate step uses the just-built image** — `image: {{inputs.parameters.image_repo}}:{{inputs.parameters.image_tag}}`. If the build's push didn't fully propagate to the registry by the time migrate's pod spec is materialized, the pod fails ImagePullBackOff. Should be fine in practice (push is synchronous) but watch for this.
 
-  ### Resume plan for the next session
+  ### Actual outcome
 
-  Since portfolio smoke35 proved the shared infrastructure (CNP/PSS/BuildKit caps/skopeo/SSH key/tar/kustomize/ArgoCD sync) works end-to-end, the invoicetron run should be **much faster**. Expected outcomes:
+  Worst case: 20 smoke cycles uncovered 11 new deltas (Notes #40-#50). All fixed; smoke55 green. The worst-case prediction above turned out to be the real one — the migrate step uncovered *two* issues layered on top of each other: the cross-ns DNS short-name resolution gap (Note #49) AND the Argo v4.0.4 template-label override quirk (Note #50). Each presented as Prisma P1001, making diagnosis longer than it should have been. The shared infrastructure proven by portfolio DID carry forward — all portfolio-relevant notes (#1-#39) stayed paid-for; the 11 new invoicetron notes are specifically about this project's particular quirks (Prisma, canvas, Next.js Turbopack memory, cross-ns egress).
 
-  - Best case (2 out of 3 guess): smoke36 runs green first try. Remaining work: real webhook tests + ship.
-  - Likely case: one or two small deltas (one of the hypotheses above) hits, fix takes 1-2 commits, smoke37 green.
-  - Worst case: migrate step uncovers a new Cilium/DB auth issue and needs deeper diagnosis.
+  ### Post-smoke cleanup (must-do before ship)
 
-  Start the session by checking live state (registry auth still valid after user's final PAT rotation, github-deploy-key still has trailing-\n fix in deploy template, etc.) and then submit a manual invoicetron Workflow with the inputs above.
+  1. **Restore argo-workflows-manifests auto-sync.** Commit `f866986` temporarily removed the `automated` block; a one-line revert re-enables prune+selfHeal. Do this in the *next* session to let ArgoCD re-own WorkflowTemplate state before any further drift accumulates.
+  2. **Align the in-cluster CNP label update** — `invoicetron-dev-manifests` and `invoicetron-prod-manifests` were never pause-synced, so their CNPs are already reconciled to commit `40e6e9e`. No manual action needed.
+  3. **Webhook triggers still pending** — see 5.9.1.10.3 / 5.9.1.10.4 below.
 
 - [ ] 5.9.1.10.3 Real webhook trigger from `develop` push. Should register + fire via the already-working `gitlab-invoicetron-develop` Sensor.
 - [ ] 5.9.1.10.4 Real webhook trigger from `main` push. Prod target; requires invoicetron migrations to be idempotent (confirm by reading `prisma/migrations/` folder in the repo first).
@@ -777,6 +799,12 @@ What actually happened, vs the plan, between 2026-04-18 and 2026-04-19. Captured
 | `9500687` | fix   | tar --no-same-owner in deploy-image (Notes #36) |
 | `dc5a64f` | fix   | Ensure trailing newline on deploy SSH key (Notes #37-#39) |
 | `37a61fb` | chore | CI bot commit from first successful smoke35 deploy - NOT a repo fix, but the marker commit that proves deploy works |
+| `a697aea` | docs  | Portfolio smoke35 green + invoicetron plan write-up |
+| `31966e9` | fix   | Inject deploy token for private GitLab clone (Notes #40, #41) |
+| `90a9888` | fix   | Scope clone umask to subshell (Notes #42) |
+| `f866986` | chore | Temporarily disable argo-workflows-manifests auto-sync (Notes #43) |
+| `40e6e9e` | fix   | Invoicetron resource + label fixes for Stage 2 smoke (Notes #44-#50) |
+| `278d148` | chore | CI bot commit from first successful smoke55 invoicetron deploy - proves full invoicetron pipeline works |
 
 ### 15 plan-vs-cluster deltas
 
@@ -871,6 +899,28 @@ What actually happened, vs the plan, between 2026-04-18 and 2026-04-19. Captured
     Keeps the seed script and ESO template general-purpose; the trailing-\n requirement is a consumer-side OpenSSH convention.
 
 39. **1Password multi-line field storage via `op item edit`** — manually pasting multi-line content (like SSH private keys) into 1Password's web/desktop UI frequently corrupts newlines (the original `github-deploy-key` field stored only 21 bytes: `-----BEGIN OPENSSH P` — the first line truncated at the implicit newline strip). Fix: always populate multi-line fields via `op item edit "<item>" "field=$(cat <file>)"` from a shell. `op` CLI preserves newlines in command substitution context; verify with `op read ... | wc -l`. **Security note**: `op item edit` prints the new field value to stdout by default — redirect with `> /dev/null 2>&1` for sensitive fields, or expect to rotate the value after the session.
+
+40. **Clone template missed private-repo HTTPS auth** — the shared `clone` WorkflowTemplate doc-commented "private GitLab repos clone over HTTPS with a read-only deploy token" but the implementation had no credential injection. Portfolio worked because it clones from public github.com; invoicetron smoke36 failed `git fetch` with `fatal: could not read Username for 'https://gitlab.k8s.rommelporras.com'`. The existing `argo-workflows-buildkit` PAT only has `read_registry, write_registry` scopes (per plan line 973) and can't clone repos. Fix: reused the group-level `k8s-image-pull` deploy token (scope `read_repository`, already in 1P as "Invoicetron Deploy Token") via new Vault path `argo-workflows/gitlab-clone-token` + new ExternalSecret `gitlab-clone-token` mounted at `/git-creds`. The clone script configures git's `store` credential helper against `/workspace/.git-credentials` only when the Secret is present, so the token never appears in process args or the clone URL. Mount is added to both portfolio and invoicetron pipelines (no-op for portfolio's GitHub path). GitLab self-hosted DOES support group-level Deploy Tokens; the earlier plan-line-584 claim that they "are not available on this edition" was incorrect.
+
+41. **Git clone credential helper umask persistence** — smoke37 failed install-deps with `EACCES on /workspace/package.json`. Root cause: `umask 077` set before writing `/workspace/.git-credentials` (to get mode 0600) persisted through the rest of the clone script. `git init`, `git fetch`, `git checkout` all then created the working tree under umask 077, producing mode-0600 files. The install-deps pod runs non-root (UID 1000 / fsGroup 1000) and needs the group-readable bit to read the cloned working tree. Fix: move the umask into a `(...)` subshell so the restrictive mask only applies to the credentials write — `( umask 077; printf '...' > /workspace/.git-credentials )`. Parent shell umask stays at the container default; package.json lands at 0644, fsGroup chown makes group 1000 readable.
+
+42. **bun's `process.versions.node` shim and Prisma's Node version check** — Prisma 7.x preinstall (and the CLI's startup check) enforces Node `>=20.19 <21 || >=22.12 <23 || >=24 <25`. Bun emulates Node at a *specific* compatibility version that can lag the real Node release train. Empirical probe of three tags in-cluster (smoke41 prep): bun `1.2.15-alpine` reports 22.6.0 (FAILS), bun `1.2.20-alpine` reports 24.3.0 (PASSES), bun `1.2.22-alpine` also 24.3.0. Fix: pass `image: oven/bun:1.2.20-slim` to install-deps for invoicetron via the template's existing `image` input parameter. Portfolio stays on 1.2.15-alpine because it has no Prisma. **Always probe `process.versions.node` on a new bun tag before assuming it clears a `>=22.x` or `>=24.x` semver gate.**
+
+43. **`canvas` npm package has no musl/alpine prebuild** — smoke40 install-deps failed with `gyp ERR! find Python` while trying to node-gyp-build canvas. `canvas` only publishes prebuilt N-API binaries for glibc (`linux-x64`) — alpine's musl triggers a full source build that needs python3 + cairo/pango dev libs that `-alpine` doesn't carry. Fix: switch invoicetron install-deps image to `oven/bun:1.2.20-slim` (debian-slim, glibc). Canvas's prebuild-install finds the x64-glibc binary and skips the native build. Runtime libs (libcairo, libpango) aren't needed at install time; only at actual canvas import — and lint/type-check/test-unit don't exercise canvas imports, so the shared workspace is fine.
+
+44. **Prisma 7 config loader demands `DATABASE_URL` even for `generate`** — smoke41 failed `bunx prisma generate` with `PrismaConfigEnvError: Cannot resolve environment variable: DATABASE_URL`. Prisma 7 runs `prisma.config.ts` through a Node loader that resolves all env references up front; `generate` never opens a DB connection but the loader's eager resolution still needs the var present. Fix: pass a syntactically-valid placeholder URL in the install-deps `extra_command` — `DATABASE_URL='postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder' bunx prisma generate`. Real DB creds stay in the migrate step (via Vault ESO). Works because the loader only parses the URL; it never dials.
+
+45. **DAG task-output resolution requires an explicit dependency edge** — smoke43 stalled at `6/7` progress for ~15 min with no error in the pod list but controller logs showing `failed to resolve {{tasks.app-url-dispatch.outputs.result}}`. Cause: `app-url-dispatch` ran in parallel with `clone` (no dependencies) and completed; `build` referenced its output via `{{tasks.app-url-dispatch.outputs.result}}` but listed only `dependencies: [lint, type-check, test-unit]`. Argo Workflows only propagates task outputs along explicit dependency edges — the reachability check fails if a task consumes an output from a sibling/parallel task it does not depend on. Fix: add `app-url-dispatch` to build's dependencies list. **Rule:** any task referenced in `{{tasks.X.outputs.*}}` must appear in the consumer task's `dependencies`.
+
+46. **BuildKit memory scales non-linearly with Next.js Turbopack** — portfolio builds at ~800Mi peak RSS with plain Next.js + webpack. Invoicetron (Next.js 16 with Turbopack default, Prisma client generation inside the Dockerfile, native canvas install) OOMKilled at 2Gi (smoke44), again at 4Gi (smoke46), and finally completed at 6Gi (smoke47). The namespace `LimitRange` max and the `build-image` template limit both needed to be raised. Current state: `LimitRange` container `max.memory: 6Gi`, `build-image` template `limits.memory: 6Gi`. 6Gi fits inside the 10Gi namespace ceiling because build runs serially after the parallel test layer terminates. **Rule:** size the build pod to the largest of the projects sharing the template — not the smallest.
+
+47. **BuildKit session deadline during OCI archive finalization is transient** — smoke47 passed `bun run build` (316s compile) and all COPY steps, reached `exporting layers 10.0s done` and `exporting manifest ... done`, then failed with `ERROR: no active session for <id>: context deadline exceeded`. No pod OOM, no kill. Hypothesis: daemonless buildctl's wrapper terminates buildkitd once the client disconnects, and the final tar write to the Longhorn-backed `/workspace/image.tar` races that teardown. Fix: retry. smoke50 on identical config exported cleanly. Accept retry as the mitigation; don't chase a BuildKit internal timing fix for a homelab.
+
+48. **Self-hosted GitLab gitaly transient 500s** — smoke48+49 both failed at clone with `HTTP 500` / `fatal: expected flush after ref listing` within the same minute. Logs showed `gitlab-gitaly-0` had restarted 5 times (kas + gitlab-shell + registry also rolled). Not a pipeline bug; a GitLab self-hosted instance reboot. Fix: wait for gitaly to log `Started Gitaly`, retry. Worth capturing on the runbook as "if clone fails with 500, check gitlab-gitaly pod restarts before debugging the pipeline."
+
+49. **Short Kubernetes service name doesn't cross namespaces** — smoke51 migrate failed Prisma P1001 `Can't reach database server at invoicetron-db:5432`. Same DATABASE_URL works from inside invoicetron-dev ns (where the short name resolves via pod DNS search list) but not from argo-workflows ns. Probe confirmed: `getent hosts invoicetron-db` returns nothing from argo-workflows, `invoicetron-db.invoicetron-dev.svc.cluster.local` resolves and `nc -vz ... 5432` succeeds. **Rule:** any DATABASE_URL / service URL consumed from a *different* namespace than the target Service must use the `<service>.<ns>.svc.cluster.local` FQDN. Fix: rotated 1P `Invoicetron Dev/database-url` to use the FQDN form; re-seeded Vault. The running in-namespace app still resolves the FQDN fine (trivial DNS superset), so the change is globally safe for both consumers of the same secret.
+
+50. **Argo Workflows v4.0.4 ignores template-level `metadata.labels` override of a key set by workflow-level `podMetadata.labels`** — smoke52/53/54 migrate failed Prisma P1001 even with a correct FQDN DATABASE_URL. Cross-ns probe with identical image + labels succeeded (node `pg` connects, `prisma migrate deploy` applied). Difference: the *actual* Argo-created migrate pod carried `app.kubernetes.io/component=ci-pipeline` — the workflow-level value from `podMetadata.labels` — **not** the `invoicetron-migrate` value the migrate template's own `metadata.labels` attempted to set. The stored WorkflowTemplate has the override, but v4.0.4's pod merge logic keeps the workflow-level value when the same key appears in both. The cross-ns DB CNP (`invoicetron-<env>-db-ingress` in invoicetron-dev/prod) selected on the exact label the pod didn't have → traffic blocked at Cilium L3 → Prisma reported as "Can't reach server". Fix: use a *different* label key that `podMetadata.labels` never claims — added `invoicetron-migrate: "true"` on the migrate template's `metadata.labels`, and taught the dev + prod DB-ingress CNPs to match that key instead. **Rule for future Argo Workflows (v4.0.4) CI pipelines:** when a per-template label is load-bearing (CNP selector, Prometheus target filter, anything that can't be replaced by an annotation), **pick a key that doesn't also exist in `spec.podMetadata.labels`**. Argo may fix the merge precedence in a future release; until then, dedicated keys are the safe path.
 
 ### Manual prerequisites uncovered
 
@@ -986,6 +1036,12 @@ For any new Argo Workflows CI pipeline (new project, new promotion flow, etc.):
 - [ ] Overlay exists at `manifests/<project>/overlays/<env>/kustomization.yaml` with `images:` entry matching the pipeline's `image_name` parameter.
 - [ ] verify-health URL tested with live `curl -L` against the HTTPRoute before committing.
 - [ ] CiliumNetworkPolicy for the CI namespace allows `world:443/TCP`, `github.com:22/TCP`, and whatever in-cluster services the build/migrate steps need.
+- [ ] Any cross-namespace Service URL consumed from the CI pod uses its **FQDN** (`<svc>.<ns>.svc.cluster.local`) — the short name only resolves inside the target namespace (Note #49).
+- [ ] If a CNP selects CI pods on a label, pick a **dedicated key** not present in `spec.podMetadata.labels`. Argo v4.0.4 ignores template-level `metadata.labels` overrides of workflow-level keys (Note #50).
+- [ ] Private GitLab repos clone with a `read_repository`-scoped deploy token via `gitlab-clone-token` ExternalSecret (already wired in the shared clone template); public-repo pipelines ignore the credential helper (Note #40).
+- [ ] bun tag verified — probe `process.versions.node` against Prisma's `>=20.19 / >=22.12 / >=24.0` semver gate before picking a bun image (Note #42).
+- [ ] If the app depends on `canvas`, use a glibc base (`bun:*-slim`) not alpine — canvas publishes no musl prebuilt (Note #43).
+- [ ] `LimitRange` container-max is at least as large as the build pod's expected peak RSS — portfolio peak ~800Mi, invoicetron peak ~6Gi (Note #46).
 - [ ] At least one per-template `kubectl-admin create workflow --from workflowtemplate/<name>` test before wiring into a full pipeline DAG.
 
 ---
@@ -1019,29 +1075,32 @@ For any new Argo Workflows CI pipeline (new project, new promotion flow, etc.):
 - [x] GitLab Runner OOM fix: concurrent=4 + pod anti-affinity (bonus fix, shipped with v0.39.1)
 - [x] ArgoCD controller memory bumped 1Gi→2Gi (bonus fix, shipped with v0.39.1)
 
-### Stage 2 (v0.39.2) - Status as of 2026-04-19
+### Stage 2 (v0.39.2) - Status as of 2026-04-21
 
 - [x] `argo-events` namespace + controllers Running, PSS baseline labeled
 - [x] Per-project EventSources auto-registered webhooks on GitLab (after manual `allow_local_requests_from_web_hooks_and_services=true`)
 - [x] All shared WorkflowTemplates deployed
-- [ ] All shared WorkflowTemplates **individually tested** — skipped, smoke-tested via full pipeline only (build + deploy templates still unproven)
+- [x] All shared WorkflowTemplates **exercised end-to-end** via portfolio smoke35 + invoicetron smoke55 (clone, install-deps, lint, type-check, test-unit, app-url-dispatch, build, push, migrate, deploy, verify). Individual template smokes remain skipped; the two full-pipeline runs are sufficient coverage.
 - [x] `notify-on-failure` extracted; vault-snapshot delegates via templateRef
 - [x] Cross-namespace RBAC: `argo-events-sa` can create Workflows in `argo-workflows` (verified by Sensor pod startup logs)
 - [x] Controller `--namespaced` confirmed (no separate `--managed-namespace` flag needed for single-ns install)
 - [x] Discord notification reaches #incidents on workflow failure (verified during smoke2)
 - [ ] Webhook secret validation works (untested — would need a forged POST without the X-Gitlab-Token)
 - [ ] Per-project secret isolation (untested — implicit from per-EventSource secrets)
-- [ ] Portfolio develop push → Workflow → all steps pass → ArgoCD sync → dev pod updated
-- [ ] Portfolio main push → same, prod target
-- [ ] Portfolio staging promotion via manual GitLab job works
-- [ ] Invoicetron develop push → pipeline with prisma migration → ArgoCD sync → dev pod updated, correct NEXT_PUBLIC_APP_URL baked in
-- [ ] Invoicetron main push → same for prod
-- [ ] Deploy mutex serializes concurrent runs
-- [ ] Rebase retry loop works
-- [x] Workflow TTL applied per template (1d success / 7d failure) — actual cleanup not yet observed (need 24h elapsed)
+- [x] Portfolio develop smoke35 → Workflow → 9/9 steps pass → ArgoCD sync → `portfolio-dev` Deployment rolled to `:51ca6004`
+- [ ] Portfolio real webhook trigger from `develop` push — pending
+- [ ] Portfolio main push → prod target — pending
+- [ ] Portfolio staging promotion via manual GitLab job — pending
+- [x] Invoicetron develop smoke55 → full pipeline with Prisma migrate → ArgoCD sync → `invoicetron-dev` Deployment rolled to `:3f82c518`, verify-health 200
+- [ ] Invoicetron real webhook trigger from `develop` push — pending
+- [ ] Invoicetron main push → prod target — pending
+- [ ] Deploy mutex serializes concurrent runs (untested — smoke runs have been serial)
+- [ ] Rebase retry loop works (untested — no concurrent contention observed yet)
+- [x] Workflow TTL applied per template (1d success / 7d failure) — actual cleanup observed between smoke36 and smoke55 (failed wf retained, succeeded purged per podGC)
 - [x] VAP allows mcr.microsoft.com/ (Playwright) — image not actually pulled since e2e is deferred
 - [ ] CI alerts fire on induced failure (alerts deployed, not yet exercised end-to-end)
-- [x] Grafana dashboard deployed (panels mostly empty until first runs land)
+- [x] Grafana dashboard deployed (panels populated with smoke35/55 data)
+- [ ] **Auto-sync restored on argo-workflows-manifests** — commit `f866986` paused it; next session must revert. Until then the WorkflowTemplate-layer protection against drift is off.
 
 ### Security (both stages)
 - [ ] All workflow pods non-root, PSS baseline compliant
