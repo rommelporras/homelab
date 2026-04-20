@@ -67,8 +67,12 @@ spec:
             # Pinned kustomize: 5.4.3 is the version matching Stage 1
             # overlays (verified with `kustomize version` after a local
             # build). Update pin when bumping elsewhere.
+            # --no-same-owner is required because the deploy container
+            # has capabilities.drop:[ALL] which removes CAP_CHOWN;
+            # without it tar fails with "Cannot change ownership"
+            # trying to restore the archive's original uid/gid.
             curl -sSL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz \
-              | tar -xz -C /usr/local/bin
+              | tar -xz --no-same-owner -C /usr/local/bin
 
             # --- SSH config (DR-5) ---
             mkdir -p /root/.ssh
