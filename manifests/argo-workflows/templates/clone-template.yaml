@@ -56,8 +56,13 @@ spec:
               P=$(cat /git-creds/password)
               # Derive host from repo_url: strip scheme + path/slash.
               HOST=$(echo "{{inputs.parameters.repo_url}}" | sed -E 's#^https?://##; s#/.*##')
-              umask 077
-              printf 'https://%s:%s@%s\n' "$U" "$P" "$HOST" > /workspace/.git-credentials
+              # Subshell scopes the restrictive umask so only the
+              # credentials file gets 600 - the rest of the clone
+              # (package.json, etc.) keeps the default mask so the
+              # non-root install-deps pod (UID 1000, fsGroup 1000)
+              # can still read the working tree.
+              ( umask 077; \
+                printf 'https://%s:%s@%s\n' "$U" "$P" "$HOST" > /workspace/.git-credentials )
               git config --global credential.helper "store --file=/workspace/.git-credentials"
               unset U P
             fi
