@@ -103,6 +103,15 @@ spec:
           - key: .dockerconfigjson
             path: config.json
         defaultMode: 0400
+    # GitLab group deploy token (read_repository) for private-repo
+    # clones. Portfolio clones from public GitHub so the mount is a
+    # no-op, but the shared clone template references the `git-creds`
+    # volume unconditionally - easier to mount empty than to branch
+    # the template.
+    - name: git-creds
+      secret:
+        secretName: gitlab-clone-token
+        defaultMode: 0400
     # Writable /var/tmp for push-image (skopeo extracts the OCI archive
     # there; readOnlyRootFilesystem blocks in-rootfs writes).
     - name: tmp

@@ -283,6 +283,16 @@ echo "  argo-workflows/github-deploy-key"
 vault kv put secret/argo-workflows/github-deploy-key \
   ssh-privatekey="$(op read 'op://Kubernetes/Argo Workflows/github-deploy-key')"
 
+# GitLab group deploy token (scope: read_repository) for the CI clone
+# step when checking out private GitLab repos (invoicetron). Reuses
+# the existing "Invoicetron Deploy Token" 1P item - same token as
+# the cluster-wide imagePullSecret; only read_repository is exercised
+# here.
+echo "  argo-workflows/gitlab-clone-token"
+vault kv put secret/argo-workflows/gitlab-clone-token \
+  username="$(op read 'op://Kubernetes/Invoicetron Deploy Token/username')" \
+  password="$(op read 'op://Kubernetes/Invoicetron Deploy Token/password')"
+
 echo ""
 echo "=== Verification ==="
 vault kv list secret/

@@ -1,19 +1,27 @@
 # manifests/argo-workflows/templates/clone-template.yaml
-# Shared clone step. Checks out `commit_sha` from a GitLab repo URL
-# into /workspace (shared emptyDir volume within a single workflow).
+# Shared clone step. Checks out `commit_sha` from a repo URL into
+# /workspace (shared RWO volume within a single workflow).
 #
-# Public repos only need `repo_url` + `commit_sha`. Private GitLab
-# repos (invoicetron, portfolio) clone over HTTPS with a read-only
-# deploy token passed as basic-auth; that token is separate from the
-# write-credential SSH deploy key used in `deploy-image`.
+# Auth:
+# - Public repos (portfolio on github.com) clone without credentials.
+# - Private GitLab repos (invoicetron) authenticate with a group-level
+#   deploy token (scope: read_repository) from Secret `gitlab-clone-token`
+#   (ExternalSecret in this namespace). The Secret is mounted on every
+#   call; the clone script configures a git `store` credential helper
+#   against /workspace/.git-credentials when the Secret is present, so
+#   the token never appears in process args or the commit URL.
+# - Write access for `deploy-image` uses the SSH deploy key on a
+#   separate path and is unrelated to clone auth.
 #
 # Parameters:
-#   repo_url    full HTTPS clone URL (e.g. https://gitlab.k8s.rommelporras.com/0xwsh/portfolio.git)
-#   commit_sha  full or short SHA to check out
+#   repo_url    full HTTPS clone URL
+#   branch      required - servers only accept branch/tag/full-SHA refs,
+#               not 8-char short SHAs; fetch branch then checkout SHA
+#   commit_sha  8-char SHA (DR-2)
 #
-# Shared volume contract: caller MUST provide a `workspace` emptyDir
-# volume and mount it at /workspace on every step that reads the
-# working copy (lint, type-check, test, build).
+# Shared volume contract: caller MUST provide a `workspace` volume
+# mounted at /workspace on every step that reads the working copy
+# (lint, type-check, test, build, deploy).
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
@@ -26,9 +34,8 @@ spec:
       inputs:
         parameters:
           - name: repo_url
-          - name: branch        # required - servers only accept branch/tag/full-SHA refs,
-                                # not 8-char short SHAs; fetch branch then checkout SHA locally
-          - name: commit_sha    # 8-char SHA (DR-2) - checked out from the fetched branch
+          - name: branch
+          - name: commit_sha
       container:
         image: alpine/git:2.52.0
         imagePullPolicy: IfNotPresent
@@ -37,6 +44,24 @@ spec:
           - |
             set -e
             echo "=== Clone {{inputs.parameters.repo_url}} branch={{inputs.parameters.branch}} sha={{inputs.parameters.commit_sha}} ==="
+
+            # If a GitLab clone-token Secret is mounted, configure a
+            # store credential helper so HTTPS auth works without
+            # putting the token in the clone URL or process args.
+            # Public-repo pipelines (portfolio/github.com) ignore the
+            # helper - git only consults it when the server prompts
+            # for credentials.
+            if [ -f /git-creds/username ] && [ -f /git-creds/password ]; then
+              U=$(cat /git-creds/username)
+              P=$(cat /git-creds/password)
+              # Derive host from repo_url: strip scheme + path/slash.
+              HOST=$(echo "{{inputs.parameters.repo_url}}" | sed -E 's#^https?://##; s#/.*##')
+              umask 077
+              printf 'https://%s:%s@%s\n' "$U" "$P" "$HOST" > /workspace/.git-credentials
+              git config --global credential.helper "store --file=/workspace/.git-credentials"
+              unset U P
+            fi
+
             cd /workspace
             git init
             git remote add origin "{{inputs.parameters.repo_url}}"
@@ -68,3 +93,6 @@ spec:
         volumeMounts:
           - name: workspace
             mountPath: /workspace
+          - name: git-creds
+            mountPath: /git-creds
+            readOnly: true

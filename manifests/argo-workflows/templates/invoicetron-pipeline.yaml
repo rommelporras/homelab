@@ -96,6 +96,13 @@ spec:
           - key: .dockerconfigjson
             path: config.json
         defaultMode: 0400
+    # GitLab group deploy token (read_repository) for private-repo
+    # clone. Consumed by the shared clone template's credential
+    # helper setup.
+    - name: git-creds
+      secret:
+        secretName: gitlab-clone-token
+        defaultMode: 0400
     # Writable /var/tmp for push-image (skopeo extracts the OCI archive
     # there; readOnlyRootFilesystem blocks in-rootfs writes).
     - name: tmp
