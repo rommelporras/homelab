@@ -33,7 +33,12 @@ spec:
             memory: 512Mi
           limits:
             cpu: "1"
-            memory: 1Gi
+            # tsc RSS varies by project size. Portfolio fits in 1Gi;
+            # invoicetron (Prisma + Next.js + React + many UI libs)
+            # OOMKilled at 1Gi on smoke42. 2Gi matches install-deps
+            # headroom; type-check pods terminate quickly so the
+            # burst doesn't dent namespace quota.
+            memory: 2Gi
         securityContext:
           runAsNonRoot: true
           runAsUser: 1000

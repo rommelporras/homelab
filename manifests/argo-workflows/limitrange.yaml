@@ -19,8 +19,12 @@ spec:
         memory: 64Mi
       max:
         cpu: "2"
-        memory: 2Gi        # bumped 1Gi -> 2Gi for Playwright E2E (Stage 2);
-                           # still well under the 4Gi namespace quota ceiling.
+        memory: 6Gi        # bumped 2Gi -> 6Gi for invoicetron BuildKit:
+                           # Next.js 16 Turbopack + Prisma + native
+                           # canvas peak well past 4Gi during
+                           # production compile (smoke46 OOM at 4Gi).
+                           # Fits in namespace 10Gi with build running
+                           # serially after the parallel test layer.
       min:
         cpu: 10m
         memory: 32Mi

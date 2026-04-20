@@ -102,9 +102,12 @@ spec:
             app: invoicetron-db-backup
         - matchLabels:
             job-name: invoicetron-migrate
+        # See dev overlay and invoicetron-pipeline migrate template
+        # for why this matches `invoicetron-migrate: "true"` (Argo
+        # Workflows v4.0.4 `podMetadata.labels` override quirk).
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: argo-workflows
-            app.kubernetes.io/component: invoicetron-migrate
+            invoicetron-migrate: "true"
       toPorts:
         - ports:
             - port: "5432"

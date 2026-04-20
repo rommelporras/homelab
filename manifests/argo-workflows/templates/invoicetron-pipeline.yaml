@@ -131,8 +131,28 @@ spec:
               template: install-deps
             arguments:
               parameters:
+                # Two constraints driving this image pin:
+                # 1) Prisma 6.x rejects Node <20.19/<22.12/<24.0. Bun
+                #    1.2.15 reports process.versions.node=22.6.0 (fails);
+                #    bun 1.2.20+ reports 24.3.0 (passes).
+                # 2) `canvas` npm package has no prebuilt binary for
+                #    musl/alpine (target=7 runtime=napi libc=musl), so
+                #    install triggers node-gyp which needs python +
+                #    build tools not present in -alpine. Glibc
+                #    (-slim, debian) has a published prebuilt.
+                # oven/bun:1.2.20-slim satisfies both. Pin scoped to
+                # invoicetron; Portfolio stays on 1.2.15-alpine.
+                - name: image
+                  value: oven/bun:1.2.20-slim
+                # Prisma 7.x config loader resolves process.env inside
+                # prisma.config.ts up front and errors if DATABASE_URL
+                # is unset, even for `generate` (which never opens a DB
+                # connection). A syntactically-valid dummy URL
+                # satisfies the loader without exposing real creds to
+                # the install step; the real URL lives in the migrate
+                # step via Vault+ESO.
                 - name: extra_command
-                  value: "bunx prisma generate"
+                  value: "DATABASE_URL='postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder' bunx prisma generate"
           - name: lint
             dependencies: [install-deps]
             templateRef:
@@ -158,7 +178,12 @@ spec:
                 - name: command
                   value: "npm install --prefix /tmp/npm-global -g bun && /tmp/npm-global/bin/bun run test:unit"
           - name: build
-            dependencies: [lint, type-check, test-unit]
+            # app-url-dispatch is listed here (not just in the parallel
+            # layer) because build consumes its `result` output via
+            # {{tasks.app-url-dispatch.outputs.result}} - Argo's DAG
+            # resolver only propagates task outputs through explicit
+            # dependency edges.
+            dependencies: [lint, type-check, test-unit, app-url-dispatch]
             templateRef:
               name: build-image
               template: build-image
@@ -257,13 +282,18 @@ spec:
             drop: ["ALL"]
 
     # --- migrate: prisma migrate deploy against env DB ---
-    # Pod label `app.kubernetes.io/component: invoicetron-migrate` lets
-    # the cross-namespace CNPs (argo-workflows-invoicetron-migrate +
-    # invoicetron-<env>-db-ingress) select this pod specifically.
+    # Argo Workflows v4.0.4 does NOT honor a template-level
+    # `metadata.labels` override of a key already set by
+    # workflow-level `podMetadata.labels` - the workflow label wins
+    # at pod-creation time (verified empirically on smoke54: pod
+    # kept `app.kubernetes.io/component=ci-pipeline` despite the
+    # template override). Using a DIFFERENT key (`invoicetron-migrate`)
+    # works around the quirk and lets the cross-namespace DB CNP
+    # (invoicetron-<env>-db-ingress) pick this pod specifically.
     - name: migrate
       metadata:
         labels:
-          app.kubernetes.io/component: invoicetron-migrate
+          invoicetron-migrate: "true"
       inputs:
         parameters:
           - name: image_repo

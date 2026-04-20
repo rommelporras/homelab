@@ -81,13 +81,15 @@ spec:
             app: invoicetron
         - matchLabels:
             job-name: invoicetron-migrate
+        # Argo Workflows v4.0.4 can't override
+        # `app.kubernetes.io/component` on a per-template basis when
+        # the workflow-level podMetadata.labels already sets that key
+        # (see invoicetron-pipeline migrate template comment). Use a
+        # dedicated `invoicetron-migrate: "true"` label that only the
+        # migrate step pod carries.
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: argo-workflows
-            app.kubernetes.io/component: invoicetron-migrate
-      toPorts:
-        - ports:
-            - port: "5432"
-              protocol: TCP
+            invoicetron-migrate: "true"
 ---
 # Migration job egress: DNS + PostgreSQL (CI/CD runs Prisma migrate deploy)
 apiVersion: cilium.io/v2

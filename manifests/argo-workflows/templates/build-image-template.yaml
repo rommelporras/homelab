@@ -102,7 +102,14 @@ spec:
             memory: 1Gi
           limits:
             cpu: "2"
-            memory: 2Gi
+            # BuildKit RSS varies heavily by project: portfolio
+            # finishes in ~800Mi peak, invoicetron (Next.js 16
+            # Turbopack + Prisma client gen + native canvas)
+            # OOMKilled at 4Gi on smoke46 during `bun run build`.
+            # 6Gi holds steady; fits in namespace 10Gi because
+            # build is serial - parallel test pods have terminated
+            # before build runs.
+            memory: 6Gi
         securityContext:
           runAsNonRoot: true
           runAsUser: 1000
