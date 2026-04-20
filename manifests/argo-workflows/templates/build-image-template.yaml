@@ -118,6 +118,12 @@ spec:
           # Security.md "Privileged Justifications").
           seccompProfile:
             type: Unconfined
+          # Ubuntu 24.04's runtime/default AppArmor profile blocks
+          # mount syscalls; rootlesskit's `mount --make-rprivate /`
+          # inside its user NS fails with "permission denied" without
+          # this (smoke15/smoke20 investigation).
+          appArmorProfile:
+            type: Unconfined
           # Capabilities story (smoke13/14/15):
           # - Don't drop:[ALL] - it clears the bounding set and blocks
           #   setuid exec of newuidmap (SETUID/SETGID default caps are
