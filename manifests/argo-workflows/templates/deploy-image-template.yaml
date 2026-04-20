@@ -76,7 +76,12 @@ spec:
 
             # --- SSH config (DR-5) ---
             mkdir -p /root/.ssh
-            cp /ssh-key/ssh-privatekey /root/.ssh/id_ed25519
+            # Write the key with a guaranteed trailing newline. Shell
+            # command substitution in the seed script strips the final
+            # \n from the op/vault output; OpenSSH's libcrypto parser
+            # fails with "error in libcrypto" on a key file that
+            # doesn't end in \n (smoke33/34 investigation).
+            ( cat /ssh-key/ssh-privatekey; echo ) > /root/.ssh/id_ed25519
             chmod 600 /root/.ssh/id_ed25519
             export GIT_SSH_COMMAND="ssh -i /root/.ssh/id_ed25519 \
               -o StrictHostKeyChecking=accept-new \
