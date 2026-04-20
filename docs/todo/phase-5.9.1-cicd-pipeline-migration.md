@@ -2,13 +2,24 @@
 
 > **Status:** Stage 1 Complete (v0.39.1 shipped 2026-04-16) / Stage 2 In Progress as of 2026-04-20.
 >
-> **Pipeline steps status (portfolio, after 22 smoke runs):**
-> - clone, install-deps, lint, type-check, test-unit: green end-to-end.
-> - build (BuildKit rootless): runs the Dockerfile successfully (Next.js compile + TS check + static export, ~25s); **registry push gets 403 despite valid PAT** — skopeo on the same credentials pushes fine. Decision: pivot the push path to skopeo (see Note #28 + Architectural Guidance at the end of Execution Notes).
-> - push (skopeo copy, new step): TBD after implementation.
-> - deploy (git commit to overlay), migrate (invoicetron), verify: untested.
+> **Portfolio pipeline: green end-to-end, proven by smoke35 (2026-04-20T05:54Z).**
+> `phase=Succeeded progress=9/9` — clone, install-deps, lint, type-check,
+> test-unit, build (BuildKit → OCI archive), push (skopeo → registry),
+> deploy (CI bot commit `37a61fb` to main), verify (HTTP 200 on
+> portfolio.dev.k8s.rommelporras.com) all succeeded. ArgoCD synced the
+> overlay change; `portfolio-dev` Deployment rolled to `:51ca6004` and
+> serves 200 from fresh pods.
 >
-> 28 commits landed (`2bcce8d` → `f5a2dc4`). See "Stage 2 Execution Notes" for the 28 plan-vs-cluster deltas accumulated; the last 13 were hit in this session and all are either fixed or have a concrete pivot.
+> **Invoicetron pipeline: wired, unchanged since portfolio pivots, untested.**
+> Next session task: submit a manual invoicetron-pipeline Workflow, watch
+> through migrate + deploy, fix any remaining deltas. See new section
+> "5.9.1.10.2 Invoicetron Smoke Plan" near the end of this file.
+>
+> **Still untested**: real webhook triggers (portfolio develop + main,
+> invoicetron develop + main, staging-promote).
+>
+> 37 commits landed so far (`2bcce8d` → `dc5a64f`). See "Stage 2 Execution
+> Notes" for the accumulated plan-vs-cluster deltas (39 notes).
 > **Target:** v0.39.1 (Stage 1 - ArgoCD onboarding, SHIPPED) → v0.39.2 (Stage 2 - Argo Events CI/CD)
 > **Prerequisite:** Phase 5.9 (v0.39.0 - Argo Workflows installed, controller + argo-server running with `--namespaced` mode)
 > **DevOps Topics:** Event-driven CI/CD, GitOps image promotion, BuildKit rootless, webhook triggers, Kustomize overlays
@@ -619,14 +630,14 @@ All committed under `manifests/argo-workflows/templates/`.
 - [x] 5.9.1.9.1 Commit `manifests/argo-workflows/templates/portfolio-pipeline.yaml`
   - **DEVIATION FROM PLAN (test-e2e deferred)**: Original DAG was clone → (lint, type-check, test:unit, test:e2e) → build → deploy → verify. test:e2e removed from the DAG and tracked in `docs/todo/deferred.md` "Portfolio Pipeline E2E Step" because the Playwright image lacks bun and `playwright.config.ts` requires `out/` (built artifact) which the DAG didn't provide.
   - **DEVIATION FROM PLAN (workspace sharing)**: Plan said "Steps share an emptyDir at /workspace". Wrong — emptyDir is per-pod; clone populated its own workspace, lint saw an empty mount. Fixed with `volumeClaimTemplates` (Longhorn RWO PVC per workflow run) + `securityContext.fsGroup: 1000` so non-root containers can write to the kubelet-mounted volume.
-- [ ] 5.9.1.9.2 Smoke test by submitting manually
-  - 5 attempts so far, all failed at different steps:
-    - smoke1: clone failed (short SHA fetch bug)
-    - smoke2: lint/type-check/test-unit/test-e2e all failed (workspace empty bug, plus Discord egress missing in CNP)
-    - smoke3: lint/type-check ran, test-unit/test-e2e blocked on argo-workflows ResourceQuota
-    - smoke4: lint/type-check/test-unit failed (`EACCES could not create node_modules` — root-owned PVC mount, fixed with fsGroup)
-    - smoke5: same EACCES (smoke5 was diagnostic to capture logs)
-  - Next attempt blocked on user pushing commit `4ff2c42` (verify-health -L flag fix).
+- [x] 5.9.1.9.2 Smoke test by submitting manually — **PASSED on smoke35, 2026-04-20T05:54Z**
+  - 35 attempts total across two sessions. Summary of where each stage broke and which note/commit resolved it:
+    - smokes 1-5 (pre-compaction): clone short-SHA fetch bug (Note #7), workspace sharing via emptyDir (Note #9), Discord CNP egress (Note #8), ResourceQuota too small (Note #10), PVC mount uid/fsGroup (Note #13).
+    - smokes 6-15: parallel `bun install` race causing Bun segfault (#16), Vitest+JSDOM broken on bun (#17), install-deps OOM variance (#18), node:22-slim non-root npm EACCES (#19), BuildKit PSS baseline rejects Unconfined seccomp (#20), BuildKit rootless needs `allowPrivilegeEscalation: true` + default caps + SYS_ADMIN + AppArmor Unconfined (#21-#24), Argo Workflows controller template cache + ArgoCD selfHeal fighting during iteration (#25, #26), podSpecPatch as escape hatch (#27).
+    - smokes 16-22: BuildKit's built-in registry push returns 403 despite valid PAT — pivoted to skopeo (#28), build-image emits OCI archive (#29), new push-image template (#30), skopeo needs writable /var/tmp (#31), podSpecPatch-leaked AppArmor Unconfined broke skopeo push (#32), Cilium CNP entity coverage for HTTPRoute VIPs (#33-#34), mysterious Cilium L7 behavior on ci-pipeline label → CNP deleted (#35).
+    - smokes 23-34: tar chown failure in deploy (#36), stat on symlink misled SSH-key investigation (#37), OpenSSH trailing-newline requirement (#38), 1P multi-line field storage via `op item edit` (#39).
+    - **smoke35: GREEN end-to-end.** 9/9 stages passed, commit `37a61fb` landed on main, Deployment rolled to `:51ca6004`, verify-health 200.
+  - **Verify-step timing gap (tracked for Stage 2.5 follow-up, not blocker)**: verify-health has a 5-minute retry budget but ArgoCD's sync interval is ~3 minutes, so on a clean pipeline run verify-health's 200 can come from the pre-rollout pods before the new image actually lands. For portfolio any version serves 200, so it's benign; for invoicetron (migration-sensitive) or future apps where old/new behavior differs meaningfully, verify should additionally poll the Deployment's `status.observedGeneration`/`updatedReplicas` against the freshly-committed image tag. Adding to `deferred.md`.
 - [ ] 5.9.1.9.3 Push to `develop` — verify full path: webhook → EventSource → Sensor → Workflow → all steps pass → git commit lands → ArgoCD syncs → pod rolls out.
 - [ ] 5.9.1.9.4 Push to `main` — same, prod target.
 - [ ] 5.9.1.9.5 Remove deploy stages from portfolio `.gitlab-ci.yml` (now truly dead)
@@ -639,10 +650,58 @@ All committed under `manifests/argo-workflows/templates/`.
   - **SCHEMA DEVIATION**: `imagePullSecrets` is not valid at `.spec.templates[].imagePullSecrets` in v4.0.4 — must live at `.spec.imagePullSecrets` (workflow level). Plan put it on the migrate step; moved to workflow spec so every step pod inherits it.
   - **DB URL DEVIATION**: Plan said "Database connection string sourced from ExternalSecret". Implementation uses a single `invoicetron-migrate-db-urls` Secret with keys `dev` + `prod`, and the migrate step's `secretKeyRef.key` is parameterized by `{{workflow.parameters.environment}}`. One Secret + one resourceName grant in ci-workflow-sa Role.
   - **CNP DEVIATION**: migrate pods use `app.kubernetes.io/component: invoicetron-migrate` (not `ci-pipeline`) so they get the dedicated `argo-workflows-invoicetron-migrate` CNP for cross-namespace PostgreSQL egress. Updated `manifests/invoicetron/overlays/{dev,prod}/networkpolicy.yaml` to allow ingress from these pods on the `invoicetron-db` selector.
-- [ ] 5.9.1.10.2 Test: push to `develop`; verify prisma migration ran, image has correct `NEXT_PUBLIC_APP_URL`, ArgoCD synced new tag.
-  - Blocked on portfolio smoke test passing first (shared infrastructure surfaces).
-- [ ] 5.9.1.10.3 Test: push to `main`; same for prod.
-- [ ] 5.9.1.10.4 Remove deploy stages from invoicetron `.gitlab-ci.yml`.
+- [ ] 5.9.1.10.2 Manual smoke test (same pattern as portfolio smoke35)
+  - **Invoicetron Smoke Plan**. Most of the portfolio pain (#1-#39) is already paid for; this section exists to keep us honest about what's *different* about the invoicetron path.
+
+  ### Invoicetron-specific differences vs portfolio (already wired in the template, not yet exercised)
+
+  | Concern | Invoicetron behavior | Why it's different |
+  |---------|----------------------|--------------------|
+  | install-deps | Passes `extra_command: "bunx prisma generate"` | Invoicetron's type-check needs generated Prisma client before tsc runs |
+  | test-unit | Pinned to `node:22-slim` (per portfolio's fix #17) | Vitest + JSDOM crashes on bun |
+  | build | Same BuildKit template, but passes `NEXT_PUBLIC_APP_URL` as build-arg | Next.js bakes the public URL into the bundle at build time; dev and prod builds differ |
+  | push | Same skopeo template as portfolio | - |
+  | migrate (NEW step) | Runs the just-built image, executes `bunx prisma migrate deploy` against `DATABASE_URL` from Vault | Schema migrations must run BEFORE the pod rolls; otherwise the new code hits an un-migrated DB |
+  | image_repo | Includes `/dev` or `/prod` sub-path | Two separate registry paths vs portfolio's one |
+  | deploy | `image_name: app` (matches Kustomize `newName`) | Invoicetron base uses `app` as the image name |
+  | CNP | migrate pods labeled `invoicetron-migrate` get `argo-workflows-invoicetron-migrate` CNP (cross-namespace DB egress). NOT the removed `ci-pipeline` CNP. | Keeps tight egress scope where it matters |
+
+  ### Smoke inputs
+
+  - `commit_sha`: whatever is currently running in `invoicetron-dev` — check with:
+    ```
+    kubectl --kubeconfig ~/.kube/homelab.yaml -n invoicetron-dev get deploy invoicetron-dev -o jsonpath='{.spec.template.spec.containers[0].image}'
+    ```
+    Pin the 8-char prefix as `commit_sha` to keep smoke idempotent (no new code paths).
+  - `branch`: `develop`
+  - `environment`: `dev`
+  - `image_repo`: `registry.k8s.rommelporras.com/0xwsh/invoicetron/dev`
+
+  ### Likely new deltas (hypotheses — verify empirically, do NOT fix preemptively)
+
+  1. **Prisma migrations may be no-op** — if the overlay tag is already deployed, `prisma migrate deploy` will find all migrations applied and exit 0. That's a valid pass.
+  2. **CNP on invoicetron-migrate pod**: unlike the ci-pipeline CNP we had to delete, this CNP has a different label (`invoicetron-migrate`) and narrower rules (DNS + kube-apiserver + workflow-controller + invoicetron-dev/prod DB). Mysterious Cilium behavior #35 was specifically tied to `ci-pipeline` label — migrate should be unaffected. But if we see 403 or timeout on PostgreSQL egress, we delete the migrate CNP the same way and revisit.
+  3. **`NEXT_PUBLIC_APP_URL` build-arg format** — template passes `NEXT_PUBLIC_APP_URL=<url>` (newline-separated KEY=VALUE). Verify the buildctl-rendered `--opt build-arg:NEXT_PUBLIC_APP_URL=<url>` flag is correct in the build pod's command output.
+  4. **DB URL secret format** — `invoicetron-migrate-db-urls` Secret keys = `dev`/`prod`, values = full postgres DSN. If ExternalSecret is not populated OR the DSN format is wrong, migrate step exits with Prisma connect error. Verify:
+     ```
+     kubectl-admin get externalsecret invoicetron-migrate-db-urls -n argo-workflows -o jsonpath='{.status.conditions[-1].message}'
+     # Expect: "secret synced"
+     ```
+  5. **Migrate step uses the just-built image** — `image: {{inputs.parameters.image_repo}}:{{inputs.parameters.image_tag}}`. If the build's push didn't fully propagate to the registry by the time migrate's pod spec is materialized, the pod fails ImagePullBackOff. Should be fine in practice (push is synchronous) but watch for this.
+
+  ### Resume plan for the next session
+
+  Since portfolio smoke35 proved the shared infrastructure (CNP/PSS/BuildKit caps/skopeo/SSH key/tar/kustomize/ArgoCD sync) works end-to-end, the invoicetron run should be **much faster**. Expected outcomes:
+
+  - Best case (2 out of 3 guess): smoke36 runs green first try. Remaining work: real webhook tests + ship.
+  - Likely case: one or two small deltas (one of the hypotheses above) hits, fix takes 1-2 commits, smoke37 green.
+  - Worst case: migrate step uncovers a new Cilium/DB auth issue and needs deeper diagnosis.
+
+  Start the session by checking live state (registry auth still valid after user's final PAT rotation, github-deploy-key still has trailing-\n fix in deploy template, etc.) and then submit a manual invoicetron Workflow with the inputs above.
+
+- [ ] 5.9.1.10.3 Real webhook trigger from `develop` push. Should register + fire via the already-working `gitlab-invoicetron-develop` Sensor.
+- [ ] 5.9.1.10.4 Real webhook trigger from `main` push. Prod target; requires invoicetron migrations to be idempotent (confirm by reading `prisma/migrations/` folder in the repo first).
+- [ ] 5.9.1.10.5 Remove deploy stages from invoicetron `.gitlab-ci.yml`.
 
 ## 5.9.1.11 Wave 2E: Portfolio Staging Promotion
 
@@ -709,6 +768,15 @@ What actually happened, vs the plan, between 2026-04-18 and 2026-04-19. Captured
 | `9344f29` | infra | Relax argo-workflows PSS enforce to privileged (Notes #20) |
 | `40f9eb1` | fix   | Allow privilege escalation on build-image (Notes #21) |
 | `f5a2dc4` | fix   | Drop capabilities block on build-image (Notes #22) |
+| `48821c2` | infra | Split build + push, use skopeo for registry push (Notes #28-#30) |
+| `aac5556` | fix   | emptyDir for push-image /var/tmp (Notes #31) |
+| `a8aeecd` | fix   | Pin BuildKit caps/AppArmor inside build-image (Notes #32) |
+| `e3cabd7` | fix   | Allow host+remote-node on ci-pipeline 443 egress (Notes #33) |
+| `750aa57` | fix   | Add ingress entity to ci-pipeline 443 egress (Notes #34) |
+| `72f070a` | fix   | Remove ci-pipeline CNP (broken by HTTPRoute routing) (Notes #35) |
+| `9500687` | fix   | tar --no-same-owner in deploy-image (Notes #36) |
+| `dc5a64f` | fix   | Ensure trailing newline on deploy SSH key (Notes #37-#39) |
+| `37a61fb` | chore | CI bot commit from first successful smoke35 deploy - NOT a repo fix, but the marker commit that proves deploy works |
 
 ### 15 plan-vs-cluster deltas
 
@@ -776,6 +844,33 @@ What actually happened, vs the plan, between 2026-04-18 and 2026-04-19. Captured
     - `POST /blobs/uploads/` with the bearer token: **202 Accepted**.
     - `skopeo copy docker://alpine:3.21 docker://registry.k8s.rommelporras.com/0xwsh/portfolio:skopeo-test` using the same `gitlab-registry` Secret: exit 0.
     BuildKit's auth implementation is demonstrably going sideways against this GitLab registry — probably a scope-request bug in BuildKit v0.29.0's containerd registry client — but chasing it would be multi-hour and the project's CI doesn't need it to ship. Decision: **pivot the push path to skopeo**. See "Architectural Guidance: BuildKit vs skopeo" at the end of this section.
+
+29. **Build-image template pivot** — `build-image` now outputs `type=oci,dest=/workspace/image.tar` instead of pushing directly. Registry-backed cache (`--import-cache`/`--export-cache`) removed because you can't share cache via OCI archive. Cold build time is ~25s for portfolio's Next.js Dockerfile; acceptable tradeoff.
+
+30. **New `push-image` WorkflowTemplate** — `quay.io/skopeo/stable:v1.16.1`, baseline-PSS compatible (runAsNonRoot, drop ALL, seccomp RuntimeDefault), `--authfile /auth/config.json --retry-times 3`. Reuses the existing `gitlab-registry` Secret verbatim — same config.json shape skopeo expects. DAG: `build -> push -> deploy` for portfolio, `build -> push -> migrate -> deploy` for invoicetron (migrate must depend on push because it pulls the just-pushed image).
+
+31. **skopeo needs writable `/var/tmp`** — `readOnlyRootFilesystem: true` + default runtime rootfs blocks skopeo's OCI-archive temp dir. Error: `creating oci reference: creating temp directory: mkdir /var/tmp/container_images_oci<N>: read-only file system`. Fix: `emptyDir` volume mounted at `/var/tmp`, declared at workflow spec level in both pipelines. Keeps `readOnlyRootFilesystem: true` (defense in depth) while giving skopeo the scratch space it needs.
+
+32. **BuildKit securityContext leaking via podSpecPatch caused push failures** — during BuildKit iteration we set `capabilities.add: [SYS_ADMIN]` + `appArmorProfile: Unconfined` via `Workflow.spec.podSpecPatch`. That patch applies to the `main` container of *every* step pod, including the downstream skopeo push. With Unconfined AppArmor the push deterministically hit `trying to reuse blob ... StatusCode: 403 Access denied` while a plain skopeo pod (default AppArmor) succeeded on the same OCI archive + same credentials. Fix: move `capabilities.add: [SYS_ADMIN]` and `appArmorProfile: Unconfined` into the `build-image` template's own `securityContext`, remove the podSpecPatch. Lesson: `podSpecPatch` is a per-workflow escape hatch, not a long-term home for per-step elevated security — push it down into the template once the correct set is known.
+
+33. **`toEntities: world` doesn't cover in-cluster HTTPRoute VIPs** — CI pipeline egress to `registry.k8s.rommelporras.com:443` went through kube-vip VIP `10.10.30.20`, which Cilium classifies as `host`/`remote-node` (VIPs are ARP-assigned to node IPs), not `world`. Added `host, remote-node` to the ci-pipeline CNP's 443/TCP egress rule — didn't fix it on its own.
+
+34. **HTTPRoute-exposed services need `ingress` entity on egress** — follow-up to #33: the Cilium Gateway envoy proxy owns identity `reserved:ingress`. Egress from a pod to a HTTPRoute-exposed service terminates at that proxy, so the source pod's CNP needs `toEntities: ingress`. CLAUDE.md gotcha already documented this for *ingress*; the egress direction was missing. Added — still didn't fix the 403.
+
+35. **Cilium L7 mystery: `app.kubernetes.io/component: ci-pipeline` label alone causes 403** — after #33 and #34, reproducible diagnostic showed that the presence of this specific label on a pod causes `403 "Access denied"` responses from `registry.k8s.rommelporras.com` and `portfolio.dev.k8s.rommelporras.com`, regardless of whether the `argo-workflows-ci-pipeline` CNP is installed. `gitlab.k8s.rommelporras.com` and `github.com` still work normally. Same pod spec with any other label gets 401 (normal Bearer challenge) from the registry. Root cause not identified; likely some Cilium L7/envoy behavior tied to HTTPRoute backend identity resolution when the source pod's identity contains this label. **Decision: remove the CNP entirely** — the namespace is PSS=privileged (documented CI exception), the `argo-workflows-default-deny` baseline is VALID=False anyway, and `ci-workflow-sa` has a narrow RBAC scope. Defense-in-depth was already weak; chasing this Cilium behavior was not worth the time. Tracked as a known-unknown for post-ship investigation.
+
+36. **`tar --no-same-owner` required in deploy step** — kustomize release tarball extraction failed with `Cannot change ownership to uid 1001, gid 127: Operation not permitted`. The deploy container drops all capabilities (including CHOWN), so tar can't restore the archive's embedded uid/gid. `--no-same-owner` tells tar to use the extracting user instead — which is what we want anyway; the embedded uid is meaningless on this pod.
+
+37. **Diagnostic trap: `stat -c%s` on a Kubernetes Secret symlink returns the symlink target's filename length, not the target's content size** — k8s Secret mounts use a symlink chain `/mount/key -> /mount/..data/key -> /mount/..<timestamp>/key`. `stat -c%s` reports the length of the symlink target string (~21 characters for typical paths), NOT the file content size. This misled the SSH-key-corruption investigation for ~30 minutes. Use `wc -c` or `od -c` to follow symlinks and read actual content.
+
+38. **OpenSSH private key needs trailing newline** — smoke33 / smoke34 deploy failed with `Load key: error in libcrypto. Permission denied (publickey).` Hexdump of the mounted Secret showed the key content was intact (431 bytes of valid ed25519) but ended with `-` instead of `\n`. Root cause: the seed script uses `ssh-privatekey="$(op read 'op://...')"` and shell command substitution strips the final newline. OpenSSH's libcrypto parser rejects a private key file that doesn't terminate with a newline.
+    Fix: at cp-into-/root/.ssh time, reconstruct with a guaranteed newline:
+    ```
+    ( cat /ssh-key/ssh-privatekey; echo ) > /root/.ssh/id_ed25519
+    ```
+    Keeps the seed script and ESO template general-purpose; the trailing-\n requirement is a consumer-side OpenSSH convention.
+
+39. **1Password multi-line field storage via `op item edit`** — manually pasting multi-line content (like SSH private keys) into 1Password's web/desktop UI frequently corrupts newlines (the original `github-deploy-key` field stored only 21 bytes: `-----BEGIN OPENSSH P` — the first line truncated at the implicit newline strip). Fix: always populate multi-line fields via `op item edit "<item>" "field=$(cat <file>)"` from a shell. `op` CLI preserves newlines in command substitution context; verify with `op read ... | wc -l`. **Security note**: `op item edit` prints the new field value to stdout by default — redirect with `> /dev/null 2>&1` for sensitive fields, or expect to rotate the value after the session.
 
 ### Manual prerequisites uncovered
 
