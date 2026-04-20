@@ -95,19 +95,23 @@ spec:
     # Non-HTTPS egress stays tight: DNS + kube-apiserver + in-cluster
     # NATS/GitLab + SSH to github.com only.
     #
-    # host + remote-node: the cluster's HTTPRoute-exposed endpoints
-    # (registry.k8s.rommelporras.com, portfolio.{dev,stg}.k8s....,
-    # invoicetron.dev.k8s....) resolve to kube-vip VIP 10.10.30.20.
-    # kube-vip assigns VIPs to node IPs via ARP, so Cilium classifies
-    # destination identity as `host` (own-node) or `remote-node`
-    # (other cp nodes) - NOT `world`. Without these two entities, the
-    # push step's registry traffic and the verify step's app-health
-    # probes both fail at the CNP layer (skopeo surfaces the drop as
-    # a 403 "Access denied" on the blob-reuse mount path, smoke28).
+    # host/remote-node/ingress: the cluster's HTTPRoute-exposed
+    # endpoints (registry.k8s.rommelporras.com,
+    # portfolio.{dev,stg}.k8s...., invoicetron.dev.k8s....) resolve to
+    # kube-vip VIP 10.10.30.20 which fronts the Cilium Gateway. Egress
+    # from a ci-pipeline pod to that VIP lands on the Gateway envoy
+    # proxy, whose Cilium identity is `reserved:ingress` - NOT `world`
+    # (and not host/remote-node either; those are the kube-vip hosts
+    # themselves, but the gateway proxy pod owns the identity).
+    # Without `ingress` the push step's skopeo/registry traffic drops
+    # at the CNP (surfacing as a 403 "Access denied" on the blob-reuse
+    # mount path, smoke28/29). Verify-health hits the same path to
+    # portfolio.dev.k8s.rommelporras.com.
     - toEntities:
         - world
         - host
         - remote-node
+        - ingress
       toPorts:
         - ports:
             - port: "443"
