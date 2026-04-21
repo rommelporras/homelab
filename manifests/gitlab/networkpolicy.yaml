@@ -351,3 +351,34 @@ spec:
         - ports:
             - port: "9121"
               protocol: TCP
+
+# ============================================================
+# webservice + sidekiq egress to Cilium Gateway envoy
+# (for outbound webhooks to in-cluster endpoints routed via the
+# public hostname, e.g. argo-events.k8s.rommelporras.com which
+# resolves internally to the gateway LoadBalancer IP 10.10.30.20).
+# Without this, the `webservice-internet-egress` /
+# `sidekiq-internet-egress` CNPs explicitly exclude 10.0.0.0/8
+# from their allow-set, blocking the webhook dispatcher from
+# reaching the gateway VIP. Egress to `reserved:ingress` covers
+# cilium-envoy pods regardless of which node they land on.
+# ============================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: webservice-sidekiq-gateway-egress
+  namespace: gitlab
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [webservice, sidekiq]
+  egress:
+    - toEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
