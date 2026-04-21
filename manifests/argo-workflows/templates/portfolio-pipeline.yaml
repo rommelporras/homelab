@@ -71,6 +71,23 @@ spec:
   securityContext:
     fsGroup: 1000
     fsGroupChangePolicy: OnRootMismatch
+  # Prefer co-locating every pod in this workflow on the same node
+  # (see invoicetron-pipeline for full rationale). Portfolio parallel
+  # stages are fast enough that the RWO PVC handoff has not deadlocked
+  # in practice, but the affinity rule makes scheduling deterministic
+  # and avoids the failure mode on any future long-running stage.
+  affinity:
+    podAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: workflows.argoproj.io/workflow
+                  operator: In
+                  values:
+                    - "{{workflow.name}}"
+            topologyKey: kubernetes.io/hostname
   arguments:
     parameters:
       - name: commit_sha

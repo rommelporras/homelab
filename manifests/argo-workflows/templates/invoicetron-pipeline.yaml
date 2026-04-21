@@ -60,6 +60,29 @@ spec:
   securityContext:
     fsGroup: 1000
     fsGroupChangePolicy: OnRootMismatch
+  # Prefer co-locating every pod in this workflow on the same node.
+  # The workspace volumeClaimTemplate below is ReadWriteOnce (Longhorn
+  # default). Without this affinity, parallel DAG siblings (lint /
+  # type-check / test-unit) schedule across nodes and the Multi-Attach
+  # error blocks all but one until the PVC detaches, which deadlocks
+  # a long-running parallel stage (Phase 5.9.1 Stage 2 execution note
+  # captured after `invoicetron-dev-w7sth` hit activeDeadlineSeconds).
+  # podAffinity `preferred` is used rather than `required` because an
+  # empty match set on the first pod would fail the required rule and
+  # block scheduling entirely. With weight=100, the scheduler prefers
+  # the same node strongly enough to co-locate in normal conditions.
+  affinity:
+    podAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: workflows.argoproj.io/workflow
+                  operator: In
+                  values:
+                    - "{{workflow.name}}"
+            topologyKey: kubernetes.io/hostname
   arguments:
     parameters:
       - name: commit_sha
