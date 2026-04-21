@@ -1,33 +1,21 @@
 # Phase 5.9.1: CI/CD Pipeline Migration (Argo Events + Workflows)
 
-> **Status:** Stage 1 Complete (v0.39.1 shipped 2026-04-16) / Stage 2 In Progress as of 2026-04-21.
+> **Status:** Stage 1 Complete (v0.39.1 shipped 2026-04-16) / Stage 2 smoke + real-webhook triggers all green as of 2026-04-21. Ready to ship after 3-day soak.
 >
-> **Portfolio pipeline: green end-to-end, proven by smoke35 (2026-04-20T05:54Z).**
-> `phase=Succeeded progress=9/9` — clone, install-deps, lint, type-check,
-> test-unit, build (BuildKit → OCI archive), push (skopeo → registry),
-> deploy (CI bot commit `37a61fb` to main), verify (HTTP 200 on
-> portfolio.dev.k8s.rommelporras.com) all succeeded. ArgoCD synced the
-> overlay change; `portfolio-dev` Deployment rolled to `:51ca6004` and
-> serves 200 from fresh pods.
+> **Real webhook triggers: all three green end-to-end (2026-04-21T15:xxZ, phase C → A → B).**
 >
-> **Invoicetron pipeline: green end-to-end, proven by smoke55 (2026-04-21T04:29Z).**
-> `phase=Succeeded progress=11/11` — clone, install-deps, lint, type-check,
-> test-unit, app-url-dispatch, build, push, migrate (Prisma apply, 30
-> migrations already up-to-date), deploy (CI bot commit `278d148` to
-> main bumping dev overlay to `:3f82c518`), verify (HTTP 200 on
-> invoicetron.dev.k8s.rommelporras.com) all succeeded. ArgoCD `invoicetron-dev`
-> Synced + Healthy at `278d148`; Deployment rolled to `:3f82c518`.
+> - **Phase C — Portfolio develop real webhook** → `portfolio-dev-c4wl7` `Succeeded 9/9`. GitLab push → Argo Events Sensor → Workflow → CI bot commit on homelab `main` → ArgoCD synced `portfolio-dev` to `:70aaeeb6`.
+> - **Phase A — Invoicetron develop real webhook** → `invoicetron-dev-2nxrl` `Succeeded 11/11` (second attempt; first attempt `invoicetron-dev-w7sth` hit a PVC multi-attach deadlock, fixed by pod-affinity patch `f34b6dc` → rebased `a3387cb`). ArgoCD synced `invoicetron-dev` to new image; verify-health 200.
+> - **Phase B — Invoicetron main real webhook (PROD)** → `invoicetron-prod-jgw48` `Succeeded 11/11` (second attempt; first attempt `invoicetron-prod-gzddl` failed at migrate with P1001 because the prod `DATABASE_URL` in Vault still had the short hostname `@invoicetron-db:` that only resolves inside `invoicetron-prod` namespace, not from `argo-workflows`; patched in Vault v8 + 1P, retried green). Migrate was a no-op (30 migrations already applied to prod). ArgoCD synced `invoicetron-prod` to new image.
 >
-> **Still untested**: real webhook triggers (portfolio develop + main,
-> invoicetron develop + main, staging-promote).
+> **Prior smoke-test proof (still referenced):** portfolio `smoke35` (2026-04-20T05:54Z) and invoicetron `smoke55` (2026-04-21T04:29Z) — see "Stage 2 Execution Notes" #40-#50 for the 11 invoicetron-specific fixes that got smoke55 green.
 >
-> **Must-do before closing the phase:** restore auto-sync on
-> `argo-workflows-manifests` (reverts commit `f866986`). Applied as a
-> debug-only pause during the invoicetron iteration; leaving it off
-> means WorkflowTemplate drift between git and cluster won't self-heal.
+> **Still untested before ship:** portfolio main push → prod (no test push triggered yet), portfolio staging-promote flow (EventSource + Sensor present but never exercised).
 >
-> 43 commits landed so far (`2bcce8d` → `278d148`). See "Stage 2 Execution
-> Notes" for the accumulated plan-vs-cluster deltas (51 notes).
+> **Post-phase cleanup (tracked in "Post-smoke cleanup"):** rotate session-exposed credentials, drop GitLab CI `deploy:*` jobs, archive Vault `kube-token-*` entries, delete test image tags from the registry, `git mv` this doc to `docs/todo/completed/`.
+>
+> 47 commits landed so far (`2bcce8d` → `194ee4c`). See "Stage 2 Execution
+> Notes" for the accumulated plan-vs-cluster deltas (55 notes).
 > **Target:** v0.39.1 (Stage 1 - ArgoCD onboarding, SHIPPED) → v0.39.2 (Stage 2 - Argo Events CI/CD)
 > **Prerequisite:** Phase 5.9 (v0.39.0 - Argo Workflows installed, controller + argo-server running with `--namespaced` mode)
 > **DevOps Topics:** Event-driven CI/CD, GitOps image promotion, BuildKit rootless, webhook triggers, Kustomize overlays
@@ -805,6 +793,15 @@ What actually happened, vs the plan, between 2026-04-18 and 2026-04-19. Captured
 | `f866986` | chore | Temporarily disable argo-workflows-manifests auto-sync (Notes #43) |
 | `40e6e9e` | fix   | Invoicetron resource + label fixes for Stage 2 smoke (Notes #44-#50) |
 | `278d148` | chore | CI bot commit from first successful smoke55 invoicetron deploy - proves full invoicetron pipeline works |
+| `9497e8c` | docs  | Invoicetron smoke55 green + notes #40-#50 (end of prior session) |
+| `443f2a5` | chore | Restore argo-workflows-manifests auto-sync (reverts `f866986`) |
+| `8bbbdc9` | fix   | Allow gitlab webservice/sidekiq egress to gateway for webhooks (first attempt — incomplete, see Notes #51) |
+| `f0bcfcf` | fix   | Add in-cluster path egress for argo-events webhooks (Notes #51-#52) |
+| `f34b6dc` → rebased `a3387cb` | fix | Co-locate workflow pods via pod affinity (Notes #53) |
+| `92cce83` | chore | CI bot commit from Phase C (portfolio-dev-c4wl7 → `:70aaeeb6`) |
+| (CI bot) | chore | CI bot commit from Phase A retry (invoicetron-dev-2nxrl → new dev tag) |
+| `194ee4c` | chore | Empty commit on invoicetron main to fire Phase B retry |
+| (CI bot) | chore | CI bot commit from Phase B retry (invoicetron-prod-jgw48 → new prod tag) |
 
 ### 15 plan-vs-cluster deltas
 
@@ -921,6 +918,14 @@ What actually happened, vs the plan, between 2026-04-18 and 2026-04-19. Captured
 49. **Short Kubernetes service name doesn't cross namespaces** — smoke51 migrate failed Prisma P1001 `Can't reach database server at invoicetron-db:5432`. Same DATABASE_URL works from inside invoicetron-dev ns (where the short name resolves via pod DNS search list) but not from argo-workflows ns. Probe confirmed: `getent hosts invoicetron-db` returns nothing from argo-workflows, `invoicetron-db.invoicetron-dev.svc.cluster.local` resolves and `nc -vz ... 5432` succeeds. **Rule:** any DATABASE_URL / service URL consumed from a *different* namespace than the target Service must use the `<service>.<ns>.svc.cluster.local` FQDN. Fix: rotated 1P `Invoicetron Dev/database-url` to use the FQDN form; re-seeded Vault. The running in-namespace app still resolves the FQDN fine (trivial DNS superset), so the change is globally safe for both consumers of the same secret.
 
 50. **Argo Workflows v4.0.4 ignores template-level `metadata.labels` override of a key set by workflow-level `podMetadata.labels`** — smoke52/53/54 migrate failed Prisma P1001 even with a correct FQDN DATABASE_URL. Cross-ns probe with identical image + labels succeeded (node `pg` connects, `prisma migrate deploy` applied). Difference: the *actual* Argo-created migrate pod carried `app.kubernetes.io/component=ci-pipeline` — the workflow-level value from `podMetadata.labels` — **not** the `invoicetron-migrate` value the migrate template's own `metadata.labels` attempted to set. The stored WorkflowTemplate has the override, but v4.0.4's pod merge logic keeps the workflow-level value when the same key appears in both. The cross-ns DB CNP (`invoicetron-<env>-db-ingress` in invoicetron-dev/prod) selected on the exact label the pod didn't have → traffic blocked at Cilium L3 → Prisma reported as "Can't reach server". Fix: use a *different* label key that `podMetadata.labels` never claims — added `invoicetron-migrate: "true"` on the migrate template's `metadata.labels`, and taught the dev + prod DB-ingress CNPs to match that key instead. **Rule for future Argo Workflows (v4.0.4) CI pipelines:** when a per-template label is load-bearing (CNP selector, Prometheus target filter, anything that can't be replaced by an annotation), **pick a key that doesn't also exist in `spec.podMetadata.labels`**. Argo may fix the merge precedence in a future release; until then, dedicated keys are the safe path.
+
+51. **Webhook delivery 403 "Access denied" traced to `webservice-internet-egress` CNP exception — NOT to secret-token validation.** Phase C/A/B kickoff after the pause revealed every GitLab delivery returning `HTTP/1.1 403` with body `Access denied\r\n` and `Server: envoy` with no `x-envoy-upstream-service-time` header. Spent hours investigating secret-token drift: rotated `invoicetron-webhook-secret` and `portfolio-webhook-secret` via Vault, deleted and re-registered GitLab hooks, verified mount-file sha256 matched local, force-refreshed ExternalSecrets, even set the token explicitly via `glab api PUT`. **None of it changed the 403.** The breakthrough came from pointing the webhook URL at `https://httpbin.org/post`, firing GitLab's test-hook, and reading the echoed `request_data`: the `X-Gitlab-Token` GitLab sent matched the EventSource's mounted secret *byte for byte* (sha256 identical). Parallel direct-curl from WSL with the same token returned `HTTP/1.1 200 success`. Curl from inside an ad-hoc pod in the `gitlab` namespace reproduced the 403 regardless of pod labels. The culprit: the `webservice-internet-egress` / `sidekiq-internet-egress` CNPs already in place (since `gitlab` namespace build-out) allow egress to `0.0.0.0/0` on 443/80 with `except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]`. The public hostname `argo-events.k8s.rommelporras.com` resolves **inside the cluster to the Cilium Gateway LoadBalancer IP `10.10.30.20`** (Cilium eBPF socket-LB rewrites the connect() at the syscall level). `10.10.30.20 ∈ 10.0.0.0/8` → egress denied. Cilium's deny returns HTTP 403 via its L7 reject handler, not a TCP RST, which is why `Server: envoy` and why it looked like the EventSource validator had rejected. Fix in `manifests/gitlab/networkpolicy.yaml` (commit `f0bcfcf`): new CNP `webservice-sidekiq-gateway-egress` with *two* allow rules — (a) `toEntities: [ingress]` on 443 (covers the externally-routable case; symbolic match to cilium-envoy), (b) `toEndpoints: {k8s:io.kubernetes.pod.namespace=argo-events, controller=eventsource-controller}` on 12000 (covers the in-cluster BPF socket-LB rewrite path — kube-proxy-replacement translates the connect to the backend pod IP before egress policy evaluates, so the 443 allow alone doesn't match). Both rules are required; removing either breaks webhook delivery. **Rule for future in-cluster-from-gitlab webhook destinations on this cluster:** every new such endpoint needs an allow-list entry here; the SSRF-protection default deny is intentional and should stay.
+
+52. **Cilium kube-proxy-replacement translates LB-VIP traffic at the syscall, not at the ingress** — direct corollary of Note #51 above, worth its own note because it's a cluster-wide behavior that bit us twice (first in `webservice-sidekiq-gateway-egress` design, then in a later test where removing the `toEndpoints` rule briefly regressed webhook delivery to 403). Diagnostic signal: if a symmetric `toEntities: [ingress]` egress allow alone doesn't open a path to a service exposed via Cilium Gateway, add a parallel `toEndpoints` rule matching the backend pod identity on its target port. The LB VIP never appears in egress policy evaluation for in-cluster clients.
+
+53. **Workspace PVC Multi-Attach errors kill parallel CI stages when scheduled across nodes.** `invoicetron-dev-w7sth` (first Phase A attempt) hit `activeDeadlineSeconds: 1800` with only `install-deps` + `app-url-dispatch` succeeded and all three of `lint` / `type-check` / `test-unit` stuck in `Init:0/1` for 20+ minutes. Cause: test-unit scheduled onto k8s-cp3 and held the RWO `workspace` Longhorn PVC exclusively; lint + type-check scheduled onto k8s-cp2 and blocked with `FailedAttachVolume: Multi-Attach error for volume "pvc-…" Volume is already exclusively attached to one node and can't be attached to another`. smoke55 and Phase C (`portfolio-dev-c4wl7`) passed only because their stages either landed on the same node by scheduling luck or finished fast enough that PVC hand-off completed before the next stage needed it. Fix (commit `a3387cb`, rebased from `f34b6dc`): added `affinity.podAffinity.preferredDuringSchedulingIgnoredDuringExecution` on both `portfolio-pipeline` and `invoicetron-pipeline` WorkflowTemplate `spec`, matching `workflows.argoproj.io/workflow={{workflow.name}}` at `topologyKey: kubernetes.io/hostname` with `weight: 100`. **`preferred`, not `required`**: the first pod has no siblings to match and a `required` rule with an empty match set is unsatisfiable — Kubernetes would refuse to schedule. `preferred` makes the scheduler strongly prefer the first-pod's node for every subsequent pod. Retry `invoicetron-dev-2nxrl` had all three parallel pods on k8s-cp2 and passed 11/11. **Rule for any future Argo Workflow sharing a RWO PVC across parallel tasks:** add this affinity block at `spec` level (workflow-wide), and use `preferred` not `required`.
+
+54. **Prod `DATABASE_URL` still had short-name hostname; dev was fixed, prod was missed.** First Phase B attempt `invoicetron-prod-gzddl` passed everything up to the migrate step, then hit `Error: P1001: Can't reach database server at invoicetron-db:5432` — the short name only resolves from within the `invoicetron-prod` namespace. The dev DATABASE_URL was rewritten to the FQDN `invoicetron-db.invoicetron-prod.svc.cluster.local` during the smoke55 iteration (Note #50 context), but the prod value in `secret/invoicetron-prod/app` field `database-url` was never updated — prod migrations had never been run cross-namespace before. Fix applied via `vault kv patch -mount=secret invoicetron-prod/app database-url=@<file>` with sed-replacement on the hostname portion (values stay in shell, never in tool output), force-refreshed the `invoicetron-app` + `invoicetron-migrate-db-urls` ExternalSecrets, then pushed an empty commit `194ee4c` on invoicetron `main` to retrigger. `invoicetron-prod-jgw48` green 11/11. **1P `op://Kubernetes/Invoicetron Prod/database-url` was also updated** after the Vault patch so the seed script stays authoritative (without this, the next `seed-vault-from-1password.sh` run would regress prod migrations). **Rule for future cross-namespace DB consumers (anything that isn't the app itself in the DB's own ns):** always store the FQDN in Vault, never the short name. Short names only save two ns lookups and cost an entire debug cycle when the consumer moves namespaces.
 
 ### Manual prerequisites uncovered
 
@@ -1088,19 +1093,19 @@ For any new Argo Workflows CI pipeline (new project, new promotion flow, etc.):
 - [ ] Webhook secret validation works (untested — would need a forged POST without the X-Gitlab-Token)
 - [ ] Per-project secret isolation (untested — implicit from per-EventSource secrets)
 - [x] Portfolio develop smoke35 → Workflow → 9/9 steps pass → ArgoCD sync → `portfolio-dev` Deployment rolled to `:51ca6004`
-- [ ] Portfolio real webhook trigger from `develop` push — pending
-- [ ] Portfolio main push → prod target — pending
+- [x] **Portfolio real webhook trigger from `develop` push** — Phase C, `portfolio-dev-c4wl7` green 9/9 (2026-04-21). ArgoCD rolled `portfolio-dev` to `:70aaeeb6`.
+- [ ] Portfolio main push → prod target — **pending** (task #23)
 - [ ] Portfolio staging promotion via manual GitLab job — pending
 - [x] Invoicetron develop smoke55 → full pipeline with Prisma migrate → ArgoCD sync → `invoicetron-dev` Deployment rolled to `:3f82c518`, verify-health 200
-- [ ] Invoicetron real webhook trigger from `develop` push — pending
-- [ ] Invoicetron main push → prod target — pending
+- [x] **Invoicetron real webhook trigger from `develop` push** — Phase A, `invoicetron-dev-2nxrl` green 11/11 (2026-04-21, after pod-affinity fix `a3387cb`). First attempt `invoicetron-dev-w7sth` hit PVC Multi-Attach deadline — see Notes #53.
+- [x] **Invoicetron real webhook trigger from `main` push → PROD** — Phase B, `invoicetron-prod-jgw48` green 11/11 (2026-04-21). Migrate was a no-op (30 migrations already applied to prod DB). First attempt `invoicetron-prod-gzddl` failed at migrate P1001 (short-name `DATABASE_URL` in prod Vault) — see Notes #54.
 - [ ] Deploy mutex serializes concurrent runs (untested — smoke runs have been serial)
 - [ ] Rebase retry loop works (untested — no concurrent contention observed yet)
 - [x] Workflow TTL applied per template (1d success / 7d failure) — actual cleanup observed between smoke36 and smoke55 (failed wf retained, succeeded purged per podGC)
 - [x] VAP allows mcr.microsoft.com/ (Playwright) — image not actually pulled since e2e is deferred
 - [ ] CI alerts fire on induced failure (alerts deployed, not yet exercised end-to-end)
 - [x] Grafana dashboard deployed (panels populated with smoke35/55 data)
-- [ ] **Auto-sync restored on argo-workflows-manifests** — commit `f866986` paused it; next session must revert. Until then the WorkflowTemplate-layer protection against drift is off.
+- [x] Auto-sync restored on `argo-workflows-manifests` (commit `443f2a5`, 2026-04-21 — reverted the `f866986` debug pause).
 
 ### Security (both stages)
 - [ ] All workflow pods non-root, PSS baseline compliant
@@ -1173,16 +1178,22 @@ git push
 - [x] `/audit-docs` → `/commit` for context doc updates
 - [x] `/ship v0.39.1 "ArgoCD Onboarding for Portfolio and Invoicetron"`
 
-**Stage 2 (v0.39.2) - in progress:**
+**Stage 2 (v0.39.2) - ready to ship after 3-day soak:**
 - [x] `/audit-security` → `/commit` (commit `2bcce8d`, 49 files)
 - [x] `/audit-docs` → `/commit` (commit `6f21676`, 10 files)
-- [x] Plus 12 follow-up fix commits during smoke testing (`bae726d` through `4ff2c42`) — see Stage 2 Execution Notes for the per-commit breakdown
-- [ ] Portfolio smoke test (build + deploy + verify) passes end-to-end — **next milestone**
-- [ ] Real webhook trigger from `portfolio/develop` push
-- [ ] Invoicetron smoke test passes end-to-end
-- [ ] Real webhook trigger from `invoicetron/develop` push
+- [x] Plus 47 commits total during iteration (`2bcce8d` → `194ee4c`) — see Stage 2 Execution Notes for the per-commit breakdown
+- [x] Portfolio smoke test (smoke35) passes end-to-end
+- [x] Invoicetron smoke test (smoke55) passes end-to-end
+- [x] **Real webhook trigger Phase C (portfolio develop)** — `portfolio-dev-c4wl7` green
+- [x] **Real webhook trigger Phase A (invoicetron develop)** — `invoicetron-dev-2nxrl` green
+- [x] **Real webhook trigger Phase B (invoicetron main → prod)** — `invoicetron-prod-jgw48` green
+- [ ] Real webhook trigger for `portfolio/main` → prod (Task #23 — not yet exercised)
+- [ ] Portfolio staging-promote flow (EventSource + Sensor present, never exercised)
+- [ ] Rotate session-exposed credentials (`argo-workflows-buildkit` PAT, `github-deploy-key`) — Task #27
 - [ ] Remove `deploy:*` jobs from both projects' `.gitlab-ci.yml` after 3 days stable
 - [ ] Archive `kube-token-*` Vault entries
-- [ ] Update CLAUDE.md with new gotchas distilled from Stage 2 Execution Notes
+- [ ] Clean registry test tags `:skopeo-test*`, `:smoke-*` in `registry.k8s.rommelporras.com`
+- [ ] Update CLAUDE.md with new gotchas distilled from Stage 2 Execution Notes (55 notes — prioritize #51 webhook CNP, #53 pod-affinity, #54 FQDN)
+- [ ] `git mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/` at ship
 - [ ] `/ship v0.39.2 "Argo Events CI/CD Migration"`
 - [ ] `git mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/`
