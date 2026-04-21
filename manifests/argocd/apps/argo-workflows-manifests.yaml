@@ -24,14 +24,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: argo-workflows
   syncPolicy:
-    # TEMP (Phase 5.9.1 Stage 2 debug, 2026-04-20): auto-sync paused
-    # so WorkflowTemplate iterations via `kubectl apply` are not
-    # reverted by ArgoCD selfHeal every 3 min. Restore the
-    # `automated` block (prune: true, selfHeal: true) before
-    # wrapping the session.
-    # automated:
-    #   prune: true
-    #   selfHeal: true
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - ServerSideApply=true
       - CreateNamespace=false
