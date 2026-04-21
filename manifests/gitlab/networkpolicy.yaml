@@ -353,15 +353,22 @@ spec:
               protocol: TCP
 
 # ============================================================
-# webservice + sidekiq egress to Cilium Gateway envoy
+# webservice + sidekiq egress to Argo Events webhook receivers
 # (for outbound webhooks to in-cluster endpoints routed via the
 # public hostname, e.g. argo-events.k8s.rommelporras.com which
 # resolves internally to the gateway LoadBalancer IP 10.10.30.20).
 # Without this, the `webservice-internet-egress` /
 # `sidekiq-internet-egress` CNPs explicitly exclude 10.0.0.0/8
-# from their allow-set, blocking the webhook dispatcher from
-# reaching the gateway VIP. Egress to `reserved:ingress` covers
-# cilium-envoy pods regardless of which node they land on.
+# from their allow-set, blocking the webhook dispatcher.
+#
+# Two rules needed because of Cilium kube-proxy-replacement:
+#   (1) Egress to `reserved:ingress` on 443 covers the external
+#       path (outside-cluster clients traversing cilium-envoy).
+#   (2) Egress to argo-events EventSource pods on 12000 covers
+#       the in-cluster path: BPF socket-LB translates the
+#       client's connect() to the LB VIP directly to a backend
+#       pod IP:targetPort at the syscall level, so the egress
+#       policy check sees the backend, not the VIP.
 # ============================================================
 ---
 apiVersion: cilium.io/v2
@@ -381,4 +388,12 @@ spec:
       toPorts:
         - ports:
             - port: "443"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: argo-events
+            controller: eventsource-controller
+      toPorts:
+        - ports:
+            - port: "12000"
               protocol: TCP
