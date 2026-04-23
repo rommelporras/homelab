@@ -1192,11 +1192,102 @@ git push
 - [x] **Real webhook trigger Phase B (invoicetron main → prod)** — `invoicetron-prod-jgw48` green
 - [x] **Real webhook trigger Phase B-portfolio (portfolio main → prod)** — `portfolio-prod-wtp7r` green via MR `!4` (squash-merge SHA `db5f587c`, 2026-04-23)
 - [ ] Portfolio staging-promote flow (EventSource + Sensor present, never exercised)
-- [ ] Rotate session-exposed credentials (`argo-workflows-buildkit` PAT, `github-deploy-key`) — Task #27
+- [ ] Rotate session-exposed credentials — Task #27 (see "Credential rotation playbook" section below)
 - [ ] Remove `deploy:*` jobs from both projects' `.gitlab-ci.yml` after 3 days stable
 - [ ] Archive `kube-token-*` Vault entries
 - [ ] Clean registry test tags `:skopeo-test*`, `:smoke-*` in `registry.k8s.rommelporras.com`
 - [x] Update CLAUDE.md with new gotchas distilled from Stage 2 Execution Notes — 7 gotchas added covering notes #50, #51+#52, #53, #54, #55 + Argo Events webhook `header.*` path (from Task #25 debug)
-- [ ] `git mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/` at ship
 - [ ] `/ship v0.39.2 "Argo Events CI/CD Migration"`
-- [ ] `git mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/`
+- [ ] `git mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/` at ship
+
+---
+
+## Credential rotation playbook (Task #27)
+
+Three credentials need rotation before ship. The user runs these in a terminal with `op` access (Aurora DX); Claude Code cannot `op` from WSL.
+
+### 1. `staging-promote-token` — HIGH PRIORITY (exposed in Claude Code context 2026-04-23)
+
+Sensor-log filter-reject leaks the full event body including headers at warn level. During Task #25 debugging the token value appeared in tool output when the filter-path typo caused every event to be discarded. Limited blast radius: no external consumer exists yet (GitLab manual job → `/staging-promote` wiring is still deferred under 5.9.1.11.2).
+
+```bash
+# In safe terminal (with op CLI):
+NEW_TOKEN=$(openssl rand -hex 32)
+
+# (a) Update 1Password first (source of truth per CLAUDE.md)
+op item edit "Argo Workflows" --vault Kubernetes "staging-promote-token[password]=$NEW_TOKEN"
+
+# (b) Update Vault
+VAULT_ADDR=https://vault.k8s.rommelporras.com
+VAULT_TOKEN=$(op read "op://Kubernetes/Vault/admin-token")   # or use your personal token
+vault kv patch secret/argo-events/staging-promote-token token="$NEW_TOKEN"
+unset NEW_TOKEN VAULT_TOKEN
+
+# (c) Force-refresh the ExternalSecret and restart the sensor so env vars pick up
+kubectl-admin annotate externalsecret staging-promote-token -n argo-events \
+  force-sync="$(date +%s)" --overwrite
+kubectl-admin delete pod -n argo-events -l sensor-name=portfolio-staging-promote
+```
+
+### 2. `argo-workflows/gitlab-registry` (username + password, BuildKit/skopeo registry auth)
+
+Pre-compact session (before 2026-04-23) handled registry creds during BuildKit + push debugging. The `username` and `password` fields correspond to `registry-username` and `registry-password` in the `Argo Workflows` 1P item.
+
+```bash
+# Issue a new group deploy token in GitLab (scope: read_registry + write_registry)
+# https://gitlab.k8s.rommelporras.com/groups/0xwsh/-/settings/repository#deploy-tokens-settings
+
+# Update 1P (username stays the same; password is the new token)
+op item edit "Argo Workflows" --vault Kubernetes "registry-password[password]=<new-token>"
+
+# Update Vault
+vault kv patch secret/argo-workflows/gitlab-registry password="<new-token>"
+
+# Force-refresh ExternalSecret
+kubectl-admin annotate externalsecret gitlab-registry -n argo-workflows \
+  force-sync="$(date +%s)" --overwrite
+
+# Revoke the old deploy token in GitLab UI after the next workflow run verifies the new one works
+```
+
+### 3. `argo-workflows/github-deploy-key` (SSH private key for homelab repo write-back)
+
+Pre-compact session handled SSH key formatting (trailing-newline fix). The deploy key is scoped to `rommelporras/homelab` only (DR-5 in the plan).
+
+```bash
+# Generate new ed25519 keypair in safe terminal
+ssh-keygen -t ed25519 -C "ci-bot@k8s.rommelporras.com (argo-events rotation 2026-04-XX)" \
+  -f ~/tmp/argo-events-deploy-key -N ""
+
+# Add new public key as a GitHub deploy key with write access on rommelporras/homelab
+# https://github.com/rommelporras/homelab/settings/keys
+# KEEP the old key active until the new key is proven working, then remove old.
+
+# Update 1P
+op item edit "Argo Workflows" --vault Kubernetes \
+  "github-deploy-key[password]=$(cat ~/tmp/argo-events-deploy-key)"
+
+# Update Vault
+vault kv patch secret/argo-workflows/github-deploy-key \
+  ssh-privatekey=@<(cat ~/tmp/argo-events-deploy-key; echo)   # trailing newline required (see Notes #... in plan)
+
+# Force-refresh ExternalSecret
+kubectl-admin annotate externalsecret github-deploy-key -n argo-workflows \
+  force-sync="$(date +%s)" --overwrite
+
+# Verify: next deploy-image step should still push successfully (the mounted Secret
+# is re-read per-pod, so new pods get the new key automatically - no pod restart needed).
+# Once confirmed working, delete the old GitHub deploy key and shred the local keyfile.
+shred -u ~/tmp/argo-events-deploy-key ~/tmp/argo-events-deploy-key.pub
+```
+
+### Post-rotation verification
+
+```bash
+# Fire one workflow in each exercised path; confirm all steps green:
+# - Portfolio dev: push empty commit to portfolio develop branch
+# - Invoicetron dev: push empty commit to invoicetron develop branch
+# - Portfolio prod (via MR flow per Note #55)
+# - Invoicetron prod: push empty commit to invoicetron main branch
+# - Staging-promote: curl the webhook with new token (see Task #25 smoke command)
+```
