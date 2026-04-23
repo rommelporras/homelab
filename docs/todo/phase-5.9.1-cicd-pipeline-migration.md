@@ -1,16 +1,17 @@
 # Phase 5.9.1: CI/CD Pipeline Migration (Argo Events + Workflows)
 
-> **Status:** Stage 1 Complete (v0.39.1 shipped 2026-04-16) / Stage 2 smoke + real-webhook triggers all green as of 2026-04-21. Ready to ship after 3-day soak.
+> **Status:** Stage 1 Complete (v0.39.1 shipped 2026-04-16) / Stage 2 all four real-webhook triggers green as of 2026-04-23. Ready to ship after 3-day soak.
 >
-> **Real webhook triggers: all three green end-to-end (2026-04-21T15:xxZ, phase C → A → B).**
+> **Real webhook triggers: all four green end-to-end (phase C → A → B-invoicetron → B-portfolio).**
 >
-> - **Phase C — Portfolio develop real webhook** → `portfolio-dev-c4wl7` `Succeeded 9/9`. GitLab push → Argo Events Sensor → Workflow → CI bot commit on homelab `main` → ArgoCD synced `portfolio-dev` to `:70aaeeb6`.
-> - **Phase A — Invoicetron develop real webhook** → `invoicetron-dev-2nxrl` `Succeeded 11/11` (second attempt; first attempt `invoicetron-dev-w7sth` hit a PVC multi-attach deadlock, fixed by pod-affinity patch `f34b6dc` → rebased `a3387cb`). ArgoCD synced `invoicetron-dev` to new image; verify-health 200.
-> - **Phase B — Invoicetron main real webhook (PROD)** → `invoicetron-prod-jgw48` `Succeeded 11/11` (second attempt; first attempt `invoicetron-prod-gzddl` failed at migrate with P1001 because the prod `DATABASE_URL` in Vault still had the short hostname `@invoicetron-db:` that only resolves inside `invoicetron-prod` namespace, not from `argo-workflows`; patched in Vault v8 + 1P, retried green). Migrate was a no-op (30 migrations already applied to prod). ArgoCD synced `invoicetron-prod` to new image.
+> - **Phase C - Portfolio develop real webhook** → `portfolio-dev-c4wl7` `Succeeded 9/9`. GitLab push → Argo Events Sensor → Workflow → CI bot commit on homelab `main` → ArgoCD synced `portfolio-dev` to `:70aaeeb6`.
+> - **Phase A - Invoicetron develop real webhook** → `invoicetron-dev-2nxrl` `Succeeded 11/11` (second attempt; first attempt `invoicetron-dev-w7sth` hit a PVC multi-attach deadlock, fixed by pod-affinity patch `f34b6dc` → rebased `a3387cb`). ArgoCD synced `invoicetron-dev` to new image; verify-health 200.
+> - **Phase B - Invoicetron main real webhook (PROD)** → `invoicetron-prod-jgw48` `Succeeded 11/11` (second attempt; first attempt `invoicetron-prod-gzddl` failed at migrate with P1001 because the prod `DATABASE_URL` in Vault still had the short hostname `@invoicetron-db:` that only resolves inside `invoicetron-prod` namespace, not from `argo-workflows`; patched in Vault v8 + 1P, retried green). Migrate was a no-op (30 migrations already applied to prod). ArgoCD synced `invoicetron-prod` to new image.
+> - **Phase B - Portfolio main real webhook (PROD)** → `portfolio-prod-wtp7r` `Succeeded 9/9` (2026-04-23T03:01:46Z → 03:06:30Z, ~4m44s). Portfolio `main` is `push_access_levels: "No one"`, so the trigger went through MR `!4` (`phase-23-prod-smoke` → `main`, squash-merge via `glab api`, merge SHA `db5f587c`). ArgoCD synced `portfolio-prod` to `:db5f587c` (gen 18=18, both pods Ready, 0 restarts).
 >
 > **Prior smoke-test proof (still referenced):** portfolio `smoke35` (2026-04-20T05:54Z) and invoicetron `smoke55` (2026-04-21T04:29Z) — see "Stage 2 Execution Notes" #40-#50 for the 11 invoicetron-specific fixes that got smoke55 green.
 >
-> **Still untested before ship:** portfolio main push → prod (no test push triggered yet — and `gitlab.k8s.rommelporras.com/0xwsh/portfolio` `main` has `push_access_levels: "No one"`, so the smoke must go through an MR: push to a feature branch then `glab mr create … --target-branch main` + `glab mr merge`. Invoicetron `main` allows Maintainer push directly, hence Phase B-invoicetron worked with a plain `git push`); portfolio staging-promote flow (EventSource + Sensor present but never exercised).
+> **Still untested before ship:** portfolio staging-promote flow (EventSource + Sensor present but never exercised).
 >
 > **Post-phase cleanup (tracked in "Post-smoke cleanup"):** rotate session-exposed credentials, drop GitLab CI `deploy:*` jobs, archive Vault `kube-token-*` entries, delete test image tags from the registry, `git mv` this doc to `docs/todo/completed/`.
 >
@@ -927,6 +928,8 @@ What actually happened, vs the plan, between 2026-04-18 and 2026-04-19. Captured
 
 54. **Prod `DATABASE_URL` still had short-name hostname; dev was fixed, prod was missed.** First Phase B attempt `invoicetron-prod-gzddl` passed everything up to the migrate step, then hit `Error: P1001: Can't reach database server at invoicetron-db:5432` — the short name only resolves from within the `invoicetron-prod` namespace. The dev DATABASE_URL was rewritten to the FQDN `invoicetron-db.invoicetron-prod.svc.cluster.local` during the smoke55 iteration (Note #50 context), but the prod value in `secret/invoicetron-prod/app` field `database-url` was never updated — prod migrations had never been run cross-namespace before. Fix applied via `vault kv patch -mount=secret invoicetron-prod/app database-url=@<file>` with sed-replacement on the hostname portion (values stay in shell, never in tool output), force-refreshed the `invoicetron-app` + `invoicetron-migrate-db-urls` ExternalSecrets, then pushed an empty commit `194ee4c` on invoicetron `main` to retrigger. `invoicetron-prod-jgw48` green 11/11. **1P `op://Kubernetes/Invoicetron Prod/database-url` was also updated** after the Vault patch so the seed script stays authoritative (without this, the next `seed-vault-from-1password.sh` run would regress prod migrations). **Rule for future cross-namespace DB consumers (anything that isn't the app itself in the DB's own ns):** always store the FQDN in Vault, never the short name. Short names only save two ns lookups and cost an entire debug cycle when the consumer moves namespaces.
 
+55. **Phase B-portfolio (Task #23) trigger required MR flow; direct push to `main` is denied by GitLab branch protection.** `gitlab.k8s.rommelporras.com/0xwsh/portfolio` `main` has `push_access_levels: [{access_level: 0, description: "No one"}]`, so even a maintainer's `git push` returns `pre-receive hook declined: You are not allowed to push code to protected branches`. Workflow that worked: (a) USER pushed the empty smoke commit to a new feature branch via `git push origin main:phase-23-prod-smoke`; (b) I opened MR `!4` via `glab api --method POST projects/0xwsh%2Fportfolio/merge_requests` (the `glab mr create` subcommand fails with "None of the git remotes correspond to GITLAB_HOST" because the portfolio origin is `ssh.gitlab.k8s.rommelporras.com` while the API host is `gitlab.k8s.rommelporras.com` — `glab api --hostname` bypasses the remote-matching logic); (c) merged via `glab api --method PUT projects/0xwsh%2Fportfolio/merge_requests/4/merge -f squash=true -f should_remove_source_branch=true`; (d) the squash-merge produced merge SHA `db5f587c` on `main`, GitLab fired the push hook (visible in `gitlab-portfolio` EventSource log: eventID `598f3ced…`), the `gitlab-portfolio-main` Sensor matched the `main` ref filter and triggered `portfolio-prod-wtp7r`. Workflow ran 9/9 in ~4m44s (clone 19s → install-deps 27s → lint+test-unit+type-check parallel ~1m → build 61s → push 20s → deploy 22s → verify 11s). ArgoCD synced `portfolio-prod` Deployment to `:db5f587c` (gen 18=18, 2/2 pods Ready, 0 restarts). Source branch auto-deleted by the merge. **Rule for any future portfolio `main` deploy via Argo Events:** must go through MR flow. Invoicetron `main` allows `Maintainers` (access_level 40) push directly, hence Phase B-invoicetron worked with a plain `git push`. The asymmetry is intentional (portfolio is the public-facing site, tighter protection); Argo Events handles both paths because the GitLab push hook fires on the merge commit either way.
+
 ### Manual prerequisites uncovered
 
 - **GitLab admin setting** `allow_local_requests_from_web_hooks_and_services` defaults to `false` and rejects internal-IP webhook URLs with `422 Invalid url given`. Required `glab api --method PUT application/settings --field allow_local_requests_from_web_hooks_and_services=true` before EventSource auto-registration would succeed. Worth a CLAUDE.md gotcha for future webhook-driven services.
@@ -1080,7 +1083,7 @@ For any new Argo Workflows CI pipeline (new project, new promotion flow, etc.):
 - [x] GitLab Runner OOM fix: concurrent=4 + pod anti-affinity (bonus fix, shipped with v0.39.1)
 - [x] ArgoCD controller memory bumped 1Gi→2Gi (bonus fix, shipped with v0.39.1)
 
-### Stage 2 (v0.39.2) - Status as of 2026-04-21
+### Stage 2 (v0.39.2) - Status as of 2026-04-23
 
 - [x] `argo-events` namespace + controllers Running, PSS baseline labeled
 - [x] Per-project EventSources auto-registered webhooks on GitLab (after manual `allow_local_requests_from_web_hooks_and_services=true`)
@@ -1094,7 +1097,7 @@ For any new Argo Workflows CI pipeline (new project, new promotion flow, etc.):
 - [ ] Per-project secret isolation (untested — implicit from per-EventSource secrets)
 - [x] Portfolio develop smoke35 → Workflow → 9/9 steps pass → ArgoCD sync → `portfolio-dev` Deployment rolled to `:51ca6004`
 - [x] **Portfolio real webhook trigger from `develop` push** — Phase C, `portfolio-dev-c4wl7` green 9/9 (2026-04-21). ArgoCD rolled `portfolio-dev` to `:70aaeeb6`.
-- [ ] Portfolio main push → prod target — **pending** (task #23)
+- [x] **Portfolio real webhook trigger from `main` push → PROD** — Phase B-portfolio, `portfolio-prod-wtp7r` green 9/9 (2026-04-23T03:01:46Z → 03:06:30Z, ~4m44s). Triggered via MR `!4` since `main` is `push_access_levels: "No one"`. ArgoCD synced `portfolio-prod` to `:db5f587c` (gen 18=18, 2/2 pods Ready, 0 restarts). See Notes #55.
 - [ ] Portfolio staging promotion via manual GitLab job — pending
 - [x] Invoicetron develop smoke55 → full pipeline with Prisma migrate → ArgoCD sync → `invoicetron-dev` Deployment rolled to `:3f82c518`, verify-health 200
 - [x] **Invoicetron real webhook trigger from `develop` push** — Phase A, `invoicetron-dev-2nxrl` green 11/11 (2026-04-21, after pod-affinity fix `a3387cb`). First attempt `invoicetron-dev-w7sth` hit PVC Multi-Attach deadline — see Notes #53.
@@ -1187,7 +1190,7 @@ git push
 - [x] **Real webhook trigger Phase C (portfolio develop)** — `portfolio-dev-c4wl7` green
 - [x] **Real webhook trigger Phase A (invoicetron develop)** — `invoicetron-dev-2nxrl` green
 - [x] **Real webhook trigger Phase B (invoicetron main → prod)** — `invoicetron-prod-jgw48` green
-- [ ] Real webhook trigger for `portfolio/main` → prod (Task #23 — not yet exercised)
+- [x] **Real webhook trigger Phase B-portfolio (portfolio main → prod)** — `portfolio-prod-wtp7r` green via MR `!4` (squash-merge SHA `db5f587c`, 2026-04-23)
 - [ ] Portfolio staging-promote flow (EventSource + Sensor present, never exercised)
 - [ ] Rotate session-exposed credentials (`argo-workflows-buildkit` PAT, `github-deploy-key`) — Task #27
 - [ ] Remove `deploy:*` jobs from both projects' `.gitlab-ci.yml` after 3 days stable
