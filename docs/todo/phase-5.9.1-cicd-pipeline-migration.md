@@ -10,7 +10,7 @@
 >
 > **Prior smoke-test proof (still referenced):** portfolio `smoke35` (2026-04-20T05:54Z) and invoicetron `smoke55` (2026-04-21T04:29Z) — see "Stage 2 Execution Notes" #40-#50 for the 11 invoicetron-specific fixes that got smoke55 green.
 >
-> **Still untested before ship:** portfolio main push → prod (no test push triggered yet), portfolio staging-promote flow (EventSource + Sensor present but never exercised).
+> **Still untested before ship:** portfolio main push → prod (no test push triggered yet — and `gitlab.k8s.rommelporras.com/0xwsh/portfolio` `main` has `push_access_levels: "No one"`, so the smoke must go through an MR: push to a feature branch then `glab mr create … --target-branch main` + `glab mr merge`. Invoicetron `main` allows Maintainer push directly, hence Phase B-invoicetron worked with a plain `git push`); portfolio staging-promote flow (EventSource + Sensor present but never exercised).
 >
 > **Post-phase cleanup (tracked in "Post-smoke cleanup"):** rotate session-exposed credentials, drop GitLab CI `deploy:*` jobs, archive Vault `kube-token-*` entries, delete test image tags from the registry, `git mv` this doc to `docs/todo/completed/`.
 >
