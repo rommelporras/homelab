@@ -2,13 +2,23 @@
 # Sensor: validates the staging-promote token, then creates a
 # portfolio-staging-promote Workflow with source_sha from the payload.
 #
-# Token validation: dependency-level filter compares the
-# X-Staging-Promote-Token header against the value in the
-# staging-promote-token Secret. Mismatched / missing token -> no
-# workflow created.
+# Token validation: Lua script filter (filter_script.go in argo-events)
+# compares `event.body.token` against os.getenv("STAGING_PROMOTE_TOKEN")
+# - the env var is injected from the staging-promote-token Secret via
+# the Sensor template. Mismatched / missing token -> no Workflow.
 #
-# Body contract: { "source_sha": "abc12345" }. The trigger parameter
-# substitutes source_sha into the Workflow argument.
+# Body contract: { "token": "<secret>", "source_sha": "abc12345" }.
+# The trigger parameter substitutes source_sha into the Workflow arg.
+#
+# Why body.token and not header.X-…-Token:
+#   argo-events v1.9.10's `data` filter (a) treats string values as regex
+#   against gjson pathResult.String() - which for header arrays renders
+#   as `["value"]`, not the bare scalar - and (b) does NOT substitute
+#   `{{env.X}}` in filter values (filter.go has zero env handling).
+#   The `script` filter avoids both traps via os.getenv, but trying to
+#   read the header array from the Lua table (event.header[key][1])
+#   also failed in this environment. Body-based token is the simplest
+#   shape that sidesteps both quirks and keeps the secret off the URL.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Sensor
@@ -30,11 +40,13 @@ spec:
       eventSourceName: portfolio-staging-promote
       eventName: portfolio-staging-promote
       filters:
-        data:
-          - path: header.X-Staging-Promote-Token
-            type: string
-            value:
-              - "{{env.STAGING_PROMOTE_TOKEN}}"
+        # See the top-of-file rationale for why this is a script filter
+        # reading event.body.token (scalar), not a data/exprs filter on
+        # header.X-…-Token (array, and no env substitution).
+        script: |
+          local body = event.body
+          if body == nil then return false end
+          return body.token == os.getenv("STAGING_PROMOTE_TOKEN")
   triggers:
     - template:
         name: portfolio-staging-promote
