@@ -1208,9 +1208,16 @@ git push
 
 Three credentials need rotation before ship. The user runs these in a terminal with `op` access (Aurora DX); Claude Code cannot `op` from WSL.
 
-### 1. `staging-promote-token` — HIGH PRIORITY (exposed in Claude Code context 2026-04-23)
+**Progress:**
+- [x] Step 1: `staging-promote-token` — rotated 2026-04-24 (Vault v5, ES force-synced, sensor pod recreated, smoke `portfolio-staging-promote-98fq5` green 2/2 with new token)
+- [ ] Step 2: `argo-workflows/gitlab-registry` — pending
+- [ ] Step 3: `argo-workflows/github-deploy-key` — pending
+
+### 1. `staging-promote-token` — HIGH PRIORITY (exposed in Claude Code context 2026-04-23) — DONE 2026-04-24
 
 Sensor-log filter-reject leaks the full event body including headers at warn level. During Task #25 debugging the token value appeared in tool output when the filter-path typo caused every event to be discarded. Limited blast radius: no external consumer exists yet (GitLab manual job → `/staging-promote` wiring is still deferred under 5.9.1.11.2).
+
+**Rotation result 2026-04-24:** 1P updated, Vault path `secret/argo-events/staging-promote-token` bumped to v5, ExternalSecret force-synced (`SecretSynced`), sensor pod `portfolio-staging-promote-sensor-glmcw-*` deleted and recreated at `17:05Z`, post-rotation smoke fired at `17:06:00Z` → Sensor "Successfully processed trigger" → Workflow `portfolio-staging-promote-98fq5` green 2/2 in ~33s → ArgoCD reconciled `portfolio-staging` at `:db5f587c` (deploy was a no-op, verify returned 200). End-to-end rotation chain proven.
 
 ```bash
 # In safe terminal (with op CLI):
@@ -1221,7 +1228,7 @@ op item edit "Argo Workflows" --vault Kubernetes "staging-promote-token[password
 
 # (b) Update Vault
 VAULT_ADDR=https://vault.k8s.rommelporras.com
-VAULT_TOKEN=$(op read "op://Kubernetes/Vault/admin-token")   # or use your personal token
+VAULT_TOKEN=$(op read "op://Kubernetes/Vault Unseal Keys/root-token")
 vault kv patch secret/argo-events/staging-promote-token token="$NEW_TOKEN"
 unset NEW_TOKEN VAULT_TOKEN
 
