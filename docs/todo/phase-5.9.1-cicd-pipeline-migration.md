@@ -1196,7 +1196,7 @@ git push
 - [ ] Remove `deploy:*` jobs from both projects' `.gitlab-ci.yml` after 3 days stable
 - [ ] Archive `kube-token-*` Vault entries
 - [ ] Clean registry test tags `:skopeo-test*`, `:smoke-*` in `registry.k8s.rommelporras.com`
-- [ ] Update CLAUDE.md with new gotchas distilled from Stage 2 Execution Notes (55 notes — prioritize #51 webhook CNP, #53 pod-affinity, #54 FQDN)
+- [x] Update CLAUDE.md with new gotchas distilled from Stage 2 Execution Notes — 7 gotchas added covering notes #50, #51+#52, #53, #54, #55 + Argo Events webhook `header.*` path (from Task #25 debug)
 - [ ] `git mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/` at ship
 - [ ] `/ship v0.39.2 "Argo Events CI/CD Migration"`
 - [ ] `git mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/`
