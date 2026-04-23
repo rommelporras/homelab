@@ -31,7 +31,7 @@ spec:
       eventName: portfolio-staging-promote
       filters:
         data:
-          - path: headers.X-Staging-Promote-Token
+          - path: header.X-Staging-Promote-Token
             type: string
             value:
               - "{{env.STAGING_PROMOTE_TOKEN}}"
