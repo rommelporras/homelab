@@ -11,6 +11,19 @@
 # Usage: ./scripts/seed-vault-from-1password.sh
 #
 # WARNING: Run in safe terminal only — reads secrets from 1Password
+#
+# WARNING (DB passwords): this script ONLY writes to 1P→Vault→K8s-Secret.
+# It does NOT run ALTER USER on Postgres/MySQL. If you edit a DB password
+# in 1P and then re-seed without also doing ALTER USER on the DB pod,
+# Vault and the app env get the new password but the DB user keeps the old
+# one — apps lose connectivity on next pod restart. Affected paths (must
+# ALTER in lockstep):
+#   secret/invoicetron-{dev,prod}/{db,app}
+#   secret/ghost-{dev,prod}/mysql
+#   secret/gitlab/postgresql-password
+#   secret/gitlab/root-password
+# See docs/todo/phase-5.9.1-cicd-pipeline-migration.md "Credential rotation
+# playbook" for the coordinated rotation procedure.
 set -euo pipefail
 
 export VAULT_ADDR="${VAULT_ADDR:-http://localhost:8200}"
