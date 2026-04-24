@@ -1,6 +1,6 @@
 # Phase 5.9.1: CI/CD Pipeline Migration (Argo Events + Workflows)
 
-> **Status:** Stage 1 Complete (v0.39.1 shipped 2026-04-16) / Stage 2 all four real-webhook triggers green as of 2026-04-23. Ready to ship after 3-day soak.
+> **Status:** Stage 1 Complete (v0.39.1 shipped 2026-04-16) / Stage 2 all four real-webhook triggers green (2026-04-23) + staging-promote flow green (2026-04-24) + all 8 Task #27 credential rotations completed (2026-04-24). Soak started 2026-04-24; earliest ship 2026-04-27.
 >
 > **Real webhook triggers: all four green end-to-end (phase C → A → B-invoicetron → B-portfolio).**
 >
@@ -13,10 +13,10 @@
 >
 > **Still untested before ship:** nothing — all four real-webhook triggers + staging-promote flow green.
 >
-> **Post-phase cleanup (tracked in "Post-smoke cleanup"):** rotate session-exposed credentials, drop GitLab CI `deploy:*` jobs, archive Vault `kube-token-*` entries, delete test image tags from the registry, `git mv` this doc to `docs/todo/completed/`.
+> **Post-phase cleanup:** ~~rotate session-exposed credentials~~ (all 8 done 2026-04-24 — see "Credential rotation playbook" below + `docs/todo/deferred.md` for per-credential details); drop GitLab CI `deploy:*` jobs (post-soak); archive Vault `kube-token-*` entries (post-soak); delete test image tags from the registry (post-soak); `git mv` this doc to `docs/todo/completed/` at ship; delete the overlap-period tokens/keys after the next natural CI push closes write-path verification on rotations #3 + #4 (see end of "Credential rotation playbook" for the exact delete commands).
 >
-> 47 commits landed so far (`2bcce8d` → `194ee4c`). See "Stage 2 Execution
-> Notes" for the accumulated plan-vs-cluster deltas (55 notes).
+> 66 commits landed so far (`2bcce8d` → HEAD). See "Stage 2 Execution
+> Notes" for the accumulated plan-vs-cluster deltas (56 notes).
 > **Target:** v0.39.1 (Stage 1 - ArgoCD onboarding, SHIPPED) → v0.39.2 (Stage 2 - Argo Events CI/CD)
 > **Prerequisite:** Phase 5.9 (v0.39.0 - Argo Workflows installed, controller + argo-server running with `--namespaced` mode)
 > **DevOps Topics:** Event-driven CI/CD, GitOps image promotion, BuildKit rootless, webhook triggers, Kustomize overlays
@@ -523,7 +523,7 @@ Goal: every manifest under `manifests/portfolio/` and `manifests/invoicetron/` b
   - Invoicetron: `deploy:dev` and `deploy:prod` rules updated to `when: manual` (inside `rules:` block, not job-level)
   - Portfolio: `deploy:development` and `deploy:production` rules updated to `when: manual`; `deploy:staging` was already manual
   - `kubectl set image` lines retained as-is (still works for emergency break-glass; ArgoCD's selfHeal reverts it within 3 min if run)
-  - Commit + push on each project repo pending user `/commit` in each repo.
+  - Commit + push on each project repo completed during Stage 2 iteration. Real-webhook triggers later exercised both project CI paths end-to-end (Phases A/B/C + B-portfolio, all green).
 - [x] 5.9.1.4.2 Watch for ArgoCD selfHeal events (after apps are synced)
   - Tested: manually triggered `deploy:development` (pipeline 188, job 1295). GitLab CI `kubectl set image` succeeded but ArgoCD selfHeal reverted to overlay tag within 3 min. Confirmed working.
 - [x] 5.9.1.4.3 Old flat manifests removed via `git rm` in homelab repo
@@ -612,10 +612,10 @@ All committed under `manifests/argo-workflows/templates/`.
   - **DEVIATION FROM PLAN**: `branch` parameter is required, not optional. `git fetch --depth=1 <short-sha>` doesn't work (wire protocol only accepts branch/tag/full-SHA refs). Updated to fetch the branch then `git checkout <short-sha>` from local objects.
 - [x] 5.9.1.8.3 `lint-template.yaml`, `type-check-template.yaml`, `test-unit-template.yaml`
 - [x] 5.9.1.8.4 `build-image-template.yaml`
-  - Pending verification — has not yet been exercised by a smoke test that reached the build step.
+  - Verified end-to-end via portfolio smoke35 + invoicetron smoke55 and all four real-webhook-triggered workflows (Phase A/B/C + B-portfolio). BuildKit rootless + OCI-archive output path proven.
 - [x] 5.9.1.8.5 `deploy-image-template.yaml`
   - **SCHEMA DEVIATION**: Argo Workflows v3.6+ replaced singular `synchronization.mutex` with plural `synchronization.mutexes` list. Plan's `synchronization.mutex: { name: ... }` was rejected by SSA with "field not declared in schema". Final form uses `mutexes:`.
-  - Pending verification — has not yet been exercised.
+  - Verified end-to-end via all four real-webhook workflows + staging-promote. Mutex serialization not yet tested under concurrent load (single writer observed so far).
 - [x] 5.9.1.8.6 `verify-health-template.yaml`
   - **DEVIATION FROM PLAN**: curl needs `-L` flag to follow redirects; live-tested `https://invoicetron.dev.k8s.rommelporras.com/` returns `307 -> /login -> 200`. Without `-L` the verify loop sees 307 not 200 and fails.
 - [x] 5.9.1.8.7 Per-template `ttlStrategy` (DR-8): 1d success, 7d failure.
@@ -635,8 +635,8 @@ All committed under `manifests/argo-workflows/templates/`.
     - smokes 23-34: tar chown failure in deploy (#36), stat on symlink misled SSH-key investigation (#37), OpenSSH trailing-newline requirement (#38), 1P multi-line field storage via `op item edit` (#39).
     - **smoke35: GREEN end-to-end.** 9/9 stages passed, commit `37a61fb` landed on main, Deployment rolled to `:51ca6004`, verify-health 200.
   - **Verify-step timing gap (tracked for Stage 2.5 follow-up, not blocker)**: verify-health has a 5-minute retry budget but ArgoCD's sync interval is ~3 minutes, so on a clean pipeline run verify-health's 200 can come from the pre-rollout pods before the new image actually lands. For portfolio any version serves 200, so it's benign; for invoicetron (migration-sensitive) or future apps where old/new behavior differs meaningfully, verify should additionally poll the Deployment's `status.observedGeneration`/`updatedReplicas` against the freshly-committed image tag. Adding to `deferred.md`.
-- [ ] 5.9.1.9.3 Push to `develop` — verify full path: webhook → EventSource → Sensor → Workflow → all steps pass → git commit lands → ArgoCD syncs → pod rolls out.
-- [ ] 5.9.1.9.4 Push to `main` — same, prod target.
+- [x] 5.9.1.9.3 Push to `develop` — verify full path: webhook → EventSource → Sensor → Workflow → all steps pass → git commit lands → ArgoCD syncs → pod rolls out. **Phase C** (2026-04-21): `portfolio-dev-c4wl7` green 9/9, CI bot commit landed, ArgoCD rolled `portfolio-dev` to `:70aaeeb6`.
+- [x] 5.9.1.9.4 Push to `main` — same, prod target. **Phase B-portfolio** (2026-04-23): `portfolio-prod-wtp7r` green 9/9, triggered via MR `!4` (portfolio `main` has `push_access_levels: "No one"`, see Notes #55), ArgoCD rolled `portfolio-prod` to `:db5f587c`.
 - [ ] 5.9.1.9.5 Remove deploy stages from portfolio `.gitlab-ci.yml` (now truly dead)
   - Delete `deploy:dev`, `deploy:staging`, `deploy:prod` jobs.
   - Archive the Portfolio `kube-token-*` secrets in Vault (rename to `archived/kube-token-*`) — no longer used.
@@ -664,7 +664,7 @@ All committed under `manifests/argo-workflows/templates/`.
     - **smoke55: GREEN end-to-end.** 11/11 stages passed, CI bot commit `278d148` landed on main, Deployment rolled to `:3f82c518`, verify-health 200.
   - **Invoicetron Smoke Plan (reference)**. Most of the portfolio pain (#1-#39) was already paid for; this section documented what's *different* about the invoicetron path.
 
-  ### Invoicetron-specific differences vs portfolio (already wired in the template, not yet exercised)
+  ### Invoicetron-specific differences vs portfolio (wired in the template; exercised via smoke55 + Phase A/B real-webhook workflows)
 
   | Concern | Invoicetron behavior | Why it's different |
   |---------|----------------------|--------------------|
@@ -706,22 +706,22 @@ All committed under `manifests/argo-workflows/templates/`.
 
   ### Post-smoke cleanup (must-do before ship)
 
-  1. **Restore argo-workflows-manifests auto-sync.** Commit `f866986` temporarily removed the `automated` block; a one-line revert re-enables prune+selfHeal. Do this in the *next* session to let ArgoCD re-own WorkflowTemplate state before any further drift accumulates.
+  1. ~~**Restore argo-workflows-manifests auto-sync.**~~ ✅ Done (commit `443f2a5`, 2026-04-21) — auto-sync + selfHeal re-enabled.
   2. **Align the in-cluster CNP label update** — `invoicetron-dev-manifests` and `invoicetron-prod-manifests` were never pause-synced, so their CNPs are already reconciled to commit `40e6e9e`. No manual action needed.
-  3. **Webhook triggers still pending** — see 5.9.1.10.3 / 5.9.1.10.4 below.
+  3. ~~**Webhook triggers still pending**~~ ✅ All four real-webhook triggers green — see 5.9.1.10.3 / 5.9.1.10.4 below and the status header at the top of this doc.
 
-- [ ] 5.9.1.10.3 Real webhook trigger from `develop` push. Should register + fire via the already-working `gitlab-invoicetron-develop` Sensor.
-- [ ] 5.9.1.10.4 Real webhook trigger from `main` push. Prod target; requires invoicetron migrations to be idempotent (confirm by reading `prisma/migrations/` folder in the repo first).
-- [ ] 5.9.1.10.5 Remove deploy stages from invoicetron `.gitlab-ci.yml`.
+- [x] 5.9.1.10.3 Real webhook trigger from `develop` push — **Phase A** (2026-04-21): `invoicetron-dev-2nxrl` green 11/11 via the `gitlab-invoicetron-develop` Sensor. See Notes #53 for the PVC Multi-Attach fix that unblocked it.
+- [x] 5.9.1.10.4 Real webhook trigger from `main` push — **Phase B** (2026-04-21): `invoicetron-prod-jgw48` green 11/11. Migrate step was a no-op (30 prod migrations already applied via prior smoke). See Notes #54 for the cross-ns FQDN DATABASE_URL fix.
+- [ ] 5.9.1.10.5 Remove deploy stages from invoicetron `.gitlab-ci.yml`. **Post-soak** — keep as rollback during 3-day soak window.
 
 ## 5.9.1.11 Wave 2E: Portfolio Staging Promotion
 
 - [x] 5.9.1.11.1 Commit `manifests/argo-workflows/templates/portfolio-staging-promote.yaml`
 - [ ] 5.9.1.11.2 Create a GitLab manual job in portfolio `.gitlab-ci.yml` that POSTs to `argo-events.k8s.rommelporras.com/staging-promote` with `source_sha` payload.
-  - Pending — to be done in the portfolio repo after homelab smoke test passes.
+  - Deferred to portfolio repo as **post-ship work** (out of homelab-repo scope). Homelab-side smoke is proven via Task #25 (curl POST from in-cluster probe pod). The GitLab-CI manual job is a UX convenience on top of the already-working webhook; blocks nothing for v0.39.2 ship. Body contract is `{"token": "<secret>", "source_sha": "abc12345"}` per the script-filter fix in Notes #56.
 - [x] 5.9.1.11.3 Add staging-promote EventSource + Sensor (single endpoint, token-validated)
   - EventSource is generic `webhook` type (not `gitlab` type) since GitLab manual job posts arbitrary JSON. Sensor filter validates the `X-Staging-Promote-Token` header against the `staging-promote-token` Secret.
-- [ ] 5.9.1.11.4 Test: promote a `develop` SHA to staging; verify ArgoCD syncs portfolio-staging to that SHA.
+- [x] 5.9.1.11.4 Test: promote a `develop` SHA to staging; verify ArgoCD syncs portfolio-staging to that SHA. (2026-04-24: `portfolio-staging-promote-dxzmd` green 2/2, ArgoCD rolled `portfolio-staging` to `:db5f587c`. See Notes #56 for the sensor-filter fix that unblocked this.)
 
 ## 5.9.1.12 Wave 2F: Monitoring
 
@@ -738,8 +738,8 @@ All committed under `manifests/argo-workflows/templates/`.
   - `Secrets.md`: 1P item consolidation + new Vault paths documented.
   - `Monitoring.md`: alerts + dashboard + probe added.
   - `ExternalServices.md`: GitLab Webhooks section.
-- [ ] 5.9.1.13.2 Update CLAUDE.md (deferred to post-ship)
-  - The new gotchas surfaced during execution (15 of them, see Stage 2 Execution Notes below) should be condensed and added to CLAUDE.md Gotchas section before ship. Doing this post-stable to avoid churn.
+- [x] 5.9.1.13.2 Update CLAUDE.md with distilled gotchas (2026-04-24)
+  - 7 gotchas added to CLAUDE.md Gotchas section covering Notes #50 (Argo Workflows label-merge precedence), #51 + #52 (GitLab ns webhook CNP egress + Cilium kube-proxy-replacement LB-VIP syscall rewrite), #53 (RWO PVC Multi-Attach + pod-affinity), #54 (cross-ns DB FQDN requirement), #55 (GitLab `push_access_levels: "No one"` MR flow), #56 (Argo Events `header.*` singular + `data` filter footgun + sensor-log token leakage). Plus a separate OOM + Longhorn CSI mount-deadlock gotcha discovered during the pre-ship AdGuard incident (commit `a784ea0`).
 - [x] 5.9.1.13.3 `docs/rebuild/v0.39.2-argo-events-cicd.md` written
   - Includes install/validation/rollback. Updates from execution: 1P item consolidation reflected in install steps.
 - [x] 5.9.1.13.4 `docs/reference/CHANGELOG.md` v0.39.2 entry (Unreleased)
@@ -1085,7 +1085,7 @@ For any new Argo Workflows CI pipeline (new project, new promotion flow, etc.):
 - [x] GitLab Runner OOM fix: concurrent=4 + pod anti-affinity (bonus fix, shipped with v0.39.1)
 - [x] ArgoCD controller memory bumped 1Gi→2Gi (bonus fix, shipped with v0.39.1)
 
-### Stage 2 (v0.39.2) - Status as of 2026-04-23
+### Stage 2 (v0.39.2) - Status as of 2026-04-24
 
 - [x] `argo-events` namespace + controllers Running, PSS baseline labeled
 - [x] Per-project EventSources auto-registered webhooks on GitLab (after manual `allow_local_requests_from_web_hooks_and_services=true`)
@@ -1186,7 +1186,7 @@ git push
 **Stage 2 (v0.39.2) - ready to ship after 3-day soak:**
 - [x] `/audit-security` → `/commit` (commit `2bcce8d`, 49 files)
 - [x] `/audit-docs` → `/commit` (commit `6f21676`, 10 files)
-- [x] Plus 47 commits total during iteration (`2bcce8d` → `194ee4c`) — see Stage 2 Execution Notes for the per-commit breakdown
+- [x] Plus 66 commits total during iteration (`2bcce8d` → HEAD) — see Stage 2 Execution Notes for the per-commit breakdown
 - [x] Portfolio smoke test (smoke35) passes end-to-end
 - [x] Invoicetron smoke test (smoke55) passes end-to-end
 - [x] **Real webhook trigger Phase C (portfolio develop)** — `portfolio-dev-c4wl7` green
@@ -1194,7 +1194,7 @@ git push
 - [x] **Real webhook trigger Phase B (invoicetron main → prod)** — `invoicetron-prod-jgw48` green
 - [x] **Real webhook trigger Phase B-portfolio (portfolio main → prod)** — `portfolio-prod-wtp7r` green via MR `!4` (squash-merge SHA `db5f587c`, 2026-04-23)
 - [x] **Portfolio staging-promote flow** — `portfolio-staging-promote-dxzmd` green 2/2, ArgoCD rolled portfolio-staging to `:db5f587c`. Required fix commit `b5059cd` (body-token script filter). See Notes #56.
-- [x] Rotate session-exposed credentials — Task #27. Pre-ship scope (actively leaking in this session) rotated: `staging-promote-token`. Six other exposures from the pre-compact transcript are internal-only and deferred post-ship; see `docs/todo/deferred.md` "Phase 5.9.1 credential rotations".
+- [x] Rotate session-exposed credentials — Task #27. **All 8 rotations done 2026-04-24.** Pre-ship: `staging-promote-token` (actively leaking in this session). Post-ship batch (executed during soak): `invoicetron-webhook-secret`, `github-deploy-key`, `argo-workflows/gitlab-registry`, `Invoicetron Deploy Token` (clone + image-pull), `invoicetron-{dev,prod}/app` DATABASE_URL + Postgres password, `ghost-dev/mysql` (root + user password). Six are fully verified end-to-end; two (`github-deploy-key`, `gitlab-registry`) have write-path verification pending next natural CI push. Inventory + per-credential details in `docs/todo/deferred.md` "Phase 5.9.1 credential rotations".
 - [ ] Remove `deploy:*` jobs from both projects' `.gitlab-ci.yml` after 3 days stable
 - [ ] Archive `kube-token-*` Vault entries
 - [ ] Clean registry test tags `:skopeo-test*`, `:smoke-*` in `registry.k8s.rommelporras.com`
@@ -1206,22 +1206,31 @@ git push
 
 ## Credential rotation playbook (Task #27)
 
-Scope was reassessed 2026-04-24 after a forensic grep of the pre-compact session transcript (`/home/wsl/.claude/projects/-home-wsl-personal-homelab/80c9dd38-43a4-42fc-aa62-4db2ef848b04.jsonl`). Rotation priority is now driven by attack-surface reachability (internal-only credentials → deferred post-ship; only credentials exposed with external reach get rotated pre-ship).
+Scope was reassessed 2026-04-24 after a forensic grep of the pre-compact session transcript (`/home/wsl/.claude/projects/-home-wsl-personal-homelab/80c9dd38-43a4-42fc-aa62-4db2ef848b04.jsonl`). Rotation priority was driven by attack-surface reachability (internal-only credentials → scheduled as post-ship cleanup; externally-reachable credentials would be pre-ship blockers).
 
-**Pre-ship scope:**
-- [x] Step 1: `staging-promote-token` — rotated 2026-04-24 (Vault v5, ES force-synced, sensor pod recreated, smoke `portfolio-staging-promote-98fq5` green 2/2 with new token)
+**All 8 rotations completed 2026-04-24** (pre-ship for #1, soak-window post-ship batch for #2-#8):
+- [x] Step 1: `staging-promote-token` — Vault v5, ES force-synced, sensor pod recreated, smoke `portfolio-staging-promote-98fq5` green 2/2 with new token.
+- [x] Step 2: `argo-events/invoicetron-webhook-secret` — Vault v6; EventSource redeployed → old GitLab webhook id 9 deleted, new webhook id 11 registered with new token; `glab api POST /hooks/11/test/push_events` accepted (eventID `d6799b98…`).
+- [x] Step 3: `argo-workflows/github-deploy-key` — new ed25519 keypair; GitHub deploy key id `149522582` added alongside old id `149092650`; Vault v5; ES synced. SSH handshake + read probe green (`Hi rommelporras/homelab! You've successfully authenticated`). **Write-path soak-verify pending** on next natural CI deploy.
+- [x] Step 4: `argo-workflows/gitlab-registry` — new GitLab group deploy token `argo-workflows-buildkit-2026-04-24` alongside old `argo-workflows-buildkit`; Vault v5; ES synced. Skopeo pull probe listed all tags on `0xwsh/portfolio`. **Write-path soak-verify pending** on next natural CI build (deploy tokens are binary r/w-scope so pull-proof strongly implies push works).
+- [x] Step 5: `Invoicetron Deploy Token` (clone + image-pull) — one credential feeding TWO Vault paths (`argo-workflows/gitlab-clone-token` + `invoicetron/deploy-token`). New project-level token `k8s-ci-2026-04-24` on `0xwsh/invoicetron` (scopes: `read_repository` + `read_registry`); 1P v7; Vaults v3 / v13; three ExternalSecrets force-synced (`gitlab-clone-token` @ argo-workflows, `gitlab-registry` @ invoicetron-dev + invoicetron-prod). Clone probe returned HEAD `194ee4c`, skopeo pull probe returned manifest. Read-only scopes only → no write-path pending.
+- [x] Step 6: `invoicetron-dev/app` + `invoicetron-dev/db` (Postgres) — 24-byte hex password via `ALTER USER invoicetron WITH PASSWORD` on `invoicetron-db-0`; 1P v6, Vault `/db` v8 + `/app` v9; three ES synced (`invoicetron-db` + `invoicetron-app` in ns, `invoicetron-migrate-db-urls` in argo-workflows); dev app restarted, Ready in 12s. Verified via `pg_stat_activity` showing 2 active sessions on new password.
+- [x] Step 7: `invoicetron-prod/app` + `invoicetron-prod/db` (Postgres) — same procedure as dev on prod namespace; 1P v4, Vault v8 + v9; prod app Ready in 18s post-restart. Verified HTTPS 307 on prod URL + 2 active sessions + zero auth-failure logs. URL scheme `postgresql://` preserved (not `postgres://`).
+- [x] Step 8: `ghost-dev/mysql` (MySQL root + ghost user) — both passwords rotated via `ALTER USER 'root'@'%'` + `ALTER USER 'ghost'@'%'` + `FLUSH PRIVILEGES` on `ghost-mysql-0`; 1P v3, Vault v9 (both fields); Ghost deployment restarted, Ready in 39s. Verified via HTTP 200 on `https://blog.dev.k8s.rommelporras.com/` (`ghost` user authenticating to DB with new password).
 
-**Deferred post-ship (tracked in `docs/todo/deferred.md` under "Phase 5.9.1 credential rotations"):**
-- [ ] `argo-workflows/gitlab-registry` password — GitLab PAT `glpat-sJlBSQ_…` appeared at line ~555 of the transcript. GitLab is internal-only (`gitlab.k8s.rommelporras.com`, not reachable from public internet), so blast radius is limited to someone with local LAN / WSL-jsonl access.
-- [ ] `argo-workflows/github-deploy-key` — actual OpenSSH private key body leaked at transcript lines 3375 / 3468. Writes to `rommelporras/homelab` on GitHub (which ArgoCD auto-syncs). Deferred by user call 2026-04-24 — treating the local WSL jsonl as trusted storage.
-- [ ] `argo-workflows/gitlab-clone-token` — read via `vault kv get` x2 in transcript. Internal GitLab.
-- [ ] `invoicetron-webhook-secret` (`argo-events` namespace) — fetched with JSON dump flag x3. Internal GitLab webhook validation.
-- [ ] `invoicetron-{dev,prod}/app` field `database-url` (Postgres connection string with password) — fetched with JSON dump + `vault kv get invoicetron-prod/app`. Postgres is only reachable from `invoicetron-{dev,prod}` and `argo-workflows` namespaces (Cilium NP).
-- [ ] `ghost-dev/mysql` — read via `vault kv get` x5. Ghost Dev MySQL. Internal only.
+**Pending cleanup after soak-verify of #3 + #4 completes:**
+- Delete GitHub deploy key id `149092650` (old `argo-ci`): `gh api -X DELETE repos/rommelporras/homelab/keys/149092650`
+- Delete old GitLab group deploy token `argo-workflows-buildkit`: `https://gitlab.k8s.rommelporras.com/groups/0xwsh/-/settings/repository#js-deploy-tokens`
+- Delete old GitLab project deploy tokens on `0xwsh/invoicetron` (id 2 `k8s-image-pull`, id 3 `argo-workflows-clone`)
+- `shred -u ~/tmp/ae-rotate/argo-events-deploy-key*` on Aurora DX to wipe local keyfile backups
 
-**Rotation chain (reusable across all credentials above):** update 1P → `vault kv patch` → `kubectl-admin annotate externalsecret … force-sync=$(date +%s) --overwrite` → restart the consumer pod(s) for env vars (Deployments with mounted Secrets re-read on new pod, no restart needed for volume mounts) → verify consumer behavior (smoke, push, or targeted workflow trigger).
+**Rotation chain (reusable):** update 1P → `vault kv patch` → `kubectl-admin annotate externalsecret … force-sync=$(date +%s) --overwrite` → restart the consumer pod(s) whose env vars came from the Secret (Deployments mounting as volume re-read on new pod creation; DB-password rotations additionally require an `ALTER USER` against the running DB in lockstep — see the bash blocks below for exact commands per credential type).
 
-### 1. `staging-promote-token` — HIGH PRIORITY (exposed in Claude Code context 2026-04-23) — DONE 2026-04-24
+### Preserved rotation command templates (historical reference)
+
+All 8 executed successfully as summarized above. The bash blocks below are kept as reference templates for **future** rotations of these same credentials — they encode the exact lockstep order that worked.
+
+### 1. `staging-promote-token` — ✅ DONE 2026-04-24
 
 Sensor-log filter-reject leaks the full event body including headers at warn level. During Task #25 debugging the token value appeared in tool output when the filter-path typo caused every event to be discarded. Limited blast radius: no external consumer exists yet (GitLab manual job → `/staging-promote` wiring is still deferred under 5.9.1.11.2).
 
@@ -1246,9 +1255,9 @@ kubectl-admin annotate externalsecret staging-promote-token -n argo-events \
 kubectl-admin delete pod -n argo-events -l sensor-name=portfolio-staging-promote
 ```
 
-### 2. `argo-workflows/gitlab-registry` (username + password, BuildKit/skopeo registry auth)
+### 2. `argo-workflows/gitlab-registry` — ✅ DONE 2026-04-24 (write-path soak-verify pending)
 
-Pre-compact session (before 2026-04-23) handled registry creds during BuildKit + push debugging. The `username` and `password` fields correspond to `registry-username` and `registry-password` in the `Argo Workflows` 1P item.
+The `username` and `password` fields correspond to `registry-username` and `registry-password` in the `Argo Workflows` 1P item. GitLab deploy tokens are immutable once created, so rotation means creating a new token with a different name, updating Vault, verifying, and deleting the old token. Template below preserved for future rotations.
 
 ```bash
 # Issue a new group deploy token in GitLab (scope: read_registry + write_registry)
@@ -1267,9 +1276,9 @@ kubectl-admin annotate externalsecret gitlab-registry -n argo-workflows \
 # Revoke the old deploy token in GitLab UI after the next workflow run verifies the new one works
 ```
 
-### 3. `argo-workflows/github-deploy-key` (SSH private key for homelab repo write-back)
+### 3. `argo-workflows/github-deploy-key` — ✅ DONE 2026-04-24 (write-path soak-verify pending)
 
-Pre-compact session handled SSH key formatting (trailing-newline fix). The deploy key is scoped to `rommelporras/homelab` only (DR-5 in the plan).
+SSH private key for the deploy step that pushes CI-bot commits back to `rommelporras/homelab`. Scoped to that single repo (DR-5). Template below preserved for future rotations — note the trailing-newline requirement (OpenSSH's libcrypto parser fails `error in libcrypto` on keys without a terminating `\n`; this bit us in early smoke tests and the deploy-image template bakes in the `( cat; echo )` workaround).
 
 ```bash
 # Generate new ed25519 keypair in safe terminal
@@ -1286,7 +1295,7 @@ op item edit "Argo Workflows" --vault Kubernetes \
 
 # Update Vault
 vault kv patch secret/argo-workflows/github-deploy-key \
-  ssh-privatekey=@<(cat ~/tmp/argo-events-deploy-key; echo)   # trailing newline required (see Notes #... in plan)
+  ssh-privatekey=@<(cat ~/tmp/argo-events-deploy-key; echo)   # trailing newline required - see deploy-image-template.yaml L79-84 comment for the libcrypto bug it avoids
 
 # Force-refresh ExternalSecret
 kubectl-admin annotate externalsecret github-deploy-key -n argo-workflows \
