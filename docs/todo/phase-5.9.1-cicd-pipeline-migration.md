@@ -1194,7 +1194,7 @@ git push
 - [x] **Real webhook trigger Phase B (invoicetron main → prod)** — `invoicetron-prod-jgw48` green
 - [x] **Real webhook trigger Phase B-portfolio (portfolio main → prod)** — `portfolio-prod-wtp7r` green via MR `!4` (squash-merge SHA `db5f587c`, 2026-04-23)
 - [x] **Portfolio staging-promote flow** — `portfolio-staging-promote-dxzmd` green 2/2, ArgoCD rolled portfolio-staging to `:db5f587c`. Required fix commit `b5059cd` (body-token script filter). See Notes #56.
-- [ ] Rotate session-exposed credentials — Task #27 (see "Credential rotation playbook" section below)
+- [x] Rotate session-exposed credentials — Task #27. Pre-ship scope (actively leaking in this session) rotated: `staging-promote-token`. Six other exposures from the pre-compact transcript are internal-only and deferred post-ship; see `docs/todo/deferred.md` "Phase 5.9.1 credential rotations".
 - [ ] Remove `deploy:*` jobs from both projects' `.gitlab-ci.yml` after 3 days stable
 - [ ] Archive `kube-token-*` Vault entries
 - [ ] Clean registry test tags `:skopeo-test*`, `:smoke-*` in `registry.k8s.rommelporras.com`
@@ -1206,12 +1206,20 @@ git push
 
 ## Credential rotation playbook (Task #27)
 
-Three credentials need rotation before ship. The user runs these in a terminal with `op` access (Aurora DX); Claude Code cannot `op` from WSL.
+Scope was reassessed 2026-04-24 after a forensic grep of the pre-compact session transcript (`/home/wsl/.claude/projects/-home-wsl-personal-homelab/80c9dd38-43a4-42fc-aa62-4db2ef848b04.jsonl`). Rotation priority is now driven by attack-surface reachability (internal-only credentials → deferred post-ship; only credentials exposed with external reach get rotated pre-ship).
 
-**Progress:**
+**Pre-ship scope:**
 - [x] Step 1: `staging-promote-token` — rotated 2026-04-24 (Vault v5, ES force-synced, sensor pod recreated, smoke `portfolio-staging-promote-98fq5` green 2/2 with new token)
-- [ ] Step 2: `argo-workflows/gitlab-registry` — pending
-- [ ] Step 3: `argo-workflows/github-deploy-key` — pending
+
+**Deferred post-ship (tracked in `docs/todo/deferred.md` under "Phase 5.9.1 credential rotations"):**
+- [ ] `argo-workflows/gitlab-registry` password — GitLab PAT `glpat-sJlBSQ_…` appeared at line ~555 of the transcript. GitLab is internal-only (`gitlab.k8s.rommelporras.com`, not reachable from public internet), so blast radius is limited to someone with local LAN / WSL-jsonl access.
+- [ ] `argo-workflows/github-deploy-key` — actual OpenSSH private key body leaked at transcript lines 3375 / 3468. Writes to `rommelporras/homelab` on GitHub (which ArgoCD auto-syncs). Deferred by user call 2026-04-24 — treating the local WSL jsonl as trusted storage.
+- [ ] `argo-workflows/gitlab-clone-token` — read via `vault kv get` x2 in transcript. Internal GitLab.
+- [ ] `invoicetron-webhook-secret` (`argo-events` namespace) — fetched with JSON dump flag x3. Internal GitLab webhook validation.
+- [ ] `invoicetron-{dev,prod}/app` field `database-url` (Postgres connection string with password) — fetched with JSON dump + `vault kv get invoicetron-prod/app`. Postgres is only reachable from `invoicetron-{dev,prod}` and `argo-workflows` namespaces (Cilium NP).
+- [ ] `ghost-dev/mysql` — read via `vault kv get` x5. Ghost Dev MySQL. Internal only.
+
+**Rotation chain (reusable across all credentials above):** update 1P → `vault kv patch` → `kubectl-admin annotate externalsecret … force-sync=$(date +%s) --overwrite` → restart the consumer pod(s) for env vars (Deployments with mounted Secrets re-read on new pod, no restart needed for volume mounts) → verify consumer behavior (smoke, push, or targeted workflow trigger).
 
 ### 1. `staging-promote-token` — HIGH PRIORITY (exposed in Claude Code context 2026-04-23) — DONE 2026-04-24
 

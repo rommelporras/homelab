@@ -729,3 +729,38 @@ not currently scheduled).
 - Restricted PSS warnings on argo-workflows namespace go to zero
 - All CI pipelines still succeed end-to-end (clone / build / deploy / verify)
 - No regression on deploy-image step's ability to commit + push via SSH
+
+---
+
+## Phase 5.9.1 credential rotations (internal-only exposures)
+
+**Status:** Deferred - post v0.39.2 ship
+**Priority:** Low (all reachable only from cluster LAN or host with WSL jsonl)
+**Added:** 2026-04-24
+
+Forensic grep of `/home/wsl/.claude/projects/-home-wsl-personal-homelab/80c9dd38-43a4-42fc-aa62-4db2ef848b04.jsonl` (pre-compact Claude Code transcript) turned up six credentials whose values or immediate hashes passed through tool output during earlier Phase 5.9.1 debugging. One (`staging-promote-token`) was rotated pre-ship because the leak was still active in this session. The rest have internal-only attack surface, so rotation is scheduled as post-ship cleanup rather than a ship blocker.
+
+**Credentials to rotate:**
+
+| Credential | Vault path | 1P reference | Exposure evidence | Scope |
+|---|---|---|---|---|
+| `argo-workflows/gitlab-registry` password | `secret/argo-workflows/gitlab-registry` | `op://Kubernetes/Argo Workflows/registry-password` | `glpat-sJlBSQ_…` appears in transcript (line ~555) | GitLab group `0xwsh` registry (internal GitLab only) |
+| `argo-workflows/github-deploy-key` | `secret/argo-workflows/github-deploy-key` | `op://Kubernetes/Argo Workflows/github-deploy-key` | OpenSSH private key body leaked at transcript lines 3375, 3468 | Write access to `rommelporras/homelab` on GitHub |
+| `argo-workflows/gitlab-clone-token` | `secret/argo-workflows/gitlab-clone-token` | (Invoicetron Deploy Token 1P item, reused) | `vault kv get` x2 in transcript | GitLab repo read for invoicetron clone |
+| `argo-events/invoicetron-webhook-secret` | `secret/argo-events/invoicetron-webhook-secret` | `op://Kubernetes/Argo Workflows/invoicetron-webhook-secret` | JSON-dump fetch x3 in transcript | Validates GitLab → EventSource webhook POST for invoicetron |
+| `invoicetron-{dev,prod}/app` `database-url` | `secret/invoicetron-{dev,prod}/app` | `op://Kubernetes/Invoicetron {Dev,Prod}/database-url` | JSON-dump fetch + `vault kv get invoicetron-prod/app` | Postgres connection string with password |
+| `ghost-dev/mysql` | `secret/ghost-dev/mysql` | `op://Kubernetes/Ghost Dev/mysql-password` | `vault kv get` x5 | Ghost Dev MySQL user password |
+
+**Why deferred:** every consumer of these secrets lives inside the cluster and the credentials are only usable from cluster-adjacent networks (the home LAN, or a host with the WSL jsonl file). There is no internet-reachable attack surface. Rotating now costs ~30-60 min each (with post-rotation smoke) and risks brief CI/DB downtime; post-ship rotation is acceptable.
+
+**Rotation pattern (reusable):**
+1. Generate/create the new value (openssl for tokens, `glab api` for GitLab deploy tokens, `ssh-keygen` for deploy keys, `ALTER USER ... WITH PASSWORD` for DB)
+2. Update 1Password field (source of truth per CLAUDE.md)
+3. `vault kv patch <path> <field>="<value>"` (run from a terminal with op + vault CLIs; never via Claude Code because `op` isn't reachable from WSL)
+4. `kubectl-admin annotate externalsecret <name> -n <ns> force-sync="$(date +%s)" --overwrite` to trigger immediate ES reconcile
+5. Restart the consuming pod(s) if the secret is consumed via `env.secretKeyRef` (Deployments mounting as volume re-read on next pod creation, no restart needed)
+6. Run a smoke to prove the new value flows through
+
+**Exact commands and verification steps for each credential:** see `docs/todo/phase-5.9.1-cicd-pipeline-migration.md` "Credential rotation playbook" section (the body of the playbook was left in the phase doc for Steps 2-6; only the progress summary points here).
+
+**When to do it:** next calm weekend after v0.39.2 ships, ideally bundled as a single rotation session in Aurora DX. Note that rotating the Postgres-backed DATABASE_URLs and `ghost-dev/mysql` means coordinating the DB-level password change with the `vault kv patch` and pod restart - more involved than the token rotations.
