@@ -51,3 +51,6 @@ kubeconfig
 # Local planning documents (not for public repo)
 docs/plans/
 TODO.md
+
+# Claude Code runtime state (transient — wake-up locks etc.)
+.claude/scheduled_tasks.lock

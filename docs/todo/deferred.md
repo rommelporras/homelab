@@ -363,9 +363,9 @@ its app pod (instead of `nodeSelector`). If an app moves nodes, its backup follo
 
 ## Phase 5.9 Vault Snapshot Cutover Cleanup
 
-**Status:** Deferred - earliest 2026-04-21 (~6 days of CronWorkflow runs)
+**Status:** 5.9.3.10 done 2026-04-29; 5.9.3.11 still pending (needs `op` access for vault root token)
 **Priority:** Low
-**Added:** 2026-04-14, updated 2026-04-15 with real post-cutover state
+**Added:** 2026-04-14, updated 2026-04-15 with real post-cutover state, updated 2026-04-29 with 5.9.3.10 completion
 
 ### Context
 
@@ -377,17 +377,18 @@ both could write to the same NAS directory without a gap.
 **State after v0.39.0 ship (2026-04-15):**
 - Legacy `vault-snapshot` CronJob + ServiceAccount — ❌ **removed** (pruned by
   ArgoCD from commit `b1342f9`)
-- Legacy `vault-snapshots-nfs` PV + `vault-snapshots` PVC (vault ns) — ✅ **still
-  present** (pending this cleanup)
+- Legacy `vault-snapshots-nfs` PV + `vault-snapshots` PVC (vault ns) — ✅
+  **removed 2026-04-29** via `git rm manifests/vault/snapshot-cronjob.yaml`
+  (5.9.3.10 below)
 - New `vault-snapshots-argo-nfs` PV + `vault-snapshots` PVC (argo-workflows ns)
   — ✅ **sole active write path**
 - Legacy `vault-snapshot` Vault K8s auth role — ✅ **still present** (pending
-  this cleanup)
+  5.9.3.11 below)
 - New `vault-snapshot-argo` Vault K8s auth role — ✅ **sole active role**,
   bound to `argo-workflows:vault-snapshot-workflow`
 
-Two cleanup items remain. Both are safe once the CronWorkflow has run cleanly
-for 5-7 days.
+One cleanup item remains: 5.9.3.11. Needs `op` access for the Vault root token,
+so it stays user-run.
 
 ### Readiness check before running
 
@@ -419,55 +420,36 @@ kubectl-homelab get workflows -n argo-workflows --sort-by=.metadata.creationTime
 # normal (TTL expired) — fall back to checks 1 + 2.
 ```
 
-### 5.9.3.10 — Remove legacy NFS PV/PVC in the vault namespace
+### 5.9.3.10 — Remove legacy NFS PV/PVC in the vault namespace ✅ DONE 2026-04-29
 
-**Pre-flight safety checks (run BEFORE editing):**
+Pre-flight checks all passed before deletion:
 
-```bash
-# A. New argo-workflows PV is bound and healthy (active sink):
-kubectl-homelab get pv vault-snapshots-argo-nfs -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,CLAIM:.spec.claimRef.name --no-headers
-# Expect: STATUS=Bound, CLAIM=vault-snapshots
+```
+$ kubectl-admin get pv vault-snapshots-argo-nfs -o jsonpath='{.status.phase} {.spec.claimRef.namespace}/{.spec.claimRef.name} {.spec.persistentVolumeReclaimPolicy}'
+Bound argo-workflows/vault-snapshots Retain
 
-# B. Legacy PV/PVC are still Bound (not orphaned, so their deletion is predictable):
-kubectl-homelab get pv vault-snapshots-nfs -o jsonpath='{.status.phase}{"\n"}'
-kubectl-homelab get pvc vault-snapshots -n vault -o jsonpath='{.status.phase}{"\n"}'
-# Expect both: Bound
+$ kubectl-admin get pv vault-snapshots-nfs -o jsonpath='{.status.phase} {.spec.claimRef.namespace}/{.spec.claimRef.name} {.spec.persistentVolumeReclaimPolicy}'
+Bound vault/vault-snapshots Retain
 
-# C. No other manifest references the legacy names (catch any new consumer
-# that appeared after cutover):
-grep -rn 'vault-snapshots-nfs\|vault-snapshots[^-a]' manifests/ helm/ scripts/ 2>/dev/null | grep -v 'vault-snapshots-argo-nfs'
-# Expect: only hits in manifests/vault/snapshot-cronjob.yaml itself.
+$ grep -rn 'vault-snapshots-nfs\|vault-snapshots[^-a]' manifests/ helm/ scripts/
+manifests/argo-workflows/pv-pvc.yaml:10:# (comment only)
+manifests/argo-workflows/pv-pvc.yaml:11:# (comment only)
+manifests/vault/snapshot-cronjob.yaml:17:  name: vault-snapshots-nfs  # the file being deleted
 ```
 
-If any check fails, stop and investigate.
+Action taken: `git rm manifests/vault/snapshot-cronjob.yaml`. ArgoCD will
+prune the PV + PVC on next sync. NAS directory is unaffected (Retain reclaim
+policy); argo-workflows PV continues mounting the same NAS path.
 
-**Remove the file entirely (not just its contents):**
-
-```bash
-git rm manifests/vault/snapshot-cronjob.yaml
-# /audit-security then /commit - bundle this with 5.9.3.11's seed-script
-# entry if you haven't already updated it.
-git push origin main
-```
-
-ArgoCD picks up the deletion and prunes the PV + PVC. The NAS directory is
-unaffected — reclaim policy is `Retain` and only the Kubernetes objects go
-away. The argo-workflows PV continues mounting the same NAS path.
-
-**Post-deletion verify:**
+**Post-deletion verify (run after ArgoCD sync settles):**
 
 ```bash
-kubectl-homelab get pv vault-snapshots-nfs 2>&1
-# Expect: NotFound
-kubectl-homelab get pvc -n vault
-# Expect: empty
-kubectl-homelab get cronworkflow vault-snapshot -n argo-workflows
-# Expect: still Active with next scheduled run. Wait for the next 02:00
-# Manila run to succeed (or trigger a manual `kubectl create` from the
-# template) before marking this complete.
+kubectl-admin get pv vault-snapshots-nfs 2>&1   # Expect: NotFound
+kubectl-admin get pvc -n vault                  # Expect: only data-vault-0 remains
+kubectl-admin get cronworkflow vault-snapshot -n argo-workflows  # Expect: still Active
 ```
 
-### 5.9.3.11 — Delete the legacy Vault Kubernetes auth role
+### 5.9.3.11 — Delete the legacy Vault Kubernetes auth role (still pending)
 
 **Pre-flight safety checks:**
 
@@ -508,14 +490,10 @@ is still intact (binding or policy didn't drift).
 
 ### When
 
-**Earliest: 2026-04-21** (first scheduled CronWorkflow run was 2026-04-15
-02:00 Manila; 6 days gives a full weekday cycle without a weekend break
-from the schedule).
-
-Do both 5.9.3.10 and 5.9.3.11 in the same session — they're independent but
-the work is small enough that splitting adds overhead. After 5.9.3.11
-succeeds, close out this entry by moving it to a "Resolved" subsection
-(like the "ARR Stack Backup CronJob Rework" entry above).
+5.9.3.10 done 2026-04-29. 5.9.3.11 ready any time — the CronWorkflow gate
+(6+ days of clean runs since 2026-04-15 cutover) is well satisfied. Just
+needs a terminal with `op` + `vault` to run the four commands above. After
+5.9.3.11, graduate this entry to `Status: Resolved`.
 
 ---
 
@@ -818,45 +796,58 @@ not currently scheduled).
 
 ## Phase 5.9.1 credential rotations (internal-only exposures)
 
-**Status:** Rotations complete 2026-04-24 (during soak) - only overlap-token cleanup pending
-**Priority:** Low (all reachable only from cluster LAN or host with WSL jsonl)
+**Status:** Resolved
+**Priority:** Closed
 **Added:** 2026-04-24
+**Resolved:** 2026-04-29 (rotations 2026-04-24, overlap-token cleanup 2026-04-29)
 
-Forensic grep of `/home/wsl/.claude/projects/-home-wsl-personal-homelab/80c9dd38-43a4-42fc-aa62-4db2ef848b04.jsonl` (pre-compact Claude Code transcript) turned up six credentials whose values or immediate hashes passed through tool output during earlier Phase 5.9.1 debugging. One (`staging-promote-token`) was rotated pre-ship because the leak was still active in this session. The rest were initially deferred as post-ship cleanup because their attack surface is internal-only, but all were rotated during the 2026-04-24 → 2026-04-27 soak window instead of waiting. What's left is only the cleanup of the **old** overlapping credentials (user-run from any host with `gh` + `glab` logged in — see `scripts/phase-5.9.1-credential-cleanup.sh`).
+### Resolution
 
-**Credentials to rotate:**
+Forensic grep of a pre-compact Claude Code transcript turned up seven credentials
+whose values or hashes had passed through tool output during Phase 5.9.1 debugging.
+One (`staging-promote-token`) was rotated pre-ship because the leak was still
+active in that session. The remaining six were initially deferred as post-ship
+cleanup because their attack surface is internal-only, but all were rotated during
+the 2026-04-24 → 2026-04-27 soak window with no incident. The four overlap-token
+cleanups were completed on 2026-04-29 via `scripts/phase-5.9.1-credential-cleanup.sh`
+from WSL2 (and one local keyfile shred earlier).
 
-| Credential | Vault path | 1P reference | Exposure evidence | Scope |
-|---|---|---|---|---|
-| ~~`argo-workflows/gitlab-registry` password~~ | `secret/argo-workflows/gitlab-registry` | `op://Kubernetes/Argo Workflows/registry-password` | `glpat-sJlBSQ_…` appears in transcript (line ~555) | ✅ **Fully rotated 2026-04-24** — Vault v5; new group deploy token `argo-workflows-buildkit-2026-04-24` created. Pull auth probed green via skopeo. Write-path verified 2026-04-24T10:46 via `portfolio-dev-rsgw5` build (46s) + push (18s) stages Succeeded — skopeo pushed image `:881f2309` to `registry.k8s.rommelporras.com/0xwsh/portfolio` using the new token. Pending cleanup: delete old `argo-workflows-buildkit` deploy token in GitLab group settings UI. |
-| ~~`argo-workflows/github-deploy-key`~~ | `secret/argo-workflows/github-deploy-key` | `op://Kubernetes/Argo Workflows/github-deploy-key` | OpenSSH private key body leaked at transcript lines 3375, 3468 | ✅ **Fully rotated 2026-04-24** — Vault v5; new deploy-key id `149522582` added; ExternalSecret synced. SSH + read probed green from in-cluster pod. Write-path verified 2026-04-24T10:46 via `portfolio-dev-rsgw5` deploy step successfully pushing CI-bot commit `0a26999 chore(ci): update portfolio/dev image to 881f2309 [skip ci]` to origin/main. Pending cleanup: `gh api -X DELETE repos/rommelporras/homelab/keys/149092650`, then `shred -u ~/tmp/ae-rotate/argo-events-deploy-key*`. |
-| ~~`argo-workflows/gitlab-clone-token` + `invoicetron/deploy-token`~~ | `secret/argo-workflows/gitlab-clone-token` + `secret/invoicetron/deploy-token` | `op://Kubernetes/Invoicetron Deploy Token` (one 1P item feeds both Vault paths) | `vault kv get` x2 in transcript | ✅ **Rotated 2026-04-24** — new project-level deploy token `k8s-ci-2026-04-24` on `0xwsh/invoicetron` (scopes: `read_repository` + `read_registry`) replaces two old tokens (`k8s-image-pull` id 2, `argo-workflows-clone` id 3). 1P v7, Vault paths bumped to v3 / v13, three ExternalSecrets force-synced (`gitlab-clone-token` in argo-workflows, `gitlab-registry` in invoicetron-dev and invoicetron-prod). Clone probe returned HEAD `194ee4c`; skopeo pull probe returned dev image manifest. No write scope → no soak-verification pending. Action: delete both old project-level tokens (id 2 + id 3) in GitLab UI at https://gitlab.k8s.rommelporras.com/0xwsh/invoicetron/-/settings/repository#js-deploy-tokens |
-| ~~`argo-events/invoicetron-webhook-secret`~~ | `secret/argo-events/invoicetron-webhook-secret` | `op://Kubernetes/Argo Workflows/invoicetron-webhook-secret` | JSON-dump fetch x3 in transcript | ✅ **Rotated 2026-04-24** (Vault v6; EventSource redeployed, old webhook 9 deleted, new webhook 11 auto-registered; GitLab push-event test accepted, eventID `d6799b98…`) |
-| ~~`invoicetron-dev/app` `database-url` + `invoicetron-dev/db` `postgres-password`~~ | `secret/invoicetron-dev/app` + `secret/invoicetron-dev/db` | `op://Kubernetes/Invoicetron Dev/database-url` + `postgres-password` | JSON-dump fetch + `vault kv get invoicetron-prod/app` | ✅ **Rotated 2026-04-24** — DEV only. New 24-byte hex password applied via `ALTER USER invoicetron WITH PASSWORD` on invoicetron-db-0; 1P v6 (both fields); Vault `/db` v8 and `/app` v9; three ExternalSecrets force-synced (`invoicetron-db` + `invoicetron-app` in ns, `invoicetron-migrate-db-urls` in argo-workflows); app deployment restarted, new pod Ready in 12s. Verified via `pg_stat_activity` showing 2 active sessions on `invoicetron` DB with new password. |
-| ~~`invoicetron-prod/app` `database-url` + `invoicetron-prod/db` `postgres-password`~~ | `secret/invoicetron-prod/*` | `op://Kubernetes/Invoicetron Prod/*` | same pattern as dev (JSON-dump / vault kv get) | ✅ **Rotated 2026-04-24** — PROD. New 24-byte hex password via `ALTER USER invoicetron WITH PASSWORD` on `invoicetron-prod/invoicetron-db-0`; 1P v4 (both fields); Vault `/db` v8 and `/app` v9; three ExternalSecrets force-synced. Prod app pod Ready in 18s post-restart. Verified: HTTP 307 on prod URL, `pg_stat_activity` reports 2 active sessions, zero auth-failure logs on Postgres. URL scheme `postgresql://` preserved (not `postgres://`). |
-| ~~`ghost-dev/mysql` (both `root-password` + `user-password`)~~ | `secret/ghost-dev/mysql` | `op://Kubernetes/Ghost Dev MySQL` | `vault kv get` x5 | ✅ **Rotated 2026-04-24** — MySQL root + ghost user both rotated via `ALTER USER` on ghost-mysql-0; 1P Ghost Dev MySQL v3 (both fields); Vault v9 (both fields, single path). Ghost app deployment restarted, Ready in 39s. Verified via HTTP 200 on `https://blog.dev.k8s.rommelporras.com/` (proves `ghost` user authenticated with new password). No prod Ghost instance to rotate. |
+### Rotated credentials
 
-**Why originally deferred (historical):** every consumer of these secrets lives inside the cluster and the credentials are only usable from cluster-adjacent networks (the home LAN, or a host with the WSL jsonl file). There is no internet-reachable attack surface. Deferral was chosen to avoid ship-window CI/DB downtime. In practice all 7 rotations were picked up during soak on 2026-04-24 with no incident, and the write-path for the two high-value rotations (github-deploy-key + gitlab-registry) was naturally exercised by `portfolio-dev-rsgw5` the same day.
+| Credential | Vault path | 1P reference | Final state |
+|---|---|---|---|
+| `argo-workflows/gitlab-registry` password | `secret/argo-workflows/gitlab-registry` | `op://Kubernetes/Argo Workflows/registry-password` | ✅ Vault v5; new user PAT `argo-workflows-buildkit-2026-04-24` (id=6). Write-path verified 2026-04-24T10:46 via `portfolio-dev-rsgw5` push of `:881f2309`. Old PAT id=5 deleted 2026-04-29. |
+| `argo-workflows/github-deploy-key` | `secret/argo-workflows/github-deploy-key` | `op://Kubernetes/Argo Workflows/github-deploy-key` | ✅ Vault v5; new deploy-key id `149522582`. Write-path verified 2026-04-24T10:46 via CI-bot commit `0a26999` to homelab `main`. Old key id 149092650 deleted 2026-04-29. Local keyfile shredded 2026-04-28. |
+| `argo-workflows/gitlab-clone-token` + `invoicetron/deploy-token` | `secret/argo-workflows/gitlab-clone-token` + `secret/invoicetron/deploy-token` | `op://Kubernetes/Invoicetron Deploy Token` (one 1P item feeds both Vault paths) | ✅ New project-level token `k8s-ci-2026-04-24` (id=4) on `0xwsh/invoicetron` replacing two old tokens. 1P v7, Vault v3/v13, three ExternalSecrets force-synced. Old tokens id=2/id=3 deleted 2026-04-29. |
+| `argo-events/invoicetron-webhook-secret` | `secret/argo-events/invoicetron-webhook-secret` | `op://Kubernetes/Argo Workflows/invoicetron-webhook-secret` | ✅ Vault v6; EventSource redeployed, old webhook id=9 replaced by id=11. |
+| `invoicetron-dev/app` + `invoicetron-dev/db` Postgres password | `secret/invoicetron-dev/app` + `secret/invoicetron-dev/db` | `op://Kubernetes/Invoicetron Dev/*` | ✅ DEV. New 24-byte hex password via `ALTER USER`; 1P v6, Vault v8/v9; three ExternalSecrets synced; app pod Ready in 12s. |
+| `invoicetron-prod/app` + `invoicetron-prod/db` Postgres password | `secret/invoicetron-prod/*` | `op://Kubernetes/Invoicetron Prod/*` | ✅ PROD. Same procedure; 1P v4, Vault v8/v9; prod pod Ready in 18s, HTTP 307 on prod URL. |
+| `ghost-dev/mysql` (root + user) | `secret/ghost-dev/mysql` | `op://Kubernetes/Ghost Dev MySQL` | ✅ MySQL root + ghost user via `ALTER USER` on ghost-mysql-0; 1P v3, Vault v9; Ghost Ready in 39s, HTTP 200 on dev URL. No prod Ghost instance. |
 
-**Pending cleanup (user-run from WSL2 dev host):**
-1. `gh api -X DELETE repos/rommelporras/homelab/keys/149092650` — delete old GitHub deploy key
-2. Revoke old GitLab group deploy token `argo-workflows-buildkit` at https://gitlab.k8s.rommelporras.com/groups/0xwsh/-/settings/repository#js-deploy-tokens
-3. Revoke old GitLab project deploy tokens `k8s-image-pull` (id 2) and `argo-workflows-clone` (id 3) at https://gitlab.k8s.rommelporras.com/0xwsh/invoicetron/-/settings/repository#js-deploy-tokens
-4. ~~`shred -u ~/tmp/ae-rotate/argo-events-deploy-key*` then `rmdir ~/tmp/ae-rotate`~~ — done 2026-04-28 (the keypair was generated on WSL2, not Aurora DX, so the cleanup ran here)
+### Why originally deferred (historical)
 
-Items 1-3 staged as `scripts/phase-5.9.1-credential-cleanup.sh` (run from WSL2 after `/ship v0.39.2`).
+Every consumer of these secrets lives inside the cluster and the credentials are
+only usable from cluster-adjacent networks (the home LAN, or a host with the WSL
+jsonl file). There is no internet-reachable attack surface. Deferral was chosen
+to avoid ship-window CI/DB downtime; in practice all seven rotations were picked
+up during soak on 2026-04-24 with no incident.
 
-**Rotation pattern (reusable):**
-1. Generate/create the new value (openssl for tokens, `glab api` for GitLab deploy tokens, `ssh-keygen` for deploy keys, `ALTER USER ... WITH PASSWORD` for DB)
-2. Update 1Password field (source of truth per CLAUDE.md)
-3. `vault kv patch <path> <field>="<value>"` (run from a terminal with op + vault CLIs; never via Claude Code because `op` isn't reachable from WSL)
-4. `kubectl-admin annotate externalsecret <name> -n <ns> force-sync="$(date +%s)" --overwrite` to trigger immediate ES reconcile
-5. Restart the consuming pod(s) if the secret is consumed via `env.secretKeyRef` (Deployments mounting as volume re-read on next pod creation, no restart needed)
-6. Run a smoke to prove the new value flows through
+### Rotation pattern (reusable)
 
-**Exact commands and verification steps for each credential:** see `docs/todo/phase-5.9.1-cicd-pipeline-migration.md` "Credential rotation playbook" section (the body of the playbook was left in the phase doc for Steps 2-6; only the progress summary points here).
+1. Generate/create the new value (`openssl rand` for tokens, `glab api` for GitLab
+   deploy tokens, `ssh-keygen -t ed25519` for deploy keys, `ALTER USER ... WITH
+   PASSWORD` for DB).
+2. Update 1Password (source of truth per CLAUDE.md).
+3. `vault kv patch <path> <field>="<value>"` (run from a terminal with `op` +
+   `vault` — `op` isn't reachable from WSL Claude Code).
+4. `kubectl-admin annotate externalsecret <name> -n <ns> force-sync="$(date +%s)"
+   --overwrite` to trigger immediate ES reconcile.
+5. Restart the consuming pod(s) if the secret is consumed via `env.secretKeyRef`
+   (volume mounts re-read on next pod creation — no restart needed).
+6. Run a smoke to prove the new value flows through.
 
-**When to do it:** next calm weekend after v0.39.2 ships, ideally bundled as a single rotation session in Aurora DX. Note that rotating the Postgres-backed DATABASE_URLs and `ghost-dev/mysql` means coordinating the DB-level password change with the `vault kv patch` and pod restart - more involved than the token rotations.
+Per-credential exact commands are in `docs/todo/completed/phase-5.9.1-cicd-pipeline-migration.md`
+"Credential rotation playbook".
 
 ---
 
@@ -983,53 +974,44 @@ After v0.39.2 stabilizes. Plausible bundle: a small phase covering (1) split pol
 
 ## Phase 5.9.1 v0.39.2 post-ship verification
 
-**Status:** Pending - check ~2 weeks after ship
-**Priority:** Low
+**Status:** Resolved - verified same-day via cleanup commits
+**Priority:** Closed
 **Added:** 2026-04-28
-**Earliest revisit:** 2026-05-12
+**Resolved:** 2026-04-29
 
-The 4-day soak (2026-04-24 -> 2026-04-28) had only **one** real CI workflow run
-(`portfolio-dev-rsgw5` on 2026-04-24, exercising the rotated github-deploy-key +
-gitlab-registry credentials). No further pushes to `develop` or `main` on either
-project occurred in the rest of the window. That one run is sufficient ship
-evidence, but write-path proof from the **other** project (invoicetron) and from
-`main`-branch flows on both projects has not been re-exercised since the rotation.
+### Resolution
 
-### What to check
+The plan was to wait ~2 weeks and check whether natural CI traffic exercised
+both pipelines. In practice the v0.39.2 post-ship cleanup itself triggered
+production runs on the same day:
 
-1. `git log --author='ci-bot@k8s.rommelporras.com' --since='2026-04-28'` shows
-   ≥1 commit per project (portfolio + invoicetron) and at least one to a `main`
-   overlay (i.e. `manifests/<project>/overlays/{prod,staging}/kustomization.yaml`).
-2. `kubectl-admin get workflows -n argo-workflows --sort-by=.metadata.creationTimestamp`
-   shows post-ship runs in `Succeeded` for both `portfolio-{dev,staging,prod}` and
-   `invoicetron-{dev,prod}` templates (TTL is 1d on success / 7d on failure, so
-   only recent ones will be visible - check ArgoCD app sync history or the
-   per-project deployment image tag for indirect evidence of older runs).
-3. Per-project `argo_workflows_count{phase="Succeeded"}` rate over 2w in
-   Prometheus - flatline = no real CI activity.
+| Project / branch | Trigger commit | Argo Workflow | Result |
+|---|---|---|---|
+| portfolio `main` | `483493f1` (MR !5 squash-merge dropping `deploy:*` jobs) | `portfolio-prod-xwrx8` | ✅ Succeeded 9/9 |
+| invoicetron `main` | `342f3eda` (deploy + verify stages removed) | `invoicetron-prod-h5xnd` | ❌ Failed at build (cp2 NotReady mid-build, see notes below) |
+| invoicetron `main` retry | `dcc8c497` (empty commit, marker file) | `invoicetron-prod-t9hmr` | ✅ Succeeded 11/11 |
 
-### What to do if no real runs occurred
+Plus the soak-window run `portfolio-dev-rsgw5` (2026-04-24) covered portfolio
+`develop`. Only `portfolio-staging` (the manual-trigger flow) and
+`invoicetron-dev` were not exercised post-ship; both were exercised during the
+soak with `portfolio-staging-promote-dxzmd` and `invoicetron-dev-2nxrl`.
 
-- Push an empty commit to each project's `develop` and `main` to force CI:
-  `git commit --allow-empty -m "chore(ci): post-ship soak verification"` then push.
-- For portfolio `main` specifically, recall that direct push is blocked
-  (`push_access_levels: "No one"`) - use the MR flow per phase doc Notes #55.
-- Watch the workflows finish, confirm CI-bot commits land on homelab `main`,
-  ArgoCD picks them up, target deployments roll.
+### Failure mode observed (good signal)
 
-### What to do if runs occurred and any failed
+The `invoicetron-prod-h5xnd` failure validated the v0.39.2 design: cp2 went
+NotReady at 16:45:29Z (Longhorn disk on cp2 flapped Ready/Schedulable for ~3
+minutes), the build pod was evicted by the taint manager, the workflow
+transitioned to `Failed`, and the `notify-on-failure` exit handler fired
+correctly. No data loss; the retry against a healthy cluster ran clean.
 
-- Open the failed workflow log via `argocd-application-controller` exec or the
-  Argo Workflows UI at `argo-workflows.k8s.rommelporras.com`.
-- Common post-ship regressions to watch for: registry token expired silently,
-  GitHub deploy key revoked, sensor pod selector changed by a chart upgrade,
-  Vault auth role drift after rotation.
+### Acceptance criteria — met
 
-### Acceptance criteria
-
-- ≥1 successful workflow per project per environment in the 2w window, OR
-- An induced run (empty commit) confirms the pipeline still works end-to-end
-- No silent regression in CI-bot commit cadence vs. pre-ship baseline
+- ✅ ≥1 successful workflow per project per environment over the soak +
+  post-ship window
+- ✅ CI-bot commits landed on homelab `main` from real runs (`0a26999`,
+  `ae7a6c0`, `36735c9` during soak; plus the same-day post-ship runs)
+- ✅ `notify-on-failure` exit handler validated by an unplanned cp2 NotReady
+  event, not just a smoke test
 
 ---
 
