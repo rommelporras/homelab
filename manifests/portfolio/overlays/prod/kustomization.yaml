@@ -12,6 +12,6 @@ namespace: portfolio-prod
 images:
 - name: registry.k8s.rommelporras.com/0xwsh/portfolio
   newName: registry.k8s.rommelporras.com/0xwsh/portfolio
-  newTag: db5f587c
+  newTag: 483493f1
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
