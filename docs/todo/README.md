@@ -1,6 +1,6 @@
 # TODO
 
-> **Latest Release:** v0.39.1 (ArgoCD onboarding for Portfolio + Invoicetron — Phase 5.9.1 Stage 1)
+> **Latest Release:** v0.39.2 (Argo Events CI/CD Migration - Phase 5.9.1 Stage 2)
 > **Goals:** CKA Certification (Sep 2026) + DevOps Upskilling (CI/CD, GitOps)
 
 ---
@@ -61,7 +61,7 @@
 | v0.38.4 | Network Policy Fixes & Tooling | - | ✅ Released |
 | v0.39.0 | Argo Workflows + vault-snapshot migration | Phase 5.9 | ✅ Released |
 | v0.39.1 | ArgoCD onboarding for Portfolio + Invoicetron | Phase 5.9.1 Stage 1 | ✅ Released |
-| v0.39.2 | Argo Events CI/CD Migration | Phase 5.9.1 Stage 2 | 🟡 Unreleased |
+| v0.39.2 | Argo Events CI/CD Migration | Phase 5.9.1 Stage 2 | ✅ Released |
 | v1.0.0 | CKA-ready cluster | Phase 6 + exam prep | ⬜ Target: Sep 2026 |
 
 ---
@@ -116,12 +116,12 @@
 | 5.8 | GitOps Migration | [phase-5.8-gitops-migration.md](completed/phase-5.8-gitops-migration.md) |
 | 5.8.2 | Version Maintenance & Digest Improvements | [phase-5.8.2-version-maintenance.md](completed/phase-5.8.2-version-maintenance.md) |
 | 5.9 | Argo Workflows | [phase-5.9-argo-workflows.md](completed/phase-5.9-argo-workflows.md) |
+| 5.9.1 | CI/CD Pipeline Migration (Stage 1 v0.39.1 + Stage 2 v0.39.2) | [phase-5.9.1-cicd-pipeline-migration.md](completed/phase-5.9.1-cicd-pipeline-migration.md) |
 
 ### Planned
 
 | Phase | Description | File |
 |-------|-------------|------|
-| 5.9.1 | CI/CD Pipeline Migration — Stage 1 ✅ (v0.39.1) / Stage 2 🟡 (v0.39.2 unreleased) | [phase-5.9.1-cicd-pipeline-migration.md](phase-5.9.1-cicd-pipeline-migration.md) |
 | 5.10 | Argo Rollouts | [phase-5.10-argo-rollouts.md](phase-5.10-argo-rollouts.md) |
 | 6 | CKA Focused Learning | [phase-6-cka.md](phase-6-cka.md) |
 

@@ -4,7 +4,7 @@
 
 ---
 
-## Unreleased - Argo Events CI/CD migration (v0.39.2)
+## April 28, 2026 - Argo Events CI/CD migration (v0.39.2)
 
 ### Summary
 

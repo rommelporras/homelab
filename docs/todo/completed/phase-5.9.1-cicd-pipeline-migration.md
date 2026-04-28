@@ -745,8 +745,8 @@ All committed under `manifests/argo-workflows/templates/`.
 - [x] 5.9.1.13.4 `docs/reference/CHANGELOG.md` v0.39.2 entry (Unreleased)
 - [x] 5.9.1.13.5 `/audit-security` → `/commit` (commit `2bcce8d`)
 - [x] 5.9.1.13.6 `/audit-docs` → `/commit` (commit `6f21676`)
-- [ ] 5.9.1.13.7 `/ship v0.39.2 "Argo Events CI/CD Migration"` — pending end-to-end smoke test pass
-- [ ] 5.9.1.13.8 `git mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/` — done at ship
+- [x] 5.9.1.13.7 `/ship v0.39.2 "Argo Events CI/CD Migration"` - shipped 2026-04-28
+- [x] 5.9.1.13.8 `git mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/` - done at ship
 
 ---
 
@@ -1199,8 +1199,8 @@ git push
 - [ ] Archive `kube-token-*` Vault entries
 - [ ] Clean registry test tags `:skopeo-test*`, `:smoke-*` in `registry.k8s.rommelporras.com`
 - [x] Update CLAUDE.md with new gotchas distilled from Stage 2 Execution Notes — 7 gotchas added covering notes #50, #51+#52, #53, #54, #55 + Argo Events webhook `header.*` path (from Task #25 debug)
-- [ ] `/ship v0.39.2 "Argo Events CI/CD Migration"`
-- [ ] `git mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/` at ship
+- [x] `/ship v0.39.2 "Argo Events CI/CD Migration"` - shipped 2026-04-28
+- [x] `git mv docs/todo/phase-5.9.1-cicd-pipeline-migration.md docs/todo/completed/` - done at ship
 
 ---
 
