@@ -771,3 +771,124 @@ Forensic grep of `/home/wsl/.claude/projects/-home-wsl-personal-homelab/80c9dd38
 **Exact commands and verification steps for each credential:** see `docs/todo/phase-5.9.1-cicd-pipeline-migration.md` "Credential rotation playbook" section (the body of the playbook was left in the phase doc for Steps 2-6; only the progress summary points here).
 
 **When to do it:** next calm weekend after v0.39.2 ships, ideally bundled as a single rotation session in Aurora DX. Note that rotating the Postgres-backed DATABASE_URLs and `ghost-dev/mysql` means coordinating the DB-level password change with the `vault kv patch` and pod restart - more involved than the token rotations.
+
+---
+
+## Cilium L2 Announcement Lease Auto-Rebalance
+
+**Status:** Deferred - immediate fix applied, long-term fix pending
+**Priority:** Medium (silent breakage on pod migration; not data-affecting)
+**Added:** 2026-04-28
+
+### What happened
+
+K8s AdGuard (`10.10.30.53`) silently received zero LAN client traffic for ~6 weeks despite the
+pod being healthy and resolving DNS. Root cause: the Cilium L2 announcement lease for the
+service was held by `k8s-cp3` for 89 days, but the AdGuard pod had migrated to `k8s-cp2` on
+2026-04-24 (pod recreation after the OOM memory bump in `15b24a3`). With
+`externalTrafficPolicy: Local`, external traffic ARP-resolved `.53` to cp3's MAC, landed on
+cp3, and got dropped because cp3 had no local backend pod.
+
+The misalignment was hidden because cluster-internal `dig @10.10.30.53` from any node still
+worked (Cilium's overlay forwards in-cluster traffic across nodes regardless of Local policy),
+so health probes and basic smoke tests all passed.
+
+### Scope at incident time
+
+All four LoadBalancer-announced VIPs were stuck on cp3, but only AdGuard was symptom-visible:
+
+| Service | LB IP | Pod node | Lease holder | Externally-broken |
+|---------|-------|----------|--------------|-------------------|
+| Gateway (Envoy) | `10.10.30.20` | every node (DaemonSet) | cp3 | No - Envoy on all nodes |
+| GitLab SSH | `10.10.30.21` | cp1 | cp3 | Yes (likely) - undetected |
+| AdGuard DNS | `10.10.30.53` | cp2 | cp3 | Yes - this incident |
+| OTel Collector | `10.10.30.22` | cp1 | cp3 | Cluster policy, not exposed externally |
+
+### Immediate fix (2026-04-28)
+
+Deleted cilium-agent pod on cp3 (`kubectl-admin delete pod cilium-bfs46 -n kube-system`),
+forcing all four leases to expire and re-elect. Cilium 1.19.2 has local-backend preference
+for `externalTrafficPolicy: Local` services, so re-election landed the leases on the correct
+nodes deterministically (AdGuard -> cp2, GitLab SSH -> cp1, etc.). Verified via fresh ARP
+probe + PowerShell `Resolve-DnsName -Server 10.10.30.53` from a non-cluster client.
+
+No git changes; no manifest edits. Pure runtime fix.
+
+### Why this will recur
+
+Cilium's L2 announcement leader election only re-runs when the lease expires (cilium-agent
+restart, network partition). It does NOT re-run when service endpoints change (e.g. pod
+migrates to a different node). So any of these triggers will silently re-break a service:
+
+- Pod evicted by node pressure / drain / cordon
+- Resource limit bump (manifests/.../deployment.yaml change) -> pod recreation
+- Helm upgrade of a chart that recreates pods
+- Longhorn volume failover migrating a stateful pod
+
+### Long-term fix options (pick one)
+
+**Option A: per-service `CiliumL2AnnouncementPolicy` with `serviceSelector`** *(recommended,
+easiest to manage)*
+
+Replace the single catch-all policy in `manifests/cilium/l2-announcement.yaml` with one
+policy per LoadBalancer service. Each policy would scope `serviceSelector.matchLabels` to a
+single service. This narrows leader election to the service's own endpoints (Cilium re-evaluates
+node eligibility against backends per-policy), which makes the local-backend preference more
+reliable and makes the system's behavior easier to reason about.
+
+Pros:
+- Fully declarative - lives in git, no runtime watchdogs
+- Failure mode is per-service, not cluster-wide
+- Easy to debug (`kubectl get ciliuml2announcementpolicy -A` shows scope at a glance)
+- One YAML file change; trivial to revert
+
+Cons:
+- Adds ~4 small policy resources where there is currently 1
+- Need to verify per-service `serviceSelector` actually triggers re-election on endpoint change (test by deleting the AdGuard pod and watching the lease)
+
+**Option B: cluster-janitor task that detects and re-elects mismatches**
+
+Extend `cluster-janitor` (the existing CronJob that already cleans Failed pods + stopped
+Longhorn replicas) with a fourth task: for each `cilium-l2announce-*` lease, compare
+`spec.holderIdentity` to the node hosting any ready endpoint of the corresponding service.
+If mismatch, delete the cilium-agent pod on the lease holder.
+
+Pros:
+- Fits the existing janitor pattern; no new infrastructure
+- Catches the issue automatically without human intervention
+- Discord notification surfaces it in `#janitor` so it doesn't silently auto-fix without anyone knowing
+
+Cons:
+- Reactive, not preventive (10-minute detection window)
+- Adds a moving part that itself can break
+- Brief disruption every time a pod migrates and the janitor reacts
+
+**Option C: upstream Cilium fix**
+
+File an issue/PR upstream: leader election should re-evaluate on endpoint change for
+`externalTrafficPolicy: Local` services, not just on lease expiry. Arguably the correct
+behavior given the documented local-backend preference.
+
+Pros: fixes the root cause for everyone.
+Cons: out of our hands; long lead time; we still need a workaround in the meantime.
+
+### Recommendation
+
+**Option A.** It is purely declarative, lives in git, the failure mode is per-service, and
+once tested it self-manages without ongoing operator attention. Pair with Option C (file
+the upstream issue) as a longer-term cleanup so that the per-service policies eventually
+become unnecessary.
+
+### When to revisit
+
+After v0.39.2 stabilizes. Plausible bundle: a small phase covering (1) split policies,
+(2) test with a deliberate pod move, (3) add a Prometheus alert that fires when any
+`cilium-l2announce-*` lease holder differs from the pod node for a Local-policy service.
+
+### Acceptance criteria
+
+- One `CiliumL2AnnouncementPolicy` per LoadBalancer service, each with explicit `serviceSelector`
+- Verified that deleting the AdGuard pod (or any other Local-policy service's pod) results in
+  the lease re-electing to the new pod's node within 60s
+- Alert fires in Prometheus when lease/pod-node mismatch persists >5 min
+- `docs/context/Networking.md` updated to describe the new pattern
