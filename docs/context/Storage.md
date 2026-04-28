@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, storage, longhorn, nfs]
-updated: 2026-04-07
+updated: 2026-04-28
 ---
 
 # Storage
@@ -154,7 +154,7 @@ Garage is a lightweight self-hosted S3-compatible store running in the cluster. 
 |------|---------|----------------|-----------------|
 | Critical | ghost-content, ghost-mysql, invoicetron-db, gitlab-gitaly, gitlab-postgresql, gitlab-minio, vault, atuin-postgres, karakeep-data, meilisearch-data, velero/garage-data | 14 | 4 |
 | Important | adguard-data, uptime-kuma, prometheus-grafana, alertmanager, loki, arr-stack configs, myspeed-data, invoicetron-backups | 7 | 2 |
-| Excluded | prometheus-db (50Gi, rebuildable), ollama-models (re-pull), firefox-config (disposable), dev PVCs, redis | - | - |
+| Excluded | prometheus-db (80Gi, rebuildable), ollama-models (re-pull), firefox-config (disposable), dev PVCs, redis | - | - |
 
 Backup target: NFS NAS `/Kubernetes/Backups/longhorn/` (configured via Helm `defaultBackupStore.backupTarget`).
 

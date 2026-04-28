@@ -35,8 +35,8 @@ S3 target: Garage (`velero` namespace).
 Schedule: `daily-k8s-backup` at 20:30 UTC (04:30 Manila).
 TTL: 720h (30 days).
 Backs up all K8s resources (deployments, services, configmaps, etc.) except Secrets.
-Covers 20 namespaces (all application + infrastructure). Excluded: kube-system, longhorn-system, cert-manager, argocd, argo-workflows, tailscale, node-feature-discovery, intel-device-plugins, cilium-secrets, and velero itself.
-ArgoCD + argo-workflows excluded intentionally - stateless (app/workflow definitions in git, redis ephemeral, secrets from Vault/ESO). System namespaces (tailscale, NFD, intel-device-plugins, cilium-secrets) excluded because their state lives in operator CRs or is rebuilt at pod start. Velero excludes itself to avoid backup-of-backup recursion.
+Covers 20 namespaces (all application + infrastructure). Excluded: kube-system, longhorn-system, cert-manager, argocd, argo-workflows, argo-events, tailscale, node-feature-discovery, intel-device-plugins, cilium-secrets, and velero itself.
+ArgoCD + argo-workflows + argo-events excluded intentionally - stateless (app/workflow/sensor definitions in git, NATS JetStream is in-memory, secrets from Vault/ESO). System namespaces (tailscale, NFD, intel-device-plugins, cilium-secrets) excluded because their state lives in operator CRs or is rebuilt at pod start. Velero excludes itself to avoid backup-of-backup recursion.
 
 ```bash
 # All velero CLI commands from WSL2 need --kubeconfig

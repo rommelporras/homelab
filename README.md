@@ -7,7 +7,7 @@
 ![Ubuntu](https://img.shields.io/badge/ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
 ![Alertmanager](https://healthchecks.io/badge/e8a6a1d7-c42b-428a-901e-5f28d9/EOi8irKL.svg)
 
-3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 68 releases with [30 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
+3-node HA Kubernetes cluster on bare-metal Lenovo M80q machines, built from scratch with kubeadm for CKA certification prep. Zero-to-production in 6 weeks — 70 releases with [31 rebuild guides](docs/rebuild/README.md) covering every component from scratch.
 
 > **Owner:** Rommel Porras  |  **CKA Target:** September 2026
 
@@ -73,8 +73,8 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 
 **Observability**
 - Prometheus + Grafana + Loki + Alloy (full metrics, logs, 25 Grafana dashboards)
-- Alertmanager (Discord + Email, severity routing) — 137 alert rules across 33 PrometheusRule files, including cluster-wide OOMKilled detection
-- Blackbox probes (25 services: ArgoCD, Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr, Atuin, Vault, cert-manager-webhook, ESO webhook, Garage, Homepage, Longhorn UI, MySpeed, Prowlarr, Radarr, Recommendarr, Sonarr)
+- Alertmanager (Discord + Email, severity routing) — 145+ alert rules across 34 PrometheusRule files, including cluster-wide OOMKilled detection
+- Blackbox probes (26 endpoints: ArgoCD, Argo Events webhooks, Jellyfin, Ghost, Invoicetron, Portfolio, Seerr, Tdarr, Byparr, Uptime Kuma, Ollama, Karakeep, AdGuard, Bazarr, Atuin, Vault, cert-manager-webhook, ESO webhook, Garage, Homepage, Longhorn UI, MySpeed, Prowlarr, Radarr, Recommendarr, Sonarr)
 - Dead Man's Switch (healthchecks.io), UPS monitoring (NUT + nut-exporter)
 - smartctl-exporter DaemonSet (NVMe S.M.A.R.T. health on all 3 nodes — temp, wear, spare, TBW)
 - Longhorn + cert-manager ServiceMonitors (volume robustness alerts + TLS certificate expiry alerts)
@@ -88,7 +88,7 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 - Cloudflare Tunnel (HA, 2 replicas) for public services
 - Tailscale Operator (WireGuard subnet router) for private remote access
 - AdGuard DNS as primary for all VLANs + Tailscale global nameserver
-- CiliumNetworkPolicy microsegmentation (137 policies across 26 namespaces + 1 CiliumClusterwideNetworkPolicy, implicit default-deny)
+- CiliumNetworkPolicy microsegmentation (143 policies across 27 namespaces + 1 CiliumClusterwideNetworkPolicy, implicit default-deny)
 
 **Applications**
 - GitLab CE (Runner, Container Registry, SSH) with CI/CD pipelines
@@ -105,10 +105,11 @@ LAN / VLANs  -->  AdGuard DNS  -->  Cilium L2 VIP  -->  Gateway API  -->  Servic
 **GitOps**
 - ArgoCD v3.3.6 (non-HA, self-management Application, Discord notifications)
 - Argo Workflows v4.0.4 (controller + server UI, chart 1.0.7, `--namespaced` mode) - DAG-based workflow orchestrator with web UI at `argo-workflows.k8s.rommelporras.com`, SSO via self-hosted GitLab OIDC. First migrated workload: daily Vault raft snapshot (2-step DAG + Discord-on-failure exit handler)
+- Argo Events v1.9.10 (chart 2.4.21) - GitLab webhooks → EventSource → Sensor → Workflow pipelines for Portfolio + Invoicetron CI/CD (Phase 5.9.1 Stage 2, v0.39.2)
 
 **Secrets Management**
 - HashiCorp Vault 1.21.4 (standalone, Raft on Longhorn, auto-unsealer, daily NFS snapshots)
-- External Secrets Operator v2.1.0 (38 ExternalSecrets, Kubernetes auth, 19 namespaces)
+- External Secrets Operator v2.1.0 (46 ExternalSecrets, Kubernetes auth, 20 namespaces)
 
 ---
 

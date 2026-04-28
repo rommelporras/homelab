@@ -282,11 +282,12 @@ Three-tool approach covering container images, Helm charts, and Kubernetes versi
 | `recommendarr-probe.yaml` | Recommendarr | HTTP (recommendarr.arr-stack.svc:3000) | 60s |
 | `sonarr-probe.yaml` | Sonarr | HTTP (sonarr.arr-stack.svc:8989) | 60s |
 | `argocd-probe.yaml` | ArgoCD | HTTP (argocd-server.argocd.svc:443) | 60s |
-| `argo-events-probe.yaml` | Argo Events | HTTPS (argo-events.k8s.rommelporras.com/gitlab/invoicetron) | 60s |
+| `argo-events-probe.yaml` | Argo Events webhooks | HTTPS POST to argo-events.k8s.rommelporras.com on `/gitlab/invoicetron`, `/gitlab/portfolio`, `/staging-promote` (3 targets) | 60s |
+| `argocd-probe.yaml` | ArgoCD UI | HTTPS (argocd.k8s.rommelporras.com) | 60s |
 
 **Vault probe note:** `/v1/sys/health` returns 200=active, 503=sealed. `http_2xx` treats sealed as probe failure - used by VaultSealed alert's `absent()` guard to prevent false positives when metrics are temporarily unavailable.
 
-All probes use the `http_2xx` module (Blackbox Exporter at `blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115`).
+Most probes use the `http_2xx` module (Blackbox Exporter at `blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115`). The argo-events webhook probe uses the `http_webhook_post` module (added 2026-04-28, accepts 200/400/401/403/404/405) because EventSources return HTTP 400 to empty/unauthenticated POST while staying healthy.
 
 ### ServiceMonitors (`manifests/monitoring/servicemonitors/`)
 
@@ -303,6 +304,8 @@ All probes use the `http_2xx` module (Blackbox Exporter at `blackbox-exporter-pr
 | `manifests/vault/servicemonitor.yaml` | Vault /v1/sys/metrics (:8200) | vault | 30s |
 | `garage-servicemonitor.yaml` | Garage S3 /metrics (:3903, bearer auth) | velero | 30s |
 | `manifests/arr-stack/scraparr/servicemonitor.yaml` | Scraparr /metrics (:7100) | arr-stack | 5m |
+| `manifests/argo-events/servicemonitor.yaml` | Argo Events controller + EventSource + Sensor | monitoring | 30s |
+| `manifests/monitoring/servicemonitors/argo-workflows-servicemonitor.yaml` | Argo Workflows controller (:9090) | monitoring | 30s |
 | (Helm-managed) argocd-application-controller-metrics | ArgoCD controller (:8082) | argocd | 30s |
 | (Helm-managed) argocd-server-metrics | ArgoCD server (:8083) | argocd | 30s |
 | (Helm-managed) argocd-repo-server-metrics | ArgoCD repo-server (:8084) | argocd | 30s |

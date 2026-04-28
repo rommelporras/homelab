@@ -140,6 +140,7 @@ cert-manager.io/cluster-issuer: letsencrypt-prod
 | Vault | https://vault.k8s.rommelporras.com | vault | vault | https |
 | ArgoCD | https://argocd.k8s.rommelporras.com | argocd | argocd | https |
 | Argo Workflows UI | https://argo-workflows.k8s.rommelporras.com | argo-workflows-ui | argo-workflows | https |
+| Argo Events Webhooks | https://argo-events.k8s.rommelporras.com | argo-events-webhooks | argo-events | https |
 
 ## Adding a New Service
 

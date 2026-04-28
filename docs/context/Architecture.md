@@ -121,7 +121,7 @@ CiliumNetworkPolicy restricts ingress to only authorized namespaces (`monitoring
 | Flux | Good option, but smaller community |
 | **ArgoCD** | **UI for visibility, strong Helm support, app-of-apps pattern** |
 
-Git is the single source of truth. ArgoCD watches the repo and syncs to the cluster automatically. 48 Applications managed via app-of-apps pattern (`manifests/argocd/apps/root.yaml` discovers all Application YAMLs in the directory). Six AppProjects enforce RBAC boundaries between service groups.
+Git is the single source of truth. ArgoCD watches the repo and syncs to the cluster automatically. 55 Applications managed via app-of-apps pattern (`manifests/argocd/apps/root.yaml` discovers all Application YAMLs in the directory). Six AppProjects enforce RBAC boundaries between service groups.
 
 **Exception:** Cilium is ArgoCD-managed but manual-sync only (CNI chicken-and-egg - auto-sync could delete networking during failed reconciliation). All other services use automated sync with selfHeal.
 

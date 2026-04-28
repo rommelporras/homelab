@@ -98,7 +98,7 @@ Every namespace has an `enforce` level plus `audit: restricted` and `warn: restr
 | Level | Namespaces |
 |-------|------------|
 | **restricted** | cloudflare |
-| **baseline** | ai, argocd, arr-stack, atuin, browser, cert-manager, external-secrets, ghost-dev, ghost-prod, gitlab, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, vault, velero |
+| **baseline** | ai, argo-events, argocd, arr-stack, atuin, browser, cert-manager, external-secrets, ghost-dev, ghost-prod, gitlab, home, invoicetron-dev, invoicetron-prod, karakeep, portfolio-dev, portfolio-prod, portfolio-staging, uptime-kuma, vault, velero |
 | **privileged** | argo-workflows, gitlab-runner, intel-device-plugins, kube-system, longhorn-system, monitoring, node-feature-discovery, tailscale |
 | **no labels** | cilium-secrets, default, kube-node-lease, kube-public |
 
@@ -202,9 +202,9 @@ Workaround: use L4-only policy (no `toPorts`) for critical pods that need reliab
 
 ### Coverage
 
-26 namespaces with CiliumNetworkPolicy (137 policies) + 1 CiliumClusterwideNetworkPolicy (Gateway `reserved:ingress` identity).
+27 namespaces with CiliumNetworkPolicy (143 policies) + 1 CiliumClusterwideNetworkPolicy (Gateway `reserved:ingress` identity).
 
-Covered: ai, argo-workflows, argocd, arr-stack, atuin, browser, cert-manager, cloudflare, external-secrets, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, portfolio-dev, portfolio-prod, portfolio-staging, tailscale, uptime-kuma, vault, velero
+Covered: ai, argo-events, argo-workflows, argocd, arr-stack, atuin, browser, cert-manager, cloudflare, external-secrets, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, portfolio-dev, portfolio-prod, portfolio-staging, tailscale, uptime-kuma, vault, velero
 
 Deferred: longhorn-system, intel-device-plugins, node-feature-discovery (high breakage risk, low attack surface)
 
@@ -242,11 +242,12 @@ Helm-managed workloads (Cilium, cert-manager, Longhorn, Vault, NFD, Intel device
 | Webhook TLS ciphers | `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256` |
 | ClusterSecretStore namespaceSelector | Only namespaces with `eso-enabled: "true"` can sync secrets |
 
-### ESO-Enabled Namespaces (19)
+### ESO-Enabled Namespaces (20)
 
-argo-workflows, argocd, arr-stack, atuin, browser, cert-manager, cloudflare, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, tailscale, velero
+argo-events, argo-workflows, argocd, arr-stack, atuin, browser, cert-manager, cloudflare, ghost-dev, ghost-prod, gitlab, gitlab-runner, home, invoicetron-dev, invoicetron-prod, karakeep, kube-system, monitoring, tailscale, velero
 
-The `argo-workflows` namespace now has 2 ExternalSecrets: `discord-webhooks` (reuses `monitoring/discord-webhooks`, property `incidents` for notify-on-failure) and `argo-server-sso` (GitLab OIDC client credentials for argo-server UI login, synced from Vault KV `argo-workflows/sso-credentials`).
+The `argo-workflows` namespace has 5 ExternalSecrets: `discord-webhooks` (reuses `monitoring/discord-webhooks`, property `incidents`), `argo-server-sso` (GitLab OIDC client credentials for argo-server UI), `github-deploy-key` (SSH deploy key for CI-bot Git push), `gitlab-registry` (deploy token for image push), `gitlab-clone-token` (read-only project token for invoicetron clone), `invoicetron-migrate-db-urls` (cross-ns DB URLs for migrate step).
+The `argo-events` namespace has 4 ExternalSecrets: `gitlab-api-token` (auto-registers webhooks), `invoicetron-webhook-secret`, `portfolio-webhook-secret`, `staging-promote-token`.
 
 ### Known Trade-offs
 
@@ -400,7 +401,7 @@ All application namespaces have a LimitRange that sets default requests/limits f
 
 ### ResourceQuota
 
-16 namespaces have ResourceQuota enforcing CPU, memory, PVC, and pod count limits:
+17 namespaces have ResourceQuota enforcing CPU, memory, PVC, and pod count limits:
 
 | Namespace | Purpose |
 |-----------|---------|
@@ -529,8 +530,8 @@ Security controls for ArgoCD-managed cluster operations (Phase 5.7+).
 |-------|---------|---------|
 | Source | Self-hosted GitLab | Deploy token with `read_repository` scope |
 | Admission | ValidatingAdmissionPolicy | Trusted image registries only (CEL-based) |
-| Secrets | Vault + ESO | Never raw Secrets in Git. 38 ExternalSecrets from Vault (19 namespaces). |
-| Network | CiliumNetworkPolicy | Default-deny on 26 namespaces (137 policies) |
+| Secrets | Vault + ESO | Never raw Secrets in Git. 46 ExternalSecrets from Vault (20 namespaces). |
+| Network | CiliumNetworkPolicy | Default-deny on 27 namespaces (143 policies) |
 | Drift | Auto-sync with selfHeal | ArgoCD auto-syncs from Git, reverts manual changes |
 | Imperative exceptions | vault-unseal-keys | Bootstrap secret - ArgoCD must never prune vault namespace Secrets |
 
@@ -538,16 +539,16 @@ Security controls for ArgoCD-managed cluster operations (Phase 5.7+).
 
 | Control | Status | Coverage | Known Gaps |
 |---------|--------|----------|------------|
-| PSS | Enforced | 29/33 namespaces | 4 empty/system ns (cilium-secrets, default, kube-node-lease, kube-public) |
-| CiliumNP | Default-deny | 26/33 namespaces (137 policies) | longhorn-system, NFD, intel-dp (privileged, low attack surface) |
+| PSS | Enforced | 30/34 namespaces | 4 empty/system ns (cilium-secrets, default, kube-node-lease, kube-public) |
+| CiliumNP | Default-deny | 27/34 namespaces (143 policies) | longhorn-system, NFD, intel-dp (privileged, low attack surface) |
 | RBAC | Audited | 4 cluster-admin bindings | velero-server (accepted - cross-ns backup) |
 | etcd encryption | Active (secretbox) | All secrets | |
 | Audit logging | Active | Mutations only (get/list dropped) | Audit alerts deferred (needs Loki Ruler) |
 | Backup | 3-layer | Longhorn+Velero+etcd (23 CronJobs + 1 CronWorkflow) | |
 | CIS benchmark | 69 pass / 7 fail | All 3 CP nodes identical | 7 justified FAILs documented |
-| Image restriction | VAP Warn mode | All non-system namespaces | Deny mode target: 2026-04-02 |
-| ESO | Healthy | 38 ExternalSecrets (19 namespaces) | All deployed and synced |
+| Image restriction | VAP Warn mode | All non-system namespaces | Deny mode target deferred (see `docs/todo/deferred.md` "Phase 5.6 VAP Deny Mode") |
+| ESO | Healthy | 46 ExternalSecrets (20 namespaces) | All deployed and synced |
 | Supply chain | Tag pinning | All images except 1 | portfolio:latest (CI/CD pattern, Phase 5.8) |
-| ResourceQuotas | Active | 16 namespaces | System ns excluded (variable needs) |
+| ResourceQuotas | Active | 17 namespaces | System ns excluded (variable needs) |
 | PDBs | Active | 24 PDBs | |
 | Vault | Healthy | Auto-unseal, daily snapshots | |

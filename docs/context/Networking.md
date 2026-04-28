@@ -88,6 +88,7 @@ Network configuration for the homelab cluster.
 | Atuin | https://atuin.k8s.rommelporras.com | base |
 | ArgoCD | https://argocd.k8s.rommelporras.com | base |
 | Argo Workflows UI | https://argo-workflows.k8s.rommelporras.com | base |
+| Argo Events Webhooks | https://argo-events.k8s.rommelporras.com | base |
 
 ## Tailscale (Remote Access)
 

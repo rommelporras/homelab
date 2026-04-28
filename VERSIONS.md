@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** April 16, 2026
+> **Last Updated:** April 28, 2026
 
 ---
 
@@ -61,6 +61,7 @@
 | vmware-tanzu/velero | 12.0.0 | v1.18.0 | Installed | velero |
 | argo/argo-cd | 9.4.17 | v3.3.6 | Installed | argocd |
 | argo/argo-workflows | 1.0.7 | v4.0.4 | Installed | argo-workflows |
+| argo/argo-events | 2.4.21 | v1.9.10 | Installed | argo-events |
 
 > **Note:** `grafana/loki-stack` is deprecated (Promtail EOL March 2026).
 > Use `grafana/loki` + `grafana/alloy` instead.
@@ -163,6 +164,8 @@ helm-homelab repo update
 | External Secrets Operator | v2.1.0 | Running | Syncs K8s Secrets from Vault via ExternalSecret CRDs |
 | Argo Workflows Controller | v4.0.4 | Running | Workflow orchestrator in `--namespaced` mode (argo-workflows ns, chart 1.0.7) |
 | Argo Workflows Server | v4.0.4 | Running | UI + API in `--namespaced` mode, SSO via GitLab OIDC at https://argo-workflows.k8s.rommelporras.com |
+| Argo Events Controller | v1.9.10 | Running | EventSource + Sensor reconciler (chart 2.4.21, argo-events ns). Phase 5.9.1 Stage 2 (v0.39.2). |
+| Argo Events EventBus | NATS JetStream 2.10.10-alpine | Running | 3-replica StatefulSet `eventbus-default-js` (in-memory, in argo-events ns). |
 | vault-snapshot CronWorkflow | v4.0.4 | Running | 2-step DAG (snapshot + prune) + Discord-on-failure exit handler. Replaced the legacy vault-snapshot CronJob (removed 2026-04-15 after first scheduled run succeeded). |
 | Velero | v1.18.0 | Running | Cluster backup + restore (Helm chart, velero namespace) |
 | velero-plugin-for-aws | v1.14.0 | Running | S3-compatible storage plugin for Velero |
@@ -213,6 +216,7 @@ helm-homelab repo update
 | Vault UI | vault.k8s.rommelporras.com | base | vault |
 | ArgoCD | argocd.k8s.rommelporras.com | base | argocd |
 | Argo Workflows UI | argo-workflows.k8s.rommelporras.com | base | argo-workflows |
+| Argo Events Webhooks | argo-events.k8s.rommelporras.com | base | argo-events |
 
 **LoadBalancer Services:**
 | Service | IP | Port | Namespace |

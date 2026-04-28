@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, cluster, nodes]
-updated: 2026-04-14
+updated: 2026-04-28
 ---
 
 # Cluster
@@ -83,7 +83,8 @@ ssh wawashi@cp3.k8s.rommelporras.com
 | vault | HashiCorp Vault secrets management |
 | velero | Velero backup operator + Garage S3 storage backend |
 | argocd | ArgoCD GitOps continuous delivery |
-| argo-workflows | Argo Workflows controller (headless) + vault-snapshot CronWorkflow |
+| argo-workflows | Argo Workflows controller + server UI + vault-snapshot CronWorkflow + Portfolio/Invoicetron CI pipelines |
+| argo-events | Argo Events controller + EventBus (NATS JetStream, 3-replica) + GitLab webhook EventSources for Portfolio/Invoicetron CI/CD |
 | external-secrets | External Secrets Operator (syncs K8s Secrets from Vault) |
 
 ## Hardware Inventory & Cost

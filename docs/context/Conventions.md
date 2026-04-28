@@ -158,6 +158,7 @@ homelab/
 ├── docs/
 │   ├── context/             # This knowledge base (RAG source)
 │   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0-v0.37.0)
+│   ├── runbooks/            # Operator triage guides per alert/component
 │   ├── todo/                # Active and completed phase plans
 │   └── reference/           # CHANGELOG, historical docs
 └── ansible/                 # Bootstrap automation
