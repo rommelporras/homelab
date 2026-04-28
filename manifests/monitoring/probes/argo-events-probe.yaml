@@ -1,3 +1,20 @@
+# Blackbox HTTP probe for Argo Events GitLab webhooks
+# Phase 5.9.1: end-to-end webhook reachability monitoring
+#
+# How it works:
+#   Prometheus -> Blackbox Exporter -> POST https://argo-events.k8s.rommelporras.com/<path>
+#   -> Cilium Gateway -> argo-events HTTPRoute -> EventSource pod (port 12000)
+#
+# Module http_webhook_post accepts 2xx and the 4xx codes that EventSources
+# return to an empty/unauthenticated POST (400 from gitlab/webhook handlers,
+# 401/403 from token validation, 405 if method-restricted). Anything else
+# (5xx, timeout, connection refused) means the path is broken end-to-end
+# and the probe fails -> TargetDown alert fires.
+#
+# Symmetric coverage across both projects + the staging-promote endpoint.
+# Each path produces its own probe_success series labeled by `instance`,
+# so an alert can identify exactly which webhook is down.
+---
 apiVersion: monitoring.coreos.com/v1
 kind: Probe
 metadata:
@@ -9,17 +26,14 @@ metadata:
 spec:
   jobName: argo-events
   interval: 60s
-  module: http_2xx
+  module: http_webhook_post
   prober:
     url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
   targets:
     staticConfig:
       static:
-        # Health endpoint served by the gitlab-invoicetron EventSource
-        # (one of the two GitLab EventSources); the blackbox probe just
-        # needs any live :12000 listener behind the HTTPRoute to prove
-        # end-to-end connectivity. 404 is expected for an unknown path,
-        # but the 2xx on the root catch-all is provided by the Gateway.
         - https://argo-events.k8s.rommelporras.com/gitlab/invoicetron
+        - https://argo-events.k8s.rommelporras.com/gitlab/portfolio
+        - https://argo-events.k8s.rommelporras.com/staging-promote
       labels:
         target_name: argo-events

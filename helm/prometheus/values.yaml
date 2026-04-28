@@ -65,11 +65,15 @@ prometheus:
       cluster: homelab
 
     # How long to keep data (default: 10d)
-    # 60d retention. At ~0.2 GiB/day (post metric filtering), steady-state ~12 GiB.
-    # PVC sized at 60Gi for headroom while old high-cardinality data expires.
+    # 60d retention. Real ingestion ran higher than the original 0.2 GiB/day
+    # estimate; live volume hit 93% on 60Gi before the 2026-04-28 resize batch.
     retention: 60d
 
     # Storage - uses Longhorn PVC
+    # 2026-04-28: expanded 60Gi -> 80Gi (live PVC patched + resize2fs on
+    # pod restart; StatefulSet template synced via cascade-orphan delete).
+    # Required Longhorn over-provisioning bump 100% -> 150% to fit on cp3
+    # (see deferred.md "Revert Longhorn over-provisioning 150% -> 100%").
     storageSpec:
       volumeClaimTemplate:
         spec:
@@ -77,7 +81,7 @@ prometheus:
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
-              storage: 60Gi
+              storage: 80Gi
 
     # Resource limits for 16GB nodes
     # Prometheus can be memory-hungry, especially with many metrics

@@ -28,6 +28,18 @@ config:
         preferred_ip_protocol: ip4
         valid_status_codes: []  # Defaults to 2xx
         follow_redirects: true
+    # POST probe for webhook endpoints. Argo Events EventSource webhooks
+    # return 400 to an empty/unauthenticated POST (proves the handler is
+    # alive and processing); 5xx or connection-refused means the backend
+    # is actually down. Used by argo-events-webhook probe.
+    http_webhook_post:
+      prober: http
+      timeout: 5s
+      http:
+        method: POST
+        preferred_ip_protocol: ip4
+        valid_status_codes: [200, 400, 401, 403, 404, 405]
+        follow_redirects: false
 
 # Resource limits
 resources:
