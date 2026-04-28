@@ -15,6 +15,6 @@ namespace: invoicetron-prod
 images:
 - name: app
   newName: registry.k8s.rommelporras.com/0xwsh/invoicetron/prod
-  newTag: 194ee4c4
+  newTag: dcc8c497
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
