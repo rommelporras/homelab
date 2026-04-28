@@ -608,6 +608,90 @@ immediately on any non-correctable AER event.
 
 ---
 
+## Revert Longhorn over-provisioning 150% → 100%
+
+**Status:** Deferred - waiting for cp3 NVMe reseat (or replacement with larger drive)
+**Priority:** Low (only affects scheduling math; safety still enforced by per-volume alerts)
+**Added:** 2026-04-28 (post Phase 5.9.1 PVC resize batch)
+
+### Why we bumped to 150% in the first place
+
+Pre-ship audit (2026-04-28) found cp3's Longhorn disk at the schedulable cap:
+311 GiB scheduled out of 325.7 GiB ProvisionedLimit (= (465 GiB max − 140 GiB
+reserved) × 100% over-provisioning). The prometheus-db resize 60→80Gi needed
+20 GiB additional schedule space and was rejected by the validator. Bumping
+the global setting `storage-over-provisioning-percentage` from 100 → 150
+pushed cp3's cap to 488 GiB, freeing ~177 GiB of scheduling headroom and
+unblocking the resize.
+
+### Why this is safe (in the meantime)
+
+Over-provisioning is a *nominal* limit, not a physical one. cp3's actual disk
+fill is ~63% (~290 GiB used of 465 GiB). If real usage approaches the
+physical cap, per-PVC `KubePersistentVolumeFillingUp` alerts (kube-state-metrics
+default, fires at 85-90% used) catch it well before disk-full. The 150% bump
+relies on those alerts as the real safety net.
+
+### Why we want to revert
+
+100% means Longhorn refuses to allocate more nominal volume space than the
+disk has free, which is a stronger guarantee than per-PVC alerts. It's the
+"one system says no" form of safety. We want that back as soon as the
+physical capacity supports it.
+
+### Gating constraint
+
+Revert is only safe when *every* disk's `StorageScheduled` already fits within
+`(StorageMax − Reserved) × 100%`. Today that means cp3 needs to drop from
+~331 GiB scheduled (post-resize batch) to <325 GiB. Longhorn won't unwind
+existing replicas when the setting is changed — the constraint applies to
+*future* scheduling, so reverting now would lock cp3 against any further
+volume creation/expansion.
+
+### Path to revert
+
+Pick whichever ships first:
+
+1. **Reseat or upgrade cp3 NVMe** *(recommended, see "k8s-cp3 NVMe Reseat"
+   entry above)*. If reseat fixes the AER pattern in place: physical capacity
+   stays at 465 GiB, no scheduling change. If you replace with a larger drive
+   (1 TB or 2 TB), cap rises to 750-1500 GiB at 100% OP — comfortably above
+   current scheduled.
+2. **Rebalance replicas** off cp3 onto cp1/cp2. Longhorn UI → Node `k8s-cp3`
+   → Disk → Disable Scheduling → Replica Eviction. Replicas rebuild on the
+   other two nodes. Once cp3 scheduled drops below 325 GiB, revert is safe.
+   Risk: cp1/cp2 may not have headroom to absorb the migration; verify
+   first via `kubectl-admin get nodes.longhorn.io -n longhorn-system -o json
+   | jq '.items[].status.diskStatus'`.
+3. **Combination** of Fix 1 + opportunistic cleanup of any orphan/oversized
+   replicas on cp3.
+
+### Revert command (when ready)
+
+```bash
+# Verify all 3 nodes' scheduled space is below their 100% cap
+kubectl-admin get nodes.longhorn.io -n longhorn-system -o json | \
+  jq -r '.items[] | .metadata.name as $n | (.status.diskStatus // {}) | to_entries[] |
+    "\($n)/\(.key)  scheduled=\(((.value.storageScheduled // 0)/1073741824)|floor)Gi  cap_at_100%=\((((.value.storageMaximum // 0) - (.value.storageReserved // 0))/1073741824)|floor)Gi"'
+
+# If every disk's scheduled <= cap_at_100%, revert:
+kubectl-admin patch setting.longhorn.io/storage-over-provisioning-percentage \
+  -n longhorn-system --type=merge -p '{"value":"100"}'
+
+# Verify
+kubectl-admin get setting.longhorn.io/storage-over-provisioning-percentage \
+  -n longhorn-system -o jsonpath='{.value}{"\n"}'
+```
+
+### Acceptance criteria
+
+- All 3 Longhorn disks: `StorageScheduled ≤ (StorageMax − StorageReserved) × 100%`
+- `setting.longhorn.io/storage-over-provisioning-percentage = 100`
+- No `LonghornDiskCapacityCritical`-style alerts firing
+- A new test PVC at the boundary size still schedules without rejection
+
+---
+
 ## Restic k8s-media Repository (Immich Photos)
 
 **Status:** Deferred - no Immich data exists yet
@@ -738,7 +822,7 @@ not currently scheduled).
 **Priority:** Low (all reachable only from cluster LAN or host with WSL jsonl)
 **Added:** 2026-04-24
 
-Forensic grep of `/home/wsl/.claude/projects/-home-wsl-personal-homelab/80c9dd38-43a4-42fc-aa62-4db2ef848b04.jsonl` (pre-compact Claude Code transcript) turned up six credentials whose values or immediate hashes passed through tool output during earlier Phase 5.9.1 debugging. One (`staging-promote-token`) was rotated pre-ship because the leak was still active in this session. The rest were initially deferred as post-ship cleanup because their attack surface is internal-only, but all were rotated during the 2026-04-24 → 2026-04-27 soak window instead of waiting. What's left is only the cleanup of the **old** overlapping credentials (user-run in Aurora DX with op/gh access).
+Forensic grep of `/home/wsl/.claude/projects/-home-wsl-personal-homelab/80c9dd38-43a4-42fc-aa62-4db2ef848b04.jsonl` (pre-compact Claude Code transcript) turned up six credentials whose values or immediate hashes passed through tool output during earlier Phase 5.9.1 debugging. One (`staging-promote-token`) was rotated pre-ship because the leak was still active in this session. The rest were initially deferred as post-ship cleanup because their attack surface is internal-only, but all were rotated during the 2026-04-24 → 2026-04-27 soak window instead of waiting. What's left is only the cleanup of the **old** overlapping credentials (user-run from any host with `gh` + `glab` logged in — see `scripts/phase-5.9.1-credential-cleanup.sh`).
 
 **Credentials to rotate:**
 
@@ -754,11 +838,13 @@ Forensic grep of `/home/wsl/.claude/projects/-home-wsl-personal-homelab/80c9dd38
 
 **Why originally deferred (historical):** every consumer of these secrets lives inside the cluster and the credentials are only usable from cluster-adjacent networks (the home LAN, or a host with the WSL jsonl file). There is no internet-reachable attack surface. Deferral was chosen to avoid ship-window CI/DB downtime. In practice all 7 rotations were picked up during soak on 2026-04-24 with no incident, and the write-path for the two high-value rotations (github-deploy-key + gitlab-registry) was naturally exercised by `portfolio-dev-rsgw5` the same day.
 
-**Pending cleanup (user-run, Aurora DX):**
+**Pending cleanup (user-run from WSL2 dev host):**
 1. `gh api -X DELETE repos/rommelporras/homelab/keys/149092650` — delete old GitHub deploy key
 2. Revoke old GitLab group deploy token `argo-workflows-buildkit` at https://gitlab.k8s.rommelporras.com/groups/0xwsh/-/settings/repository#js-deploy-tokens
 3. Revoke old GitLab project deploy tokens `k8s-image-pull` (id 2) and `argo-workflows-clone` (id 3) at https://gitlab.k8s.rommelporras.com/0xwsh/invoicetron/-/settings/repository#js-deploy-tokens
-4. `shred -u ~/tmp/ae-rotate/argo-events-deploy-key*` then `rmdir ~/tmp/ae-rotate`
+4. ~~`shred -u ~/tmp/ae-rotate/argo-events-deploy-key*` then `rmdir ~/tmp/ae-rotate`~~ — done 2026-04-28 (the keypair was generated on WSL2, not Aurora DX, so the cleanup ran here)
+
+Items 1-3 staged as `scripts/phase-5.9.1-credential-cleanup.sh` (run from WSL2 after `/ship v0.39.2`).
 
 **Rotation pattern (reusable):**
 1. Generate/create the new value (openssl for tokens, `glab api` for GitLab deploy tokens, `ssh-keygen` for deploy keys, `ALTER USER ... WITH PASSWORD` for DB)
@@ -892,3 +978,121 @@ After v0.39.2 stabilizes. Plausible bundle: a small phase covering (1) split pol
   the lease re-electing to the new pod's node within 60s
 - Alert fires in Prometheus when lease/pod-node mismatch persists >5 min
 - `docs/context/Networking.md` updated to describe the new pattern
+
+---
+
+## Phase 5.9.1 v0.39.2 post-ship verification
+
+**Status:** Pending - check ~2 weeks after ship
+**Priority:** Low
+**Added:** 2026-04-28
+**Earliest revisit:** 2026-05-12
+
+The 4-day soak (2026-04-24 -> 2026-04-28) had only **one** real CI workflow run
+(`portfolio-dev-rsgw5` on 2026-04-24, exercising the rotated github-deploy-key +
+gitlab-registry credentials). No further pushes to `develop` or `main` on either
+project occurred in the rest of the window. That one run is sufficient ship
+evidence, but write-path proof from the **other** project (invoicetron) and from
+`main`-branch flows on both projects has not been re-exercised since the rotation.
+
+### What to check
+
+1. `git log --author='ci-bot@k8s.rommelporras.com' --since='2026-04-28'` shows
+   ≥1 commit per project (portfolio + invoicetron) and at least one to a `main`
+   overlay (i.e. `manifests/<project>/overlays/{prod,staging}/kustomization.yaml`).
+2. `kubectl-admin get workflows -n argo-workflows --sort-by=.metadata.creationTimestamp`
+   shows post-ship runs in `Succeeded` for both `portfolio-{dev,staging,prod}` and
+   `invoicetron-{dev,prod}` templates (TTL is 1d on success / 7d on failure, so
+   only recent ones will be visible - check ArgoCD app sync history or the
+   per-project deployment image tag for indirect evidence of older runs).
+3. Per-project `argo_workflows_count{phase="Succeeded"}` rate over 2w in
+   Prometheus - flatline = no real CI activity.
+
+### What to do if no real runs occurred
+
+- Push an empty commit to each project's `develop` and `main` to force CI:
+  `git commit --allow-empty -m "chore(ci): post-ship soak verification"` then push.
+- For portfolio `main` specifically, recall that direct push is blocked
+  (`push_access_levels: "No one"`) - use the MR flow per phase doc Notes #55.
+- Watch the workflows finish, confirm CI-bot commits land on homelab `main`,
+  ArgoCD picks them up, target deployments roll.
+
+### What to do if runs occurred and any failed
+
+- Open the failed workflow log via `argocd-application-controller` exec or the
+  Argo Workflows UI at `argo-workflows.k8s.rommelporras.com`.
+- Common post-ship regressions to watch for: registry token expired silently,
+  GitHub deploy key revoked, sensor pod selector changed by a chart upgrade,
+  Vault auth role drift after rotation.
+
+### Acceptance criteria
+
+- ≥1 successful workflow per project per environment in the 2w window, OR
+- An induced run (empty commit) confirms the pipeline still works end-to-end
+- No silent regression in CI-bot commit cadence vs. pre-ship baseline
+
+---
+
+## PVC resize batch (post-soak audit 2026-04-28)
+
+**Status:** Identified - prometheus-db urgent (93%), gitlab-minio next (92%)
+**Priority:** High for prometheus-db / gitlab-minio; Medium for arr-data
+**Added:** 2026-04-28
+
+The soak audit surfaced three PVCs over the `KubePersistentVolumeFillingUp`
+warning threshold. Per the existing CLAUDE.md gotcha, StatefulSet
+`volumeClaimTemplates` are immutable, so each resize is a multi-step
+operation (patch live PVC -> Longhorn online expansion -> delete pod for
+`resize2fs` on remount -> `--cascade=orphan` + helm upgrade to sync the
+template). Procedure documented in CLAUDE.md "StatefulSet PVC expansion".
+
+### Targets
+
+| PVC | Namespace | Current | Used | Suggested | Owner workload |
+|---|---|---|---|---|---|
+| `prometheus-prometheus-kube-prometheus-prometheus-db-...-0` | monitoring | 60Gi | 56Gi (93%) | **80Gi** | StatefulSet `prometheus-prometheus-kube-prometheus-prometheus` (kube-prometheus-stack) |
+| `gitlab-minio` | gitlab | 20Gi | 18.5Gi (92%) | **40Gi** | StatefulSet `gitlab-minio` (note: MinIO is dead per CLAUDE.md - replace with Garage S3 instead of resizing if convenient; otherwise resize as a stopgap) |
+| `arr-data` (RWX, 2 mounters reporting same %) | arr-stack | 2Ti | 1.76Ti (88%) | **3Ti** | shared by ARR media workloads (Sonarr/Radarr/Bazarr/etc.) - safe to grow during normal hours, no DB |
+
+### Why prometheus-db is urgent
+
+At ~3 GiB/day current ingestion, 93% on 60Gi -> 95% (alert escalation) in
+~2 days. Retention is already at 30d post-Phase 5.5 audit-policy/Alloy-filter
+work, so the next cheap lever is capacity, not retention. Bumping to 80Gi
+gives ~7 days of additional runway plus headroom for compaction churn.
+
+### Why gitlab-minio is urgent
+
+MinIO is the GitLab artifact + container registry backing store. Hitting
+100% means GitLab CI breaks (failed artifact uploads) and `argo-workflows`
+build/push steps fail at the registry layer. The CLAUDE.md "MinIO is dead"
+note suggests the long-term fix is migrating GitLab artifact storage to
+Garage S3, but that's a larger task. Stopgap resize keeps things alive
+until the migration phase.
+
+### Why arr-data can wait
+
+2Ti -> 88% means ~240 GiB free. Media ingestion rate is hours/day, not
+GiB/day. ~30-90d runway depending on download volume. Resize before it
+hits 95%, but no immediate fire.
+
+### Sequence (for each PVC)
+
+1. Take a Longhorn snapshot of the source volume via Longhorn UI.
+2. `kubectl-admin patch pvc <name> -n <ns> --type=merge -p '{"spec":{"resources":{"requests":{"storage":"<new-size>"}}}}'`
+3. Wait for Longhorn to expand the block device online (watch `kubectl-admin get pvc -n <ns> <name>` -> `.status.capacity.storage`).
+4. `kubectl-admin delete pod -n <ns> <pod-of-statefulset>` to trigger `resize2fs` on the next mount.
+5. Update the helm chart values that drive `volumeClaimTemplates.spec.resources.requests.storage` to the new size.
+6. `kubectl-admin delete statefulset <name> -n <ns> --cascade=orphan` then commit + ArgoCD sync to recreate the StatefulSet with the new template (no pod disruption since `--cascade=orphan` leaves pods running).
+7. Verify the new StatefulSet's `volumeClaimTemplates` matches the live PVC capacity.
+
+### Acceptance criteria
+
+- All three PVCs ≤ 70% utilization post-resize
+- No `KubePersistentVolumeFillingUp` firing
+- Helm chart values match live PVC sizes (no drift)
+
+### When to do it
+
+prometheus-db + gitlab-minio: before or immediately after `/ship v0.39.2`
+to clear the active firing warning. arr-data: next maintenance window.
