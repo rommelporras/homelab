@@ -45,16 +45,19 @@ data:
         - https://dns11.quad9.net/dns-query
         - https://dns.cloudflare.com/dns-query
       upstream_dns_file: ""
+      # Bootstrap resolves DoH upstream hostnames into IPs. Mullvad's plain-UDP
+      # bootstrap (194.242.2.2, 2a07:e340::2/3) rate-limits aggressively and
+      # produced ~7/min `i/o timeout` errors in the AdGuard log even though
+      # `dns.mullvad.net` (DoH upstream) was healthy. Removed 2026-04-29 -
+      # Cloudflare + Quad9 v4/v6 bootstraps still resolve dns.mullvad.net fine,
+      # and DoH queries then go HTTPS-direct to Mullvad's IP. No upstream impact.
       bootstrap_dns:
         - 1.1.1.1
         - 9.9.9.10
-        - 194.242.2.2
         - 2606:4700:4700::1111
         - 2606:4700:4700::1001
         - 2620:fe::10
         - 2620:fe::fe:10
-        - 2a07:e340::2
-        - 2a07:e340::3
       fallback_dns:
         - https://dns.google/dns-query
       upstream_mode: parallel
