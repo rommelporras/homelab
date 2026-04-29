@@ -499,11 +499,56 @@ needs a terminal with `op` + `vault` to run the four commands above. After
 
 ## k8s-cp3 NVMe Reseat
 
-**Status:** Deferred - schedule during next planned maintenance window
+**Status:** Reseated 2026-04-29 - awaiting 7-day clean window (verify on/after 2026-05-06)
 **Priority:** Low (currently correctable AER only; cluster is healthy)
 **Added:** 2026-04-14 (Phase 5.9.7 storage observability)
+**Reseat done:** 2026-04-29 (cordon + drain + power off + physical reseat + power on + verify Ready + uncordon, see Verification window below)
 
-### Context
+### Verification window (open until 2026-05-06)
+
+The reseat itself reset the kernel AER counters to 0 (any reboot does). Success
+is measured by whether the correctable-error pattern returns over the following
+7 days. Run the four commands below on or after 2026-05-06:
+
+```bash
+# 1. AER counters on cp3 (must all be 0)
+ssh wawashi@10.10.30.13 "
+  echo '=== correctable ==='
+  sudo cat /sys/bus/pci/devices/0000:01:00.0/aer_dev_correctable
+  echo '=== fatal ==='
+  sudo cat /sys/bus/pci/devices/0000:01:00.0/aer_dev_fatal
+  echo '=== nonfatal ==='
+  sudo cat /sys/bus/pci/devices/0000:01:00.0/aer_dev_nonfatal
+"
+
+# 2. dmesg sanity (no PCIe Bus Error since reseat at 2026-04-29 ~17:23 PHT)
+ssh wawashi@10.10.30.13 "sudo dmesg --time-format=iso | grep -iE 'pcie bus error|aer' | tail -10"
+
+# 3. Prometheus: any NodePCIeBusError alert fired on cp3 since reseat?
+kubectl-admin -n monitoring exec deploy/prometheus-grafana -c grafana -- \
+  curl -sG 'http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090/api/v1/query' \
+  --data-urlencode 'query=count_over_time(ALERTS{alertname="NodePCIeBusError",node=~".*k8s-cp3.*"}[7d])' \
+  | jq '.data.result'
+# Pass criteria: [] or 0 - alert never fired since reseat.
+
+# 4. SMART still clean
+kubectl-admin -n monitoring exec deploy/prometheus-grafana -c grafana -- \
+  curl -sG 'http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090/api/v1/query' \
+  --data-urlencode 'query=smartctl_device_media_errors{instance=~".*10.10.30.13.*"} or smartctl_device_critical_warning{instance=~".*10.10.30.13.*"}' \
+  | jq '.data.result'
+# Pass criteria: all values 0.
+```
+
+### Decision tree (post-2026-05-06)
+
+| Outcome | Action |
+|---|---|
+| All 4 commands clean (counters=0, no alert, SMART clean) | **Graduate this entry to `Status: Resolved`.** Also revisit "Revert Longhorn over-provisioning 150% → 100%" entry below — both gated on this. |
+| Any `aer_dev_correctable.TOTAL_ERR_COR > 0` but `fatal=0` and `nonfatal=0` and SMART clean | Reseat helped but didn't fully fix. Plan a second reseat with deeper cleaning (>90% IPA on contacts, M.2 socket inspection), or budget a drive replacement. Bump priority to Medium. |
+| `aer_dev_fatal > 0` or `aer_dev_nonfatal > 0`, OR `smartctl_device_media_errors > 0`, OR `smartctl_device_critical_warning > 0` | **Skip second reseat. Replace the drive.** Per `docs/runbooks/longhorn-hardware.md` "When to Replace vs Reseat" table. Bump priority to High. |
+| `LonghornVolumeAutoSalvaged` event on a cp3 replica during the window (irrespective of AER state) | Reseat did not stabilize the storage path. Replace drive (or move to a different M.2 slot if mainboard has one). |
+
+### Original context (pre-reseat, 2026-04-14)
 
 k8s-cp3's NVMe (SKHynix HFS512GDE9X081N) threw **4 PCIe correctable bus
 errors** over an 8-day window ending 2026-04-11 (Apr 6, 9, 10, 11). Kernel AER
