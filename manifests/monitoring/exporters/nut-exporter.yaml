@@ -28,6 +28,22 @@ spec:
         app.kubernetes.io/name: nut-exporter
     spec:
       automountServiceAccountToken: false
+      # Pin off cp1: the NUT daemon (upsd) runs on cp1 (USB-attached UPS,
+      # see docs/context/UPS.md). When this pod schedules onto cp1, it
+      # tries to dial 10.10.30.11:3493 from the pod network and fails
+      # with "connection timed out" - Cilium's pod-to-host routing on
+      # the same node does not reach a daemon that listens on the host
+      # IP. From cp2/cp3 the cluster overlay routes correctly.
+      # Discovered 2026-04-29 after cp3 reboot rescheduled the exporter
+      # to cp1 and UPSExporterDown fired post-recovery.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: ["k8s-cp1"]
       securityContext:
         runAsNonRoot: true
         seccompProfile:

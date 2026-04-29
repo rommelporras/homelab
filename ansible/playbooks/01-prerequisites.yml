@@ -74,6 +74,23 @@
         - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
         - { name: 'net.ipv4.ip_forward', value: '1' }
 
+    # kubelet's protectKernelDefaults=true (set by kubeadm) requires these
+    # three sysctls to match exactly at startup, otherwise kubelet exits 1
+    # with "invalid kernel flag" and the node sits at Ready=Unknown forever.
+    # Discovered 2026-04-29 when cp3's NVMe reseat reboot exposed the gap -
+    # initial bootstrap had set the runtime values but not persisted them.
+    # Separate file from k8s.conf to make the kubelet dependency obvious.
+    - name: Set kubelet protectKernelDefaults sysctls
+      ansible.posix.sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        sysctl_file: /etc/sysctl.d/90-kubelet.conf
+        reload: true
+      loop:
+        - { name: 'vm.overcommit_memory', value: '1' }
+        - { name: 'kernel.panic',          value: '10' }
+        - { name: 'kernel.panic_on_oops',  value: '1' }
+
     # =========================================
     # 1.5 Install containerd
     # =========================================
