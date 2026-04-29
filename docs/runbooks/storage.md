@@ -172,3 +172,101 @@ Longhorn UI dashboard is unreachable. Non-critical - the Longhorn backend (manag
 2. Check logs:
    kubectl-homelab logs -n longhorn-system -l app=longhorn-ui --tail=50
 ```
+
+---
+
+## StaleISCSISession
+
+Not paged as a Prometheus alert (yet), but surfaces as a stuck volume + pod
+in `ContainerCreating` after a Longhorn instance-manager pod was recreated
+on a node. See the CLAUDE.md gotcha "Stale iSCSI session after Longhorn
+instance-manager IP rotation deadlocks engine startup" for full background.
+
+### Symptoms
+
+- Longhorn volume `state=attaching`, `robustness=unknown`, never reaches
+  `attached`.
+- Workload pod stuck in `ContainerCreating` with repeating
+  `FailedAttachVolume` events.
+- `instance-manager-<id>` logs show the engine looping with:
+  ```
+  Failed to init frontend: device <pvc>: failed to stop iSCSI device:
+    failed to logout target ... iscsiadm: initiator reported error
+    (32 - target likely not connected)
+  ```
+- On the host: a session referencing an IP that is **not** any current
+  Longhorn instance-manager pod IP.
+
+### Diagnostic
+
+1. Identify the wedged session and its dead portal IP:
+   ```
+   ssh wawashi@<node>.k8s.rommelporras.com
+   sudo iscsiadm -m session | grep <pvc-id>
+   # → tcp: [<sid>] <DEAD_IP>:3260,1 iqn.2019-10.io.longhorn:<pvc-id>
+   ```
+
+2. Confirm `<DEAD_IP>` is not a current instance-manager pod:
+   ```
+   kubectl-homelab -n longhorn-system get pods -o wide | grep instance-manager
+   ```
+
+3. Verify the kernel-side connection state (will read `failed`):
+   ```
+   ssh wawashi@<node> sudo cat /sys/class/iscsi_connection/connection<sid>:0/state
+   ```
+
+### Fix (no reboot required)
+
+The session **cannot** be cleaned up cleanly via userspace iscsiadm or
+sysfs writes once it is wedged with target unreachable. Migrate the
+workload off the affected node instead:
+
+```
+# Cordon the node so the new pod doesn't land on the same node
+kubectl-admin cordon <node>
+
+# Force-delete the stuck workload pod; Deployment recreates elsewhere
+kubectl-admin -n <ns> delete pod <stuck-pod> --force --grace-period=0
+
+# Watch for the new pod and Longhorn engine to come up on a different node
+kubectl-homelab -n <ns> get pod -l app=<app> -o wide -w
+
+# Once the volume is `attached` and the pod is `Running`, uncordon
+kubectl-admin uncordon <node>
+```
+
+The orphaned kernel session on the original node is **harmless** -
+Longhorn does not reuse it, and it clears on the next reboot of that
+node. No data loss; the existing replica(s) are untouched.
+
+### What does NOT work (tried and verified during 2026-04-29 incident)
+
+- `iscsiadm -m session -u -r <sid>` → exits 32 (target unreachable).
+- `echo 1 > /sys/class/iscsi_session/session<sid>/recovery_tmo` →
+  "Device or resource busy" (session is in EH state).
+- `echo offline > /sys/class/scsi_host/host<N>/state` → "Invalid argument".
+- Writes to `/sys/class/iscsi_connection/connection<sid>:0/state` →
+  "Permission denied".
+- Deleting the SCSI LUNs (`echo 1 > .../delete`) → succeeds but leaves the
+  session orphan, iscsiadm still finds it via kernel sysfs.
+- Moving `/etc/iscsi/nodes/<iqn>/` aside → iscsiadm scans kernel sysfs and
+  still tries to logout, same error 32.
+
+The only ways to fully clear the kernel session are:
+
+1. Reboot the node (heavy - drains all 26+ Longhorn sessions).
+2. `rmmod iscsi_tcp` (catastrophic - all volumes on the node detach).
+
+Neither is needed if the workload can be migrated.
+
+### Prevention
+
+- Track in `docs/todo/deferred.md` "Stale iSCSI Session Auto-Cleanup":
+  add a `cluster-janitor` task that detects sessions whose portal IP is
+  not in the current instance-manager pod IP set and surfaces them via
+  the Discord `#janitor` webhook (alert, not auto-fix; auto-fix is
+  unsafe without coordinating with Longhorn ownerID).
+- Argo Events / cilium / Longhorn IM rotations are the common trigger;
+  any controller restart that recreates an instance-manager pod will
+  reproduce this on whichever node had a session to that IM.

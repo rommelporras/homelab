@@ -45,10 +45,15 @@ spec:
   serviceAccountName: ci-workflow-sa
   activeDeadlineSeconds: 1800
   onExit: notify-on-failure
+  # Failed Workflow CRs auto-prune after 24h. The original 7d window
+  # caused `ArgoWorkflowFailed`/`CIPipelineFailed` to spam Discord for
+  # a full week (alert is a gauge over `phase="Failed"` count); 24h
+  # leaves enough time to grab logs/inspect the DAG before cleanup
+  # without parking stale failures in the alert.
   ttlStrategy:
     secondsAfterSuccess: 86400
-    secondsAfterFailure: 604800
-    secondsAfterCompletion: 604800
+    secondsAfterFailure: 86400
+    secondsAfterCompletion: 86400
   podGC:
     strategy: OnPodSuccess
   podMetadata:

@@ -8,16 +8,17 @@
 # This CronJob backs up the SQLite DB files using .backup API and
 # copies other data files (assets, uploads) with cp.
 #
-# NOTE: meilisearch-data PVC is on k8s-cp3 (different node from karakeep on cp2).
-# Since both PVCs are RWO and on different nodes, a single CronJob cannot mount both.
-# Meilisearch is a search index that can be rebuilt from karakeep data -
-# only karakeep-data (the source of truth) is backed up here.
+# NOTE: only karakeep-data is backed up here. meilisearch-data is a
+# separate RWO PVC that may attach to a different node than karakeep,
+# and a single CronJob cannot mount two RWO volumes split across
+# nodes. Meilisearch is a rebuildable search index over karakeep data
+# (the source of truth), so omitting it is intentional.
 #
 # Manual test run:
 #   kubectl-homelab create job --from=cronjob/karakeep-backup karakeep-backup-test -n karakeep
 #   kubectl-homelab logs -n karakeep job/karakeep-backup-test
 #
-# CKA topics: CronJob, NFS volume, SQLite backup, nodeSelector
+# CKA topics: CronJob, NFS volume, SQLite backup, podAffinity
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -44,9 +45,20 @@ spec:
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false
-          # Must run on same node as karakeep (RWO PVC)
-          nodeSelector:
-            kubernetes.io/hostname: k8s-cp2
+          # Must run on the same node as the karakeep pod (RWO PVC).
+          # Earlier this was a hardcoded `nodeSelector: hostname=k8s-cp2`
+          # which silently broke the day karakeep migrated to cp3
+          # (2026-04-29 incident: lastSchedule>lastSuccessful, ArgoCD
+          # reported Degraded, cluster-janitor pruned the failed Job
+          # within 10 min so the evidence was gone). podAffinity follows
+          # whichever node the karakeep deployment runs on.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: karakeep
+                  topologyKey: kubernetes.io/hostname
           securityContext:
             runAsNonRoot: true
             runAsUser: 65534

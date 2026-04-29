@@ -93,14 +93,20 @@ singleBinary:
   # Run 1 replica (sufficient for homelab)
   replicas: 1
 
-  # Resource limits for 16GB nodes
+  # Resource limits for 16GB nodes.
+  # Memory bumped 512Mi→1Gi 2026-04-29 after a sustained OOMKill loop
+  # (43 restarts over 8h on cp1) — singleBinary mode runs ingester +
+  # querier + compactor + ruler + memberlist in one process, so 512Mi
+  # was sitting at the hard limit during normal ingestion. Request
+  # bumped 256→512Mi to match working set; limit gives 2x headroom for
+  # WAL flush bursts.
   resources:
     requests:
       cpu: 100m
-      memory: 256Mi
+      memory: 512Mi
     limits:
       cpu: 500m
-      memory: 512Mi
+      memory: 1Gi
 
   # Persistence - use Longhorn for durability
   persistence:
