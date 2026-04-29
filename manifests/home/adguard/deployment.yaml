@@ -32,10 +32,24 @@ spec:
         app: adguard-home
     spec:
       automountServiceAccountToken: false
-      # Pin to k8s-cp2 where Cilium advertises the LoadBalancer IP
-      # Required for externalTrafficPolicy: Local to work
-      nodeSelector:
-        kubernetes.io/hostname: k8s-cp2
+      # Schedule wherever there's room. The original `nodeSelector:
+      # hostname=k8s-cp2` comment claimed it was required for
+      # externalTrafficPolicy=Local, but Cilium L2 announce picks the
+      # lease holder dynamically and (1.19+) prefers a node with a
+      # ready local backend. Hard-pinning blocked maintenance: during
+      # the cp2 reboot 2026-04-29, the pod went Pending and external
+      # AdGuard DNS would have been down for the full reboot window
+      # if not caught. Phase 5.3 incident 2026-04-24 (lease/pod drift)
+      # had the same root cause.
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values: ["k8s-cp2"]
       securityContext:
         seccompProfile:
           type: RuntimeDefault
