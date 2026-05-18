@@ -67,6 +67,25 @@ spec:
               protocol: UDP
             - port: "53"
               protocol: TCP
+    # In-cluster pods that resolve via AdGuard (10.10.30.53):
+    #   - CoreDNS forwards the cluster's external queries here (node resolv.conf upstream)
+    #   - firefox (browser ns) uses AdGuard directly via dnsPolicy: None
+    # kube-proxy-replacement DNATs the LB-VIP to this backend pod, so traffic arrives
+    # with the SOURCE POD identity - NOT host/remote-node/world. Without this rule the
+    # cluster has no external DNS unless the 10.10.30.54 LXC failover is up.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: browser
+            app: firefox
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
 ---
 # AdGuard admin UI ingress: Gateway HTTPRoute (adguard.k8s.rommelporras.com)
 # + kubelet HTTP probe on port 3000 + uptime-kuma monitoring
