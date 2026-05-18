@@ -3,6 +3,10 @@
 # Needs broad internet egress for web browsing
 # Default-deny enforced implicitly (ingress + egress policies both present)
 ---
+# The firefox Deployment runs dnsPolicy: None and points at AdGuard (10.10.30.53),
+# NOT kube-dns. Cilium's kube-proxy-replacement DNATs the LB-VIP to the adguard-home
+# backend pod, so egress must select that pod's identity (home ns), not the VIP.
+# kube-dns is kept here so any future browser-ns pod using cluster DNS still resolves.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -15,6 +19,9 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system
             k8s-app: kube-dns
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: home
+            app: adguard-home
       toPorts:
         - ports:
             - port: "53"

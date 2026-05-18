@@ -26,11 +26,10 @@ spec:
         match-regex.version-checker.io/firefox: "^\\d+.*-ls\\d+$"
     spec:
       automountServiceAccountToken: false
-      dnsPolicy: None  # bypass cluster DNS — use AdGuard for ad-blocking + privacy
+      dnsPolicy: None  # bypass cluster DNS - use AdGuard for ad-blocking + privacy
       dnsConfig:
         nameservers:
-          - 10.10.30.53  # AdGuard Home primary (K8s LoadBalancer VIP)
-          - 10.10.30.54  # AdGuard Home failover (LXC)
+          - 10.10.30.53  # AdGuard Home (K8s LoadBalancer VIP)
       securityContext:
         fsGroup: 1000
         seccompProfile:
