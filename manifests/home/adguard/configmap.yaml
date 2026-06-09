@@ -92,7 +92,12 @@ data:
       bootstrap_prefer_ipv6: false
       upstream_timeout: 45s
       private_networks: []
-      use_private_ptr_resolvers: true
+      # Disabled 2026-06-10: with local_ptr_upstreams empty, AdGuard sent every
+      # private reverse-DNS (PTR) lookup to the pod's resolver (kube-dns 10.96.0.10),
+      # which has no RFC1918 reverse zone -> mass i/o timeouts that saturated the
+      # query log and caused intermittent DNS latency. Disabling stops the flood;
+      # cost is that client IPs show as IPs (not hostnames) in the query log.
+      use_private_ptr_resolvers: false
       local_ptr_upstreams: []
       use_dns64: false
       dns64_prefixes: []
@@ -127,7 +132,7 @@ data:
         - '*.gvt2.com'
         - '*.gvt3.com'
         - wpad.rommelporras.com
-      interval: 2160h
+      interval: 168h    # 7d (was 2160h/90d) - 90d retention grew querylog.json to 4.7G on a 5Gi PVC
       size_memory: 1000
       enabled: true
       file_enabled: true
@@ -141,7 +146,7 @@ data:
         - '*.gvt2.com'
         - '*.gvt3.com'
         - wpad.rommelporras.com
-      interval: 2160h
+      interval: 720h    # 30d (was 2160h/90d) - 90d retention grew querylog.json to 4.7G on a 5Gi PVC
       enabled: true
     filters:
       - enabled: true
