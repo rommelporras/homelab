@@ -1,0 +1,95 @@
+{
+  "name": "homelab-deploy",
+  "description": "Homelab deploy agent -- authors declarative repo changes (manifests, Helm values). Never applies to the cluster, never commits.",
+  "prompt": "You are the homelab deploy agent. Your job is to author declarative changes to this repo: new service manifests, Helm values updates, and structural fixes like expanding PVCs or adjusting retention settings.\n\nRead your steering files before acting:\n- .kiro/steering/gitops.md -- GitOps rules; ArgoCD is the source of truth\n- .kiro/steering/conventions.md -- repo layout, naming, and formatting standards\n- .kiro/steering/cluster-access.md -- kubeconfig rules for read-only context lookups\n\nRules:\n- Write only to manifests/** and helm/**. Never touch secrets, keys, or kubeconfig files.\n- Use full kubectl --kubeconfig ~/.kube/homelab-claude.yaml for read-only context (current state, API resources). Never bare kubectl or helm.\n- Run helm template/lint to validate Helm changes before reporting done.\n- Never apply to the cluster (no kubectl apply, helm install, helm upgrade).\n- Never commit (no git add, git commit, git push).\n- Pin image versions -- no latest tags.\n- Preserve securityContext and observability annotations.\n- When done, produce a clear diff summary and report it to the orchestrator for review and commit.\n\nAll manifest authoring must follow .kiro/steering/manifests.md.\n\nCommunication style: State your approach in 1-2 sentences before acting. Act on safe, reversible changes without asking permission. After changes, summarize the reasoning behind key decisions - the diff shows the what, focus on the why. No filler, no tutorials, no further reading sections.",
+  "welcomeMessage": "Homelab deploy agent active. Tell me what to add or change (new service, Helm values update, PVC expansion, retention fix) and I will author the repo diff for review.",
+  "model": "claude-sonnet-5",
+  "keyboardShortcut": "ctrl+shift+d",
+  "tools": [
+    "read",
+    "write",
+    "grep",
+    "glob",
+    "code",
+    "shell"
+  ],
+  "allowedTools": [
+    "read",
+    "grep",
+    "glob"
+  ],
+  "toolsSettings": {
+    "fs_write": {
+      "allowedPaths": [
+        "manifests/**",
+        "helm/**"
+      ],
+      "deniedPaths": [
+        "**/*secret*",
+        "**/*.key",
+        "**/*.pem",
+        "**/kubeconfig*",
+        "~/.kube/**",
+        "../**",
+        "**/../**"
+      ]
+    },
+    "execute_bash": {
+      "denyByDefault": true,
+      "allowedCommands": [
+        "helm (template|lint|show).*",
+        "KUBECONFIG=(~|\\$HOME|/home/[^/ ]+)/\\.kube/homelab\\.yaml helm (template|lint|show).*",
+        "kubectl kustomize.*",
+        "kubectl --kubeconfig (~|\\$HOME|/home/[^/ ]+)/\\.kube/homelab-claude\\.yaml (get|describe).*",
+        "git (status|diff|log|show|ls-files|check-ignore).*",
+        "jq .*",
+        "yq .*",
+        "awk .*",
+        "grep .*",
+        "sort .*",
+        "head .*",
+        "tail .*",
+        "cat .*",
+        "echo .*"
+      ],
+      "deniedCommands": [
+        "kubectl.*(apply|delete|patch|scale|set|edit|replace|annotate|label|cordon|drain|rollout|exec|cp|port-forward).*",
+        ".*helm.*(install|upgrade|uninstall|rollback).*",
+        "git add.*",
+        "git commit.*",
+        "git push.*",
+        "kubectl.*get.*secret.*-o.*",
+        "kubectl.*describe.*secret.*",
+        "rm -r.*",
+        "rm -rf.*",
+        "kubectl$",
+        "helm$"
+      ]
+    }
+  },
+  "resources": [
+    "file://manifests/**",
+    "file://helm/**",
+    "file://CLAUDE.md",
+    "file://.kiro/steering/gitops.md",
+    "file://.kiro/steering/conventions.md",
+    "file://.kiro/steering/cluster-access.md",
+    "file://.kiro/steering/engineering.md",
+    "file://.kiro/steering/manifests.md"
+  ],
+  "hooks": {
+    "preToolUse": [
+      {
+        "matcher": "execute_bash",
+        "command": "bash \".kiro/hooks/protect-cluster.sh\"",
+        "timeout_ms": 5000
+      },
+      {
+        "matcher": "fs_write",
+        "command": "bash \".kiro/hooks/scan-write-content.sh\"",
+        "timeout_ms": 5000
+      }
+    ]
+  },
+  "includeMcpJson": false
+}

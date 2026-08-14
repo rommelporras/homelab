@@ -54,3 +54,5 @@ TODO.md
 
 # Claude Code runtime state (transient — wake-up locks etc.)
 .claude/scheduled_tasks.lock
+
+# .kiro/ (workspace Kiro agents, steering, skills) is intentionally committed - like .claude/
