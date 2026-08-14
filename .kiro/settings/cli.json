@@ -2,5 +2,12 @@
   "chat.defaultAgent": "homelab-orchestrator",
   "chat.defaultModel": "claude-sonnet-5",
   "chat.enableSubagent": true,
-  "chat.disableInheritingDefaultResources": true
+  "chat.disableInheritingDefaultResources": true,
+  "chat.modelDefaults": {
+    "claude-sonnet-5": {
+      "output_config": {
+        "effort": "xhigh"
+      }
+    }
+  }
 }

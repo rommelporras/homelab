@@ -15,7 +15,8 @@
   "allowedTools": [
     "read",
     "grep",
-    "glob"
+    "glob",
+    "subagent"
   ],
   "toolsSettings": {
     "execute_bash": {
@@ -23,7 +24,17 @@
       "autoAllowReadonly": true,
       "allowedCommands": [
         "git (status|diff|log|show|branch).*",
-        "kubectl --kubeconfig (~|\\$HOME|/home/[^/ ]+)/\\.kube/homelab\\.yaml exec -n argocd statefulset/argocd-application-controller -- argocd app (sync|get|list)( [^ ]+)? --core"
+        "kubectl --kubeconfig (~|\\$HOME|/home/[^/ ]+)/\\.kube/homelab\\.yaml exec -n argocd statefulset/argocd-application-controller -- argocd app (sync|get|list)( [^ ]+)? --core",
+        "cat [^|]*",
+        "jq [^|]*",
+        "grep [^|]*",
+        "ls [^|]*",
+        "head [^|]*",
+        "tail [^|]*",
+        "wc [^|]*",
+        "sort [^|]*",
+        "uniq [^|]*",
+        "echo [^|]*"
       ],
       "deniedCommands": [
         "kubectl.*\\b(apply|delete|patch|scale|set|edit|replace|annotate|label|cordon|drain|rollout)\\b.*",
@@ -58,7 +69,7 @@
     "preToolUse": [
       {
         "matcher": "execute_bash",
-        "command": "bash \".kiro/hooks/protect-cluster.sh\"",
+        "command": "bash \"/home/wsl/personal/homelab/.kiro/hooks/protect-cluster.sh\"",
         "timeout_ms": 5000
       }
     ]

@@ -80,7 +80,7 @@
     "preToolUse": [
       {
         "matcher": "execute_bash",
-        "command": "bash \".kiro/hooks/protect-cluster.sh\"",
+        "command": "bash \"/home/wsl/personal/homelab/.kiro/hooks/protect-cluster.sh\"",
         "timeout_ms": 5000
       }
     ]

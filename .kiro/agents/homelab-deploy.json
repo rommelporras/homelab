@@ -16,10 +16,11 @@
   "allowedTools": [
     "read",
     "grep",
-    "glob"
+    "glob",
+    "write"
   ],
   "toolsSettings": {
-    "fs_write": {
+    "write": {
       "allowedPaths": [
         "manifests/**",
         "helm/**"
@@ -81,12 +82,12 @@
     "preToolUse": [
       {
         "matcher": "execute_bash",
-        "command": "bash \".kiro/hooks/protect-cluster.sh\"",
+        "command": "bash \"/home/wsl/personal/homelab/.kiro/hooks/protect-cluster.sh\"",
         "timeout_ms": 5000
       },
       {
         "matcher": "fs_write",
-        "command": "bash \".kiro/hooks/scan-write-content.sh\"",
+        "command": "bash \"/home/wsl/personal/homelab/.kiro/hooks/scan-write-content.sh\"",
         "timeout_ms": 5000
       }
     ]
