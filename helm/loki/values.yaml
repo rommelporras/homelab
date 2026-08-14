@@ -54,10 +54,14 @@ loki:
       rules_directory: /var/loki/rules
 
   # Retention configuration
-  # 30 days = 720 hours. Post-filter ingestion ~300 MiB/day, steady-state ~9 GiB on 20Gi PVC.
-  # Reduced from 60 days after adding audit/app log filtering in Alloy (April 2026).
+  # 14 days = 336 hours. Post-filter ingestion ~300 MiB/day, steady-state ~4.1 GiB on 30Gi PVC.
+  # Reduced from 30 days (720h) 2026-08-14 after loki-0 crashlooped for 2d13h (719 restarts)
+  # with "no space left on device" during WAL replay at startup - disk full blocked the
+  # process from starting, which blocked the compactor from ever running, which kept the
+  # disk full (boot deadlock). Shorter retention lowers steady-state usage; see
+  # singleBinary.persistence.size below for the paired PVC increase.
   limits_config:
-    retention_period: 720h
+    retention_period: 336h
     # Reject logs older than 7 days (prevent backfill attacks)
     reject_old_samples: true
     reject_old_samples_max_age: 168h
@@ -109,10 +113,19 @@ singleBinary:
       memory: 1Gi
 
   # Persistence - use Longhorn for durability
+  # Bumped 20Gi->30Gi 2026-08-14 alongside the retention_period cut above, after loki-0's
+  # PVC-full crashloop (see limits_config.retention_period comment). 14d retention at
+  # ~300 MiB/day is ~4.1GiB steady-state; 30Gi (vs a tighter 25Gi) buys stall-tolerance
+  # headroom so a future compaction stall of several days doesn't immediately repeat the
+  # boot deadlock. Verified Longhorn scheduling-available headroom: cp1 169.73GiB, cp3
+  # 142.75GiB; cp2 is tight (0.72GiB scheduling-available despite ~115GiB raw free, since
+  # it already carries the most scheduled storage of the 3 nodes) and currently hosts one
+  # of loki-0's two replicas (the other is on cp1) - Longhorn may need to migrate the cp2
+  # replica to cp3 during the resize.
   persistence:
     enabled: true
     storageClass: longhorn
-    size: 20Gi
+    size: 30Gi
     accessModes:
       - ReadWriteOnce
 
