@@ -34,7 +34,8 @@
         "wc [^|]*",
         "sort [^|]*",
         "uniq [^|]*",
-        "echo [^|]*"
+        "echo [^|]*",
+        "cat > [A-Za-z0-9_./-]+\\.md <<.*"
       ],
       "deniedCommands": [
         "kubectl.*\\b(apply|delete|patch|scale|set|edit|replace|annotate|label|cordon|drain|rollout)\\b.*",

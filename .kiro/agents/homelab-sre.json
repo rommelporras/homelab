@@ -25,6 +25,9 @@
         "kubectl --kubeconfig (~|\\$HOME|/home/[^/ ]+)/\\.kube/homelab-claude\\.yaml (--server=https://10\\.10\\.30\\.10:6443 )?(get|describe|top|explain|api-resources|api-versions).*",
         "kubectl --kubeconfig (~|\\$HOME|/home/[^/ ]+)/\\.kube/homelab\\.yaml (--server=https://10\\.10\\.30\\.10:6443 )?(logs|get|describe|top).*",
         "kubectl --kubeconfig (~|\\$HOME|/home/[^/ ]+)/\\.kube/homelab\\.yaml (--server=https://10\\.10\\.30\\.10:6443 )?delete (pod|job|lease).*",
+        "kubectl --kubeconfig (~|\\$HOME|/home/[^/ ]+)/\\.kube/homelab\\.yaml (--server=https://10\\.10\\.30\\.10:6443 )?patch pvc [a-zA-Z0-9_.-]+ .*-p .*storage.*",
+        "kubectl --kubeconfig (~|\\$HOME|/home/[^/ ]+)/\\.kube/homelab\\.yaml (--server=https://10\\.10\\.30\\.10:6443 )?delete replicas?\\.longhorn\\.io [a-zA-Z0-9_.-]+ (-n|--namespace) longhorn-system.*",
+        "kubectl --kubeconfig (~|\\$HOME|/home/[^/ ]+)/\\.kube/homelab\\.yaml (--server=https://10\\.10\\.30\\.10:6443 )?patch volumes?\\.longhorn\\.io [a-zA-Z0-9_.-]+ (-n|--namespace) longhorn-system .*numberOfReplicas.*",
         "kubectl --kubeconfig (~|\\$HOME|/home/[^/ ]+)/\\.kube/homelab\\.yaml (--server=https://10\\.10\\.30\\.10:6443 )?rollout restart.*",
         "kubectl --kubeconfig (~|\\$HOME|/home/[^/ ]+)/\\.kube/homelab\\.yaml (--server=https://10\\.10\\.30\\.10:6443 )?annotate.*refresh.*",
         "kubectl --kubeconfig (~|\\$HOME|/home/[^/ ]+)/\\.kube/homelab\\.yaml exec -n argocd statefulset/argocd-application-controller -- argocd app (sync|get|list)( [^ ]+)? --core",
@@ -45,7 +48,9 @@
         "dig .*",
         "echo .*",
         "cat .*",
-        "timeout .*"
+        "timeout .*",
+        "(bash |sh )?\\.?/?scripts/longhorn/create-snapshot\\.sh [a-zA-Z0-9_.-]+",
+        "(bash |sh )?\\.?/?scripts/longhorn/add-pinned-replica\\.sh [a-zA-Z0-9_.-]+ [a-zA-Z0-9_.-]+"
       ],
       "deniedCommands": [
         "kubectl.*get.*secret.*-o.*",

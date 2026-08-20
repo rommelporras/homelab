@@ -24,9 +24,40 @@ if [[ -z "${COMMAND}" ]]; then
 fi
 
 # =============================================================================
-# HELPER: extract the leading command token, skipping VAR=val assignments.
+# STRIP HEREDOC BODIES: heredoc content is inert file data, not commands.
+# Keep the operator line (e.g. cat > f <<'EOF') and the closing delimiter
+# line, but discard every body line in between. All pattern checks below
+# run against SCAN (the stripped copy), not the raw COMMAND.
 # =============================================================================
-FIRST_CMD=$(echo "${COMMAND}" | awk '{for(i=1;i<=NF;i++) if ($i !~ /=/) {print $i; exit}}')
+# Regex matches heredoc operator: <<  optional-  optional-quote  WORD  optional-quote
+_hdoc_re='<<-?[[:space:]]*['"'"'"]?([A-Za-z0-9_]+)['"'"'"]?'
+SCAN=""
+_in_hdoc=0
+_hdoc_delim=""
+while IFS= read -r _line; do
+  if (( _in_hdoc )); then
+    # Closing delimiter: optional leading whitespace, exact delimiter word, optional trailing whitespace
+    if [[ "${_line}" =~ ^[[:space:]]*"${_hdoc_delim}"[[:space:]]*$ ]]; then
+      _in_hdoc=0
+      _hdoc_delim=""
+      SCAN+="${_line}"$'\n'
+    fi
+    # Body lines are silently dropped (inert content - do not scan)
+  else
+    SCAN+="${_line}"$'\n'
+    # Detect a heredoc operator on this line and start skipping the body
+    if [[ "${_line}" =~ ${_hdoc_re} ]]; then
+      _in_hdoc=1
+      _hdoc_delim="${BASH_REMATCH[1]}"
+    fi
+  fi
+done <<< "${COMMAND}"
+
+# =============================================================================
+# HELPER: extract the leading command token, skipping VAR=val assignments.
+# Derived from SCAN so heredoc bodies are already excluded.
+# =============================================================================
+FIRST_CMD=$(echo "${SCAN}" | awk '{for(i=1;i<=NF;i++) if ($i !~ /=/) {print $i; exit}}')
 
 # =============================================================================
 # BARE KUBECTL / HELM -- must always include --kubeconfig or KUBECONFIG=
@@ -34,7 +65,7 @@ FIRST_CMD=$(echo "${COMMAND}" | awk '{for(i=1;i<=NF;i++) if ($i !~ /=/) {print $
 # =============================================================================
 
 if [[ "${FIRST_CMD}" == "kubectl" || "${FIRST_CMD}" == "helm" ]]; then
-  if ! echo "${COMMAND}" | grep -qE '(--kubeconfig|KUBECONFIG=)'; then
+  if ! echo "${SCAN}" | grep -qE '(--kubeconfig|KUBECONFIG=)'; then
     echo "BLOCKED: Bare '${FIRST_CMD}' without --kubeconfig or KUBECONFIG= would hit the work AWS EKS cluster." >&2
     echo "   Use: kubectl --kubeconfig ~/.kube/homelab-claude.yaml ..." >&2
     echo "   Or:  KUBECONFIG=~/.kube/homelab.yaml helm ..." >&2
@@ -45,13 +76,13 @@ fi
 # KUBECONFIG= prefix followed by kubectl/helm also counts. Check those too.
 # e.g. "KUBECONFIG=... kubectl ..." -- FIRST_CMD would be KUBECONFIG=... not kubectl
 # so we need an additional check when kubectl/helm appears anywhere without the qualifier.
-if echo "${COMMAND}" | grep -qE '\bkubectl\b' && ! echo "${COMMAND}" | grep -qE '(--kubeconfig|KUBECONFIG=)'; then
+if echo "${SCAN}" | grep -qE '\bkubectl\b' && ! echo "${SCAN}" | grep -qE '(--kubeconfig|KUBECONFIG=)'; then
   echo "BLOCKED: kubectl used without --kubeconfig or KUBECONFIG= qualifier." >&2
   echo "   Always use: kubectl --kubeconfig ~/.kube/homelab-claude.yaml ..." >&2
   exit 2
 fi
 
-if echo "${COMMAND}" | grep -qE '\bhelm\b' && ! echo "${COMMAND}" | grep -qE '(--kubeconfig|KUBECONFIG=)'; then
+if echo "${SCAN}" | grep -qE '\bhelm\b' && ! echo "${SCAN}" | grep -qE '(--kubeconfig|KUBECONFIG=)'; then
   echo "BLOCKED: helm used without --kubeconfig or KUBECONFIG= qualifier." >&2
   echo "   Always use: KUBECONFIG=~/.kube/homelab.yaml helm ..." >&2
   exit 2
@@ -62,15 +93,15 @@ fi
 # =============================================================================
 
 # kubectl ... get secret[s] ... -o json|yaml|jsonpath (exposes base64-encoded values)
-if echo "${COMMAND}" | grep -qE '\bkubectl\b.*\bget\b.*\bsecrets?\b' && \
-   echo "${COMMAND}" | grep -qE '\-o[= ]*(json|yaml|jsonpath)'; then
+if echo "${SCAN}" | grep -qE '\bkubectl\b.*\bget\b.*\bsecrets?\b' && \
+   echo "${SCAN}" | grep -qE '\-o[= ]*(json|yaml|jsonpath)'; then
   echo "BLOCKED: 'kubectl get secret -o json/yaml/jsonpath' exposes secret values." >&2
   echo "   Use 'kubectl get secret <name>' (no -o flag) for existence checks only." >&2
   exit 2
 fi
 
 # kubectl ... describe secret[s] (shows base64-decoded values in Data section)
-if echo "${COMMAND}" | grep -qE '\bkubectl\b.*\bdescribe\b.*\bsecrets?\b'; then
+if echo "${SCAN}" | grep -qE '\bkubectl\b.*\bdescribe\b.*\bsecrets?\b'; then
   echo "BLOCKED: 'kubectl describe secret' exposes decoded secret values." >&2
   echo "   Use 'kubectl get secret <name>' (no -o flag) for existence checks only." >&2
   exit 2
@@ -81,7 +112,7 @@ fi
 # =============================================================================
 
 # delete pvc / persistentvolumeclaim / statefulset (data-destroying resources)
-if echo "${COMMAND}" | grep -qE '\bkubectl\b.*\bdelete\b.*\b(pvc|persistentvolumeclaim|statefulset)\b'; then
+if echo "${SCAN}" | grep -qE '\bkubectl\b.*\bdelete\b.*\b(pvc|persistentvolumeclaim|statefulset)\b'; then
   echo "BLOCKED: Deleting PVCs, PersistentVolumeClaims, or StatefulSets is not allowed." >&2
   echo "   These are data-destroying operations. Perform manually after explicit confirmation." >&2
   exit 2
@@ -89,7 +120,7 @@ fi
 
 # kubectl delete --all (any scope -- single namespace or cluster-wide is too risky)
 # Note: \b does not match before '--' since '-' is not a word character; use \s instead.
-if echo "${COMMAND}" | grep -qE '\bkubectl\b.*\bdelete\b.*\s--all(\s|$)'; then
+if echo "${SCAN}" | grep -qE '\bkubectl\b.*\bdelete\b.*\s--all(\s|$)'; then
   echo "BLOCKED: 'kubectl delete --all' mass-deletes resources and is not allowed." >&2
   echo "   Scope the delete to a specific named resource in a specific namespace." >&2
   exit 2
@@ -101,11 +132,11 @@ fi
 
 # ArgoCD manual-sync via the controller pod is a documented CONFIRM-tier GitOps op (gitops.md).
 # Allow ONLY: argocd app sync|get|list ... --core into argocd-application-controller. Nothing else.
-if echo "${COMMAND}" | grep -qE 'kubectl.*--kubeconfig.*homelab\.yaml.*exec -n argocd statefulset/argocd-application-controller -- argocd app (sync|get|list)( [^ ]+)? --core'; then
+if echo "${SCAN}" | grep -qE 'kubectl.*--kubeconfig.*homelab\.yaml.*exec -n argocd statefulset/argocd-application-controller -- argocd app (sync|get|list)( [^ ]+)? --core'; then
   exit 0
 fi
 
-if echo "${COMMAND}" | grep -qE '\bkubectl\b.*\b(exec|cp|port-forward)\b'; then
+if echo "${SCAN}" | grep -qE '\bkubectl\b.*\b(exec|cp|port-forward)\b'; then
   echo "BLOCKED: 'kubectl exec/cp/port-forward' is not allowed." >&2
   echo "   These operations allow arbitrary command execution or file access on cluster pods." >&2
   exit 2
@@ -115,7 +146,7 @@ fi
 # DESTRUCTIVE HELM OPERATIONS
 # =============================================================================
 
-if echo "${COMMAND}" | grep -qE '\bhelm\b.*(uninstall|delete)\b'; then
+if echo "${SCAN}" | grep -qE '\bhelm\b.*(uninstall|delete)\b'; then
   echo "BLOCKED: 'helm uninstall/delete' deletes live resources and causes outages." >&2
   echo "   For Helm-to-ArgoCD handover, delete the Helm release secret only:" >&2
   echo "   kubectl ... delete secrets -n <ns> -l name=<release>,owner=helm" >&2
@@ -126,7 +157,7 @@ fi
 # KUBEADM RESET
 # =============================================================================
 
-if echo "${COMMAND}" | grep -qE '\bkubeadm\b.*\breset\b'; then
+if echo "${SCAN}" | grep -qE '\bkubeadm\b.*\breset\b'; then
   echo "BLOCKED: 'kubeadm reset' destroys the cluster node and is never allowed." >&2
   exit 2
 fi
@@ -143,7 +174,7 @@ fi
 # RECURSIVE RM
 # =============================================================================
 
-if echo "${COMMAND}" | grep -qE '\brm\s+(-[a-zA-Z]*r[a-zA-Z]*|-[a-zA-Z]*R[a-zA-Z]*|--recursive)'; then
+if echo "${SCAN}" | grep -qE '\brm\s+(-[a-zA-Z]*r[a-zA-Z]*|-[a-zA-Z]*R[a-zA-Z]*|--recursive)'; then
   echo "BLOCKED: Recursive rm is not allowed." >&2
   echo "   Delete files individually or ask the user to run this manually." >&2
   exit 2
@@ -154,12 +185,12 @@ fi
 # =============================================================================
 
 # etcdctl -- direct etcd access touches all cluster state
-if echo "${COMMAND}" | grep -qE '\betcdctl\b'; then
+if echo "${SCAN}" | grep -qE '\betcdctl\b'; then
   echo "WARNING: etcdctl detected -- this tool reads/writes raw cluster state directly." >&2
 fi
 
 # kubeadm (non-reset) -- surface visibility that kubeadm is being used
-if echo "${COMMAND}" | grep -qE '\bkubeadm\b' && ! echo "${COMMAND}" | grep -qE '\bkubeadm\b.*\breset\b'; then
+if echo "${SCAN}" | grep -qE '\bkubeadm\b' && ! echo "${SCAN}" | grep -qE '\bkubeadm\b.*\breset\b'; then
   echo "WARNING: kubeadm detected -- verify this is a read-only operation." >&2
 fi
 
