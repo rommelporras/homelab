@@ -60,6 +60,33 @@ done <<< "${COMMAND}"
 FIRST_CMD=$(echo "${SCAN}" | awk '{for(i=1;i<=NF;i++) if ($i !~ /=/) {print $i; exit}}')
 
 # =============================================================================
+# HELPER: does SCAN invoke kubectl/helm as an actual command verb anywhere?
+# Splits on shell operators (; && || |) and inspects only each segment's
+# leading token (skipping VAR=val assignments), never the raw joined string.
+# This avoids false positives on substrings inside arguments/paths, e.g.
+# "git diff -- helm/loki/values.yaml" (path contains "helm" but is not a
+# helm invocation) or "kubectl describe node k8s-cp1" (node name contains
+# "cp" but is not a `kubectl cp` invocation).
+# Prints "1" if any segment's command token is kubectl or helm.
+# =============================================================================
+_has_verb() {
+  local verb="${1}"
+  echo "${SCAN}" | awk -v verb="${verb}" '
+    BEGIN { RS="&&|\\|\\||[;|]"; found=0 }
+    {
+      n = split($0, toks, /[[:space:]]+/)
+      for (i = 1; i <= n; i++) {
+        if (toks[i] == "") continue
+        if (toks[i] ~ /=/) continue   # skip VAR=val assignments
+        if (toks[i] == verb) found=1
+        break                          # only the leading real token counts
+      }
+    }
+    END { if (found) print "1" }
+  '
+}
+
+# =============================================================================
 # BARE KUBECTL / HELM -- must always include --kubeconfig or KUBECONFIG=
 # Bare commands connect to the work AWS EKS cluster, not the homelab.
 # =============================================================================
@@ -73,16 +100,17 @@ if [[ "${FIRST_CMD}" == "kubectl" || "${FIRST_CMD}" == "helm" ]]; then
   fi
 fi
 
-# KUBECONFIG= prefix followed by kubectl/helm also counts. Check those too.
-# e.g. "KUBECONFIG=... kubectl ..." -- FIRST_CMD would be KUBECONFIG=... not kubectl
-# so we need an additional check when kubectl/helm appears anywhere without the qualifier.
-if echo "${SCAN}" | grep -qE '\bkubectl\b' && ! echo "${SCAN}" | grep -qE '(--kubeconfig|KUBECONFIG=)'; then
+# kubectl/helm invoked as a command verb anywhere in a compound command
+# (e.g. after && or ;) also counts. Checked via _has_verb (token-based,
+# not substring) so path/argument text containing "kubectl"/"helm" never
+# trips this.
+if [[ "$(_has_verb kubectl)" == "1" ]] && ! echo "${SCAN}" | grep -qE '(--kubeconfig|KUBECONFIG=)'; then
   echo "BLOCKED: kubectl used without --kubeconfig or KUBECONFIG= qualifier." >&2
   echo "   Always use: kubectl --kubeconfig ~/.kube/homelab-claude.yaml ..." >&2
   exit 2
 fi
 
-if echo "${SCAN}" | grep -qE '\bhelm\b' && ! echo "${SCAN}" | grep -qE '(--kubeconfig|KUBECONFIG=)'; then
+if [[ "$(_has_verb helm)" == "1" ]] && ! echo "${SCAN}" | grep -qE '(--kubeconfig|KUBECONFIG=)'; then
   echo "BLOCKED: helm used without --kubeconfig or KUBECONFIG= qualifier." >&2
   echo "   Always use: KUBECONFIG=~/.kube/homelab.yaml helm ..." >&2
   exit 2
@@ -127,7 +155,7 @@ if echo "${SCAN}" | grep -qE '\bkubectl\b.*\bdelete\b.*\s--all(\s|$)'; then
 fi
 
 # =============================================================================
-# KUBECTL EXEC / CP / PORT-FORWARD -- interactive/file-access operations
+# KUBECTL EXEC / CP / PORT-FORWARD -- permitted (LAN homelab); warn-only
 # =============================================================================
 
 # ArgoCD manual-sync via the controller pod is a documented CONFIRM-tier GitOps op (gitops.md).
@@ -136,10 +164,28 @@ if echo "${SCAN}" | grep -qE 'kubectl.*--kubeconfig.*homelab\.yaml.*exec -n argo
   exit 0
 fi
 
-if echo "${SCAN}" | grep -qE '\bkubectl\b.*\b(exec|cp|port-forward)\b'; then
-  echo "BLOCKED: 'kubectl exec/cp/port-forward' is not allowed." >&2
-  echo "   These operations allow arbitrary command execution or file access on cluster pods." >&2
-  exit 2
+# =============================================================================
+# HELPER: does SCAN contain kubectl followed later by one of the given verbs
+# as a standalone whitespace-delimited token? Unlike \bexec\b/\bcp\b/\b..\b,
+# this does not match a verb name embedded inside a larger token such as a
+# node name (k8s-cp1) or a flag value (alloc-cpu), because those are not
+# surrounded by whitespace on both sides.
+# =============================================================================
+_kubectl_has_token_verb() {
+  echo "${SCAN}" | grep -qE '\bkubectl\b' || return 1
+  echo "${SCAN}" | awk '
+    {
+      n = split($0, toks, /[[:space:]]+/)
+      for (i = 1; i <= n; i++) {
+        if (toks[i] == "exec" || toks[i] == "cp" || toks[i] == "port-forward") { print "1"; exit }
+      }
+    }
+  ' | grep -q 1
+}
+
+if _kubectl_has_token_verb; then
+  echo "WARNING: kubectl exec/cp/port-forward detected -- permitted on this LAN homelab (owner decision)." >&2
+  echo "   Per-agent allowlists still gate access (homelab-deploy denies these). Use read-only intent where possible." >&2
 fi
 
 # =============================================================================
