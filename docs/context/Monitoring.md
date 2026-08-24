@@ -52,8 +52,24 @@ Observability stack: Prometheus, Grafana, Loki, Alertmanager.
 | Setting | Value |
 |---------|-------|
 | Mode | SingleBinary |
-| Retention | 60 days |
-| Storage | Longhorn PVC (20Gi) |
+| Retention | 14 days (336h) |
+| Storage | Longhorn PVC (35Gi) |
+
+## Alert coverage gaps (known)
+
+- **AdGuard DNS (VIP-level) has no dedicated alert** - pod-level health checks
+  (`adguard-home` Deployment readiness) stay green even when the service is
+  completely unreachable from outside the cluster, because the failure mode
+  is a Cilium L2-announcement lease pinned to a node with no local backend
+  (see CLAUDE.md gotcha "Cilium L2 announcement lease pins to a node..."),
+  not an application-level failure. Confirmed 2026-08-24: the VIP
+  (`10.10.30.53`) was unreachable and no alert fired for it - discovered only
+  as a side effect while investigating an unrelated Loki incident (kubectl
+  calls needed the VIP-override fallback, which is how the DNS outage was
+  noticed). Consider a Blackbox probe against the VIP itself (DNS query
+  response, not just TCP/pod health) to close this gap - pod-level probes
+  cannot catch L2-lease drift by design, since the pod itself stays healthy
+  throughout.
 
 Query logs:
 ```bash
