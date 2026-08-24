@@ -36,8 +36,21 @@ controller:
     requests:
       cpu: 100m
       memory: 128Mi
+    # limits.cpu bumped 500m->1500m 2026-08-24 after the controller's shared
+    # ConfigMap informer hit CPU throttling at the 500m limit, causing a
+    # self-sustaining busy-loop in its error-handling path: a failed type
+    # assertion on a tombstone/stale informer event ("invalid config map
+    # object received in config watcher") logged with no backoff, and each
+    # throttled CFS cycle still burned a full CPU-second slice just logging
+    # text, sustaining the loop indefinitely instead of self-resolving. Ran
+    # continuously for 116-120 days, reaching bursts of ~500k lines/sec while
+    # active - the primary driver behind the storage-loki-0 disk-full
+    # incident (see helm/loki/values.yaml persistence.size comment). This
+    # bump breaks the throttle-induced amplification; if the underlying
+    # informer tombstone-handling bug persists after this, a version bump
+    # past v4.0.4 (controller.image.tag) may be needed for a complete fix.
     limits:
-      cpu: 500m
+      cpu: 1500m
       memory: 512Mi
 
   securityContext:
