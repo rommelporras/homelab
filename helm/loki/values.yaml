@@ -125,7 +125,7 @@ singleBinary:
   persistence:
     enabled: true
     storageClass: longhorn
-    size: 30Gi
+    size: 35Gi
     accessModes:
       - ReadWriteOnce
 
