@@ -137,7 +137,7 @@ Things that bit us and might save you time:
 
 - **Cloudflare free SSL wildcard depth** — Free plans only cover `*.rommelporras.com`, NOT `*.blog.rommelporras.com`. We use single-level subdomains like `blog-api.rommelporras.com` for analytics endpoints to stay on the free tier.
 
-- **Rebuild guides as a pattern** - Every release (v0.1.0 through v0.29.0) has a [complete rebuild guide](docs/rebuild/README.md), with v0.30.0+ hardening phases baked into existing guides (except v0.37.0, which has a standalone guide). If the cluster dies, we can rebuild everything from scratch by following the guides in order. This also serves as living documentation that never goes stale.
+- **Rebuild guides as a pattern** - Every release (v0.1.0 through v0.29.0) has a [complete rebuild guide](docs/rebuild/README.md), with v0.30.0+ hardening phases baked into existing guides (except v0.37.0 and v0.39.2, which have standalone guides). If the cluster dies, we can rebuild everything from scratch by following the guides in order. This also serves as living documentation that never goes stale.
 
 - **CiliumNetworkPolicy vs forwarded traffic** — CiliumNetworkPolicy filters forwarded/routed packets, not just local pod traffic. This means a network policy on a Tailscale Connector pod will break subnet routing entirely. Only apply policies to the operator, not the proxy.
 
@@ -151,7 +151,7 @@ Things that bit us and might save you time:
 |----------|---------|
 | [docs/rebuild/README.md](docs/rebuild/README.md) | **New machine setup** - clone-and-go guide for any workstation |
 | [docs/context/Cluster.md](docs/context/Cluster.md) | **Source of truth** - nodes, IPs, hardware |
-| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (v0.1.0 to v0.29.0, v0.37.0 standalone; v0.30.0+ baked in) |
+| [docs/rebuild/](docs/rebuild/README.md) | Step-by-step rebuild guides (v0.1.0 to v0.29.0, v0.37.0 + v0.39.2 standalone; v0.30.0+ baked in) |
 | [docs/context/](docs/context/) | Knowledge base (13 topic files: Architecture, Gateway, Networking, Security, etc.) |
 | [docs/todo/](docs/todo/README.md) | Phase plans (active + [completed](docs/todo/completed/)) |
 | [docs/reference/CHANGELOG.md](docs/reference/CHANGELOG.md) | Decision history and project timeline |
@@ -172,3 +172,10 @@ Things that bit us and might save you time:
 ## Claude Code
 
 This project uses [Claude Code](https://claude.ai/code) with a shared global config — see [rommelporras/claude-config](https://github.com/rommelporras/claude-config) for setup instructions before working on a new machine.
+
+## Kiro CLI Agents
+
+This repo ships a workspace-local [Kiro CLI](https://kiro.dev) agent ecosystem in `.kiro/`. Three agents handle distinct surfaces: `homelab-orchestrator` (default, owns git), `homelab-sre` (live cluster investigation and remediation), and `homelab-deploy` (manifest and Helm values authoring). Skills trigger automatically from natural language - no slash commands.
+
+- **How-to guide:** [`docs/kiro-guide.md`](docs/kiro-guide.md) - workflows, skill triggering, debug walkthroughs, safety model, reference tables
+- **Config reference:** [`.kiro/README.md`](.kiro/README.md) - agent family, write surfaces, safety summary, contents tree

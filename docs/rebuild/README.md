@@ -431,6 +431,10 @@ homelab/
 │   ├── storage/                        # v0.4.0
 │   │   ├── longhorn/httproute.yaml
 │   │   └── nfs-immich.yaml
+│   ├── external-secrets/               # v0.29.0 (ESO CiliumNetworkPolicy)
+│   ├── velero/                         # v0.34.0 (Velero + Garage S3 backend)
+│   ├── argo-workflows/                 # v0.39.0 (controller + vault-snapshot CronWorkflow + CI templates)
+│   ├── argo-events/                    # v0.39.2 (EventBus + EventSources + Sensors)
 │   ├── network-policies/               # v0.7.0+
 │   └── monitoring/                     # v0.4.0 (reorganized into subdirs v0.27.0)
 │       ├── alerts/
@@ -561,3 +565,6 @@ homelab/
 | Opensubtitles | Kubernetes | v0.23.0 |
 | Atuin | Kubernetes | v0.28.0 |
 | Vault Unseal Keys | Kubernetes | v0.29.0 |
+| Garage S3 (Velero backend) | Kubernetes | v0.34.0 |
+| ArgoCD | Kubernetes | v0.37.0 |
+| Argo Workflows (incl. CI/CD + Argo Events creds) | Kubernetes | v0.39.0 |

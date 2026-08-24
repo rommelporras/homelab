@@ -503,7 +503,7 @@ notify-on-failure  (fires only when workflow.status != Succeeded)
   vault delete auth/kubernetes/role/vault-snapshot
   ```
 
-  **Tracked in [`docs/todo/deferred.md`](deferred.md) → "Phase 5.9 Vault
+  **Tracked in [`docs/todo/deferred.md`](../deferred.md) → "Phase 5.9 Vault
   Snapshot Cutover Cleanup"** — bundled with 5.9.3.10 for the 5-7-day
   post-cutover cleanup. Does not block v0.39.0 ship.
 
@@ -618,7 +618,7 @@ recurse: true).
   on the NAS is not affected - only the PV/PVC K8s objects are removed. The
   argo-workflows PV continues to mount the same NAS path.
 
-  **Tracked in [`docs/todo/deferred.md`](deferred.md) → "Phase 5.9 Vault
+  **Tracked in [`docs/todo/deferred.md`](../deferred.md) → "Phase 5.9 Vault
   Snapshot Cutover Cleanup"** — includes readiness check commands (workflow
   success count + NAS snapshot presence), target date 2026-04-21, and the
   full checklist. Does not block v0.39.0 ship.
@@ -1071,9 +1071,9 @@ for the full write-up:
 ### Deferred / intentionally out of scope
 
 - **NVMe reseat on k8s-cp3** - physical maintenance, runbook-tracked not
-  phase-tracked. Tracked in [`docs/todo/deferred.md`](deferred.md) →
+  phase-tracked. Tracked in [`docs/todo/deferred.md`](../deferred.md) →
   "k8s-cp3 NVMe Reseat" with full procedure reference
-  ([`docs/runbooks/longhorn-hardware.md`](../runbooks/longhorn-hardware.md)).
+  ([`docs/runbooks/longhorn-hardware.md`](../../runbooks/longhorn-hardware.md)).
   Schedule during the next planned node reboot window
 - **`concurrent-replica-rebuild-per-node-limit` tuning** - revisit only if
   `LonghornVolumeAutoSalvaged` fires repeatedly on the same node within a

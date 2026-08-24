@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, index]
-updated: 2026-04-28
+updated: 2026-07-10
 ---
 
 # Homelab Kubernetes Context
@@ -12,7 +12,12 @@ updated: 2026-04-28
 
 | Need | Go To |
 |------|-------|
+| 🔴 Something is broken (start here - usable with no AI) | [docs/runbooks/00-EMERGENCY.md](../runbooks/00-EMERGENCY.md) |
+| 🟢 How to do routine tasks (deploy, add a service, secrets, ArgoCD) | [docs/operations/](../operations/) |
+| 🗺️ Full documentation map | [docs/README.md](../README.md) |
 | Node IPs, hostnames | [[Cluster]] |
+| Physical layout, power tree, console access | [Hardware](Hardware.md) |
+| GPU / Intel device plugin / NFD | [GPU-and-Device-Plugins](GPU-and-Device-Plugins.md) |
 | Component versions | [VERSIONS.md](../../VERSIONS.md) |
 | Commands, rules, patterns | [[Conventions]] |
 | Why decisions were made | [[Architecture]] |
@@ -35,7 +40,7 @@ updated: 2026-04-28
 | Nodes | 3 control planes (k8s-cp1, cp2, cp3) |
 | CNI | Cilium 1.19.2 |
 | Storage | Longhorn 1.11.1 |
-| Status | v0.39.1 released; v0.39.2 (Argo Events CI/CD) ready to ship |
+| Status | v0.39.2 (Argo Events CI/CD) released; next target v1.0.0 (CKA-ready) |
 
 ## Source
 

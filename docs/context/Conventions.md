@@ -1,6 +1,6 @@
 ---
 tags: [homelab, kubernetes, conventions, rules]
-updated: 2026-04-19
+updated: 2026-07-10
 ---
 
 # Conventions
@@ -27,6 +27,10 @@ helm-homelab list -A
 kubectl get nodes
 helm list -A
 ```
+
+**Kiro agents use the same access model** - full `kubectl --kubeconfig <path>` forms
+(bash has no zsh aliases), restricted kubeconfig for reads, admin for logs and
+remediation. See [../../.kiro/README.md](../../.kiro/README.md) for the agent list.
 
 ## Deploying Changes (GitOps)
 
@@ -157,9 +161,11 @@ homelab/
 │       └── verify-migration.sh    # Post-migration health check (ESO sync, Vault status)
 ├── docs/
 │   ├── context/             # This knowledge base (RAG source)
-│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0-v0.37.0)
+│   ├── operations/          # How-to guides (deploy, add service, secrets, restore)
+│   ├── rebuild/             # Step-by-step rebuild guides (v0.1.0-v0.39.2)
 │   ├── runbooks/            # Operator triage guides per alert/component
 │   ├── todo/                # Active and completed phase plans
+│   ├── plans/               # One-off implementation plans
 │   └── reference/           # CHANGELOG, historical docs
 └── ansible/                 # Bootstrap automation
 ```

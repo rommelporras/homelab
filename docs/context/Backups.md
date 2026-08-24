@@ -21,13 +21,13 @@ NFS target: `10.10.30.4:/Kubernetes/Backups/longhorn`
 | weekly-backup-important | important | 0 22 * * 6 | 06:00 Sunday | 2 |
 
 **Critical group** (14 daily + 4 weekly retain):
-vault-data, gitlab-postgresql, gitlab-gitaly, gitlab-minio, ghost-prod-mysql, ghost-prod-content, invoicetron-prod-db, karakeep-data, meilisearch-data, atuin-postgres, velero/garage-data.
+vault-data, gitlab-postgresql, gitlab-gitaly, gitlab-minio, ghost-prod-mysql, ghost-prod-content, invoicetron-prod-db, karakeep-data, atuin-postgres, velero/garage-data.
 
 **Important group** (7 daily + 2 weekly retain):
 adguard-data, myspeed-data, uptime-kuma, grafana, bazarr, jellyfin, prowlarr, qbittorrent, radarr, recommendarr, seerr, sonarr, tdarr-server, tdarr-configs, prometheus-db, ghost-dev-mysql, loki-storage, atuin-config.
 
 **Excluded** (no Longhorn backup - intentional):
-alertmanager-db (ephemeral silences/state), ghost-dev-content (recoverable from prod), ollama-models (re-downloadable), firefox-config (low-value browser state), gitlab-redis (ephemeral cache), invoicetron-dev-db (dev database).
+alertmanager-db (ephemeral silences/state), ghost-dev-content (recoverable from prod), ollama-models (re-downloadable), firefox-config (low-value browser state), gitlab-redis (ephemeral cache), invoicetron-dev-db (dev database), meilisearch-data (rebuildable Karakeep search index - re-indexed from source bookmarks; excluded to save NAS space).
 
 ### Layer 2: Velero K8s Resource Backups
 
@@ -74,13 +74,16 @@ NFS target: `10.10.30.4:/Kubernetes/Backups/<service>`
 | grafana-backup | monitoring | 02:20 daily | 3 days | SQLite .backup |
 | arr-backup-{bazarr,jellyfin,prowlarr,qbittorrent,radarr,recommendarr,seerr,sonarr,tdarr} | arr-stack | 02:25 daily | 3 days | SQLite .backup (9 per-app CronJobs with `podAffinity` - restructured in Phase 5.8.2 from the earlier 3 per-node grouping to avoid cross-PVC mount failures when apps reschedule) |
 | myspeed-backup | home | 02:30 daily | 3 days | SQLite .backup |
-| etcd-backup | kube-system | 03:30 daily | 14 days | etcdctl snapshot |
+| etcd-backup | kube-system | 03:30 daily | 3 days | etcdctl snapshot |
 | atuin-backup | atuin | 02:00 Sunday | 3 days | pg_dump |
 | invoicetron-db-backup | invoicetron-prod | 09:00 daily | 3 days | pg_dump |
 | pki-backup | kube-system | 20:00 Sunday | 14 days | /etc/kubernetes/pki copy |
 
 NAS retention is short (3 days) because the off-site backup pulls everything to restic.
-etcd and PKI keep 14 days because they run less frequently and are critical for cluster recovery.
+etcd keeps 3 days on the NAS (the manifest prunes at `-mtime +3`; deep history is in
+the off-site restic repo). Only **PKI** keeps 14 days (it runs weekly and is critical
+for cluster recovery). Source of truth: `manifests/kube-system/etcd-backup.yaml` and
+`pki-backup.yaml`.
 
 ---
 
@@ -170,7 +173,7 @@ Check alert status: Grafana > Alerting, or `kubectl-homelab get prometheusrules 
 |-------|----------|-----------|-----------|
 | Longhorn snapshots | NAS NFS | 7-14 daily, 2-4 weekly | No (NAS VLAN) |
 | Velero resources | Garage S3 (in-cluster) | 30 days (TTL 720h) | No |
-| CronJob dumps | NAS NFS | 3 days (14 for etcd/pki) | No (NAS VLAN) |
+| CronJob dumps | NAS NFS | 3 days (14 for pki only) | No (NAS VLAN) |
 | Off-site (restic) | OneDrive | 7 daily, 4 weekly, 6 monthly | Yes (AES-256) |
 
 The NAS is short-term staging. Deep history lives in the encrypted restic repo on OneDrive.

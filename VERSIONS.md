@@ -1,7 +1,7 @@
 # Versions
 
 > Component versions for the homelab infrastructure.
-> **Last Updated:** April 28, 2026
+> **Last Updated:** July 10, 2026
 
 ---
 

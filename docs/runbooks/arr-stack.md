@@ -111,7 +111,7 @@ Tdarr GPU transcoding service is unreachable. GPU transcoding is unavailable.
    kubectl-homelab logs -n arr-stack deploy/tdarr --tail=50
 
 3. Check GPU device plugin:
-   kubectl-homelab get pods -n kube-system -l app=intel-gpu-plugin
+   kubectl-homelab get pods -n intel-device-plugins -l app=intel-gpu-plugin
 
 4. Check events:
    kubectl-homelab describe pod -n arr-stack -l app=tdarr
@@ -244,7 +244,7 @@ Jellyfin media server is unreachable. Media streaming is unavailable.
    kubectl-homelab exec -n arr-stack deploy/jellyfin -- ls /data/media/
 
 4. Check GPU device plugin (QSV):
-   kubectl-homelab get pods -n kube-system -l app=intel-gpu-plugin
+   kubectl-homelab get pods -n intel-device-plugins -l app=intel-gpu-plugin
 ```
 
 ---
@@ -316,7 +316,7 @@ Tdarr has more than 15 new encode failures in the last hour - indicative of a sy
    kubectl-homelab logs -n arr-stack -l app=tdarr-node --tail=200
 
 3. Check Intel GPU plugin availability:
-   kubectl-homelab get pods -n kube-system -l app=intel-gpu-plugin
+   kubectl-homelab get pods -n intel-device-plugins -l app=intel-gpu-plugin
 
 4. If all items are failing, pause the Tdarr queue and investigate before restarting.
 
