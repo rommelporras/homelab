@@ -53,6 +53,10 @@
         "echo .*",
         "cat .*",
         "timeout .*",
+        "ping (-[a-zA-Z0-9]+ ?([0-9]+ )?)* ?(10\\.10\\.30\\.[0-9]{1,3}|[a-zA-Z0-9.-]+\\.rommelporras\\.com)",
+        "ip neigh( show)? ?(10\\.10\\.30\\.[0-9]{1,3})?",
+        "sleep [0-9]+",
+        "which .*",
         "(bash |sh )?\\.?/?scripts/longhorn/create-snapshot\\.sh [a-zA-Z0-9_.-]+",
         "(bash |sh )?\\.?/?scripts/longhorn/add-pinned-replica\\.sh [a-zA-Z0-9_.-]+ [a-zA-Z0-9_.-]+"
       ],
