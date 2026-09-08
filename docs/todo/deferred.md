@@ -898,9 +898,56 @@ Per-credential exact commands are in `docs/todo/completed/phase-5.9.1-cicd-pipel
 
 ## Cilium L2 Announcement Lease Auto-Rebalance
 
-**Status:** Deferred - immediate fix applied, long-term fix pending
-**Priority:** Medium (silent breakage on pod migration; not data-affecting)
+**Status:** Deferred - immediate fix applied twice now (2026-04-28, 2026-09-08); long-term fix still pending
+**Priority:** Medium -> reconsider bumping to High given second occurrence (silent breakage on pod migration; not data-affecting, but now confirmed recurring, not a one-off)
 **Added:** 2026-04-28
+**Updated:** 2026-09-08 (second occurrence, full-cluster reboot triggered same failure mode)
+
+### Second occurrence (2026-09-08)
+
+Same failure mode, different trigger: a disk-fill incident forced a sequential
+reboot of all 3 nodes. AdGuard's pod rescheduled cp1->cp2 as part of normal
+post-reboot scheduling, but the `cilium-l2announce-home-adguard-dns` lease
+came back up still held by cp1 (the node that happened to win leader election
+on cilium-agent restart, unrelated to where the backend pod landed). Same
+`externalTrafficPolicy: Local` + stale-lease mechanism as the original
+2026-04-28 incident - this time triggered by a full reboot rather than a
+targeted pod recreation, confirming the bug reproduces under multiple trigger
+conditions, not just the original one-off scenario.
+
+Immediate fix applied again: delete the cilium-agent pod on the mismatched
+lease-holder node (`kubectl --kubeconfig ~/.kube/homelab.yaml delete pod -n
+kube-system cilium-x4rxc` on cp1), forcing re-election. Lease moved to cp2
+(matching the actual pod node) within seconds; verified via `dig @10.10.30.53`
+for both external and internal resolution. Side effect noted: this also
+released the 3 other leases cp1 held (`cilium-gateway-homelab-gateway`,
+`gitlab-shell-lb`, `otel-collector`), which redistributed to cp2/cp3 - harmless
+here since none of those had a Local-policy mismatch, but it's a reminder that
+the blast radius of "delete the agent pod" is every lease on that node, not
+just the broken one. This is a structural argument in favor of Option A below:
+per-service policies would make the blast radius of a fix (or of an
+upstream re-election trigger) per-service instead of per-node.
+
+**This confirms the deferred fix should no longer be treated as low-urgency
+speculative hardening - it has now caused two independent user-facing DNS
+outages from two different trigger conditions (targeted pod recreation, and
+full-cluster reboot). A third trigger (any future node drain/maintenance,
+Helm upgrade of anything with a Local-policy LoadBalancer Service) is equally
+plausible and equally undetected until a human notices DNS is down.**
+
+### Answering "should we add more replicas / pods per node" (2026-09-08)
+
+Considered and rejected as the fix: increasing AdGuard's replica count (or
+running one pod per node) does not address the actual bug. The failure mode
+is lease-vs-backend-node mismatch, not insufficient capacity - a second
+replica on a different node does not make Cilium's L2 leader election track
+pod migration any more reliably; it just changes which specific node's
+mismatch would break traffic. This would also conflict with the existing
+`strategy: Recreate` requirement on `externalTrafficPolicy: Local` RWO-style
+services (see `deployment.yaml` comments) and add real complexity (config/PVC
+sharing or split, dual-write conflicts on the SQLite-backed AdGuard config) for
+zero improvement on the actual failure mechanism. Not pursuing multi-replica
+as a direction; Option A (below) remains the recommended fix.
 
 ### What happened
 
