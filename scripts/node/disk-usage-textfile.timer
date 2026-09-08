@@ -1,0 +1,13 @@
+[Unit]
+Description=Periodic trigger for disk-usage-textfile.service
+
+[Timer]
+# 2 minutes - fast enough to catch a fast drain in progress (the 2026-09-08
+# incident drained ~180GiB in ~25-37 minutes; 2min sampling gives ~12-18
+# data points across a drain of that speed, enough to see the slope).
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

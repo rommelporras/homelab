@@ -225,6 +225,23 @@ prometheus-node-exporter:
       # CPU is compressible; memory is not. Only memory limits matter for stability.
       memory: 64Mi
 
+  # Textfile collector - host-level script (scripts/node/disk-usage-textfile.sh,
+  # systemd-timer installed, not GitOps-managed) writes per-directory disk usage
+  # to disk_usage.prom as a fallback for diagnosing fast disk drains that outpace
+  # node_filesystem_avail_bytes's default resolution/granularity. Added after the
+  # 2026-09-08 disk-fill incident forensic investigation came up inconclusive with
+  # only the default metric available.
+  extraArgs:
+    - --collector.textfile.directory=/var/lib/node_exporter/textfile_collector
+
+  # Mount the same host directory (read-only) so node-exporter can read the
+  # textfile the host-level script writes.
+  extraHostVolumeMounts:
+    - name: textfile-collector
+      hostPath: /var/lib/node_exporter/textfile_collector
+      mountPath: /var/lib/node_exporter/textfile_collector
+      readOnly: true
+
 # =============================================================================
 # kube-state-metrics
 # =============================================================================

@@ -1,0 +1,6 @@
+[Unit]
+Description=Write per-directory disk usage textfile for node-exporter
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/disk-usage-textfile.sh
