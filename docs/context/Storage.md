@@ -231,6 +231,55 @@ sudo systemctl restart multipathd
 
 Reference: https://github.com/longhorn/longhorn/issues/11411
 
+## Node-level disk usage tripwire (not GitOps-managed)
+
+Added 2026-09-08 after a disk-fill incident where forensic reconstruction was
+inconclusive - the default `node_filesystem_avail_bytes` metric (60s scrape
+resolution, root filesystem total only) couldn't isolate which directory
+drove a ~180GiB drain in ~30 minutes on cp2.
+
+`scripts/node/disk-usage-textfile.sh` runs on each node via a systemd timer
+(every 2 minutes) and writes `node_directory_size_bytes{directory="..."}` for
+`/var/lib/containerd`, `/var/lib/longhorn`, and `/var/log` to node-exporter's
+textfile collector directory. node-exporter (configured in
+`helm/prometheus/values.yaml` with `--collector.textfile.directory`) picks it
+up automatically on its next scrape - no new exporter, no new pod.
+
+**This is intentionally not a Kubernetes manifest or ArgoCD-managed.** It's
+node-level OS configuration, same category as `/etc/multipath.conf` above or
+the `protectKernelDefaults` sysctls (see CLAUDE.md gotchas) - and it needs to
+keep working even if kubelet/containerd are unhealthy, which is exactly the
+condition it exists to observe. A DaemonSet would add a new pod lifecycle to
+reason about and would itself be a candidate for failing during the exact
+crisis window it's meant to instrument.
+
+**Install on each node (one-time, not automated by any agent):**
+
+```bash
+sudo install -m 0755 scripts/node/disk-usage-textfile.sh /usr/local/bin/disk-usage-textfile.sh
+sudo install -m 0644 scripts/node/disk-usage-textfile.service /etc/systemd/system/
+sudo install -m 0644 scripts/node/disk-usage-textfile.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now disk-usage-textfile.timer
+```
+
+**Verify:**
+
+```bash
+sudo systemctl status disk-usage-textfile.timer
+cat /var/lib/node_exporter/textfile_collector/disk_usage.prom
+```
+
+**Query in Grafana/Prometheus:** `node_directory_size_bytes{directory="containerd"}`
+(or `longhorn`, `log`) - `rate()` or a raw graph over time shows the slope of
+a drain in progress, which is the data point the 2026-09-08 investigation
+didn't have.
+
+No alert is wired to this yet - it's a diagnostic data source, not an alerting
+signal. If a specific directory's growth rate proves to be a reliable early
+warning after being observed through a real incident, promote it to an alert
+then (see `docs/todo/deferred.md` if a decision to add one is deferred).
+
 ## Related
 
 - [[Architecture]] - Why Longhorn on NVMe, three-layer backup strategy
