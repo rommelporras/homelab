@@ -68,6 +68,15 @@ prometheus:
     # 60d retention. Real ingestion ran higher than the original 0.2 GiB/day
     # estimate; live volume hit 93% on 60Gi before the 2026-04-28 resize batch.
     retention: 60d
+    # retentionSize caps disk usage as a companion to time-based retention.
+    # Current state: 520,935 head series, ~7,708 samples/sec ingestion.
+    # 60Gi->80Gi (2026-04-28) was the third reactive resize with no size cap
+    # added — retention alone can't stop TSDB from filling the PVC if
+    # ingestion volume grows faster than expected. 72GB = 90% of the 80Gi
+    # PVC, leaving ~10% headroom for WAL + compaction scratch space (never
+    # set this at 100% — Prometheus needs working room during compaction).
+    # Whichever limit (retention or retentionSize) is hit first wins.
+    retentionSize: 72GB
 
     # Storage - uses Longhorn PVC
     # 2026-04-28: expanded 60Gi -> 80Gi (live PVC patched + resize2fs on

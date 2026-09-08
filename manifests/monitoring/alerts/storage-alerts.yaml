@@ -15,6 +15,10 @@
 # Note: PVC capacity and node disk are already covered by kube-prometheus-stack defaults:
 #   KubePersistentVolumeFillingUp (warning <15%, critical <3%)
 #   NodeFilesystemSpaceFillingUp (predictive, 24h/4h window)
+#   As of the Prometheus TSDB disk-full incident: the predictive rule above did not give
+#   useful lead time (kubelet/containerd failed before eviction fired). Static root-filesystem
+#   usage thresholds (80% warn / 90% crit) now live in node-alerts.yaml
+#   (NodeRootFilesystemUsageHigh/Critical) as a faster-firing companion signal.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

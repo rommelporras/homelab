@@ -7,6 +7,21 @@
 # This catches real memory pressure while ignoring normal NFS I/O from Tdarr.
 #
 # Built-in disabled via: defaultRules.disabled.NodeMemoryMajorPagesFaults: true
+#
+# NodeRootFilesystemUsageHigh/Critical — static usage-percentage thresholds, added alongside
+# (not instead of) the default NodeFilesystemSpaceFillingUp predictive rule.
+#
+# Phase 4.28 dropped a dedicated LonghornNodeStorageLow alert in favor of relying solely on
+# the default predictive rule (24h/4h linear-regression fill-rate). That assumption didn't
+# hold: during the incident that filled the Prometheus TSDB PVC (80Gi), kubelet began
+# crash-looping and containerd's socket went unreachable before disk-pressure eviction or the
+# predictive rule ever fired — a fast/sustained fill doesn't give the regression window enough
+# history to project forward in time. A static threshold is a blunter but faster-firing signal,
+# specifically to buy lead time before kubelet/containerd fail on a node's root/Longhorn-data
+# filesystem. Thresholds: 80% warning, 90% critical — matches the NVMe wear/spare warning
+# convention in storage-alerts.yaml (proactive warning before the failure point).
+# Filesystem type/mountpoint exclusions mirror kube-prometheus-stack's own default rules
+# (excludes tmpfs and other pseudo/overlay filesystems that don't represent real disk).
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -57,3 +72,45 @@ spec:
               hour. Correctable = link retry succeeded (reseat candidate).
               Non-Fatal / Fatal = plan drive replacement.
             runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/longhorn-hardware.md#NodePCIeBusError"
+
+        - alert: NodeRootFilesystemUsageHigh
+          expr: |
+            (
+              1 - (
+                node_filesystem_avail_bytes{fstype!~"tmpfs|overlay", mountpoint="/"}
+                /
+                node_filesystem_size_bytes{fstype!~"tmpfs|overlay", mountpoint="/"}
+              )
+            ) * 100 > 80
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Root filesystem usage high on {{ $labels.instance }}: {{ $value | humanize }}%"
+            description: >-
+              Root filesystem on {{ $labels.instance }} ({{ $labels.mountpoint }}) has been
+              above 80% used for 15+ minutes (current: {{ $value | humanize }}%). Early
+              warning ahead of kubelet/containerd disk-pressure failure — check for runaway
+              logs, image cache, or a PVC/hostPath consuming node-local disk.
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#NodeRootFilesystemUsageHigh"
+
+        - alert: NodeRootFilesystemUsageCritical
+          expr: |
+            (
+              1 - (
+                node_filesystem_avail_bytes{fstype!~"tmpfs|overlay", mountpoint="/"}
+                /
+                node_filesystem_size_bytes{fstype!~"tmpfs|overlay", mountpoint="/"}
+              )
+            ) * 100 > 90
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Root filesystem usage critical on {{ $labels.instance }}: {{ $value | humanize }}%"
+            description: >-
+              Root filesystem on {{ $labels.instance }} ({{ $labels.mountpoint }}) has been
+              above 90% used for 5+ minutes (current: {{ $value | humanize }}%). kubelet and
+              containerd are at imminent risk of failing (crash-loop, unreachable CRI socket)
+              before disk-pressure eviction fires. Free space now.
+            runbook_url: "https://github.com/rommelporras/homelab/blob/main/docs/runbooks/cluster.md#NodeRootFilesystemUsageCritical"
