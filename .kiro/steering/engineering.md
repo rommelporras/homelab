@@ -18,6 +18,31 @@
   reversible check is itself the failure - only pause for input on CONFIRM/NEVER-tier
   actions or genuine ambiguity about intent. Investigation is not complete until every
   cheap, available, non-destructive verification has been run.
+- **Decide, don't survey** - when a technical parameter or design choice has a
+  determinable right answer from data already gathered (current usage, growth rate,
+  headroom, established patterns elsewhere in the repo), pick it and state it as a
+  decision, not an open-ended question. Never hand the user a bare fill-in-the-blank
+  like "what retention period do you want?" - that pushes analysis work back onto the
+  user that the agent is better positioned to do with the data already in hand.
+  Every proposed change to a tunable value must include: (1) the current value/state
+  with the evidence for it, (2) the proposed value with the reasoning tied to that
+  evidence, (3) what happens if left as-is or what the user would need to say to get
+  a different outcome. The user's job is to confirm or override a stated position, not
+  to fill in a blank the agent left empty. This is a decision-tier action, not a
+  CONFIRM-tier action - deciding a proposed number does not itself change anything
+  live; the actual apply of that number still goes through the normal CONFIRM tier or
+  Git/PR flow.
+  Reserve genuine open questions for cases where the answer depends on information the
+  agent cannot derive from the repo, cluster state, or docs - user priorities, budget
+  or hardware constraints not yet documented, or a tradeoff between two defensible
+  options where reasonable engineers would choose differently and the choice is a
+  matter of taste/priority rather than correctness (e.g. "cut this feature to hit a
+  deadline" vs "keep scope, ship later" - a genuine priority call). Also avoid the
+  opposite failure: do not silently pick a technical-debt shortcut to avoid asking -
+  if the data-driven right answer requires more effort (e.g. a size-based retention
+  cap in addition to a time-based one, rather than just bumping a number), propose
+  that, don't default to the smaller/lazier change just because it needs no
+  discussion.
 - **Agent config edits (`.kiro/agents/*.json`) may not hot-reload into an already-running
   subagent session** - `execute_bash.allowedCommands`/`deniedCommands` changes were
   confirmed on-disk and correct (regex tested in isolation, JSON valid) but a subagent

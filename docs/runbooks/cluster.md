@@ -292,3 +292,41 @@ Remove it with:
 ```
 kubectl-homelab delete prometheusrule test-alert -n monitoring
 ```
+
+---
+
+## NodeRootFilesystemUsageHigh
+
+**Severity:** warning
+
+Root filesystem (`/`) usage on a node has been above 80% for 15+ minutes. Early warning ahead of kubelet/containerd disk-pressure failure. Added after the 2026-09-08 incident where the Prometheus TSDB PVC filled its 80Gi volume, kubelet began crash-looping, and containerd's control socket became unreachable - all before the default `NodeFilesystemSpaceFillingUp` predictive rule or kubelet's disk-pressure eviction manager ever fired. This static threshold exists as a faster-firing companion signal, not a replacement for the predictive rule.
+
+### Triage Steps
+
+1. Check per-node disk usage: `kubectl-homelab top nodes` (approximate) or SSH to the node for exact `df -h /`.
+2. Identify the largest consumers on that node:
+   ```
+   ssh wawashi@<node-ip> "sudo du -sh /var/lib/containerd /var/lib/longhorn /var/log 2>/dev/null | sort -rh"
+   ```
+3. Check Longhorn's per-node disk scheduling accounting for a specific volume driving growth: `kubectl-homelab get nodes.longhorn.io <node> -n longhorn-system -o json` and inspect `.status.diskStatus.<disk-id>.storageScheduled` vs `storageMaximum`.
+4. Check for a specific PVC growing unexpectedly: `kubectl-homelab get pvc -A` cross-referenced against Longhorn volume `actualSize`.
+5. Check for containerd image/log buildup: `sudo crictl images` and `sudo crictl rmi --prune` (read current usage first; this is a live node-level cleanup, not GitOps-managed).
+6. If a specific workload's storage growth is the cause (e.g. no `retentionSize`/retention cap on a TSDB-style workload), the fix belongs in Git - update the relevant Helm values or manifest, not a live workaround.
+
+---
+
+## NodeRootFilesystemUsageCritical
+
+**Severity:** critical
+
+Root filesystem (`/`) usage on a node has been above 90% for 5+ minutes. kubelet and containerd are at imminent risk of failing (crash-loop, unreachable CRI socket) - this exact sequence caused the 2026-09-08 cluster-wide reboot incident. Free space immediately; do not wait for the warning-tier triage steps to finish before acting.
+
+### Triage Steps
+
+1. Follow `NodeRootFilesystemUsageHigh` steps 2-5 above, but treat every step as urgent - the node may crash-loop kubelet/containerd before diagnosis completes if usage keeps climbing.
+2. Fastest safe space reclaim options, in order of preference:
+   - `sudo crictl rmi --prune` on the affected node (removes unreferenced container images, safe, reversible via re-pull).
+   - Check for stale/orphaned Longhorn replicas or snapshots scheduled on that node's disk (`kubectl-homelab get replicas.longhorn.io -n longhorn-system`, `kubectl-homelab get snapshots.longhorn.io -A`) - do NOT delete without confirming a healthy second replica exists elsewhere first, and prefer the CONFIRM-tier delete-replica pattern over anything destructive.
+   - If a specific PVC/workload is identified as the runaway consumer, this may need an emergency data trim (see `docs/runbooks/00-EMERGENCY.md`) followed by a proper Git-tracked fix (retention/size cap) once the node is stable.
+3. If the node is already showing kubelet restart-loop symptoms (`sudo journalctl -u kubelet -n 30 --no-pager | grep -i restart`) or containerd socket errors, space reclamation alone may not recover it in time - a controlled node reboot may be necessary. Cordon and drain first if any pods are still schedulable elsewhere: `kubectl-homelab cordon <node>`, then escalate per `docs/runbooks/00-EMERGENCY.md`.
+4. Post-incident: the fix must land in Git (retentionSize cap, PVC resize, or workload-specific cleanup CronJob) so the same node doesn't hit this again - this alert firing twice for the same root cause is a signal the Git-tracked fix didn't actually address the growth driver.
